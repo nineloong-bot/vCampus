@@ -97,25 +97,76 @@ public interface StudentQueryPort {
 
 ## 8. 数据库
 
-```text
-tblDepartment(departmentId CHAR(36) PK, departmentCode VARCHAR(16) UNIQUE,
-              departmentName VARCHAR(64), isActive YESNO, rowVersion INTEGER)
-tblMajor(majorId CHAR(36) PK, departmentId CHAR(36) FK,
-         majorCode VARCHAR(16) UNIQUE, majorName VARCHAR(64), isActive YESNO,
-         rowVersion INTEGER)
-tblClass(classId CHAR(36) PK, majorId CHAR(36) FK,
-         classCode VARCHAR(24) UNIQUE, className VARCHAR(64),
-         enrollmentYear INTEGER, isActive YESNO, rowVersion INTEGER)
-tblStudent(studentId CHAR(36) PK, userId CHAR(36) UNIQUE FK tblUser,
-           studentNumber VARCHAR(24) UNIQUE, studentName VARCHAR(64),
-           gender VARCHAR(16), email VARCHAR(128), phone VARCHAR(32),
-           classId CHAR(36) FK, enrollmentDate DATETIME,
-           studentStatus VARCHAR(16), rowVersion INTEGER,
-           createdAt DATETIME, updatedAt DATETIME)
-tblStudentChange(changeId CHAR(36) PK, studentId CHAR(36), changeType VARCHAR(24),
-                 oldValue LONGTEXT, newValue LONGTEXT, reason VARCHAR(256),
-                 operatorUserId CHAR(36), effectiveDate DATETIME, createdAt DATETIME)
-```
+### 8.1 `tblDepartment` 院系表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `departmentId` | 院系内部编号 | `VARCHAR(36)` | 主键；UUID |
+| `departmentCode` | 院系代码 | `VARCHAR(16)` | 非空；唯一 |
+| `departmentName` | 院系名称 | `VARCHAR(64)` | 非空 |
+| `isActive` | 是否启用 | `YESNO` | 非空；默认 `TRUE` |
+| `rowVersion` | 乐观锁版本号 | `LONG` | 非空；默认 `0` |
+
+### 8.2 `tblMajor` 专业表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `majorId` | 专业内部编号 | `VARCHAR(36)` | 主键；UUID |
+| `departmentId` | 所属院系编号 | `VARCHAR(36)` | 非空；外键关联 `tblDepartment.departmentId` |
+| `majorCode` | 专业代码 | `VARCHAR(16)` | 非空；唯一 |
+| `majorName` | 专业名称 | `VARCHAR(64)` | 非空 |
+| `isActive` | 是否启用 | `YESNO` | 非空；默认 `TRUE` |
+| `rowVersion` | 乐观锁版本号 | `LONG` | 非空；默认 `0` |
+
+索引：`idx_tblMajor_departmentId`。
+
+### 8.3 `tblClass` 班级表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `classId` | 班级内部编号 | `VARCHAR(36)` | 主键；UUID |
+| `majorId` | 所属专业编号 | `VARCHAR(36)` | 非空；外键关联 `tblMajor.majorId` |
+| `classCode` | 班级代码 | `VARCHAR(24)` | 非空；唯一 |
+| `className` | 班级名称 | `VARCHAR(64)` | 非空 |
+| `enrollmentYear` | 入学年份 | `LONG` | 非空；四位年份 |
+| `isActive` | 是否启用 | `YESNO` | 非空；默认 `TRUE` |
+| `rowVersion` | 乐观锁版本号 | `LONG` | 非空；默认 `0` |
+
+索引：`idx_tblClass_majorId`、`idx_tblClass_enrollmentYear`。
+
+### 8.4 `tblStudent` 学生档案表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `studentId` | 学生内部编号 | `VARCHAR(36)` | 主键；UUID |
+| `userId` | 绑定的用户编号 | `VARCHAR(36)` | 非空；唯一；外键关联 `tblUser.userId` |
+| `studentNumber` | 学号 | `VARCHAR(24)` | 非空；唯一 |
+| `studentName` | 学生姓名 | `VARCHAR(64)` | 非空 |
+| `gender` | 性别 | `VARCHAR(16)` | 非空；受控枚举值 |
+| `email` | 电子邮箱 | `VARCHAR(128)` | 可空；非空时校验邮箱格式 |
+| `phone` | 联系电话 | `VARCHAR(32)` | 可空 |
+| `classId` | 所属班级编号 | `VARCHAR(36)` | 非空；外键关联 `tblClass.classId` |
+| `enrollmentDate` | 入学日期 | `DATETIME` | 非空 |
+| `studentStatus` | 学籍状态 | `VARCHAR(16)` | 非空；`ACTIVE/SUSPENDED/GRADUATED/WITHDRAWN` |
+| `rowVersion` | 乐观锁版本号 | `LONG` | 非空；默认 `0` |
+| `createdAt` | 档案创建时间 | `DATETIME` | 非空 |
+| `updatedAt` | 最后更新时间 | `DATETIME` | 非空 |
+
+索引：`idx_tblStudent_classId`、`idx_tblStudent_studentStatus`。
+
+### 8.5 `tblStudentChange` 学籍变更记录表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `changeId` | 变更记录编号 | `VARCHAR(36)` | 主键；UUID |
+| `studentId` | 学生内部编号 | `VARCHAR(36)` | 非空；外键关联 `tblStudent.studentId` |
+| `changeType` | 变更类型 | `VARCHAR(24)` | 非空；例如 `CLASS_CHANGE/STATUS_CHANGE` |
+| `oldValue` | 变更前内容 | `LONGTEXT` | 可空；保存结构化文本快照 |
+| `newValue` | 变更后内容 | `LONGTEXT` | 非空；保存结构化文本快照 |
+| `reason` | 变更原因 | `VARCHAR(256)` | 非空 |
+| `operatorUserId` | 操作人用户编号 | `VARCHAR(36)` | 非空；外键关联 `tblUser.userId` |
+| `effectiveDate` | 变更生效日期 | `DATETIME` | 非空 |
+| `createdAt` | 记录创建时间 | `DATETIME` | 非空 |
 
 班级必须属于专业，专业必须属于院系。停用上级组织前必须确认不存在仍启用的下级或活动学生。
 

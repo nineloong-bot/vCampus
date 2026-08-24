@@ -160,41 +160,193 @@ public interface ShopAdminService {
 
 ## 13. 数据库
 
-```text
-tblSellerApplication(applicationId PK, applicantUserId FK, shopName,
-                     description, category, contact, applicationStatus,
-                     reviewReason NULL, reviewerUserId NULL,
-                     submittedAt, reviewedAt NULL, rowVersion)
-tblShop(shopId PK, ownerUserId UNIQUE FK, shopName, description,
-        category, contact, shopStatus, rowVersion, createdAt, updatedAt)
-tblProduct(productId PK, shopId FK, productName, category, description,
-           productStatus, salesCount, rowVersion, createdAt, updatedAt)
-tblProductSku(skuId PK, productId FK, skuName, unitPrice DECIMAL(12,2),
-              stockQuantity INTEGER, reservedQuantity INTEGER,
-              isActive, rowVersion)
-tblProductBehavior(behaviorId PK, userId FK, productId FK, category,
-                   behaviorType, createdAt)
-tblCart(cartId PK, userId UNIQUE FK, updatedAt)
-tblCartItem(cartItemId PK, cartId FK, skuId FK, quantity,
-            rowVersion, createdAt, updatedAt)
-tblOrderGroup(orderGroupId PK, buyerUserId FK, totalAmount DECIMAL(12,2),
-              groupStatus, createdAt, rowVersion)
-tblOrder(orderId PK, orderGroupId FK, shopId FK,
-         orderNumber UNIQUE, orderAmount DECIMAL(12,2), orderStatus,
-         createdAt, paidAt NULL, shippedAt NULL, completedAt NULL,
-         rowVersion)
-tblOrderItem(orderItemId PK, orderId FK, skuId, productNameSnapshot,
-             skuNameSnapshot, shopNameSnapshot, unitPrice, quantity,
-             lineAmount)
-tblPayment(paymentId PK, orderGroupId UNIQUE FK, paymentNumber UNIQUE,
-           successfulChannel NULL, amount DECIMAL(12,2), paymentStatus,
-           completedAt NULL, rowVersion)
-tblPaymentAttempt(attemptId PK, paymentId FK, channel,
-                  attemptStatus, createdAt, completedAt NULL)
-tblInventoryReservation(reservationId PK, paymentId FK, skuId FK,
-                        quantity, reservationStatus, expiresAt,
-                        releasedAt NULL)
-```
+### 13.1 `tblSellerApplication` 店主申请表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `applicationId` | 申请内部编号 | `VARCHAR(36)` | 主键；UUID |
+| `applicantUserId` | 申请人用户编号 | `VARCHAR(36)` | 非空；外键关联 `tblUser.userId` |
+| `shopName` | 拟用店铺名称 | `VARCHAR(128)` | 非空 |
+| `description` | 店铺简介 | `LONGTEXT` | 非空 |
+| `category` | 经营分类 | `VARCHAR(64)` | 非空 |
+| `contact` | 店铺联系方式 | `VARCHAR(128)` | 非空 |
+| `applicationStatus` | 申请状态 | `VARCHAR(16)` | 非空；`DRAFT/PENDING/APPROVED/REJECTED` |
+| `reviewReason` | 审核意见 | `VARCHAR(256)` | 可空；驳回时非空 |
+| `reviewerUserId` | 审核管理员编号 | `VARCHAR(36)` | 可空；外键关联 `tblUser.userId` |
+| `submittedAt` | 提交时间 | `DATETIME` | 可空；草稿状态可为空 |
+| `reviewedAt` | 审核时间 | `DATETIME` | 可空；未审核时为空 |
+| `rowVersion` | 乐观锁版本号 | `LONG` | 非空；默认 `0` |
+
+索引：`idx_tblSellerApplication_applicant`、`idx_tblSellerApplication_status`。
+
+### 13.2 `tblShop` 店铺表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `shopId` | 店铺内部编号 | `VARCHAR(36)` | 主键；UUID |
+| `ownerUserId` | 店主用户编号 | `VARCHAR(36)` | 非空；唯一；外键关联 `tblUser.userId` |
+| `shopName` | 店铺名称 | `VARCHAR(128)` | 非空 |
+| `description` | 店铺简介 | `LONGTEXT` | 非空 |
+| `category` | 经营分类 | `VARCHAR(64)` | 非空 |
+| `contact` | 店铺联系方式 | `VARCHAR(128)` | 非空 |
+| `shopStatus` | 店铺状态 | `VARCHAR(16)` | 非空；`ACTIVE/SUSPENDED` |
+| `rowVersion` | 乐观锁版本号 | `LONG` | 非空；默认 `0` |
+| `createdAt` | 店铺创建时间 | `DATETIME` | 非空 |
+| `updatedAt` | 最后更新时间 | `DATETIME` | 非空 |
+
+### 13.3 `tblProduct` 商品表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `productId` | 商品内部编号 | `VARCHAR(36)` | 主键；UUID |
+| `shopId` | 所属店铺编号 | `VARCHAR(36)` | 非空；外键关联 `tblShop.shopId` |
+| `productName` | 商品名称 | `VARCHAR(256)` | 非空 |
+| `category` | 商品分类 | `VARCHAR(64)` | 非空 |
+| `description` | 商品详情 | `LONGTEXT` | 非空 |
+| `productStatus` | 商品状态 | `VARCHAR(16)` | 非空；`DRAFT/ACTIVE/INACTIVE` |
+| `salesCount` | 累计成交件数 | `LONG` | 非空；默认 `0` |
+| `rowVersion` | 乐观锁版本号 | `LONG` | 非空；默认 `0` |
+| `createdAt` | 商品创建时间 | `DATETIME` | 非空 |
+| `updatedAt` | 最后更新时间 | `DATETIME` | 非空 |
+
+索引：`idx_tblProduct_shopId`、`idx_tblProduct_category_status`。
+
+### 13.4 `tblProductSku` 商品规格与库存表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `skuId` | 商品规格编号 | `VARCHAR(36)` | 主键；UUID |
+| `productId` | 所属商品编号 | `VARCHAR(36)` | 非空；外键关联 `tblProduct.productId` |
+| `skuName` | 规格名称 | `VARCHAR(128)` | 非空；例如颜色和尺寸组合 |
+| `unitPrice` | 当前销售单价 | `DECIMAL(12,2)` | 非空；大于或等于 `0` |
+| `stockQuantity` | 实际库存数量 | `LONG` | 非空；大于或等于 `0` |
+| `reservedQuantity` | 已预留未支付数量 | `LONG` | 非空；默认 `0`，不大于实际库存 |
+| `isActive` | 规格是否可售 | `YESNO` | 非空；默认 `TRUE` |
+| `rowVersion` | 乐观锁版本号 | `LONG` | 非空；默认 `0` |
+
+索引：`idx_tblProductSku_productId`、`idx_tblProductSku_isActive`。
+
+### 13.5 `tblProductBehavior` 用户商品行为表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `behaviorId` | 行为记录编号 | `VARCHAR(36)` | 主键；UUID |
+| `userId` | 用户编号 | `VARCHAR(36)` | 非空；外键关联 `tblUser.userId` |
+| `productId` | 商品编号 | `VARCHAR(36)` | 非空；外键关联 `tblProduct.productId` |
+| `category` | 行为发生时的商品分类 | `VARCHAR(64)` | 非空；用于推荐聚合 |
+| `behaviorType` | 行为类型 | `VARCHAR(16)` | 非空；`VIEW/ADD_CART/PURCHASE` |
+| `createdAt` | 行为发生时间 | `DATETIME` | 非空 |
+
+索引：`idx_tblProductBehavior_user_time`、`idx_tblProductBehavior_product_time`。
+
+### 13.6 `tblCart` 购物车表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `cartId` | 购物车内部编号 | `VARCHAR(36)` | 主键；UUID |
+| `userId` | 所属用户编号 | `VARCHAR(36)` | 非空；唯一；外键关联 `tblUser.userId` |
+| `updatedAt` | 最后更新时间 | `DATETIME` | 非空 |
+
+### 13.7 `tblCartItem` 购物车商品项表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `cartItemId` | 购物车项编号 | `VARCHAR(36)` | 主键；UUID |
+| `cartId` | 所属购物车编号 | `VARCHAR(36)` | 非空；外键关联 `tblCart.cartId` |
+| `skuId` | 商品规格编号 | `VARCHAR(36)` | 非空；外键关联 `tblProductSku.skuId` |
+| `quantity` | 加购数量 | `LONG` | 非空；大于 `0` |
+| `rowVersion` | 乐观锁版本号 | `LONG` | 非空；默认 `0` |
+| `createdAt` | 首次加入时间 | `DATETIME` | 非空 |
+| `updatedAt` | 最后更新时间 | `DATETIME` | 非空 |
+
+唯一索引：`uk_tblCartItem_cart_sku(cartId, skuId)`。
+
+### 13.8 `tblOrderGroup` 订单组表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `orderGroupId` | 订单组内部编号 | `VARCHAR(36)` | 主键；UUID |
+| `buyerUserId` | 买家用户编号 | `VARCHAR(36)` | 非空；外键关联 `tblUser.userId` |
+| `totalAmount` | 订单组总金额 | `DECIMAL(12,2)` | 非空；等于所有子订单金额之和 |
+| `groupStatus` | 订单组状态 | `VARCHAR(24)` | 非空；`PENDING_PAYMENT/PAID/COMPLETED/CANCELLED` |
+| `createdAt` | 创建时间 | `DATETIME` | 非空 |
+| `rowVersion` | 乐观锁版本号 | `LONG` | 非空；默认 `0` |
+
+索引：`idx_tblOrderGroup_buyer_time`、`idx_tblOrderGroup_status`。
+
+### 13.9 `tblOrder` 店铺子订单表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `orderId` | 子订单内部编号 | `VARCHAR(36)` | 主键；UUID |
+| `orderGroupId` | 所属订单组编号 | `VARCHAR(36)` | 非空；外键关联 `tblOrderGroup.orderGroupId` |
+| `shopId` | 店铺编号 | `VARCHAR(36)` | 非空；外键关联 `tblShop.shopId` |
+| `orderNumber` | 对外订单号 | `VARCHAR(32)` | 非空；唯一 |
+| `orderAmount` | 子订单金额 | `DECIMAL(12,2)` | 非空；等于该订单明细金额之和 |
+| `orderStatus` | 子订单状态 | `VARCHAR(24)` | 非空；`PENDING_PAYMENT/PAID/PREPARING/SHIPPED/COMPLETED/CANCELLED` |
+| `createdAt` | 创建时间 | `DATETIME` | 非空 |
+| `paidAt` | 支付成功时间 | `DATETIME` | 可空 |
+| `shippedAt` | 店主发货时间 | `DATETIME` | 可空 |
+| `completedAt` | 订单完成时间 | `DATETIME` | 可空 |
+| `rowVersion` | 乐观锁版本号 | `LONG` | 非空；默认 `0` |
+
+索引：`idx_tblOrder_groupId`、`idx_tblOrder_shop_status`。
+
+### 13.10 `tblOrderItem` 订单明细表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `orderItemId` | 订单明细编号 | `VARCHAR(36)` | 主键；UUID |
+| `orderId` | 所属子订单编号 | `VARCHAR(36)` | 非空；外键关联 `tblOrder.orderId` |
+| `skuId` | 下单时商品规格编号 | `VARCHAR(36)` | 非空；保留逻辑引用，不级联删除 |
+| `productNameSnapshot` | 下单时商品名称 | `VARCHAR(256)` | 非空；历史快照 |
+| `skuNameSnapshot` | 下单时规格名称 | `VARCHAR(128)` | 非空；历史快照 |
+| `shopNameSnapshot` | 下单时店铺名称 | `VARCHAR(128)` | 非空；历史快照 |
+| `unitPrice` | 成交单价 | `DECIMAL(12,2)` | 非空；大于或等于 `0` |
+| `quantity` | 成交数量 | `LONG` | 非空；大于 `0` |
+| `lineAmount` | 明细金额 | `DECIMAL(12,2)` | 非空；等于成交单价乘数量 |
+
+索引：`idx_tblOrderItem_orderId`。
+
+### 13.11 `tblPayment` 聚合支付单表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `paymentId` | 支付单内部编号 | `VARCHAR(36)` | 主键；UUID |
+| `orderGroupId` | 订单组编号 | `VARCHAR(36)` | 非空；唯一；外键关联 `tblOrderGroup.orderGroupId` |
+| `paymentNumber` | 对外支付单号 | `VARCHAR(32)` | 非空；唯一 |
+| `successfulChannel` | 最终成功支付渠道 | `VARCHAR(16)` | 可空；成功后为 `WECHAT/ALIPAY/BANK_CARD` |
+| `amount` | 应付金额 | `DECIMAL(12,2)` | 非空；等于订单组总金额 |
+| `paymentStatus` | 支付单状态 | `VARCHAR(16)` | 非空；`PENDING/SUCCEEDED/CANCELLED/EXPIRED` |
+| `completedAt` | 支付终结时间 | `DATETIME` | 可空；仍待支付时为空 |
+| `rowVersion` | 乐观锁版本号 | `LONG` | 非空；默认 `0` |
+
+### 13.12 `tblPaymentAttempt` 模拟支付尝试表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `attemptId` | 支付尝试编号 | `VARCHAR(36)` | 主键；UUID |
+| `paymentId` | 所属支付单编号 | `VARCHAR(36)` | 非空；外键关联 `tblPayment.paymentId` |
+| `channel` | 本次模拟支付渠道 | `VARCHAR(16)` | 非空；`WECHAT/ALIPAY/BANK_CARD` |
+| `attemptStatus` | 本次尝试结果 | `VARCHAR(16)` | 非空；`STARTED/SUCCEEDED/FAILED/CANCELLED` |
+| `createdAt` | 尝试开始时间 | `DATETIME` | 非空 |
+| `completedAt` | 尝试结束时间 | `DATETIME` | 可空；尚未结束时为空 |
+
+索引：`idx_tblPaymentAttempt_payment_time`。
+
+### 13.13 `tblInventoryReservation` 库存预留表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `reservationId` | 预留记录编号 | `VARCHAR(36)` | 主键；UUID |
+| `paymentId` | 支付单编号 | `VARCHAR(36)` | 非空；外键关联 `tblPayment.paymentId` |
+| `skuId` | 商品规格编号 | `VARCHAR(36)` | 非空；外键关联 `tblProductSku.skuId` |
+| `quantity` | 预留数量 | `LONG` | 非空；大于 `0` |
+| `reservationStatus` | 预留状态 | `VARCHAR(16)` | 非空；`ACTIVE/CONSUMED/RELEASED` |
+| `expiresAt` | 预留过期时间 | `DATETIME` | 非空 |
+| `releasedAt` | 消耗或释放时间 | `DATETIME` | 可空；有效预留时为空 |
+
+唯一索引：`uk_tblInventoryReservation_payment_sku(paymentId, skuId)`；查询索引：`idx_tblInventoryReservation_status_expiry`。
 
 数据库约束要求价格、数量和金额非负；订单金额等于明细金额之和；支付金额等于订单组总额。
 

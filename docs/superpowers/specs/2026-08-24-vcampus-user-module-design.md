@@ -110,28 +110,59 @@ public interface AuthorizationPort {
 
 ## 8. 数据库
 
-```text
-tblUser
-- userId CHAR(36) PK
-- username VARCHAR(32) NOT NULL UNIQUE
-- passwordHash VARCHAR(256) NOT NULL
-- passwordSalt VARCHAR(128) NOT NULL
-- passwordIterations INTEGER NOT NULL
-- roleCode VARCHAR(16) NOT NULL FK tblRole
-- accountStatus VARCHAR(16) NOT NULL
-- failedLoginCount INTEGER NOT NULL DEFAULT 0
-- lockedUntil DATETIME NULL
-- lastLoginAt DATETIME NULL
-- rowVersion INTEGER NOT NULL DEFAULT 0
-- createdAt DATETIME NOT NULL
-- updatedAt DATETIME NOT NULL
+### 8.1 `tblUser` 用户账户表
 
-tblRole(roleCode PK, roleName)
-tblPermission(permissionCode PK, permissionName)
-tblRolePermission(roleCode, permissionCode, PK(roleCode, permissionCode))
-tblAuditLog(auditId PK, userId NULL, actionCode, targetType,
-            targetId NULL, resultCode, clientAddress, createdAt)
-```
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `userId` | 用户内部编号 | `VARCHAR(36)` | 主键；UUID |
+| `username` | 登录用户名 | `VARCHAR(32)` | 非空；规范化为小写后唯一 |
+| `passwordHash` | 密码哈希 | `VARCHAR(256)` | 非空；PBKDF2 结果，不保存明文 |
+| `passwordSalt` | 密码随机盐 | `VARCHAR(128)` | 非空；每个账户独立生成 |
+| `passwordIterations` | 密码哈希迭代次数 | `LONG` | 非空；大于零 |
+| `roleCode` | 基础角色代码 | `VARCHAR(16)` | 非空；外键关联 `tblRole.roleCode` |
+| `accountStatus` | 账户状态 | `VARCHAR(16)` | 非空；`PENDING/ACTIVE/DISABLED/CANCELLED` |
+| `failedLoginCount` | 连续登录失败次数 | `LONG` | 非空；默认 `0` |
+| `lockedUntil` | 临时锁定截止时间 | `DATETIME` | 可空；未锁定时为空 |
+| `lastLoginAt` | 最近成功登录时间 | `DATETIME` | 可空；从未登录时为空 |
+| `rowVersion` | 乐观锁版本号 | `LONG` | 非空；默认 `0`，每次更新加一 |
+| `createdAt` | 创建时间 | `DATETIME` | 非空 |
+| `updatedAt` | 最后更新时间 | `DATETIME` | 非空 |
+
+索引：`uk_tblUser_username` 唯一索引；`idx_tblUser_roleCode`；`idx_tblUser_accountStatus`。
+
+### 8.2 `tblRole` 角色表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `roleCode` | 角色代码 | `VARCHAR(16)` | 主键；`STUDENT/TEACHER/ADMIN` |
+| `roleName` | 角色中文名称 | `VARCHAR(32)` | 非空 |
+
+### 8.3 `tblPermission` 权限表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `permissionCode` | 权限代码 | `VARCHAR(64)` | 主键；例如 `USER_READ_ALL` |
+| `permissionName` | 权限中文名称 | `VARCHAR(64)` | 非空 |
+
+### 8.4 `tblRolePermission` 角色权限关联表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `roleCode` | 角色代码 | `VARCHAR(16)` | 联合主键；外键关联 `tblRole.roleCode` |
+| `permissionCode` | 权限代码 | `VARCHAR(64)` | 联合主键；外键关联 `tblPermission.permissionCode` |
+
+### 8.5 `tblAuditLog` 安全审计日志表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `auditId` | 审计记录编号 | `VARCHAR(36)` | 主键；UUID |
+| `userId` | 操作用户编号 | `VARCHAR(36)` | 可空；外键关联 `tblUser.userId`，登录失败时可为空 |
+| `actionCode` | 操作代码 | `VARCHAR(64)` | 非空；例如 `USER_LOGIN` |
+| `targetType` | 被操作对象类型 | `VARCHAR(32)` | 非空；例如 `USER` |
+| `targetId` | 被操作对象编号 | `VARCHAR(36)` | 可空 |
+| `resultCode` | 操作结果代码 | `VARCHAR(64)` | 非空；成功或错误码 |
+| `clientAddress` | 客户端网络地址 | `VARCHAR(64)` | 可空 |
+| `createdAt` | 操作发生时间 | `DATETIME` | 非空 |
 
 `username` 以规范化小写值建立唯一索引。PBKDF2 使用每账户随机盐，迭代次数保存在账户记录中，便于以后升级参数。
 

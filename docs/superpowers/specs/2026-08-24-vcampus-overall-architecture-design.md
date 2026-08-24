@@ -134,7 +134,23 @@ public interface ResourceLockManager {
 
 ## 9. 幂等请求
 
-所有写命令必须携带唯一 `requestId`。`tblRequestDedup(requestId, userId, command, resultCode, responseSnapshot, createdAt)` 保存 24 小时。相同请求完成后返回原响应；仍在处理中返回 `COMMON_REQUEST_IN_PROGRESS`。登录前使用客户端实例 ID 与 `requestId` 组合去重。
+所有写命令必须携带唯一 `requestId`。`tblRequestDedup` 保存 24 小时；相同请求完成后返回原响应，仍在处理中返回 `COMMON_REQUEST_IN_PROGRESS`。登录前使用客户端实例 ID 与 `requestId` 组合去重。
+
+### 9.1 `tblRequestDedup` 请求幂等记录表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `requestId` | 客户端请求唯一编号 | `VARCHAR(36)` | 主键；UUID |
+| `userId` | 发起请求的用户编号 | `VARCHAR(36)` | 可空；登录前请求为空 |
+| `clientInstanceId` | 客户端实例编号 | `VARCHAR(36)` | 非空；登录前参与去重 |
+| `command` | 消息命令名称 | `VARCHAR(64)` | 非空 |
+| `processingStatus` | 请求处理状态 | `VARCHAR(16)` | 非空；`PROCESSING/COMPLETED` |
+| `resultCode` | 最终结果代码 | `VARCHAR(64)` | 可空；处理完成后非空 |
+| `responseSnapshot` | 响应结果快照 | `LONGTEXT` | 可空；处理完成后保存可重放响应 |
+| `createdAt` | 首次接收时间 | `DATETIME` | 非空 |
+| `completedAt` | 处理完成时间 | `DATETIME` | 可空 |
+
+索引：`idx_tblRequestDedup_createdAt`，用于清理超过 24 小时的记录。
 
 ## 10. Access 数据规范
 
@@ -145,6 +161,20 @@ public interface ResourceLockManager {
 - 用户、学生、课程、图书、商品采用逻辑停用；交易和审计记录禁止物理删除。
 - 索引命名 `idx_<table>_<field>`，唯一索引命名 `uk_<table>_<field>`。
 - 密码只保存 PBKDF2 哈希、随机盐和迭代次数。
+
+统一 Access 字段类型：
+
+| 数据用途 | Access 类型 | Java 类型 | 使用要求 |
+|---|---|---|---|
+| UUID 内部编号 | `VARCHAR(36)` | `String` | 由服务端生成 UUID |
+| 短文本、枚举代码 | `VARCHAR(n)` | `String`/`enum` | 长度按字段表固定 |
+| 长描述或快照 | `LONGTEXT` | `String` | 不参与唯一索引 |
+| 整数、数量、版本号 | `LONG` | `int`/`long` | 非负字段由服务端校验 |
+| 金额 | `DECIMAL(12,2)` | `BigDecimal` | 禁止使用 `double` 计算金额 |
+| 学分 | `DECIMAL(4,1)` | `BigDecimal` | 大于零 |
+| 日期时间 | `DATETIME` | `LocalDateTime` | 由服务端统一生成 |
+| 日期 | `DATETIME` | `LocalDate` | 写入时使用当天零点 |
+| 布尔值 | `YESNO` | `boolean` | 明确指定默认值 |
 
 数据库按 `001_common`、`010_user`、`020_student`、`030_course`、`040_library`、`050_shop` 记录结构。Access 模板数据库是可执行结构的权威来源，SQL 文件用于评审和初始化说明。
 

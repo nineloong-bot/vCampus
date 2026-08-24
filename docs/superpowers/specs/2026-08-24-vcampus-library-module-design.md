@@ -67,17 +67,63 @@ public interface LibraryService {
 
 ## 8. 数据库
 
-```text
-tblBook(bookId PK, isbn VARCHAR(20) UNIQUE, title, author, publisher,
-        publishDate, category, description, isActive, rowVersion)
-tblBookCopy(copyId PK, bookId FK, barcode VARCHAR(32) UNIQUE,
-            locationCode, copyStatus, rowVersion)
-tblBookLoan(loanId PK, copyId FK, borrowerUserId FK,
-            borrowedAt, dueAt, returnedAt NULL, renewCount,
-            loanStatus, rowVersion)
-tblLibraryPolicy(policyId PK, roleCode UNIQUE, maxActiveLoans,
-                 loanDays, maxRenewals, renewalDays, rowVersion)
-```
+### 8.1 `tblBook` 图书书目表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `bookId` | 书目内部编号 | `VARCHAR(36)` | 主键；UUID |
+| `isbn` | 国际标准书号 | `VARCHAR(20)` | 非空；唯一 |
+| `title` | 书名 | `VARCHAR(256)` | 非空 |
+| `author` | 作者 | `VARCHAR(128)` | 非空 |
+| `publisher` | 出版社 | `VARCHAR(128)` | 可空 |
+| `publishDate` | 出版日期 | `DATETIME` | 可空 |
+| `category` | 图书分类 | `VARCHAR(64)` | 非空 |
+| `description` | 图书简介 | `LONGTEXT` | 可空 |
+| `isActive` | 书目是否启用 | `YESNO` | 非空；默认 `TRUE` |
+| `rowVersion` | 乐观锁版本号 | `LONG` | 非空；默认 `0` |
+
+索引：`idx_tblBook_title`、`idx_tblBook_author`、`idx_tblBook_category`。
+
+### 8.2 `tblBookCopy` 馆藏副本表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `copyId` | 馆藏副本编号 | `VARCHAR(36)` | 主键；UUID |
+| `bookId` | 所属书目编号 | `VARCHAR(36)` | 非空；外键关联 `tblBook.bookId` |
+| `barcode` | 馆藏条码 | `VARCHAR(32)` | 非空；唯一 |
+| `locationCode` | 馆藏位置代码 | `VARCHAR(64)` | 非空；例如书架或阅览室编号 |
+| `copyStatus` | 副本状态 | `VARCHAR(16)` | 非空；`AVAILABLE/BORROWED/LOST/DAMAGED` |
+| `rowVersion` | 乐观锁版本号 | `LONG` | 非空；默认 `0` |
+
+索引：`idx_tblBookCopy_bookId`、`idx_tblBookCopy_copyStatus`。
+
+### 8.3 `tblBookLoan` 图书借阅记录表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `loanId` | 借阅记录编号 | `VARCHAR(36)` | 主键；UUID |
+| `copyId` | 馆藏副本编号 | `VARCHAR(36)` | 非空；外键关联 `tblBookCopy.copyId` |
+| `borrowerUserId` | 借阅人用户编号 | `VARCHAR(36)` | 非空；外键关联 `tblUser.userId` |
+| `borrowedAt` | 借出时间 | `DATETIME` | 非空 |
+| `dueAt` | 应还时间 | `DATETIME` | 非空；晚于借出时间 |
+| `returnedAt` | 实际归还时间 | `DATETIME` | 可空；未归还时为空 |
+| `renewCount` | 已续借次数 | `LONG` | 非空；默认 `0` |
+| `loanStatus` | 借阅状态 | `VARCHAR(16)` | 非空；`ACTIVE/RETURNED/OVERDUE/LOST` |
+| `rowVersion` | 乐观锁版本号 | `LONG` | 非空；默认 `0` |
+
+索引：`idx_tblBookLoan_copyId`、`idx_tblBookLoan_borrower_status`、`idx_tblBookLoan_dueAt`。
+
+### 8.4 `tblLibraryPolicy` 借阅规则表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `policyId` | 规则内部编号 | `VARCHAR(36)` | 主键；UUID |
+| `roleCode` | 适用角色代码 | `VARCHAR(16)` | 非空；唯一；外键关联 `tblRole.roleCode` |
+| `maxActiveLoans` | 最大同时在借数量 | `LONG` | 非空；大于或等于 `0` |
+| `loanDays` | 默认借阅天数 | `LONG` | 非空；大于 `0` |
+| `maxRenewals` | 最大续借次数 | `LONG` | 非空；大于或等于 `0` |
+| `renewalDays` | 每次续借增加天数 | `LONG` | 非空；大于 `0` |
+| `rowVersion` | 乐观锁版本号 | `LONG` | 非空；默认 `0` |
 
 `isbn` 标识书目，`barcode` 标识实体副本。有效借阅的查询条件为 `loanStatus IN (ACTIVE, OVERDUE)`。
 

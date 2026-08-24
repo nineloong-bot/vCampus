@@ -109,28 +109,107 @@ public interface CourseQueryPort {
 
 ## 9. 数据库
 
-```text
-tblTerm(termId PK, termCode UNIQUE, termName, startDate, endDate,
-        enrollmentStartAt, enrollmentEndAt,
-        adjustmentStartAt, adjustmentEndAt, termStatus, rowVersion)
-tblCourse(courseId PK, courseCode UNIQUE, courseName, credit DECIMAL(4,1),
-          totalHours INTEGER, description, isActive, rowVersion)
-tblCourseOffering(offeringId PK, termId FK, courseId FK, teacherUserId FK,
-                  className, capacity, enrolledCount, offeringStatus,
-                  rowVersion)
-tblCourseSchedule(scheduleId PK, offeringId FK, dayOfWeek,
-                  startPeriod, endPeriod, startWeek, endWeek, classroom)
-tblEnrollment(enrollmentId PK, offeringId FK, studentId FK,
-              enrollmentType, enrollmentStatus, enrolledAt, droppedAt,
-              rowVersion)
-tblEnrollmentAdjustment(adjustmentId PK, studentId, adjustmentType,
-                        sourceOfferingId NULL, targetOfferingId NULL,
-                        operationResult, failureCode NULL, operatedAt)
-tblCourseAttempt(attemptId PK, studentId, courseId, termId,
-                 outcome, sourceReference, importedAt)
-```
+### 9.1 `tblTerm` 学期表
 
-唯一约束防止同一学生对同一教学班创建重复有效记录。`enrolledCount` 是性能字段，维护任务按有效记录核对并生成异常报告。
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `termId` | 学期内部编号 | `VARCHAR(36)` | 主键；UUID |
+| `termCode` | 学期代码 | `VARCHAR(24)` | 非空；唯一，例如 `2026-2027-1` |
+| `termName` | 学期名称 | `VARCHAR(64)` | 非空 |
+| `startDate` | 开课日期 | `DATETIME` | 非空 |
+| `endDate` | 结课日期 | `DATETIME` | 非空；晚于 `startDate` |
+| `enrollmentStartAt` | 正常选课开始时间 | `DATETIME` | 非空 |
+| `enrollmentEndAt` | 正常选课结束时间 | `DATETIME` | 非空；晚于正常选课开始时间 |
+| `adjustmentStartAt` | 退改补开始时间 | `DATETIME` | 非空；可设置在开课之后 |
+| `adjustmentEndAt` | 退改补结束时间 | `DATETIME` | 非空；晚于退改补开始时间 |
+| `termStatus` | 学期状态 | `VARCHAR(16)` | 非空；`PLANNED/ACTIVE/CLOSED` |
+| `rowVersion` | 乐观锁版本号 | `LONG` | 非空；默认 `0` |
+
+### 9.2 `tblCourse` 课程目录表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `courseId` | 课程内部编号 | `VARCHAR(36)` | 主键；UUID |
+| `courseCode` | 课程代码 | `VARCHAR(24)` | 非空；唯一 |
+| `courseName` | 课程名称 | `VARCHAR(128)` | 非空 |
+| `credit` | 课程学分 | `DECIMAL(4,1)` | 非空；大于 `0` |
+| `totalHours` | 总学时 | `LONG` | 非空；大于 `0` |
+| `description` | 课程简介 | `LONGTEXT` | 可空 |
+| `isActive` | 是否启用 | `YESNO` | 非空；默认 `TRUE` |
+| `rowVersion` | 乐观锁版本号 | `LONG` | 非空；默认 `0` |
+
+### 9.3 `tblCourseOffering` 教学班表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `offeringId` | 教学班内部编号 | `VARCHAR(36)` | 主键；UUID |
+| `termId` | 所属学期编号 | `VARCHAR(36)` | 非空；外键关联 `tblTerm.termId` |
+| `courseId` | 对应课程编号 | `VARCHAR(36)` | 非空；外键关联 `tblCourse.courseId` |
+| `teacherUserId` | 授课教师用户编号 | `VARCHAR(36)` | 非空；外键关联 `tblUser.userId`，账户角色必须为教师 |
+| `className` | 教学班名称 | `VARCHAR(64)` | 非空 |
+| `capacity` | 容量上限 | `LONG` | 非空；大于 `0` |
+| `enrolledCount` | 当前有效选课人数 | `LONG` | 非空；默认 `0`，不得超过容量 |
+| `offeringStatus` | 教学班状态 | `VARCHAR(16)` | 非空；`DRAFT/OPEN/CLOSED/CANCELLED` |
+| `rowVersion` | 乐观锁版本号 | `LONG` | 非空；默认 `0` |
+
+索引：`idx_tblCourseOffering_termId`、`idx_tblCourseOffering_courseId`、`idx_tblCourseOffering_teacherUserId`。
+
+### 9.4 `tblCourseSchedule` 教学班上课时间表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `scheduleId` | 上课安排编号 | `VARCHAR(36)` | 主键；UUID |
+| `offeringId` | 教学班编号 | `VARCHAR(36)` | 非空；外键关联 `tblCourseOffering.offeringId` |
+| `dayOfWeek` | 星期 | `LONG` | 非空；`1–7` 表示周一至周日 |
+| `startPeriod` | 开始节次 | `LONG` | 非空；大于 `0` |
+| `endPeriod` | 结束节次 | `LONG` | 非空；不小于开始节次 |
+| `startWeek` | 开始周次 | `LONG` | 非空；大于 `0` |
+| `endWeek` | 结束周次 | `LONG` | 非空；不小于开始周次 |
+| `classroom` | 上课地点 | `VARCHAR(64)` | 非空 |
+
+### 9.5 `tblEnrollment` 学生选课记录表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `enrollmentId` | 选课记录编号 | `VARCHAR(36)` | 主键；UUID |
+| `offeringId` | 教学班编号 | `VARCHAR(36)` | 非空；外键关联 `tblCourseOffering.offeringId` |
+| `studentId` | 学生内部编号 | `VARCHAR(36)` | 非空；外键关联 `tblStudent.studentId` |
+| `enrollmentType` | 选课类型 | `VARCHAR(16)` | 非空；`NORMAL/LATE_ADD/RETAKE` |
+| `enrollmentStatus` | 选课状态 | `VARCHAR(16)` | 非空；`ACTIVE/DROPPED` |
+| `enrolledAt` | 选入时间 | `DATETIME` | 非空 |
+| `droppedAt` | 退课时间 | `DATETIME` | 可空；有效记录为空 |
+| `rowVersion` | 乐观锁版本号 | `LONG` | 非空；默认 `0` |
+
+唯一索引：`uk_tblEnrollment_student_offering(studentId, offeringId)`。每名学生对同一教学班只保留一条记录；退课后再次补选该教学班时重新激活原记录，完整操作历史由 `tblEnrollmentAdjustment` 保存。
+
+### 9.6 `tblEnrollmentAdjustment` 退改补操作日志表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `adjustmentId` | 异动记录编号 | `VARCHAR(36)` | 主键；UUID |
+| `studentId` | 学生内部编号 | `VARCHAR(36)` | 非空；外键关联 `tblStudent.studentId` |
+| `adjustmentType` | 异动类型 | `VARCHAR(16)` | 非空；`ADD/DROP/CHANGE` |
+| `sourceOfferingId` | 原教学班编号 | `VARCHAR(36)` | 可空；退课和改选时关联原教学班 |
+| `targetOfferingId` | 目标教学班编号 | `VARCHAR(36)` | 可空；补选和改选时关联目标教学班 |
+| `operationResult` | 操作结果 | `VARCHAR(16)` | 非空；`SUCCEEDED/FAILED` |
+| `failureCode` | 失败错误码 | `VARCHAR(64)` | 可空；成功时为空 |
+| `operatedAt` | 操作发生时间 | `DATETIME` | 非空 |
+
+### 9.7 `tblCourseAttempt` 历史修读结果表
+
+| 字段名称 | 中文含义 | Access 类型 | 约束与说明 |
+|---|---|---|---|
+| `attemptId` | 修读结果编号 | `VARCHAR(36)` | 主键；UUID |
+| `studentId` | 学生内部编号 | `VARCHAR(36)` | 非空；外键关联 `tblStudent.studentId` |
+| `courseId` | 课程内部编号 | `VARCHAR(36)` | 非空；外键关联 `tblCourse.courseId` |
+| `termId` | 修读学期编号 | `VARCHAR(36)` | 非空；外键关联 `tblTerm.termId` |
+| `outcome` | 修读结果 | `VARCHAR(16)` | 非空；仅 `PASSED/FAILED`，不保存具体成绩 |
+| `sourceReference` | 外部结果来源标识 | `VARCHAR(128)` | 非空；用于导入去重和追溯 |
+| `importedAt` | 导入时间 | `DATETIME` | 非空 |
+
+唯一索引：`uk_tblCourseAttempt_sourceReference`；查询索引：`idx_tblCourseAttempt_student_course`。
+
+唯一约束防止同一学生对同一教学班创建重复记录。`enrolledCount` 是性能字段，维护任务按 `ACTIVE` 记录核对并生成异常报告。
 
 ## 10. 跨模块
 
