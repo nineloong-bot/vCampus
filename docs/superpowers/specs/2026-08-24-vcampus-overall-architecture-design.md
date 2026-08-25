@@ -12,6 +12,7 @@
 - 不实现银行、医院、宿舍、在线课堂等选做模块。
 - 选课系统不保存或展示具体成绩，但保存 `PASSED`/`FAILED` 修读结果以判断重修资格。
 - 商城为校园多商户商城，包含首页推荐、搜索、店铺、购物车、订单和模拟第三方支付。
+- 学生登录标识为一卡通号；管理员录取建档时同时生成一卡通号、学号、用户账户和学生档案，学生不得自助注册账户。
 - 最终交付两个可运行文件：`vCampusClient.jar` 和 `vCampusServer.jar`，数据库名为 `vCampus.accdb`。
 
 ## 3. 技术决策
@@ -99,8 +100,10 @@ public final class ResponseBody<T extends Serializable>
 
 ## 7. 会话与权限
 
-- 登录前只允许 `USER_REGISTER`、`USER_LOGIN` 和连接探测。
+- 登录前只允许 `USER_REGISTER`、`USER_LOGIN` 和连接探测；`USER_REGISTER` 不接受 `STUDENT` 角色。
 - 登录成功后由服务端生成不可预测的会话令牌；客户端仅保存在内存中。
+- 学生使用一卡通号作为 `loginId`。新生账户初始密码固定为 `12345678`，账户创建时必须设置 `mustChangePassword=TRUE`。
+- 使用初始密码登录只获得受限会话，仅允许 `USER_GET_CURRENT`、`USER_CHANGE_PASSWORD` 和 `USER_LOGOUT`；修改密码成功后撤销该会话并要求重新登录。
 - 登录前空闲 5 分钟断开，登录后空闲 30 分钟过期。
 - 账户禁用、注销或密码安全重置时立即撤销该用户所有会话。
 - 基础角色为 `STUDENT`、`TEACHER`、`ADMIN`；店主是审批产生的业务能力，不改变教师或学生基础角色。
@@ -126,8 +129,8 @@ public interface ResourceLockManager {
 
 | 模块 | 资源键 |
 |---|---|
-| 用户 | `username`、`userId`、`sessionToken` |
-| 学籍 | `studentId`、`studentNumber` |
+| 用户 | `loginId`、`userId`、`sessionToken` |
+| 学籍 | `studentId`、`CAMPUS_CARD_GLOBAL`、`STUDENT_NUMBER:<majorCode>:<YY>:<classNumber>` |
 | 选课 | `studentId`、`offeringId` |
 | 图书馆 | `userId`、`copyId`、`loanId` |
 | 商城 | `skuId`、`orderId`、`paymentId` |
@@ -155,7 +158,7 @@ public interface ResourceLockManager {
 ## 10. Access 数据规范
 
 - 表名使用 `tblXxx`，主键为 `<entity>Id`，外键与目标主键同名。
-- 内部主键使用 36 字符 UUID；学号、课程号、ISBN 为唯一业务键。
+- 内部主键使用 36 字符 UUID；一卡通号、学号、课程号、ISBN 为唯一业务键。
 - 金额使用 `DECIMAL(12,2)`/`BigDecimal`；时间使用 `DATETIME`/`LocalDateTime`。
 - 可变业务表包含 `rowVersion`、`createdAt`、`updatedAt`。
 - 用户、学生、课程、图书、商品采用逻辑停用；交易和审计记录禁止物理删除。
@@ -178,22 +181,33 @@ public interface ResourceLockManager {
 
 数据库按 `001_common`、`010_user`、`020_student`、`030_course`、`040_library`、`050_shop` 记录结构。Access 模板数据库是可执行结构的权威来源，SQL 文件用于评审和初始化说明。
 
+### 10.1 学生编号规范
+
+| 编号 | 固定格式 | 各段含义 | 示例 |
+|---|---|---|---|
+| 一卡通号 | `2T3YYNNNN`，共 9 位数字 | `2` 和 `3` 固定；`T=1/2/3` 分别表示本科生/硕士生/博士生；`YY` 为两位入学年份；`NNNN` 为全校统一录取顺序号 | `213242478`：本科生、2024 级、全局顺序 2478 |
+| 学号 | `PPPYYCSS`，共 8 位 | `PPP` 为三字符专业代码；`YY` 为两位入学年份；`C` 为班号 `1–9`；`SS` 为该专业、年级、班级内顺序号 `01–99` | `09024110`：专业 090、2024 级、1 班、班内 10 号 |
+
+专业代码必须匹配 `^[0-9A-Z]{3}$`，如普通计算机专业 `090`、计算机拔尖班 `09J`。一卡通全局顺序在所有学生类型、入学年份之间共用且永不重置；学号顺序按 `专业代码 + 入学年份 + 班号` 分组，每班从 `01` 开始。已分配编号不得回收或复用。
+
 ## 11. 跨模块依赖
 
 ```mermaid
 flowchart LR
     Course["选课"] -->|"查询资格"| Student["学籍"]
-    Student -->|"确认账户"| User["用户"]
+    Student -->|"同事务创建学生账户"| User["用户"]
     Course -->|"鉴权"| User
     Library["图书馆"] -->|"鉴权"| User
     Shop["商城"] -->|"鉴权"| User
 ```
 
-学籍不依赖选课。组合页面由上层查询协调器分别调用模块后组装 DTO。注销账户等多模块写入只能通过专门协调服务执行，模块不得相互嵌套开启事务。
+学籍不依赖选课。新生录取由学籍模块的 `StudentAdmissionCoordinator` 负责，在同一个 `TransactionContext` 内按固定顺序锁定一卡通全局序列和班级学号序列，然后调用用户模块发布的 `UserAccountProvisioningPort` 创建学生账户，再写入学生档案和审计；用户模块不得自行提交、回滚或开启嵌套事务。任一步失败必须整体回滚且不得消耗编号。组合页面由上层查询协调器分别调用模块后组装 DTO。注销账户等多模块写入只能通过专门协调服务执行。
 
 ## 12. Swing 客户端规范
 
 使用 `MainFrame + CardLayout`，顶部显示用户、角色和连接状态，左侧按权限显示导航，中部承载页面，底部显示操作结果。统一提供 `PageNavigator`、`LoadingOverlay`、`NotificationService`、`ConfirmDialog`、`PagedTablePanel`、`FormValidator` 和 `ConnectionStatusPanel`。
+
+学生使用一卡通号登录。若登录响应的 `mustChangePassword` 为真，客户端不得打开 `MainFrame`，只能显示首次改密页面；改密成功后清除本地受限会话并返回登录页。
 
 Swing EDT 不得执行网络等待。页面通过客户端服务取得 `CompletableFuture`，并用 `SwingUtilities.invokeLater` 更新控件。提交期间禁用按钮；失败时保留输入；并发冲突提示刷新。每个查询页面必须实现加载、正常、空结果、错误和断线状态。
 
@@ -236,6 +250,8 @@ mvn javadoc:aggregate
 - 集成测试使用独立 Access 副本，不污染演示库。
 - 50 个客户端在线时，普通查询 P95 ≤ 2 秒、普通写入 P95 ≤ 3 秒、商城结算 P95 ≤ 5 秒。
 - 20 人竞争最后一个课程名额不得超选；借同一副本只能一人成功；有限库存不得超卖。
+- 20 个并发新生录取请求必须得到唯一且连续的一卡通号和班内学号；回滚不得消耗序号，不同学生类型和年份仍共用一卡通全局序列。
+- 初始密码登录不得访问业务命令，改密后旧受限会话立即失效并要求重新登录。
 - 连续运行 30 分钟不得出现连接泄漏、线程持续增长或数据库损坏。
 
 ## 17. 团队边界
