@@ -27,6 +27,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 /** Locked, transactional adjustment workflows kept separate from normal enrollment. */
 final class EnrollmentAdjustmentService {
@@ -58,53 +59,53 @@ final class EnrollmentAdjustmentService {
         Objects.requireNonNull(command, "command");
         Actor initial = initialActor(token);
         return locks.withLocks(List.of(studentKey(initial.studentId()), offeringKey(command.offeringId())), () -> {
-            Actor current = revalidate(token, initial);
             Instant now = clock.instant();
-            try {
-                return transactions.inTransaction(c -> addInside(c, current.studentId(), command.offeringId(), now));
-            } catch (CourseRuleException failure) {
-                recordFailure(current.studentId(), "ADD", null, command.offeringId(), now, failure);
-                throw failure;
-            }
+            return auditBusiness(initial, "ADD", new SourceReference(), command.offeringId(), now, () -> {
+                revalidate(token, initial);
+                return transactions.inTransaction(c -> addInside(c, initial.studentId(), command.offeringId(), now));
+            });
         });
     }
 
     void drop(String token, DropCommand command) {
         Objects.requireNonNull(command, "command");
         Actor initial = initialActor(token);
-        Enrollment preliminary = sourceForLock(command.enrollmentId());
-        returnAfterLocks(token, initial, preliminary.offeringId(), null, () -> {
+        locks.withLocks(List.of(studentKey(initial.studentId())), () -> {
             Instant now = clock.instant();
-            try {
-                transactions.inTransaction(c -> {
-                    Enrollment source = rules.requireOwnedActive(c, command.enrollmentId(), initial.studentId(), command.expectedVersion());
-                    Offering offering = repository.requireOffering(c, source.offeringId());
-                    windows.requireAdjustmentOpen(repository.requireTerm(c, offering.termId()), now);
-                    repository.updateEnrollment(c, dropped(source, now), command.expectedVersion());
-                    repository.changeEnrolledCount(c, source.offeringId(), -1);
-                    repository.insertAdjustment(c, adjustment(initial.studentId(), "DROP", source.offeringId(), null, "SUCCEEDED", null, now));
-                    return null;
+            SourceReference sourceRef = new SourceReference();
+            return auditBusiness(initial, "DROP", sourceRef, null, now, () -> {
+                Enrollment preliminary = sourceForLock(command.enrollmentId(), initial);
+                sourceRef.offeringId = preliminary.offeringId();
+                return locks.withLocks(offeringKeys(preliminary.offeringId(), null), () -> {
+                    revalidate(token, initial);
+                    return transactions.inTransaction(c -> {
+                        Enrollment source = rules.requireOwnedActive(c, command.enrollmentId(), initial.studentId(), command.expectedVersion());
+                        Offering offering = repository.requireOffering(c, source.offeringId());
+                        windows.requireAdjustmentOpen(repository.requireTerm(c, offering.termId()), now);
+                        repository.updateEnrollment(c, dropped(source, now), command.expectedVersion());
+                        repository.changeEnrolledCount(c, source.offeringId(), -1);
+                        repository.insertAdjustment(c, adjustment(initial.studentId(), "DROP", source.offeringId(), null, "SUCCEEDED", null, now));
+                        return null;
+                    });
                 });
-            } catch (CourseRuleException failure) {
-                recordFailure(initial.studentId(), "DROP", preliminary.offeringId(), null, now, failure);
-                throw failure;
-            }
-            return null;
+            });
         });
     }
 
     EnrollmentView change(String token, ChangeOfferingCommand command) {
         Objects.requireNonNull(command, "command");
         Actor initial = initialActor(token);
-        Enrollment preliminary = sourceForLock(command.sourceEnrollmentId());
-        return returnAfterLocks(token, initial, preliminary.offeringId(), command.targetOfferingId(), () -> {
+        return locks.withLocks(List.of(studentKey(initial.studentId())), () -> {
             Instant now = clock.instant();
-            try {
-                return transactions.inTransaction(c -> changeInside(c, initial.studentId(), command, now));
-            } catch (CourseRuleException failure) {
-                recordFailure(initial.studentId(), "CHANGE", preliminary.offeringId(), command.targetOfferingId(), now, failure);
-                throw failure;
-            }
+            SourceReference sourceRef = new SourceReference();
+            return auditBusiness(initial, "CHANGE", sourceRef, command.targetOfferingId(), now, () -> {
+                Enrollment preliminary = sourceForLock(command.sourceEnrollmentId(), initial);
+                sourceRef.offeringId = preliminary.offeringId();
+                return locks.withLocks(offeringKeys(preliminary.offeringId(), command.targetOfferingId()), () -> {
+                    revalidate(token, initial);
+                    return transactions.inTransaction(c -> changeInside(c, initial.studentId(), command, now));
+                });
+            });
         });
     }
 
@@ -139,18 +140,11 @@ final class EnrollmentAdjustmentService {
         return view(saved);
     }
 
-
-    private <T> T returnAfterLocks(String token, Actor initial, String sourceId,
-                                   String targetId, java.util.function.Supplier<T> action) {
-        List<ResourceKey> keys = new ArrayList<>();
-        keys.add(studentKey(initial.studentId()));
+    private List<ResourceKey> offeringKeys(String sourceId, String targetId) {
         List<String> offeringIds = new ArrayList<>(List.of(sourceId));
         if (targetId != null && !sourceId.equals(targetId)) offeringIds.add(targetId);
-        offeringIds.stream().distinct().sorted(Comparator.naturalOrder()).map(this::offeringKey).forEach(keys::add);
-        return locks.withLocks(keys, () -> {
-            revalidate(token, initial);
-            return action.get();
-        });
+        return offeringIds.stream().distinct().sorted(Comparator.naturalOrder())
+                .map(this::offeringKey).toList();
     }
 
     private Actor initialActor(String token) {
@@ -167,14 +161,30 @@ final class EnrollmentAdjustmentService {
         return original;
     }
 
-    private Enrollment sourceForLock(String enrollmentId) {
-        return transactions.inTransaction(c -> repository.requireEnrollment(c, enrollmentId));
+    private Enrollment sourceForLock(String enrollmentId, Actor actor) {
+        Enrollment source;
+        try {
+            source = transactions.inTransaction(c -> repository.requireEnrollment(c, enrollmentId));
+        } catch (IllegalStateException unavailable) {
+            throw new CourseForbiddenException();
+        }
+        if (!actor.studentId().equals(source.studentId())) throw new CourseForbiddenException();
+        return source;
     }
 
-    private void recordFailure(String studentId, String type, String source, String target, Instant now,
-                               CourseRuleException failure) {
-        transactions.inTransaction(c -> repository.insertAdjustment(c, adjustment(studentId, type, source, target,
-                "FAILED", failure.code(), now)));
+    private <T> T auditBusiness(Actor actor, String type, SourceReference source, String target,
+                                Instant now, Supplier<T> action) {
+        try {
+            return action.get();
+        } catch (CourseRuleException failure) {
+            try {
+                transactions.inTransaction(c -> repository.insertAdjustment(c, adjustment(actor.studentId(), type,
+                        source.offeringId, target, "FAILED", failure.code(), now)));
+            } catch (RuntimeException auditFailure) {
+                failure.addSuppressed(auditFailure);
+            }
+            throw failure;
+        }
     }
 
     private static void requireOpenForAdd(Offering offering) {
@@ -212,4 +222,8 @@ final class EnrollmentAdjustmentService {
     private ResourceKey offeringKey(String id) { return new ResourceKey("OFFERING", id); }
 
     private record Actor(String userId, String studentId) { }
+
+    private static final class SourceReference {
+        private String offeringId;
+    }
 }

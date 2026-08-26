@@ -1,6 +1,7 @@
 package edu.seu.vcampus.server.course.service;
 
 import edu.seu.vcampus.common.course.ChangeOfferingCommand;
+import edu.seu.vcampus.common.course.DropCommand;
 import edu.seu.vcampus.common.course.EnrollmentView;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.course.domain.CourseRuleException;
@@ -33,6 +34,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.Callable;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -83,6 +85,44 @@ class ConcurrentAdjustmentTest {
         assertThat(offering("alpha").enrolledCount() + offering("zulu").enrolledCount()).isEqualTo(1);
     }
 
+    @Test
+    void concurrentDropAndChangeHaveOneWinnerAndNoCountDrift() throws Exception {
+        seedCatalog(); seedOffering("source", "course-source", 2, 1); seedOffering("target", "course-alpha", 2, 0);
+        Enrollment source = seedActive("source");
+        List<Outcome> outcomes = concurrentlyActions(List.of(
+                () -> { service.dropDuringAdjustment("token", new DropCommand(source.enrollmentId(), 0)); return null; },
+                () -> service.changeDuringAdjustment("token", new ChangeOfferingCommand(source.enrollmentId(), "target", 0))));
+        assertThat(outcomes).filteredOn(Outcome::succeeded).hasSize(1);
+        assertThat(activeCount("source") + activeCount("target")).isEqualTo(1);
+        assertThat(offering("source").enrolledCount() + offering("target").enrolledCount()).isEqualTo(1);
+    }
+
+    @Test
+    void twoStudentsCompetingForOneTargetHaveOneWinnerAndConsistentCounts() throws Exception {
+        seedCatalog(); seedOffering("left", "course-source", 2, 1); seedOffering("right", "course-alpha", 2, 1); seedOffering("target", "course-zulu", 1, 0);
+        Enrollment left = seedActive("left", "student-left"); Enrollment right = seedActive("right", "student-right");
+        CourseService shared = namedStudentService(new StripedResourceLockManager());
+        List<Outcome> outcomes = concurrentlyActions(List.of(
+                () -> shared.changeDuringAdjustment("student-left", new ChangeOfferingCommand(left.enrollmentId(), "target", 0)),
+                () -> shared.changeDuringAdjustment("student-right", new ChangeOfferingCommand(right.enrollmentId(), "target", 0))));
+        assertThat(outcomes).filteredOn(Outcome::succeeded).hasSize(1);
+        assertThat(activeCount("target")).isEqualTo(1); assertThat(offering("target").enrolledCount()).isEqualTo(1);
+        assertThat(activeCount("left") + activeCount("right")).isEqualTo(1);
+    }
+
+    @Test
+    void oppositeDirectionChangesCompleteAndLeaveBothOfferingCountsStable() throws Exception {
+        seedCatalog(); seedOffering("alpha", "course-alpha", 2, 1); seedOffering("zulu", "course-zulu", 2, 1);
+        Enrollment alpha = seedActive("alpha", "student-alpha"); Enrollment zulu = seedActive("zulu", "student-zulu");
+        CourseService shared = namedStudentService(new StripedResourceLockManager());
+        List<Outcome> outcomes = concurrentlyActions(List.of(
+                () -> shared.changeDuringAdjustment("student-alpha", new ChangeOfferingCommand(alpha.enrollmentId(), "zulu", 0)),
+                () -> shared.changeDuringAdjustment("student-zulu", new ChangeOfferingCommand(zulu.enrollmentId(), "alpha", 0))));
+        assertThat(outcomes).allMatch(Outcome::succeeded);
+        assertThat(activeCount("alpha")).isEqualTo(1); assertThat(activeCount("zulu")).isEqualTo(1);
+        assertThat(offering("alpha").enrolledCount()).isEqualTo(1); assertThat(offering("zulu").enrolledCount()).isEqualTo(1);
+    }
+
     private void seedCatalog() {
         inTransaction(c -> {
             repository.insertTerm(c, new Term("term", "2026-1", "Term", LocalDate.of(2026, 9, 1),
@@ -102,8 +142,19 @@ class ConcurrentAdjustmentTest {
     }
 
     private Enrollment seedActive(String offeringId) {
-        return inTransaction(c -> repository.insertEnrollment(c, new Enrollment("enrollment", offeringId, "student",
+        return seedActive(offeringId, "student");
+    }
+
+    private Enrollment seedActive(String offeringId, String studentId) {
+        return inTransaction(c -> repository.insertEnrollment(c, new Enrollment(UUID.randomUUID().toString(), offeringId, studentId,
                 "NORMAL", "ACTIVE", NOW.minusSeconds(10), null, 0, null, null)));
+    }
+
+    private CourseService namedStudentService(StripedResourceLockManager locks) {
+        return new CourseServiceImpl(token -> new CourseSessionIdentity(token, "STUDENT"),
+                user -> new StudentEnrollmentEligibility(user, "ACTIVE"), repository, locks,
+                new TransactionManager(connections), new TermWindowPolicy(), new ScheduleConflictPolicy(),
+                Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     private List<Outcome> concurrently(List<ChangeOfferingCommand> commands) throws Exception {
@@ -121,6 +172,20 @@ class ConcurrentAdjustmentTest {
             List<Outcome> outcomes = new ArrayList<>();
             for (Future<Outcome> future : futures) outcomes.add(future.get());
             return outcomes;
+        } finally { pool.shutdownNow(); }
+    }
+
+    private List<Outcome> concurrentlyActions(List<Callable<EnrollmentView>> actions) throws Exception {
+        CountDownLatch ready = new CountDownLatch(actions.size()); CountDownLatch start = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(actions.size());
+        try {
+            List<Future<Outcome>> futures = new ArrayList<>();
+            for (Callable<EnrollmentView> action : actions) futures.add(pool.submit(() -> {
+                ready.countDown(); start.await(); try { return new Outcome(action.call(), null); }
+                catch (Throwable failure) { return new Outcome(null, failure); }
+            }));
+            ready.await(); start.countDown(); List<Outcome> outcomes = new ArrayList<>();
+            for (Future<Outcome> future : futures) outcomes.add(future.get()); return outcomes;
         } finally { pool.shutdownNow(); }
     }
 
