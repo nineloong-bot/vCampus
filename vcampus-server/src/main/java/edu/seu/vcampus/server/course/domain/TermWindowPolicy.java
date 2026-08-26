@@ -14,7 +14,9 @@ public final class TermWindowPolicy {
     public void requireEnrollmentOpen(Term term, Instant now) {
         Objects.requireNonNull(term, "term");
         Objects.requireNonNull(now, "now");
-        if (!isActive(term) || !inWindow(now, term.enrollmentStartAt(), term.enrollmentEndAt())) {
+        String status = requireStatus(term);
+        if ("CLOSED".equals(status)
+                || !inWindow(now, term.enrollmentStartAt(), term.enrollmentEndAt())) {
             throw new EnrollmentClosedException();
         }
     }
@@ -26,7 +28,9 @@ public final class TermWindowPolicy {
     public void requireAdjustmentOpen(Term term, Instant now) {
         Objects.requireNonNull(term, "term");
         Objects.requireNonNull(now, "now");
-        if (!isActive(term) || !inWindow(now, term.adjustmentStartAt(), term.adjustmentEndAt())) {
+        String status = requireStatus(term);
+        if ("CLOSED".equals(status)
+                || !inWindow(now, term.adjustmentStartAt(), term.adjustmentEndAt())) {
             throw new AdjustmentClosedException();
         }
     }
@@ -36,8 +40,12 @@ public final class TermWindowPolicy {
         requireEnrollmentOpen(term, now);
     }
 
-    private static boolean isActive(Term term) {
-        return "ACTIVE".equalsIgnoreCase(term.termStatus());
+    private static String requireStatus(Term term) {
+        String status = term.termStatus();
+        if (!"ACTIVE".equals(status) && !"PLANNED".equals(status) && !"CLOSED".equals(status)) {
+            throw new IllegalArgumentException("Unknown term status: " + status);
+        }
+        return status;
     }
 
     private static boolean inWindow(Instant now, Instant start, Instant end) {

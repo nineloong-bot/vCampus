@@ -5,6 +5,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -92,6 +94,30 @@ class TermWindowPolicyTest {
                 .doesNotThrowAnyException();
         assertThatThrownBy(() -> windows.requireRetakeOpen(term, ENROLLMENT_END))
                 .isInstanceOf(EnrollmentClosedException.class);
+    }
+
+    @Test
+    void plannedTermInsideEachConfiguredWindowRemainsOpen() {
+        Term term = termWithStatus("PLANNED");
+
+        assertThatCode(() -> windows.requireEnrollmentOpen(term, ENROLLMENT_START))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> windows.requireAdjustmentOpen(term, ADJUSTMENT_START))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> windows.requireRetakeOpen(term, ENROLLMENT_START))
+                .doesNotThrowAnyException();
+    }
+
+    @ParameterizedTest(name = "malformed term status: {0}")
+    @NullSource
+    @ValueSource(strings = {"", "ARCHIVED", "active ", " planned"})
+    void nullOrUnknownTermStatusIsRejectedAsMalformedDomainData(String status) {
+        Term term = termWithStatus(status);
+
+        assertThatThrownBy(() -> windows.requireEnrollmentOpen(term, ENROLLMENT_START))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> windows.requireAdjustmentOpen(term, ADJUSTMENT_START))
+                .isInstanceOf(IllegalArgumentException.class);
     }
 
     private static Term activeTerm() {
