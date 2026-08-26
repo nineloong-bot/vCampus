@@ -18,6 +18,9 @@
 - Preserve all `COURSE_*` command names and server-time window rules.
 - Lock `STUDENT:<studentId>` and sorted `OFFERING:<offeringId>` keys for enrollment mutations.
 - An unsuccessful change must leave the original enrollment active.
+- Course concurrency tests default to 20 clients but must read the count from test configuration instead of hard-coding it in business code.
+- Treat course availability as server-time window plus `termStatus`; `CLOSED` terms reject normal enrollment, drop, change, late add, and retake mutation commands.
+- Course Swing pages must follow `docs/superpowers/specs/2026-08-26-vcampus-ui-design-system.md`; use shared UI tokens/components and do not create a private theme or alter the shared application shell.
 
 ---
 
@@ -37,13 +40,15 @@
 
 ```java
 @Test
-void storesOfferingWithMultipleScheduleRowsAndVersion() {
+void storesOfferingWithMultipleScheduleRowsVersionAndAuditTimes() {
     Offering saved = repository.insertOffering(connection,
             offering("term-1", "course-1", "teacher-1", 30),
             List.of(schedule(MONDAY, 1, 2, 1, 16),
                     schedule(WEDNESDAY, 3, 4, 1, 16)));
     assertThat(repository.findSchedules(connection, saved.offeringId())).hasSize(2);
     assertThat(saved.rowVersion()).isZero();
+    assertThat(saved.createdAt()).isNotNull();
+    assertThat(saved.updatedAt()).isEqualTo(saved.createdAt());
 }
 ```
 
@@ -66,7 +71,7 @@ public interface CourseRepository {
 }
 ```
 
-Create `uk_tblEnrollment_student_offering` and reactivate an existing dropped record instead of inserting a second record.
+Create `uk_tblEnrollment_student_offering` and reactivate an existing dropped record instead of inserting a second record. Add `createdAt` and `updatedAt` to `tblTerm`, `tblCourse`, `tblCourseOffering`, and `tblEnrollment`; update `updatedAt` whenever a mutable row changes.
 
 - [ ] **Step 4: Run Access integration tests**
 
@@ -108,6 +113,17 @@ static Stream<Arguments> scheduleCases() {
         arguments(s(MONDAY,1,2,1,7),  s(MONDAY,2,3,8,12), false),
         arguments(s(MONDAY,1,2,1,16), s(TUESDAY,1,2,1,16), false));
 }
+
+@Test
+void closedTermRejectsMutationsEvenInsideConfiguredWindows() {
+    Term term = activeWindowTerm().withStatus(CLOSED);
+    assertThatThrownBy(() -> windows.requireEnrollmentOpen(term, insideEnrollmentWindow()))
+            .isInstanceOf(EnrollmentClosedException.class);
+    assertThatThrownBy(() -> windows.requireAdjustmentOpen(term, insideAdjustmentWindow()))
+            .isInstanceOf(AdjustmentClosedException.class);
+    assertThatThrownBy(() -> windows.requireRetakeOpen(term, insideEnrollmentWindow()))
+            .isInstanceOf(EnrollmentClosedException.class);
+}
 ```
 
 - [ ] **Step 2: Run domain tests**
@@ -116,7 +132,7 @@ Run: `mvn -pl vcampus-server -am -Dtest=ScheduleConflictPolicyTest,TermWindowPol
 
 Expected: FAIL because policies are absent.
 
-- [ ] **Step 3: Implement inclusive start/exclusive end windows and overlap logic**
+- [ ] **Step 3: Implement inclusive start/exclusive end windows, `CLOSED` checks, and overlap logic**
 
 ```java
 return a.dayOfWeek() == b.dayOfWeek()
@@ -150,17 +166,27 @@ git commit -m "feat(course): add schedule and term policies"
 - Consumes: `StudentQueryPort`, authorization, policies, repositories, locks, transactions.
 - Produces: `EnrollmentView enroll(String sessionToken, EnrollCommand)`.
 
-- [ ] **Step 1: Write the last-seat 20-client test**
+- [ ] **Step 1: Write the configurable last-seat concurrency test**
 
 ```java
 @Test
 void exactlyOneStudentWinsTheLastSeat() throws Exception {
+    int clients = CourseTestConfig.concurrentClients();
     seedOffering(1, 29, 30);
-    List<Outcome<EnrollmentView>> outcomes = concurrentlyWithDistinctStudents(20,
+    List<Outcome<EnrollmentView>> outcomes = concurrentlyWithDistinctStudents(clients,
             token -> service.enroll(token, new EnrollCommand("offering-1")));
     assertThat(outcomes.stream().filter(Outcome::isSuccess)).hasSize(1);
     assertThat(repository.activeCount("offering-1")).isEqualTo(30);
     assertThat(repository.offering("offering-1").enrolledCount()).isEqualTo(30);
+}
+
+final class CourseTestConfig {
+    private CourseTestConfig() {
+    }
+
+    static int concurrentClients() {
+        return Integer.getInteger("course.test.concurrentClients", 20);
+    }
 }
 ```
 
@@ -188,7 +214,7 @@ return locks.withLocks(sorted(studentKey, offeringKey), () ->
 
 Run: `mvn -pl vcampus-server -am -Dtest=ConcurrentEnrollmentTest,CourseEnrollmentServiceTest test`
 
-Expected: PASS for eligibility, duplicates, conflict, closed window, full capacity, and 20-client contention.
+Expected: PASS for eligibility, duplicates, conflict, closed window, full capacity, and configurable contention with default 20 clients.
 
 - [ ] **Step 5: Commit enrollment**
 
@@ -307,7 +333,7 @@ git add vcampus-common/src/main/java/edu/seu/vcampus/common/course vcampus-serve
 git commit -m "feat(course): add failed-course retakes"
 ```
 
-### Task 6: Handlers, Eleven Swing Pages, and Acceptance
+### Task 6: Handlers, Eleven UI-Spec-Compliant Swing Pages, and Acceptance
 
 **Files:**
 - Create: `vcampus-server/src/main/java/edu/seu/vcampus/server/course/handler/CourseHandlers.java`
@@ -328,7 +354,7 @@ git commit -m "feat(course): add failed-course retakes"
 
 **Interfaces:**
 - Consumes: router, authorization, CourseService, async client.
-- Produces: complete course command/UI surface.
+- Produces: complete course command/UI surface that follows the shared UI design system.
 
 - [ ] **Step 1: Write command and change-preview UI tests**
 
@@ -342,6 +368,20 @@ void changeDialogShowsBothOfferingsAndDoesNotCloseOnFailure() {
     assertThat(robot.isShowing()).isTrue();
     assertThat(robot.error()).contains("容量已满");
 }
+
+@Test
+void coursePagesUseSharedUiTokensAndRequiredStatePanels() {
+    CourseUiAudit audit = auditCoursePages(
+            new OfferingSearchPanel(client),
+            new MyEnrollmentPanel(client),
+            new AdjustmentPanel(client),
+            new RetakePanel(client),
+            new AdjustmentAuditPanel(client));
+    assertThat(audit.privateThemeUsages()).isEmpty();
+    assertThat(audit.setBoundsUsages()).isEmpty();
+    assertThat(audit.pagesMissingLoadingEmptyErrorDisconnectedStates()).isEmpty();
+    assertThat(audit.pagesMissingSharedTablePaginationOrStatusLabels()).isEmpty();
+}
 ```
 
 - [ ] **Step 2: Run handler/UI tests**
@@ -350,7 +390,7 @@ Run: `mvn -pl vcampus-server,vcampus-client -am -Dtest=CourseHandlersTest,Course
 
 Expected: FAIL before handlers/pages exist.
 
-- [ ] **Step 3: Register exact commands and build asynchronous pages**
+- [ ] **Step 3: Register exact commands and build asynchronous UI-spec-compliant pages**
 
 ```java
 router.register("COURSE_ADJUSTMENT_CHANGE", studentHandler(
@@ -359,11 +399,13 @@ router.register("COURSE_RETAKE_ENROLL", studentHandler(
         RetakeCommand.class, service::enrollRetake));
 ```
 
+Build all course pages from shared `UiColors`, `UiTypography`, `UiSpacing`, `UiDimensions`, `UiBorders`, `PrimaryButton`, `SecondaryButton`, `PagedTablePanel`, `LoadingOverlay`, `EmptyStatePanel`, `ErrorStatePanel`, `DisconnectedStatePanel`, `ConflictStatePanel`, `NotificationService`, and `ConfirmDialog`. Map course pages to the UI design system templates: search/list pages for offering, enrollment, adjustment, retake, and audit lists; detail structure for offering details and schedule; management template for term, catalog, offering, and outcome import pages.
+
 - [ ] **Step 4: Run full course verification**
 
 Run: `mvn -pl vcampus-common,vcampus-server,vcampus-client -am verify`
 
-Expected: PASS for 20-client last-seat contention, atomic changes, retakes, permissions, all UI states, and zero grade fields.
+Expected: PASS for configurable last-seat contention with default 20 clients, atomic changes, retakes, permissions, UI design-system compliance, all UI states, and zero grade fields.
 
 - [ ] **Step 5: Commit the completed module**
 
