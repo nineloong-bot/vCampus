@@ -8,7 +8,7 @@
 
 **Tech Stack:** JDK 21, Maven, Swing, UCanAccess, JUnit 5, AssertJ, Mockito.
 
-**Spec:** `docs/superpowers/specs/2026-08-24-vcampus-library-module-design.md` and the overall architecture spec.
+**Spec:** `docs/superpowers/specs/2026-08-24-vcampus-library-module-design.md`, `docs/superpowers/specs/2026-08-24-vcampus-overall-architecture-design.md`, and `docs/superpowers/specs/2026-08-26-vcampus-ui-design-system.md`
 
 ## Global Constraints
 
@@ -17,7 +17,9 @@
 - Preserve all `LIBRARY_*` commands and role-specific policy values.
 - Effective active loans include `ACTIVE` and dynamically overdue records.
 - Borrow locks `LIBRARY_USER:<userId>` and `BOOK_COPY:<copyId>`.
+- Borrow acquires `LIBRARY_USER` then `BOOK_COPY`; return acquires `LOAN` then `BOOK_COPY`; renewal acquires `LIBRARY_USER` then `LOAN`.
 - Keep all loan history; never physically delete loan rows.
+- Complete the shared UI design-system plan before Task 4; library pages must use its fixed shell, templates, components, page states, async lifecycle guards, and screenshot merge gate.
 
 ---
 
@@ -113,7 +115,7 @@ Expected: FAIL before borrow service exists.
 - [ ] **Step 3: Implement user+copy locked borrow**
 
 ```java
-return locks.withLocks(sorted(key("LIBRARY_USER", userId), key("BOOK_COPY", copyId)),
+return locks.withLocks(List.of(key("LIBRARY_USER", userId), key("BOOK_COPY", copyId)),
         () -> transactions.inTransaction(c -> {
             requireNoOverdue(c, userId);
             requireBelowLimit(c, userId, role);
@@ -177,7 +179,7 @@ Loan renewed = loan.renew(clock.instant().plus(policy.renewalDays(), DAYS));
 loans.update(connection, renewed, command.expectedVersion());
 ```
 
-The maintenance job updates only rows currently `ACTIVE` with `dueAt < now`; rerunning it must update zero additional rows.
+Return uses `List.of(key("LOAN", loanId), key("BOOK_COPY", copyId))`; renewal uses `List.of(key("LIBRARY_USER", userId), key("LOAN", loanId))`. The maintenance job updates only rows currently `ACTIVE` with `dueAt < now`; rerunning it must update zero additional rows.
 
 - [ ] **Step 4: Run lifecycle verification**
 
@@ -192,7 +194,7 @@ git add vcampus-common/src/main/java/edu/seu/vcampus/common/library vcampus-serv
 git commit -m "feat(library): add return renewal and overdue flows"
 ```
 
-### Task 4: Handlers, Nine Swing Pages, and Acceptance
+### Task 4: Handlers, Nine UI-Spec-Compliant Swing Pages, and Acceptance
 
 **Files:**
 - Create: `vcampus-server/src/main/java/edu/seu/vcampus/server/library/handler/LibraryHandlers.java`
@@ -209,10 +211,11 @@ git commit -m "feat(library): add return renewal and overdue flows"
 - Create: `vcampus-client/src/main/java/edu/seu/vcampus/client/library/ui/LibraryPolicyPanel.java`
 - Test: `vcampus-server/src/test/java/edu/seu/vcampus/server/library/handler/LibraryHandlersTest.java`
 - Test: `vcampus-client/src/test/java/edu/seu/vcampus/client/library/LibraryUiTest.java`
+- Modify: `docs/ui-review/manifest.md`
 
 **Interfaces:**
 - Consumes: router, authorization, LibraryService, async client.
-- Produces: all library commands and pages.
+- Produces: all library commands and nine pages composed from the shared UI design system.
 
 - [ ] **Step 1: Write permission and UI-state tests**
 
@@ -222,6 +225,16 @@ void overduePanelDisablesBorrowAndShowsDueDate() {
     BookDetailRobot robot = launchDetail(overdueUserClient());
     assertThat(robot.borrowEnabled()).isFalse();
     assertThat(robot.warning()).contains("逾期");
+}
+
+@Test
+void libraryPagesPassSharedUiAndAsyncLifecycleAudit() {
+    UiAuditResult audit = UiComplianceAudit.inspect(libraryPages());
+    assertThat(audit.pagesWithoutTemplate()).isEmpty();
+    assertThat(audit.pagesMissingRequiredStates()).isEmpty();
+    assertThat(audit.privateThemeClasses()).isEmpty();
+    assertThat(audit.inaccessibleControls()).isEmpty();
+    assertThat(audit.staleOrDisposedAsyncUpdates()).isEmpty();
 }
 ```
 
@@ -240,15 +253,17 @@ router.register("LIBRARY_UPDATE_POLICY", adminHandler(
         UpdateLibraryPolicyCommand.class, service::updatePolicy));
 ```
 
+Map book search, current loans, and loan history to the query-list template; map `BookDetailPanel` to the detail template; map book, copy, loan, and policy administration to the management template; and implement `LoanActionDialog` with the shared dialog structure. Use shared tables/pagination/status labels, all required states, visible focus, latest-request/disposal guards, and actionable Chinese feedback that never exposes internal errors.
+
 - [ ] **Step 4: Run full library verification**
 
 Run: `mvn -pl vcampus-common,vcampus-server,vcampus-client -am verify`
 
-Expected: PASS for 20 concurrent borrowers, limits, overdue, return/renewal, permissions, UI states, and no fine/payment code.
+Expected: PASS for 20 concurrent borrowers, limits, overdue, return/renewal, permissions, UI design-system compliance at required sizes/scaling, screenshot manifest entries, all UI states, and no fine/payment code.
 
 - [ ] **Step 5: Commit the completed module**
 
 ```bash
-git add vcampus-common/src/main/java/edu/seu/vcampus/common/library vcampus-server/src/main/java/edu/seu/vcampus/server/library vcampus-client/src/main/java/edu/seu/vcampus/client/library vcampus-server/src/test vcampus-client/src/test
+git add vcampus-common/src/main/java/edu/seu/vcampus/common/library vcampus-server/src/main/java/edu/seu/vcampus/server/library vcampus-client/src/main/java/edu/seu/vcampus/client/library vcampus-server/src/test vcampus-client/src/test docs/ui-review/manifest.md
 git commit -m "feat(library): complete library module"
 ```

@@ -2,13 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Deliver a campus multi-merchant marketplace with seller approval, products/SKUs, explainable recommendations, persisted carts, cross-shop checkout, inventory reservation, retryable simulated payments, order fulfillment, administration, and sixteen Swing pages.
+**Goal:** Deliver a campus multi-merchant marketplace with seller application lifecycle, shop suspension/recovery, products/SKUs, explainable recommendations, persisted carts, cross-shop checkout, inventory reservation, retryable simulated payments, order fulfillment, administration, and sixteen UI-spec-compliant Swing pages.
 
 **Architecture:** Buyer, seller, and admin services share repositories but expose separate interfaces and permissions. Checkout locks sorted SKU keys and creates one order group with per-shop orders; payment attempts are append-only while the aggregate payment owns the final state and inventory transition.
 
 **Tech Stack:** JDK 21, Maven, Swing, UCanAccess, BigDecimal, JUnit 5, AssertJ, Mockito.
 
-**Spec:** `docs/superpowers/specs/2026-08-24-vcampus-shop-module-design.md` and the overall architecture spec.
+**Spec:** `docs/superpowers/specs/2026-08-24-vcampus-shop-module-design.md`, `docs/superpowers/specs/2026-08-24-vcampus-overall-architecture-design.md`, and `docs/superpowers/specs/2026-08-26-vcampus-ui-design-system.md`
 
 ## Global Constraints
 
@@ -19,6 +19,8 @@
 - Lock all affected SKU IDs in sorted order for checkout/payment.
 - A failed payment attempt leaves the aggregate payment `PENDING`; only success, explicit cancellation, or expiry releases/consumes the reservation.
 - Do not implement refunds or real payment-network calls.
+- Seller applications follow `DRAFT → PENDING → APPROVED` or `PENDING → REJECTED → DRAFT`; shop suspension/recovery changes only `ACTIVE ↔ SUSPENDED` and never rewrites the approved application.
+- Complete the shared UI design-system plan before Task 7; shop pages may use the showcase template only where the UI specification permits it.
 
 ---
 
@@ -35,7 +37,7 @@
 
 **Interfaces:**
 - Consumes: `UserQueryPort`, authorization, transactions, locks.
-- Produces: `apply`, `searchApplications`, `reviewApplication`, `suspendShop`, and `requireOwnedActiveShop`.
+- Produces: `saveDraft`, `submitApplication`, `searchApplications`, `reviewApplication`, `suspendShop`, `resumeShop`, and `requireOwnedActiveShop`.
 
 - [ ] **Step 1: Write eligibility, one-shop, and double-review tests**
 
@@ -48,6 +50,19 @@ void approvingTwiceCreatesExactlyOneShop() throws Exception {
     assertThat(outcomes.stream().filter(Outcome::isSuccess)).hasSize(1);
     assertThat(shops.countByOwner("user-1")).isEqualTo(1);
 }
+
+@Test
+void rejectedApplicationReturnsToDraftWithoutChangingApprovedShopState() {
+    SellerApplication rejected = seedRejectedApplication("user-1");
+    SellerApplication draft = service.saveDraft(edit(rejected, rejected.rowVersion()));
+    assertThat(draft.status()).isEqualTo(DRAFT);
+    assertThat(service.submitApplication(draft.applicationId(), draft.rowVersion()).status())
+            .isEqualTo(PENDING);
+    Shop approvedShop = seedApprovedActiveShop("user-2");
+    admin.suspendShop(approvedShop.shopId(), "违规商品", approvedShop.rowVersion());
+    assertThat(applications.requireApprovedForOwner("user-2").status()).isEqualTo(APPROVED);
+    assertThat(shops.require(approvedShop.shopId()).status()).isEqualTo(SUSPENDED);
+}
 ```
 
 - [ ] **Step 2: Run seller tests**
@@ -59,7 +74,7 @@ Expected: FAIL because schema/service are absent.
 - [ ] **Step 3: Implement all thirteen shop tables and seller workflow**
 
 ```java
-return locks.withLocks(sorted(key("SELLER_APPLICATION", applicationId),
+return locks.withLocks(List.of(key("SELLER_APPLICATION", applicationId),
         key("USER", applicantId)), () -> transactions.inTransaction(c -> {
     SellerApplication pending = applications.requirePending(c, applicationId, version);
     shops.requireNoActiveShop(c, pending.applicantUserId());
@@ -73,7 +88,7 @@ return locks.withLocks(sorted(key("SELLER_APPLICATION", applicationId),
 
 Run: `mvn -pl vcampus-server -am -Dtest=SellerApplicationServiceTest,ShopOwnershipTest test`
 
-Expected: PASS for teacher/student eligibility, inactive account rejection, resubmission, one active shop, ownership, and suspension.
+Expected: PASS for teacher/student eligibility, inactive account rejection, exact draft/pending/rejected resubmission transitions, one active shop, atomic approval, ownership, and independent shop suspension/recovery.
 
 - [ ] **Step 5: Commit seller foundation**
 
@@ -235,7 +250,9 @@ Expected: FAIL before checkout exists.
 ```java
 List<ResourceKey> skuKeys = items.stream().map(CheckoutItem::skuId)
         .distinct().sorted().map(id -> key("SKU", id)).toList();
-return locks.withLocks(skuKeys, () -> transactions.inTransaction(c ->
+List<ResourceKey> checkoutKeys = new ArrayList<>(skuKeys);
+checkoutKeys.add(key("CART", buyerId));
+return locks.withLocks(checkoutKeys, () -> transactions.inTransaction(c ->
         createOrderGroupOrdersPaymentAndReservations(c, buyerId, command)));
 ```
 
@@ -295,7 +312,11 @@ Expected: FAIL before payment state machine exists.
 - [ ] **Step 3: Implement aggregate payment lock and append-only attempts**
 
 ```java
-return locks.withLocks(paymentAndSortedSkuKeys(paymentId), () ->
+List<ResourceKey> keys = new ArrayList<>();
+keys.add(key("PAYMENT", paymentId));
+keys.add(key("ORDER_GROUP", orderGroupId));
+keys.addAll(sortedSkuKeys(reservations));
+return locks.withLocks(keys, () ->
         transactions.inTransaction(c -> {
             Payment payment = payments.require(c, paymentId);
             if (payment.status() != PENDING) return mapper.toView(payment);
@@ -378,7 +399,7 @@ git add vcampus-server/src/main/java/edu/seu/vcampus/server/shop/service vcampus
 git commit -m "feat(shop): add order fulfillment and governance"
 ```
 
-### Task 7: Message Handlers, Sixteen Swing Pages, and Acceptance
+### Task 7: Message Handlers, Sixteen UI-Spec-Compliant Swing Pages, and Acceptance
 
 **Files:**
 - Create: `vcampus-server/src/main/java/edu/seu/vcampus/server/shop/handler/BuyerShopHandlers.java`
@@ -404,10 +425,11 @@ git commit -m "feat(shop): add order fulfillment and governance"
 - Test: `vcampus-server/src/test/java/edu/seu/vcampus/server/shop/handler/ShopHandlersTest.java`
 - Test: `vcampus-client/src/test/java/edu/seu/vcampus/client/shop/ShopUiTest.java`
 - Test: `vcampus-server/src/test/java/edu/seu/vcampus/server/shop/ShopEndToEndTest.java`
+- Modify: `docs/ui-review/manifest.md`
 
 **Interfaces:**
 - Consumes: all shop services, router, authorization, async client.
-- Produces: complete buyer/seller/admin message and UI surface.
+- Produces: complete buyer/seller/admin message and sixteen-page surface composed from the shared UI design system.
 
 - [ ] **Step 1: Write cashier privacy and cross-shop E2E tests**
 
@@ -418,6 +440,16 @@ void cashierContainsNoCredentialInputsAndCompletesTwoShopGroup() {
     assertThat(robot.inputLabels()).doesNotContain("卡号", "密码", "验证码");
     robot.choose("支付宝").succeed().await();
     assertThat(loadOrders()).allMatch(order -> order.status() == PAID);
+}
+
+@Test
+void shopPagesUseOnlyPermittedTemplatesAndPassAccessibilityAudit() {
+    UiAuditResult audit = UiComplianceAudit.inspect(shopPages());
+    assertThat(audit.pagesWithoutTemplate()).isEmpty();
+    assertThat(audit.disallowedImageGrids()).isEmpty();
+    assertThat(audit.regionsWithMultiplePrimaryButtons()).isEmpty();
+    assertThat(audit.inaccessibleControls()).isEmpty();
+    assertThat(audit.staleOrDisposedAsyncUpdates()).isEmpty();
 }
 ```
 
@@ -438,17 +470,17 @@ router.register("SHOP_REVIEW_SELLER_APPLICATION", adminHandler(
         ReviewSellerApplicationCommand.class, adminService::reviewApplication));
 ```
 
-Disable submit buttons while futures are pending, preserve cart/form state on errors, and show `SHOP_PRICE_CHANGED` with an explicit latest-price confirmation action.
+Disable submit buttons while futures are pending, preserve cart/form state on errors, and show `SHOP_PRICE_CHANGED` with an explicit latest-price confirmation action. Map order/review/governance pages to query-list or detail templates, seller application and checkout to edit-form templates, dashboard/product administration to the management template, and only home/search/product detail/cart to the showcase template. `SellerDashboardPanel` uses one horizontal summary strip, `CartPanel` uses a line-item list plus one checkout summary, and only the permitted product pages use adaptive 3–4-column image grids. Use all required states, visible focus, shared dialogs/notifications, and latest-request/disposal guards.
 
 - [ ] **Step 4: Run full shop verification**
 
 Run: `mvn -pl vcampus-common,vcampus-server,vcampus-client -am verify`
 
-Expected: PASS for seller approval, recommendations/fallback, persisted cart, cross-shop orders, five-unit contention, payment retry/idempotency/expiry, ownership, UI states, and privacy scan.
+Expected: PASS for seller lifecycle and shop suspension/recovery, recommendations/fallback, persisted cart, cross-shop orders, five-unit contention, payment retry/idempotency/expiry, ownership, UI design-system compliance at required sizes/scaling, screenshot manifest entries, all UI states, and privacy scan.
 
 - [ ] **Step 5: Commit the completed module**
 
 ```bash
-git add vcampus-common/src/main/java/edu/seu/vcampus/common/shop vcampus-server/src/main/java/edu/seu/vcampus/server/shop vcampus-client/src/main/java/edu/seu/vcampus/client/shop vcampus-server/src/test vcampus-client/src/test
+git add vcampus-common/src/main/java/edu/seu/vcampus/common/shop vcampus-server/src/main/java/edu/seu/vcampus/server/shop vcampus-client/src/main/java/edu/seu/vcampus/client/shop vcampus-server/src/test vcampus-client/src/test docs/ui-review/manifest.md
 git commit -m "feat(shop): complete multi-merchant marketplace"
 ```

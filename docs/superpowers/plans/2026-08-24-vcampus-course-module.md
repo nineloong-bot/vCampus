@@ -8,7 +8,7 @@
 
 **Tech Stack:** JDK 21, Maven, Swing, UCanAccess, JUnit 5, AssertJ, Mockito.
 
-**Spec:** `docs/superpowers/specs/2026-08-24-vcampus-course-module-design.md` and the overall architecture spec.
+**Spec:** `docs/superpowers/specs/2026-08-24-vcampus-course-module-design.md`, `docs/superpowers/specs/2026-08-24-vcampus-overall-architecture-design.md`, and `docs/superpowers/specs/2026-08-26-vcampus-ui-design-system.md`
 
 ## Global Constraints
 
@@ -21,6 +21,7 @@
 - Course concurrency tests default to 20 clients but must read the count from test configuration instead of hard-coding it in business code.
 - Treat course availability as server-time window plus `termStatus`; `CLOSED` terms reject normal enrollment, drop, change, late add, and retake mutation commands.
 - Course Swing pages must use the project-provided shared UI tokens and components; they must not create a private theme or alter the shared application shell.
+- Complete the shared UI design-system plan before Task 6 and add normal/loading/empty/error screenshots plus a non-course reviewer to `docs/ui-review/manifest.md`.
 
 ---
 
@@ -199,7 +200,7 @@ Expected: FAIL because enrollment service is absent.
 - [ ] **Step 3: Implement locked, transactional enrollment**
 
 ```java
-return locks.withLocks(sorted(studentKey, offeringKey), () ->
+return locks.withLocks(List.of(studentKey, offeringKey), () ->
         transactions.inTransaction(c -> {
             StudentEligibility eligibility = students.getEnrollmentEligibility(userId);
             requireEligible(eligibility);
@@ -259,8 +260,11 @@ Expected: FAIL until adjustment operations exist.
 - [ ] **Step 3: Implement sorted multi-offering locks and atomic change**
 
 ```java
-List<ResourceKey> keys = sorted(key("STUDENT", studentId),
-        key("OFFERING", source.offeringId()), key("OFFERING", targetId));
+List<ResourceKey> offeringKeys = Stream.of(source.offeringId(), targetId)
+        .distinct().sorted().map(id -> key("OFFERING", id)).toList();
+List<ResourceKey> keys = new ArrayList<>();
+keys.add(key("STUDENT", studentId));
+keys.addAll(offeringKeys);
 return locks.withLocks(keys, () -> transactions.inTransaction(c ->
         changeInsideTransaction(c, source, targetId, studentId)));
 ```
@@ -351,6 +355,7 @@ git commit -m "feat(course): add failed-course retakes"
 - Create: `vcampus-client/src/main/java/edu/seu/vcampus/client/course/ui/AdjustmentAuditPanel.java`
 - Test: `vcampus-server/src/test/java/edu/seu/vcampus/server/course/handler/CourseHandlersTest.java`
 - Test: `vcampus-client/src/test/java/edu/seu/vcampus/client/course/CourseUiTest.java`
+- Modify: `docs/ui-review/manifest.md`
 
 **Interfaces:**
 - Consumes: router, authorization, CourseService, async client.
@@ -371,16 +376,18 @@ void changeDialogShowsBothOfferingsAndDoesNotCloseOnFailure() {
 
 @Test
 void coursePagesUseSharedUiTokensAndRequiredStatePanels() {
-    CourseUiAudit audit = auditCoursePages(
+    UiAuditResult audit = UiComplianceAudit.inspect(List.of(
             new OfferingSearchPanel(client),
             new MyEnrollmentPanel(client),
             new AdjustmentPanel(client),
             new RetakePanel(client),
             new AdjustmentAuditPanel(client));
-    assertThat(audit.privateThemeUsages()).isEmpty();
-    assertThat(audit.setBoundsUsages()).isEmpty();
-    assertThat(audit.pagesMissingLoadingEmptyErrorDisconnectedStates()).isEmpty();
-    assertThat(audit.pagesMissingSharedTablePaginationOrStatusLabels()).isEmpty();
+    assertThat(audit.privateThemeClasses()).isEmpty();
+    assertThat(audit.absoluteLayoutUsages()).isEmpty();
+    assertThat(audit.pagesWithoutTemplate()).isEmpty();
+    assertThat(audit.pagesMissingRequiredStates()).isEmpty();
+    assertThat(audit.inaccessibleControls()).isEmpty();
+    assertThat(audit.staleOrDisposedAsyncUpdates()).isEmpty();
 }
 ```
 
@@ -399,17 +406,17 @@ router.register("COURSE_RETAKE_ENROLL", studentHandler(
         RetakeCommand.class, service::enrollRetake));
 ```
 
-Build all course pages from shared `UiColors`, `UiTypography`, `UiSpacing`, `UiDimensions`, `UiBorders`, `PrimaryButton`, `SecondaryButton`, `PagedTablePanel`, `LoadingOverlay`, `EmptyStatePanel`, `ErrorStatePanel`, `DisconnectedStatePanel`, `ConflictStatePanel`, `NotificationService`, and `ConfirmDialog`. Map course pages to the UI design system templates: search/list pages for offering, enrollment, adjustment, retake, and audit lists; detail structure for offering details and schedule; management template for term, catalog, offering, and outcome import pages.
+Build all course pages from shared `UiColors`, `UiTypography`, `UiSpacing`, `UiDimensions`, `UiBorders`, `PrimaryButton`, `SecondaryButton`, `PagedTablePanel`, `LoadingOverlay`, `EmptyStatePanel`, `ErrorStatePanel`, `DisconnectedStatePanel`, `ConflictStatePanel`, `NotificationService`, and `ConfirmDialog`. Map offering, enrollment, adjustment, retake, and audit panels to the query-list template; map `MySchedulePanel` to the detail template with its permitted full-width weekly grid; map term, catalog, offering, and outcome import panels to the management template; and implement `OfferingDetailDialog` with the shared dialog structure. Use latest-request/disposal guards, visible focus, all required page states, and actionable Chinese messages without internal error details.
 
 - [ ] **Step 4: Run full course verification**
 
 Run: `mvn -pl vcampus-common,vcampus-server,vcampus-client -am verify`
 
-Expected: PASS for configurable last-seat contention with default 20 clients, atomic changes, retakes, permissions, UI design-system compliance, all UI states, and zero grade fields.
+Expected: PASS for configurable last-seat contention with default 20 clients, atomic changes, retakes, permissions, UI design-system compliance at required sizes/scaling, screenshot manifest entries, all UI states, and zero grade fields.
 
 - [ ] **Step 5: Commit the completed module**
 
 ```bash
-git add vcampus-common/src/main/java/edu/seu/vcampus/common/course vcampus-server/src/main/java/edu/seu/vcampus/server/course vcampus-client/src/main/java/edu/seu/vcampus/client/course vcampus-server/src/test vcampus-client/src/test
+git add vcampus-common/src/main/java/edu/seu/vcampus/common/course vcampus-server/src/main/java/edu/seu/vcampus/server/course vcampus-client/src/main/java/edu/seu/vcampus/client/course vcampus-server/src/test vcampus-client/src/test docs/ui-review/manifest.md
 git commit -m "feat(course): complete course selection module"
 ```

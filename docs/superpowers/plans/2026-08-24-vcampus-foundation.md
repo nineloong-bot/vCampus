@@ -2,13 +2,13 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the Maven project skeleton, shared protocol, Socket runtime, Access transaction/concurrency infrastructure, Swing shell, configuration, logging, and distributable JARs required by all five business modules.
+**Goal:** Build the Maven project skeleton, shared protocol, Socket runtime, Access transaction/concurrency infrastructure, Swing shell seam, configuration, logging, and distributable JARs required by all five business modules and the shared UI design-system plan.
 
 **Architecture:** A three-module Java 21 C/S application separates serializable contracts, Swing client code, and server code. The server routes typed `Message` objects through bounded executors and application locks; all database writes pass through one transaction manager.
 
 **Tech Stack:** JDK 21, Maven, Swing, Java object streams, UCanAccess, JUnit 5, AssertJ, Mockito, SLF4J, Logback, JaCoCo, Maven Shade Plugin.
 
-**Spec:** `docs/superpowers/specs/2026-08-24-vcampus-overall-architecture-design.md`
+**Spec:** `docs/superpowers/specs/2026-08-24-vcampus-overall-architecture-design.md` and `docs/superpowers/specs/2026-08-26-vcampus-ui-design-system.md`
 
 ## Global Constraints
 
@@ -20,6 +20,9 @@
 - Never perform network or database waits on the Swing EDT.
 - All write requests require `requestId`, idempotency, a database transaction, and declared resource locks.
 - The client must never open or access `vCampus.accdb`.
+- Use `requestId` alone as the global idempotency key; retain `clientInstanceId` only for tracing and diagnostics.
+- Preserve each module's published multi-resource lock order; sort by `resourceType + resourceId` only when no module-specific order exists.
+- Complete `docs/superpowers/plans/2026-08-26-vcampus-ui-design-system.md` after this plan and before any business-module Swing page task.
 
 ## File Structure
 
@@ -202,7 +205,7 @@ git add vcampus-server/src/main/java/edu/seu/vcampus/server/{routing,network} vc
 git commit -m "feat: add socket routing runtime"
 ```
 
-### Task 3: Access Transactions, Locks, and Request Idempotency
+### Task 3: Access Transactions, Declared-Order Locks, and Request Idempotency
 
 **Files:**
 - Create: `vcampus-server/src/main/java/edu/seu/vcampus/server/persistence/ConnectionProvider.java`
@@ -219,7 +222,7 @@ git commit -m "feat: add socket routing runtime"
 
 **Interfaces:**
 - Consumes: JDBC `Connection`, `Message.requestId()`.
-- Produces: `TransactionManager.inTransaction(SqlWork<T>)`, `ResourceLockManager.withLocks(List<ResourceKey>, Supplier<T>)`, and `RequestDeduplicator.executeOnce(...)`.
+- Produces: `TransactionManager.inTransaction(SqlWork<T>)`, `ResourceLockManager.withLocks(List<ResourceKey> orderedKeys, Supplier<T>)`, request-ID-only `RequestDeduplicator.executeOnce(...)`, and transaction-aware `replayCompleted(requestId)`, `claim(TransactionContext, Message)`, and `complete(TransactionContext, Message)` for cross-module coordinators.
 
 - [ ] **Step 1: Write transaction rollback and lock ordering tests**
 
@@ -234,7 +237,7 @@ void rollsBackWhenWorkThrows() {
 }
 
 @Test
-void serializesTwoActionsForSameResource() throws Exception {
+void serializesTwoActionsForSameResourceAndPreservesDeclaredOrder() throws Exception {
     AtomicInteger inside = new AtomicInteger();
     AtomicInteger maximum = new AtomicInteger();
     runConcurrently(20, () -> locks.withLock("SKU", "sku-1", () -> {
@@ -243,6 +246,19 @@ void serializesTwoActionsForSameResource() throws Exception {
         return null;
     }));
     assertThat(maximum).hasValue(1);
+    assertThat(recordingLocks.acquiredKeys()).containsExactly(
+            key("NUMBER_SEQUENCE", "CAMPUS_CARD_GLOBAL"),
+            key("NUMBER_SEQUENCE", "STUDENT_NUMBER:090:24:1"),
+            key("LOGIN_ID", "213242478"));
+}
+
+@Test
+void deduplicatesPreLoginRequestsByRequestIdOnly() {
+    Message first = writeMessage("8e7c1a21-9d44-4c82-978b-df34326a0341", "client-a");
+    Message replay = writeMessage(first.requestId(), "client-b");
+    assertThat(deduplicator.executeOnce(first, action)).isEqualTo(success);
+    assertThat(deduplicator.executeOnce(replay, action)).isEqualTo(success);
+    verify(action, times(1)).get();
 }
 ```
 
@@ -252,7 +268,7 @@ Run: `mvn -pl vcampus-server -am -Dtest=TransactionManagerTest,StripedResourceLo
 
 Expected: FAIL because transaction and lock implementations are absent.
 
-- [ ] **Step 3: Implement transaction and sorted striped locks**
+- [ ] **Step 3: Implement transaction, declared-order striped locks, and request-ID idempotency**
 
 ```java
 public <T> T inTransaction(SqlWork<T> work) {
@@ -269,7 +285,7 @@ public interface SqlWork<T> {
 }
 ```
 
-Implement 256 fair `ReentrantLock` stripes and sort a copy of keys before acquiring. Create `tblRequestDedup` exactly as defined in the overall spec and store `PROCESSING` before business execution and `COMPLETED` plus serialized response afterward.
+Implement 256 fair `ReentrantLock` stripes and acquire the caller's immutable key list in its declared order. Module services must pass their published fixed order; callers with no published order sort a copy by `resourceType + resourceId` before calling. Create `tblRequestDedup` exactly as defined in the overall spec, make `requestId` its only uniqueness key, and store `clientInstanceId` only as diagnostic data. The standard facade stores `PROCESSING` before business execution and `COMPLETED` plus the serialized response afterward; the transaction-aware API lets a cross-module coordinator claim and complete the same row on its existing `TransactionContext`, so the business result and replay snapshot commit or roll back together.
 
 - [ ] **Step 4: Run Access and 20-thread verification**
 
@@ -284,21 +300,20 @@ git add vcampus-server/src/main/java/edu/seu/vcampus/server/{persistence,concurr
 git commit -m "feat: add access transactions and concurrency guards"
 ```
 
-### Task 4: Async Client Connection and Swing Shell
+### Task 4: Async Client Connection and Swing Shell Seam
 
 **Files:**
 - Create: `vcampus-client/src/main/java/edu/seu/vcampus/client/core/network/ClientConnection.java`
 - Create: `vcampus-client/src/main/java/edu/seu/vcampus/client/core/network/PendingRequests.java`
 - Create: `vcampus-client/src/main/java/edu/seu/vcampus/client/core/navigation/PageNavigator.java`
 - Create: `vcampus-client/src/main/java/edu/seu/vcampus/client/core/ui/MainFrame.java`
-- Create: `vcampus-client/src/main/java/edu/seu/vcampus/client/core/ui/LoadingOverlay.java`
 - Create: `vcampus-client/src/main/java/edu/seu/vcampus/client/core/ui/ConnectionStatusPanel.java`
 - Test: `vcampus-client/src/test/java/edu/seu/vcampus/client/core/network/PendingRequestsTest.java`
 - Test: `vcampus-client/src/test/java/edu/seu/vcampus/client/core/ui/EdtSafetyTest.java`
 
 **Interfaces:**
 - Consumes: shared `Message` protocol.
-- Produces: `CompletableFuture<ResponseBody<T>> ClientConnection.send(String command, Serializable body, Duration timeout)` and `PageNavigator.show(String pageId)`.
+- Produces: `CompletableFuture<ResponseBody<T>> ClientConnection.send(String command, Serializable body, Duration timeout)`, connection-state events, `PageNavigator.show(String pageId)`, and the minimal `MainFrame` seam extended by the UI design-system plan.
 
 - [ ] **Step 1: Write response-correlation and timeout tests**
 
@@ -325,12 +340,12 @@ Expected: FAIL because the client core does not exist.
 ```java
 connection.send("PING", EmptyRequest.INSTANCE, Duration.ofSeconds(10))
         .whenComplete((response, error) -> SwingUtilities.invokeLater(() -> {
-            loadingOverlay.setVisible(false);
+            statusPanel.setBusy(false);
             statusPanel.show(response, error);
         }));
 ```
 
-`ClientConnection` owns one reader thread; it never touches Swing. `MainFrame` composes header, permission-filtered left navigation, `CardLayout` content, and connection status footer.
+`ClientConnection` owns one reader thread and never touches Swing. `MainFrame` supplies layout-managed header/navigation/content/footer extension points and a `CardLayout` registry, but visual tokens, fixed dimensions, templates, shared state panels, navigation order, and final shell composition are implemented and verified by `2026-08-26-vcampus-ui-design-system.md`.
 
 - [ ] **Step 4: Run client tests and a headless Swing smoke test**
 
@@ -399,7 +414,7 @@ Scripts must run `java -version`, reject versions below 21, use relative `config
 
 Run: `mvn clean verify && mvn package && mvn javadoc:aggregate`
 
-Expected: BUILD SUCCESS; artifacts include `vCampusClient.jar`, `vCampusServer.jar`, JaCoCo reports, and aggregate JavaDoc. Start the server with a missing database and verify it exits with a readable Chinese error; restore the file and verify a client connects.
+Expected: BUILD SUCCESS; artifacts include `vCampusClient.jar`, `vCampusServer.jar`, JaCoCo reports, aggregate JavaDoc, all seven design documents, and `docs/ui-review/manifest.md`. Start the server with a missing database and verify it exits with a readable Chinese error; restore the file and verify a client connects.
 
 - [ ] **Step 5: Commit distribution support**
 
