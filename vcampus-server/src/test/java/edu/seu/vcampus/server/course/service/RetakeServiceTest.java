@@ -340,6 +340,87 @@ class RetakeServiceTest {
         assertThat(readOffering("offering-1").enrolledCount()).isOne();
     }
 
+    @Test
+    void sharedLocksMakeConcurrentIdenticalSourceImportsIdempotentAcrossServices() throws Exception {
+        int clients = Integer.getInteger("course.test.concurrentClients", 20);
+        ImportCourseOutcomesCommand command = new ImportCourseOutcomesCommand(List.of(
+                new ImportCourseOutcomesCommand.OutcomeEntry(
+                        STUDENT_ID, "course-1", "term-1", CourseOutcome.FAILED, "shared-source")));
+        StripedResourceLockManager sharedLocks = new StripedResourceLockManager();
+        List<CourseService> services = new ArrayList<>();
+        for (int index = 0; index < clients; index++) {
+            services.add(createService(sessions::get, studentRecords::get, sharedLocks));
+        }
+
+        List<Outcome<Void>> results = concurrently(clients, index -> {
+            services.get(index).importCourseOutcomes(command);
+            return null;
+        });
+
+        assertThat(results).allMatch(Outcome::success);
+        assertThat(attemptCount()).isOne();
+        edu.seu.vcampus.server.course.repository.CourseAttempt persisted =
+                new TransactionManager(connections).inTransaction(connection ->
+                        repository.findAttemptBySourceReference(
+                                connection, "shared-source").orElseThrow());
+        assertThat(persisted)
+                .extracting("studentId", "courseId", "termId", "outcome", "sourceReference")
+                .containsExactly(STUDENT_ID, "course-1", "term-1", "FAILED", "shared-source");
+    }
+
+    @Test
+    void sharedLocksRejectConcurrentConflictingPayloadForTheSameSource() throws Exception {
+        ImportCourseOutcomesCommand failed = new ImportCourseOutcomesCommand(List.of(
+                new ImportCourseOutcomesCommand.OutcomeEntry(
+                        STUDENT_ID, "course-1", "term-1", CourseOutcome.FAILED, "shared-source")));
+        ImportCourseOutcomesCommand passed = new ImportCourseOutcomesCommand(List.of(
+                new ImportCourseOutcomesCommand.OutcomeEntry(
+                        STUDENT_ID, "course-1", "term-1", CourseOutcome.PASSED, "shared-source")));
+        StripedResourceLockManager sharedLocks = new StripedResourceLockManager();
+        List<CourseService> services = List.of(
+                createService(sessions::get, studentRecords::get, sharedLocks),
+                createService(sessions::get, studentRecords::get, sharedLocks));
+
+        List<Outcome<Void>> results = concurrently(2, index -> {
+            services.get(index).importCourseOutcomes(index == 0 ? failed : passed);
+            return null;
+        });
+
+        assertThat(results.stream().filter(Outcome::success)).hasSize(1);
+        assertThat(results.stream().filter(result -> !result.success()))
+                .extracting(result -> ((CourseRuleException) result.failure()).code())
+                .containsExactly("COURSE_OUTCOME_IMPORT_INVALID");
+        assertThat(attemptCount()).isOne();
+        edu.seu.vcampus.server.course.repository.CourseAttempt persisted =
+                new TransactionManager(connections).inTransaction(connection ->
+                        repository.findAttemptBySourceReference(
+                                connection, "shared-source").orElseThrow());
+        assertThat(persisted)
+                .extracting("sourceReference", "outcome")
+                .satisfiesExactly(value -> assertThat(value).isEqualTo("shared-source"),
+                        value -> assertThat(value).isIn("FAILED", "PASSED"));
+    }
+
+    @Test
+    void retakeReactivatesTheRetainedNaturalKeyAsRetakeWithoutAddingAnotherRow() {
+        importOutcome(CourseOutcome.FAILED, "failed-source");
+        seedOffering("offering-1", "course-1", 2, 0, "OPEN");
+        new TransactionManager(connections).inTransaction(connection -> repository.insertEnrollment(
+                connection, new Enrollment("retained-enrollment", "offering-1", STUDENT_ID,
+                        "NORMAL", "DROPPED", NOW.minusSeconds(600), NOW.minusSeconds(300),
+                        0, null, null)));
+
+        EnrollmentView result = service.enrollRetake(TOKEN, new RetakeCommand("offering-1"));
+
+        assertThat(result.enrollmentId()).isEqualTo("retained-enrollment");
+        assertThat(result.enrollmentType()).isEqualTo("RETAKE");
+        assertThat(result.enrollmentStatus()).isEqualTo("ACTIVE");
+        assertThat(result.droppedAt()).isNull();
+        assertThat(naturalKeyCount(STUDENT_ID, "offering-1")).isOne();
+        assertThat(activeCount("offering-1")).isOne();
+        assertThat(readOffering("offering-1").enrolledCount()).isEqualTo(activeCount("offering-1"));
+    }
+
     private void seedCatalog() {
         new TransactionManager(connections).inTransaction(connection -> {
             repository.insertTerm(connection, new Term("term-1", "2025-2026-2", "Previous",
@@ -435,6 +516,21 @@ class RetakeServiceTest {
         }
     }
 
+    private long naturalKeyCount(String studentId, String offeringId) {
+        try (Connection connection = connections.open();
+             var statement = connection.prepareStatement(
+                     "SELECT COUNT(*) FROM tblEnrollment WHERE studentId=? AND offeringId=?")) {
+            statement.setString(1, studentId);
+            statement.setString(2, offeringId);
+            try (var result = statement.executeQuery()) {
+                result.next();
+                return result.getLong(1);
+            }
+        } catch (Exception error) {
+            throw new IllegalStateException(error);
+        }
+    }
+
     private static <T> List<Outcome<T>> concurrently(int clients,
                                                       Function<Integer, T> action) throws Exception {
         CountDownLatch ready = new CountDownLatch(clients);
@@ -446,7 +542,15 @@ class RetakeServiceTest {
                 int client = index;
                 futures.add(pool.submit(() -> {
                     ready.countDown();
-                    start.await();
+                    try {
+                        if (!start.await(5, TimeUnit.SECONDS)) {
+                            return new Outcome<>(null,
+                                    new AssertionError("concurrent start was not released"));
+                        }
+                    } catch (InterruptedException error) {
+                        Thread.currentThread().interrupt();
+                        return new Outcome<>(null, error);
+                    }
                     try {
                         return new Outcome<>(action.apply(client), null);
                     } catch (Throwable failure) {
@@ -454,16 +558,45 @@ class RetakeServiceTest {
                     }
                 }));
             }
-            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(await(ready, 5, TimeUnit.SECONDS)).isTrue();
             start.countDown();
             List<Outcome<T>> results = new ArrayList<>();
             for (Future<Outcome<T>> future : futures) {
-                results.add(future.get(10, TimeUnit.SECONDS));
+                results.add(get(future, 10, TimeUnit.SECONDS));
             }
             return results;
         } finally {
             pool.shutdownNow();
-            assertThat(pool.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(awaitTermination(pool, 5, TimeUnit.SECONDS)).isTrue();
+        }
+    }
+
+    private static boolean await(CountDownLatch latch, long timeout, TimeUnit unit)
+            throws InterruptedException {
+        try {
+            return latch.await(timeout, unit);
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            throw error;
+        }
+    }
+
+    private static <T> T get(Future<T> future, long timeout, TimeUnit unit) throws Exception {
+        try {
+            return future.get(timeout, unit);
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            throw error;
+        }
+    }
+
+    private static boolean awaitTermination(ExecutorService pool, long timeout, TimeUnit unit)
+            throws InterruptedException {
+        try {
+            return pool.awaitTermination(timeout, unit);
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            throw error;
         }
     }
 
