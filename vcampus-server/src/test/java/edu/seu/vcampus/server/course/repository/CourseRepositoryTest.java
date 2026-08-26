@@ -156,6 +156,9 @@ class CourseRepositoryTest {
                         64, originalCourse.description(), originalCourse.active(), originalCourse.rowVersion(),
                         originalCourse.createdAt(), originalCourse.updatedAt()), originalCourse.rowVersion());
         assertThat(updatedCourse.courseName()).isEqualTo("Advanced Programming");
+        Course reloadedCourse = repository.requireCourse(connection, originalCourse.courseId());
+        assertThat(reloadedCourse.courseName()).isEqualTo("Advanced Programming");
+        assertThat(reloadedCourse.totalHours()).isEqualTo(64);
         assertThatThrownBy(() -> repository.updateCourse(connection, originalCourse, originalCourse.rowVersion()))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("Stale course version");
 
