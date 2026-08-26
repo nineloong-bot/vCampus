@@ -2,6 +2,9 @@ package edu.seu.vcampus.server.course.service;
 
 import edu.seu.vcampus.common.course.EnrollCommand;
 import edu.seu.vcampus.common.course.EnrollmentView;
+import edu.seu.vcampus.common.course.LateAddCommand;
+import edu.seu.vcampus.common.course.DropCommand;
+import edu.seu.vcampus.common.course.ChangeOfferingCommand;
 import edu.seu.vcampus.server.concurrency.ResourceKey;
 import edu.seu.vcampus.server.concurrency.ResourceLockManager;
 import edu.seu.vcampus.server.course.domain.CourseForbiddenException;
@@ -35,6 +38,7 @@ public final class CourseServiceImpl implements CourseService {
     private final TermWindowPolicy windows;
     private final ScheduleConflictPolicy conflicts;
     private final Clock clock;
+    private final EnrollmentAdjustmentService adjustments;
 
     /** Creates an enrollment service from course-owned infrastructure and gateway boundaries. */
     public CourseServiceImpl(CourseAuthorizationGateway authorization,
@@ -53,6 +57,8 @@ public final class CourseServiceImpl implements CourseService {
         this.windows = Objects.requireNonNull(windows, "windows");
         this.conflicts = Objects.requireNonNull(conflicts, "conflicts");
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.adjustments = new EnrollmentAdjustmentService(authorization, students, repository, locks,
+                transactions, windows, conflicts, clock);
     }
 
     /** Uses the declared student-then-offering lock order and repeats mutable validation. */
@@ -79,6 +85,21 @@ public final class CourseServiceImpl implements CourseService {
             return transactions.inTransaction(connection ->
                     enrollLocked(connection, current.studentId(), command.offeringId(), operationTime));
         });
+    }
+
+    @Override
+    public EnrollmentView addDuringAdjustment(String sessionToken, LateAddCommand command) {
+        return adjustments.add(sessionToken, command);
+    }
+
+    @Override
+    public void dropDuringAdjustment(String sessionToken, DropCommand command) {
+        adjustments.drop(sessionToken, command);
+    }
+
+    @Override
+    public EnrollmentView changeDuringAdjustment(String sessionToken, ChangeOfferingCommand command) {
+        return adjustments.change(sessionToken, command);
     }
 
     private EnrollmentView enrollLocked(Connection connection, String studentId, String offeringId,
