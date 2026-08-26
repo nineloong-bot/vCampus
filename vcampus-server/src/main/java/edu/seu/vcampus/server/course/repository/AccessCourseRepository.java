@@ -67,6 +67,10 @@ public final class AccessCourseRepository implements CourseRepository {
     @Override public boolean insertAttemptIfAbsent(Connection c, CourseAttempt value) {
         return audits.insertAttemptIfAbsent(c, value);
     }
+    @Override public Optional<CourseAttempt> findAttemptBySourceReference(Connection c,
+                                                                          String sourceReference) {
+        return audits.findAttemptBySourceReference(c, sourceReference);
+    }
     @Override public List<CourseAttempt> findAttempts(Connection c, String studentId, String courseId) {
         return audits.findAttempts(c, studentId, courseId);
     }

@@ -7,6 +7,7 @@ import java.sql.SQLException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /** JDBC persistence for immutable enrollment-adjustment and outcome-import audit data. */
 final class AccessAuditRepository {
@@ -37,6 +38,18 @@ final class AccessAuditRepository {
         } catch (SQLException error) {
             if (attemptExists(c, value.sourceReference())) return false;
             throw CourseJdbc.failure("insert course attempt", error);
+        }
+    }
+
+    Optional<CourseAttempt> findAttemptBySourceReference(Connection c, String sourceReference) {
+        String sql = "SELECT * FROM tblCourseAttempt WHERE sourceReference=?";
+        try (PreparedStatement s = c.prepareStatement(sql)) {
+            s.setString(1, sourceReference);
+            try (ResultSet r = s.executeQuery()) {
+                return r.next() ? Optional.of(attempt(r)) : Optional.empty();
+            }
+        } catch (SQLException error) {
+            throw CourseJdbc.failure("find course attempt by source reference", error);
         }
     }
 

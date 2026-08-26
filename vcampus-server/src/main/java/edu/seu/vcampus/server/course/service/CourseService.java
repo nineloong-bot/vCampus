@@ -5,6 +5,9 @@ import edu.seu.vcampus.common.course.EnrollmentView;
 import edu.seu.vcampus.common.course.LateAddCommand;
 import edu.seu.vcampus.common.course.DropCommand;
 import edu.seu.vcampus.common.course.ChangeOfferingCommand;
+import edu.seu.vcampus.common.course.ImportCourseOutcomesCommand;
+import edu.seu.vcampus.common.course.RetakeCommand;
+import edu.seu.vcampus.common.course.RetakeEligibility;
 
 /** Application operations owned by the course module. */
 public interface CourseService {
@@ -19,4 +22,11 @@ public interface CourseService {
 
     /** Atomically changes the authenticated student's active enrollment to another offering. */
     EnrollmentView changeDuringAdjustment(String sessionToken, ChangeOfferingCommand command);
+
+    RetakeEligibility checkRetakeEligibility(String sessionToken, String courseId);
+
+    EnrollmentView enrollRetake(String sessionToken, RetakeCommand command);
+
+    /** Authorization is enforced by the Task 6 administrator message handler. */
+    void importCourseOutcomes(ImportCourseOutcomesCommand command);
 }

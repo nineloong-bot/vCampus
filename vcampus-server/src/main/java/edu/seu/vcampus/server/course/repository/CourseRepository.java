@@ -77,6 +77,10 @@ public interface CourseRepository {
     /** Inserts an imported outcome unless its source reference was already processed. */
     boolean insertAttemptIfAbsent(Connection connection, CourseAttempt attempt);
 
+    /** Finds an imported outcome by its external idempotency reference. */
+    Optional<CourseAttempt> findAttemptBySourceReference(Connection connection,
+                                                          String sourceReference);
+
     /** Lists imported outcomes for one student's course. */
     List<CourseAttempt> findAttempts(Connection connection, String studentId, String courseId);
 
