@@ -2,7 +2,7 @@
 
 ## 1. 目标与范围
 
-本模块负责登录、登出、密码修改、账户状态、基础角色、会话撤销和安全审计，并为学籍模块提供学生账户内部创建接口。学生使用一卡通号作为登录标识，学生账户只能由管理员执行新生录取时创建，不提供学生自助注册。
+本模块负责登录、登出、密码修改、账户状态、基础角色、会话撤销和安全审计，并为学籍模块提供学生账户内部创建接口。学生使用一卡通号作为登录标识，学生账户由管理员执行新生录取时创建。
 
 本模块不维护学生学籍、教师档案、店铺资格或业务资源权限，也不生成一卡通号或学号。编号生成和新生录取事务由学籍模块负责。
 
@@ -11,14 +11,13 @@
 | 用例 | 未登录 | 学生 | 教师 | 管理员 |
 |---|---:|---:|---:|---:|
 | 登录 | 是 | 是 | 是 | 是 |
-| 教师账户申请 | 是 | 否 | 是 | 否 |
-| 学生自助注册 | 否 | 否 | 否 | 否 |
+| 教师账户申请 | 是 | 否 | 否 | 否 |
 | 查看本人、修改密码、登出 | 否 | 是 | 是 | 是 |
 | 查询全部账户 | 否 | 否 | 否 | 是 |
 | 调整角色和状态 | 否 | 否 | 否 | 是 |
 | 查看安全审计 | 否 | 否 | 否 | 是 |
 
-基础角色为 `STUDENT`、`TEACHER`、`ADMIN`。公开注册只允许申请 `TEACHER`，初始状态为 `PENDING`；请求 `STUDENT` 必须返回 `AUTH_STUDENT_SELF_REGISTRATION_DISABLED`，请求 `ADMIN` 必须返回 `COMMON_FORBIDDEN`。学生账户由学籍录取事务直接创建为 `ACTIVE`，并设置 `mustChangePassword=TRUE`。初始管理员由种子数据创建，后续管理员由已有管理员调整角色。管理员不得禁用当前唯一的有效管理员账户。
+基础角色为 `STUDENT`、`TEACHER`、`ADMIN`。登录前的教师账户申请不接受角色参数，服务端固定创建 `roleCode=TEACHER`、`accountStatus=PENDING` 的账户。学生账户由学籍录取事务直接创建为 `ACTIVE`，并设置 `mustChangePassword=TRUE`。初始管理员由种子数据创建，后续管理员由已有管理员调整角色。管理员不得禁用当前唯一的有效管理员账户。
 
 ## 3. 状态与首次登录模型
 
@@ -42,7 +41,7 @@ DISABLED → ACTIVE
 ## 4. Swing 页面
 
 - `U-01 LoginFrame`：服务器状态、登录标识、密码和登录入口；学生在登录标识栏输入一卡通号。
-- `U-02 RegisterDialog`：仅支持教师账户申请，不显示学生或管理员角色选项。
+- `U-02 TeacherAccountApplicationDialog`：提交教师账户申请，不显示角色选项。
 - `U-03 InitialPasswordChangeDialog`：首次登录专用，只允许修改初始密码或登出，成功后返回登录页。
 - `U-04 AccountPanel`：本人账户、登录标识、角色、状态和最近登录时间。
 - `U-05 ChangePasswordDialog`：旧密码、新密码和确认密码。
@@ -58,8 +57,7 @@ DISABLED → ACTIVE
 enum UserRole { STUDENT, TEACHER, ADMIN }
 enum AccountStatus { PENDING, ACTIVE, DISABLED, CANCELLED }
 
-record RegisterUserCommand(String loginId, char[] password,
-                           UserRole requestedRole)
+record TeacherAccountApplicationCommand(String loginId, char[] password)
         implements Serializable {}
 record LoginCommand(String loginId, char[] password,
                     String clientInstanceId)
@@ -89,7 +87,8 @@ record ProvisionedUserAccount(String userId, String loginId,
 
 ```java
 public interface UserService {
-    UserView register(RegisterUserCommand command);
+    UserView applyForTeacherAccount(
+            TeacherAccountApplicationCommand command);
     LoginResult login(LoginCommand command, ClientContext context);
     void logout(String sessionToken);
     UserView getCurrentUser(String sessionToken);
@@ -125,7 +124,7 @@ public interface AuthorizationPort {
 
 | 命令 | 请求 | 响应 | 权限 | 幂等 |
 |---|---|---|---|---|
-| `USER_REGISTER` | `RegisterUserCommand` | `UserView` | 公开；仅允许教师申请 | 是 |
+| `USER_REGISTER` | `TeacherAccountApplicationCommand` | `UserView` | 公开；固定创建待审核教师账户 | 是 |
 | `USER_LOGIN` | `LoginCommand` | `LoginResult` | 公开 | 是 |
 | `USER_LOGOUT` | `EmptyRequest` | `EmptyResponse` | 已登录/受限会话 | 是 |
 | `USER_GET_CURRENT` | `EmptyRequest` | `UserView` | 已登录/受限会话 | 否 |
@@ -204,7 +203,7 @@ public interface AuthorizationPort {
 
 ## 10. 错误码
 
-`AUTH_INVALID_CREDENTIALS`、`AUTH_ACCOUNT_PENDING`、`AUTH_ACCOUNT_DISABLED`、`AUTH_ACCOUNT_LOCKED`、`AUTH_SESSION_EXPIRED`、`AUTH_PASSWORD_POLICY_VIOLATION`、`AUTH_INITIAL_PASSWORD_CHANGE_REQUIRED`、`AUTH_STUDENT_SELF_REGISTRATION_DISABLED`、`USER_LOGIN_ID_EXISTS`、`USER_LAST_ADMIN_PROTECTED`、`USER_ROLE_CONFLICT`。
+`AUTH_INVALID_CREDENTIALS`、`AUTH_ACCOUNT_PENDING`、`AUTH_ACCOUNT_DISABLED`、`AUTH_ACCOUNT_LOCKED`、`AUTH_SESSION_EXPIRED`、`AUTH_PASSWORD_POLICY_VIOLATION`、`AUTH_INITIAL_PASSWORD_CHANGE_REQUIRED`、`USER_LOGIN_ID_EXISTS`、`USER_LAST_ADMIN_PROTECTED`、`USER_ROLE_CONFLICT`。
 
 登录失败统一返回凭据无效，避免泄露登录标识是否存在；账户待启用、禁用和锁定仅在密码验证成功后返回明确状态。受限会话调用禁止命令时返回 `AUTH_INITIAL_PASSWORD_CHANGE_REQUIRED`。
 
@@ -215,7 +214,7 @@ public interface AuthorizationPort {
 ## 12. 测试与验收
 
 - 20 个相同 `loginId` 并发创建只能成功一个。
-- 公开注册请求 `STUDENT` 必须返回 `AUTH_STUDENT_SELF_REGISTRATION_DISABLED`，且不得写入账户。
+- 教师账户申请固定创建 `PENDING/TEACHER` 账户，请求和客户端都不提供角色选项。
 - 内部 Port 使用一卡通 `213242478` 时创建 `ACTIVE/STUDENT` 账户，`loginId=213242478` 且 `mustChangePassword=TRUE`。
 - 初始密码登录只能访问本人信息、改密和登出；访问任一业务命令返回 `AUTH_INITIAL_PASSWORD_CHANGE_REQUIRED`。
 - 首次改密后 `mustChangePassword=FALSE`，旧初始密码和受限会话均失效，使用新密码重新登录后获得正常权限。
@@ -242,7 +241,7 @@ vcampus-server/src/test/.../user
 ## 14. 下游实现任务
 
 1. 建立 `loginId`、`mustChangePassword` 字段、角色权限种子数据和 Repository 集成测试。
-2. 以测试驱动实现密码策略、PBKDF2、非学生注册和 `loginId` 并发唯一性。
+2. 以测试驱动实现密码策略、PBKDF2、教师账户申请和 `loginId` 并发唯一性。
 3. 实现 `UserAccountProvisioningPort`，验证共享事务边界和整体回滚。
 4. 实现普通会话、受限会话、首次强制改密、登录锁定、注销和账户状态撤销。
 5. 实现管理员查询、角色/状态修改和审计。

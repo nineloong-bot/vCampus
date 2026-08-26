@@ -148,14 +148,14 @@ VCampus 采用“传统学术”方向：克制、可信、安静、有高校文
 
 ### 4.3 导航
 
-- 一级顺序固定为：总览、学籍档案、课程中心、图书借阅、校园商城、账户设置。
+- 一级顺序固定为：学籍档案、课程中心、图书借阅、校园商城、账户设置。登录后默认打开当前用户有权限的第一个入口，不额外设置无业务归属的“总览”页。
 - 管理员功能在对应业务模块内展开，禁止在一级导航堆叠所有管理页面。
 - 无权限的入口直接隐藏；已显示但因当前状态不可用的操作应禁用并提供原因。
 - 导航项文字优先，图标只用于快速识别；不得只显示无文字图标。
 
 ### 4.4 认证流程
 
-`LoginFrame`、`RegisterDialog` 和 `InitialPasswordChangeDialog` 是唯一不使用业务外壳的页面。
+`LoginFrame`、`TeacherAccountApplicationDialog` 和 `InitialPasswordChangeDialog` 是唯一不使用业务外壳的页面。
 
 - 登录窗口主体建议为 760 × 480，左侧显示产品身份，右侧显示登录表单。
 - 服务器连接状态必须在登录按钮附近可见。
@@ -280,11 +280,17 @@ VCampus 采用“传统学术”方向：克制、可信、安静、有高校文
 |---|---|---|---|---|---|
 | 用户 | `UserManagementPanel`、`SecurityAuditPanel` | `AccountPanel` | — | 账户管理、角色调整对话框 | — |
 | 学籍 | `StudentSearchPanel` | `MyStudentProfilePanel`、`StudentDetailPanel` | — | `OrganizationManagementPanel`、录取/联系方式/学籍变更对话框 | — |
-| 选课 | `OfferingSearchPanel`、`MyEnrollmentPanel`、`AdjustmentPanel`、`RetakePanel`、`AdjustmentAuditPanel` | `OfferingDetailDialog`、`MySchedulePanel` | — | `TermManagementPanel`、`CourseCatalogPanel`、`OfferingManagementPanel`、`OutcomeImportPanel` | — |
+| 选课 | `OfferingSearchPanel`、`MyEnrollmentPanel`、`AdjustmentPanel`、`RetakePanel`、`AdjustmentAuditPanel` | `MySchedulePanel` | — | `TermManagementPanel`、`CourseCatalogPanel`、`OfferingManagementPanel`、`OutcomeImportPanel` | — |
 | 图书馆 | `BookSearchPanel`、`CurrentLoansPanel`、`LoanHistoryPanel` | `BookDetailPanel` | — | `BookManagementPanel`、`CopyManagementPanel`、`LoanAdminPanel`、`LibraryPolicyPanel` | — |
 | 商城 | `MyOrdersPanel`、`SellerOrderPanel`、`SellerReviewPanel`、`ShopGovernancePanel`、`PlatformOrderPanel` | `OrderDetailPanel`、`ShopProfilePanel` | `SellerApplicationPanel`、`CheckoutPanel` | `SellerDashboardPanel`、`ProductManagementPanel` | `ShopHomePanel`、`ProductSearchPanel`、`ProductDetailPanel`、`CartPanel` |
 
-`LoginFrame`、`RegisterDialog`、`InitialPasswordChangeDialog`、`ChangePasswordDialog`、`StudentAdmissionDialog`、`UpdateContactDialog`、`EnrollmentChangeDialog`、`LoanActionDialog` 和 `SimulatedCashierDialog` 按认证流程或公共对话框规则实现。
+`LoginFrame`、`TeacherAccountApplicationDialog`、`InitialPasswordChangeDialog`、`ChangePasswordDialog`、`UserRoleDialog`、`StudentAdmissionDialog`、`UpdateContactDialog`、`EnrollmentChangeDialog`、`OfferingDetailDialog`、`LoanActionDialog` 和 `SimulatedCashierDialog` 按认证流程或公共对话框规则实现。
+
+以下复合页面仍属于上表的五类模板，但使用固定的业务子布局：
+
+- `MySchedulePanel` 属于详情页，身份摘要下方使用全宽周课表网格，不强制拆成字段分组。
+- `SellerDashboardPanel` 属于管理页，允许在工作队列表格上方放置单一水平摘要条，禁止堆叠独立统计卡片。
+- `CartPanel` 属于展示页，使用商品明细列表和单一结算摘要区，不使用商品图片网格。
 
 ## 8. 页面状态模型
 
@@ -346,7 +352,7 @@ VCampus 采用“传统学术”方向：克制、可信、安静、有高校文
 
 ### 12.1 所有权
 
-- 公共设计令牌、应用外壳和公共组件由指定 UI 负责人维护。
+- 公共设计令牌、应用外壳和公共组件由学籍模块负责人维护；如团队以书面分工另行指定 UI 负责人，必须同时移交 Swing 外壳的维护权，不得由两人分头修改。
 - 五个模块负责人只拥有自己模块中的页面组装、数据绑定和业务文案。
 - 业务模块不得复制公共组件后修改外观，不得在私有包中建立第二套主题。
 
