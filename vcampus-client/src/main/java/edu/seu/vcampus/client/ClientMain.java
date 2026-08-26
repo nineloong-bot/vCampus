@@ -1,6 +1,7 @@
 package edu.seu.vcampus.client;
 
 import edu.seu.vcampus.client.core.network.ClientConnection;
+import edu.seu.vcampus.client.core.ui.theme.UiThemeInstaller;
 import edu.seu.vcampus.client.user.ui.LoginFrame;
 
 import javax.swing.SwingUtilities;
@@ -19,6 +20,7 @@ public final class ClientMain {
     public static void main(String[] args) {
         Path configFile = Path.of(args.length == 0 ? "config/client.properties" : args[0]);
         try {
+            UiThemeInstaller.install();
             Properties properties = load(configFile);
             String host = required(properties, "server.host");
             int port = integer(properties, "server.port", 1, 65_535);

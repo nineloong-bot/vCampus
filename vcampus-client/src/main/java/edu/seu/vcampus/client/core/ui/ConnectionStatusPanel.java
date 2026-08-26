@@ -1,6 +1,9 @@
 package edu.seu.vcampus.client.core.ui;
 
 import edu.seu.vcampus.common.protocol.ResponseBody;
+import edu.seu.vcampus.client.core.ui.theme.UiColors;
+import edu.seu.vcampus.client.core.ui.theme.UiSpacing;
+import edu.seu.vcampus.client.core.ui.theme.UiTypography;
 
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -19,8 +22,11 @@ public final class ConnectionStatusPanel extends JPanel {
 
     /** Creates the status panel with a known initial state. */
     public ConnectionStatusPanel(String initialStatus) {
-        super(new FlowLayout(FlowLayout.RIGHT));
+        super(new FlowLayout(FlowLayout.RIGHT, UiSpacing.SM, 0));
+        setOpaque(false);
         status.setText(initialStatus);
+        status.setFont(UiTypography.CAPTION);
+        status.setForeground(UiColors.TEXT_ON_PRIMARY);
         add(status);
     }
 
