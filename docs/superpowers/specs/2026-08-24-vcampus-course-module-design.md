@@ -35,15 +35,9 @@
 
 ## 5. Swing 页面
 
-选课模块所有 Swing 页面必须遵守 `docs/superpowers/specs/2026-08-26-vcampus-ui-design-system.md`，不得定义私有主题、私有主色、重复公共组件或修改 `MainFrame + CardLayout` 应用外壳。
-
 `C-01 OfferingSearchPanel`、`C-02 OfferingDetailDialog`、`C-03 MyEnrollmentPanel`、`C-04 MySchedulePanel`、`C-05 AdjustmentPanel`、`C-06 RetakePanel`、`C-07 TermManagementPanel`、`C-08 CourseCatalogPanel`、`C-09 OfferingManagementPanel`、`C-10 OutcomeImportPanel`、`C-11 AdjustmentAuditPanel`。
 
-页面模板按 UI 设计系统固定映射：`OfferingSearchPanel`、`MyEnrollmentPanel`、`AdjustmentPanel`、`RetakePanel`、`AdjustmentAuditPanel` 使用查询列表页；`OfferingDetailDialog` 和 `MySchedulePanel` 使用详情结构；`TermManagementPanel`、`CourseCatalogPanel`、`OfferingManagementPanel`、`OutcomeImportPanel` 使用管理页。
-
-退改补页显示当前阶段和时间窗。改选确认框按公共对话框规范实现，并列显示原/目标教学班、课程、时间、容量与冲突结果。
-
-所有查询和数据页面必须实现初始、加载、正常、空结果、错误和断线状态；涉及写操作的页面必须实现提交中和并发冲突状态。颜色、字体、字号、间距、边框、状态标签、表格、分页和按钮必须从公共 UI 令牌与公共组件取得。
+退改补页显示当前阶段和时间窗。改选确认框并列显示原/目标教学班、课程、时间、容量与冲突结果。
 
 ## 6. DTO
 

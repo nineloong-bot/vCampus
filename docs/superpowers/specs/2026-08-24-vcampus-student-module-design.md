@@ -16,7 +16,7 @@
 | 录取新生、转班、变更状态 | 否 | 否 | 是 |
 | 维护院系/专业/班级 | 否 | 否 | 是 |
 
-教师查询只返回一卡通号、学号、姓名、班级、专业和学籍状态，不返回电话等非必要联系方式。学生不得自助建档或自助注册账户。
+教师查询只返回一卡通号、学号、姓名、班级、专业和学籍状态，不返回电话等非必要联系方式。学生档案和登录账户由管理员在新生录取事务中统一创建。
 
 ## 3. 学籍状态与学生类型
 
@@ -149,7 +149,7 @@ public interface StudentQueryPort {
 | `STUDENT_LIST_MAJORS` | `ParentIdQuery` | `List<MajorView>` | 已登录 |
 | `STUDENT_LIST_CLASSES` | `ParentIdQuery` | `List<ClassView>` | 已登录 |
 
-所有写命令必须幂等。`STUDENT_CREATE` 通过 `clientInstanceId + requestId` 去重；同一请求重放必须返回第一次提交的 `StudentAdmissionResult`，不得再次分配编号。
+所有写命令必须幂等。`STUDENT_CREATE` 只通过全局唯一的 `requestId` 去重；同一请求重放必须返回第一次提交的 `StudentAdmissionResult`，不得再次分配编号。
 
 ## 9. 数据库
 
@@ -308,7 +308,7 @@ public interface StudentQueryPort {
 
 ### 14.3 权限与业务测试
 
-- 学生自助注册被拒绝；管理员录取后可用一卡通号和初始密码登录。
+- 管理员录取后，学生可使用一卡通号和初始密码登录。
 - 初始密码会话仅能改密、查看本人和登出，改密后必须重新登录。
 - 转班或后续学号纠错不得改变一卡通号、`tblUser.loginId` 或登录行为。
 - 班级不属于指定专业、年份不一致或班级停用时拒绝录取且不消耗编号。

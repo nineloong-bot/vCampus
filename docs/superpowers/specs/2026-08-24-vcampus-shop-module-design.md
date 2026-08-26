@@ -11,9 +11,9 @@
 - 管理员：审核开店申请、停用店铺/商品、查询平台订单及支付日志。
 - 一个用户最多拥有一家有效店铺。申请人必须是有效学生或教师账户。
 
-## 3. 店主状态
+## 3. 店主申请与店铺状态
 
-`DRAFT → PENDING → APPROVED/REJECTED`；驳回后修改可再次提交；批准后可被 `SUSPENDED`，管理员可恢复。驳回和停用必须填写原因。审核通过和创建店铺在同一事务完成。
+店主申请状态固定为 `DRAFT → PENDING → APPROVED/REJECTED`。驳回后修改时执行 `REJECTED → DRAFT`，再次提交时执行 `DRAFT → PENDING`。驳回必须填写原因；审核通过和创建 `ACTIVE` 店铺在同一事务完成。批准后的停用和恢复属于店铺 `ACTIVE ↔ SUSPENDED` 状态，不改变已批准申请的 `APPROVED` 状态；停用必须填写原因。
 
 ## 4. 商品与店铺规则
 
@@ -54,6 +54,8 @@ score = categoryAffinity * 0.50
 ## 8. 状态模型
 
 ```text
+SellerApplication: DRAFT → PENDING → APPROVED
+SellerApplication: PENDING → REJECTED → DRAFT
 Payment: PENDING → SUCCEEDED | CANCELLED | EXPIRED
 PaymentAttempt: STARTED → SUCCEEDED | FAILED | CANCELLED
 Order: PENDING_PAYMENT → PAID → PREPARING → SHIPPED → COMPLETED

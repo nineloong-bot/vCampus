@@ -12,7 +12,7 @@
 - 不实现银行、医院、宿舍、在线课堂等选做模块。
 - 选课系统不保存或展示具体成绩，但保存 `PASSED`/`FAILED` 修读结果以判断重修资格。
 - 商城为校园多商户商城，包含首页推荐、搜索、店铺、购物车、订单和模拟第三方支付。
-- 学生登录标识为一卡通号；管理员录取建档时同时生成一卡通号、学号、用户账户和学生档案，学生不得自助注册账户。
+- 学生登录标识为一卡通号；管理员录取建档时同时生成一卡通号、学号、用户账户和学生档案。
 - 最终交付两个可运行文件：`vCampusClient.jar` 和 `vCampusServer.jar`，数据库名为 `vCampus.accdb`。
 
 ## 3. 技术决策
@@ -100,7 +100,7 @@ public final class ResponseBody<T extends Serializable>
 
 ## 7. 会话与权限
 
-- 登录前只允许 `USER_REGISTER`、`USER_LOGIN` 和连接探测；`USER_REGISTER` 不接受 `STUDENT` 角色。
+- 登录前只允许 `USER_REGISTER`、`USER_LOGIN` 和连接探测；`USER_REGISTER` 仅用于教师账户申请，请求不接受可选角色。
 - 登录成功后由服务端生成不可预测的会话令牌；客户端仅保存在内存中。
 - 学生使用一卡通号作为 `loginId`。新生账户初始密码固定为 `12345678`，账户创建时必须设置 `mustChangePassword=TRUE`。
 - 使用初始密码登录只获得受限会话，仅允许 `USER_GET_CURRENT`、`USER_CHANGE_PASSWORD` 和 `USER_LOGOUT`；修改密码成功后撤销该会话并要求重新登录。
@@ -116,7 +116,7 @@ public final class ResponseBody<T extends Serializable>
 - 对同一个 `ObjectOutputStream` 的写入必须使用连接级互斥锁。
 - 数据库入口默认最多 8 个并发事务，由信号量限制。
 - 关键写操作同时使用资源锁、数据库事务和 `rowVersion` 乐观锁。
-- 多资源操作必须按 `resourceType + resourceId` 排序后加锁。
+- 多资源操作必须遵守对应模块公布的固定顺序；同一资源集不得在不同操作中反向加锁。跨模块协调器必须在设计中显式列出完整锁顺序；未公布顺序的资源集才按 `resourceType + resourceId` 排序。
 
 ```java
 public interface ResourceLockManager {
@@ -129,15 +129,15 @@ public interface ResourceLockManager {
 
 | 模块 | 资源键 |
 |---|---|
-| 用户 | `loginId`、`userId`、`sessionToken` |
-| 学籍 | `studentId`、`CAMPUS_CARD_GLOBAL`、`STUDENT_NUMBER:<majorCode>:<YY>:<classNumber>` |
-| 选课 | `studentId`、`offeringId` |
-| 图书馆 | `userId`、`copyId`、`loanId` |
-| 商城 | `skuId`、`orderId`、`paymentId` |
+| 用户 | `LOGIN_ID:<normalizedLoginId>`、`USER:<userId>`、`SESSION:<sessionToken>` |
+| 学籍 | `NUMBER_SEQUENCE:CAMPUS_CARD_GLOBAL`、`NUMBER_SEQUENCE:STUDENT_NUMBER:<majorCode>:<YY>:<classNumber>`、`STUDENT:<studentId>` |
+| 选课 | `STUDENT:<studentId>`、`OFFERING:<offeringId>` |
+| 图书馆 | `LIBRARY_USER:<userId>`、`BOOK_COPY:<copyId>`、`LOAN:<loanId>` |
+| 商城 | `SELLER_APPLICATION:<applicationId>`、`PAYMENT:<paymentId>`、`ORDER_GROUP:<orderGroupId>`、`PRODUCT:<productId>`、`SKU:<skuId>`、`CART:<userId>` |
 
 ## 9. 幂等请求
 
-所有写命令必须携带唯一 `requestId`。`tblRequestDedup` 保存 24 小时；相同请求完成后返回原响应，仍在处理中返回 `COMMON_REQUEST_IN_PROGRESS`。登录前使用客户端实例 ID 与 `requestId` 组合去重。
+所有写命令必须携带全局唯一的 UUID `requestId`，并且所有登录前、登录后请求都只以 `requestId` 作为幂等键。`clientInstanceId` 只用于追踪和诊断，不参与唯一性判定。`tblRequestDedup` 保存 24 小时；相同请求完成后返回原响应，仍在处理中返回 `COMMON_REQUEST_IN_PROGRESS`。
 
 ### 9.1 `tblRequestDedup` 请求幂等记录表
 
@@ -145,7 +145,7 @@ public interface ResourceLockManager {
 |---|---|---|---|
 | `requestId` | 客户端请求唯一编号 | `VARCHAR(36)` | 主键；UUID |
 | `userId` | 发起请求的用户编号 | `VARCHAR(36)` | 可空；登录前请求为空 |
-| `clientInstanceId` | 客户端实例编号 | `VARCHAR(36)` | 非空；登录前参与去重 |
+| `clientInstanceId` | 客户端实例编号 | `VARCHAR(36)` | 非空；用于追踪和诊断，不参与幂等键 |
 | `command` | 消息命令名称 | `VARCHAR(64)` | 非空 |
 | `processingStatus` | 请求处理状态 | `VARCHAR(16)` | 非空；`PROCESSING/COMPLETED` |
 | `resultCode` | 最终结果代码 | `VARCHAR(64)` | 可空；处理完成后非空 |
@@ -157,7 +157,7 @@ public interface ResourceLockManager {
 
 ## 10. Access 数据规范
 
-- 表名使用 `tblXxx`，主键为 `<entity>Id`，外键与目标主键同名。
+- 表名使用 `tblXxx`。实体表默认使用 `<entity>Id` 作主键；代码表、关联表和序列表可以使用自然键或联合主键。外键默认与目标主键同名；同一表存在多种业务角色时可使用 `teacherUserId`、`ownerUserId` 等角色限定名称，但字段名必须以目标主键名称结尾。
 - 内部主键使用 36 字符 UUID；一卡通号、学号、课程号、ISBN 为唯一业务键。
 - 金额使用 `DECIMAL(12,2)`/`BigDecimal`；时间使用 `DATETIME`/`LocalDateTime`。
 - 可变业务表包含 `rowVersion`、`createdAt`、`updatedAt`。
@@ -241,7 +241,7 @@ mvn package
 mvn javadoc:aggregate
 ```
 
-交付目录包含两个 JAR、`data/vCampus.accdb`、配置、Windows/macOS/Linux 启动脚本、六份设计文档、使用说明和聚合 JavaDoc。
+交付目录包含两个 JAR、`data/vCampus.accdb`、配置、Windows/macOS/Linux 启动脚本、七份设计文档、使用说明和聚合 JavaDoc。
 
 ## 16. 测试和性能基线
 

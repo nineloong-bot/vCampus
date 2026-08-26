@@ -20,7 +20,7 @@
 - An unsuccessful change must leave the original enrollment active.
 - Course concurrency tests default to 20 clients but must read the count from test configuration instead of hard-coding it in business code.
 - Treat course availability as server-time window plus `termStatus`; `CLOSED` terms reject normal enrollment, drop, change, late add, and retake mutation commands.
-- Course Swing pages must follow `docs/superpowers/specs/2026-08-26-vcampus-ui-design-system.md`; use shared UI tokens/components and do not create a private theme or alter the shared application shell.
+- Course Swing pages must use the project-provided shared UI tokens and components; they must not create a private theme or alter the shared application shell.
 
 ---
 

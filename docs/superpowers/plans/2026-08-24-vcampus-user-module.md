@@ -85,10 +85,10 @@ git add vcampus-database/schema/010_user.sql vcampus-database/seed/010_roles_per
 git commit -m "feat(user): add account persistence"
 ```
 
-### Task 2: Password Policy and Concurrent Registration
+### Task 2: Password Policy and Concurrent Teacher Account Application
 
 **Files:**
-- Create: `vcampus-common/src/main/java/edu/seu/vcampus/common/user/RegisterUserCommand.java`
+- Create: `vcampus-common/src/main/java/edu/seu/vcampus/common/user/TeacherAccountApplicationCommand.java`
 - Create: `vcampus-common/src/main/java/edu/seu/vcampus/common/user/UserView.java`
 - Create: `vcampus-server/src/main/java/edu/seu/vcampus/server/user/service/PasswordHasher.java`
 - Create: `vcampus-server/src/main/java/edu/seu/vcampus/server/user/service/UserService.java`
@@ -97,16 +97,17 @@ git commit -m "feat(user): add account persistence"
 
 **Interfaces:**
 - Consumes: repository, transaction manager, resource locks, audit repository.
-- Produces: `UserView UserService.register(RegisterUserCommand)`.
+- Produces: `UserView UserService.applyForTeacherAccount(TeacherAccountApplicationCommand)`.
 
-- [ ] **Step 1: Write password-policy and 20-thread registration tests**
+- [ ] **Step 1: Write password-policy and 20-thread teacher-application tests**
 
 ```java
 @Test
-void onlyOneConcurrentRegistrationWins() throws Exception {
+void onlyOneConcurrentTeacherApplicationWins() throws Exception {
     List<Outcome<UserView>> results = concurrently(20,
-            () -> service.register(new RegisterUserCommand(
-                    "student01", "Password1".toCharArray(), STUDENT)));
+            () -> service.applyForTeacherAccount(
+                    new TeacherAccountApplicationCommand(
+                            "teacher01", "Password1".toCharArray())));
     assertThat(results.stream().filter(Outcome::isSuccess)).hasSize(1);
     assertThat(results.stream().filter(Outcome::isFailure)).hasSize(19);
 }
@@ -270,7 +271,7 @@ git commit -m "feat(user): expose account message handlers"
 **Files:**
 - Create: `vcampus-client/src/main/java/edu/seu/vcampus/client/user/service/UserClientService.java`
 - Create: `vcampus-client/src/main/java/edu/seu/vcampus/client/user/ui/LoginFrame.java`
-- Create: `vcampus-client/src/main/java/edu/seu/vcampus/client/user/ui/RegisterDialog.java`
+- Create: `vcampus-client/src/main/java/edu/seu/vcampus/client/user/ui/TeacherAccountApplicationDialog.java`
 - Create: `vcampus-client/src/main/java/edu/seu/vcampus/client/user/ui/AccountPanel.java`
 - Create: `vcampus-client/src/main/java/edu/seu/vcampus/client/user/ui/ChangePasswordDialog.java`
 - Create: `vcampus-client/src/main/java/edu/seu/vcampus/client/user/ui/UserManagementPanel.java`
