@@ -71,6 +71,12 @@ public final class RequestDeduplicator {
                 new TransactionContext(connection), requestId));
     }
 
+    /** Returns a completed response using the caller-owned transaction. */
+    public Optional<ResponseBody<?>> replayCompleted(
+            TransactionContext context, String requestId) throws Exception {
+        return findCompleted(context, requestId);
+    }
+
     /** Claims an unclaimed request inside an existing transaction. */
     public boolean claim(TransactionContext context, Message request) throws Exception {
         requireRequestId(request);
@@ -109,7 +115,28 @@ public final class RequestDeduplicator {
         }
     }
 
-    private Optional<ResponseBody<?>> replayCompleted(
+    /** Stores a completed response directly inside a caller-serialized transaction. */
+    public void storeCompleted(TransactionContext context, Message request,
+            ResponseBody<?> body) throws Exception {
+        requireRequestId(request);
+        String sql = "INSERT INTO tblRequestDedup (requestId, userId, clientInstanceId, command, "
+                + "processingStatus, resultCode, responseSnapshot, createdAt, completedAt) "
+                + "VALUES (?, ?, ?, ?, 'COMPLETED', ?, ?, ?, ?)";
+        Timestamp now = Timestamp.from(Instant.now());
+        try (var statement = context.connection().prepareStatement(sql)) {
+            statement.setString(1, request.requestId());
+            statement.setString(2, context.userId());
+            statement.setString(3, context.clientInstanceId());
+            statement.setString(4, request.command());
+            statement.setString(5, body.code());
+            statement.setString(6, serialize(body));
+            statement.setTimestamp(7, now);
+            statement.setTimestamp(8, now);
+            statement.executeUpdate();
+        }
+    }
+
+    private Optional<ResponseBody<?>> findCompleted(
             TransactionContext context, String requestId) throws Exception {
         String sql = "SELECT processingStatus, responseSnapshot FROM tblRequestDedup WHERE requestId = ?";
         try (var statement = context.connection().prepareStatement(sql)) {

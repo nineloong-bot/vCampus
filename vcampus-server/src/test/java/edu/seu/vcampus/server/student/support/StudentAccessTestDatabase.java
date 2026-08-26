@@ -20,7 +20,12 @@ public final class StudentAccessTestDatabase {
                 + ";newDatabaseVersion=V2010;immediatelyReleaseResources=true";
         provider = () -> DriverManager.getConnection(url);
         try (Connection connection = provider.open()) {
+            executeSchema(connection, Path.of("..", "vcampus-database", "schema", "001_common.sql"));
             executeSchema(connection, Path.of("..", "vcampus-database", "schema", "020_student.sql"));
+            try (var statement = connection.createStatement()) {
+                statement.execute("CREATE TABLE tblUser (userId VARCHAR(36) PRIMARY KEY, loginId VARCHAR(16) NOT NULL)");
+                statement.execute("CREATE UNIQUE INDEX uk_tblUser_loginId ON tblUser (loginId)");
+            }
         }
     }
 
@@ -60,6 +65,25 @@ public final class StudentAccessTestDatabase {
                 }
                 return result.getInt(1);
             }
+        }
+    }
+
+    public int count(String table) throws Exception {
+        if (!table.matches("tbl[A-Za-z]+")) throw new IllegalArgumentException("Invalid table");
+        try (Connection connection = provider.open();
+             var statement = connection.createStatement();
+             var result = statement.executeQuery("SELECT COUNT(*) FROM " + table)) {
+            result.next();
+            return result.getInt(1);
+        }
+    }
+
+    public String stringValue(String sql) throws Exception {
+        try (Connection connection = provider.open();
+             var statement = connection.createStatement();
+             var result = statement.executeQuery(sql)) {
+            result.next();
+            return result.getString(1);
         }
     }
 
