@@ -35,6 +35,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -90,11 +91,18 @@ class ConcurrentAdjustmentTest {
         seedCatalog(); seedOffering("source", "course-source", 2, 1); seedOffering("target", "course-alpha", 2, 0);
         Enrollment source = seedActive("source");
         List<Outcome> outcomes = concurrentlyActions(List.of(
-                () -> { service.dropDuringAdjustment("token", new DropCommand(source.enrollmentId(), 0)); return null; },
-                () -> service.changeDuringAdjustment("token", new ChangeOfferingCommand(source.enrollmentId(), "target", 0))));
-        assertThat(outcomes).filteredOn(Outcome::succeeded).hasSize(1);
-        assertThat(activeCount("source") + activeCount("target")).isEqualTo(1);
-        assertThat(offering("source").enrolledCount() + offering("target").enrolledCount()).isEqualTo(1);
+                new NamedAction("drop", () -> { service.dropDuringAdjustment("token", new DropCommand(source.enrollmentId(), 0)); return null; }),
+                new NamedAction("change", () -> service.changeDuringAdjustment("token", new ChangeOfferingCommand(source.enrollmentId(), "target", 0)))));
+        List<Outcome> winners = outcomes.stream().filter(Outcome::succeeded).toList();
+        assertThat(winners).hasSize(1);
+        Outcome winner = winners.getFirst();
+        assertThat(winner.action()).isIn("drop", "change");
+        if ("change".equals(winner.action())) {
+            assertThat(activeCount("source")).isZero(); assertThat(activeCount("target")).isEqualTo(1);
+        } else {
+            assertThat(activeCount("source")).isZero(); assertThat(activeCount("target")).isZero();
+        }
+        assertOfferingCountsMatchActiveRows("source", "target");
     }
 
     @Test
@@ -103,11 +111,12 @@ class ConcurrentAdjustmentTest {
         Enrollment left = seedActive("left", "student-left"); Enrollment right = seedActive("right", "student-right");
         CourseService shared = namedStudentService(new StripedResourceLockManager());
         List<Outcome> outcomes = concurrentlyActions(List.of(
-                () -> shared.changeDuringAdjustment("student-left", new ChangeOfferingCommand(left.enrollmentId(), "target", 0)),
-                () -> shared.changeDuringAdjustment("student-right", new ChangeOfferingCommand(right.enrollmentId(), "target", 0))));
+                new NamedAction("left", () -> shared.changeDuringAdjustment("student-left", new ChangeOfferingCommand(left.enrollmentId(), "target", 0))),
+                new NamedAction("right", () -> shared.changeDuringAdjustment("student-right", new ChangeOfferingCommand(right.enrollmentId(), "target", 0)))));
         assertThat(outcomes).filteredOn(Outcome::succeeded).hasSize(1);
         assertThat(activeCount("target")).isEqualTo(1); assertThat(offering("target").enrolledCount()).isEqualTo(1);
         assertThat(activeCount("left") + activeCount("right")).isEqualTo(1);
+        assertOfferingCountsMatchActiveRows("left", "right", "target");
     }
 
     @Test
@@ -116,11 +125,12 @@ class ConcurrentAdjustmentTest {
         Enrollment alpha = seedActive("alpha", "student-alpha"); Enrollment zulu = seedActive("zulu", "student-zulu");
         CourseService shared = namedStudentService(new StripedResourceLockManager());
         List<Outcome> outcomes = concurrentlyActions(List.of(
-                () -> shared.changeDuringAdjustment("student-alpha", new ChangeOfferingCommand(alpha.enrollmentId(), "zulu", 0)),
-                () -> shared.changeDuringAdjustment("student-zulu", new ChangeOfferingCommand(zulu.enrollmentId(), "alpha", 0))));
+                new NamedAction("alpha-to-zulu", () -> shared.changeDuringAdjustment("student-alpha", new ChangeOfferingCommand(alpha.enrollmentId(), "zulu", 0))),
+                new NamedAction("zulu-to-alpha", () -> shared.changeDuringAdjustment("student-zulu", new ChangeOfferingCommand(zulu.enrollmentId(), "alpha", 0)))));
         assertThat(outcomes).allMatch(Outcome::succeeded);
         assertThat(activeCount("alpha")).isEqualTo(1); assertThat(activeCount("zulu")).isEqualTo(1);
         assertThat(offering("alpha").enrolledCount()).isEqualTo(1); assertThat(offering("zulu").enrolledCount()).isEqualTo(1);
+        assertOfferingCountsMatchActiveRows("alpha", "zulu");
     }
 
     private void seedCatalog() {
@@ -165,31 +175,34 @@ class ConcurrentAdjustmentTest {
             List<Future<Outcome>> futures = new ArrayList<>();
             for (ChangeOfferingCommand command : commands) futures.add(pool.submit(() -> {
                 ready.countDown(); start.await();
-                try { return new Outcome(service.changeDuringAdjustment("token", command), null); }
-                catch (Throwable failure) { return new Outcome(null, failure); }
+                try { return new Outcome("change", service.changeDuringAdjustment("token", command), null); }
+                catch (Throwable failure) { return new Outcome("change", null, failure); }
             }));
-            ready.await(); start.countDown();
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue(); start.countDown();
             List<Outcome> outcomes = new ArrayList<>();
-            for (Future<Outcome> future : futures) outcomes.add(future.get());
+            for (Future<Outcome> future : futures) outcomes.add(future.get(10, TimeUnit.SECONDS));
             return outcomes;
         } finally { pool.shutdownNow(); }
     }
 
-    private List<Outcome> concurrentlyActions(List<Callable<EnrollmentView>> actions) throws Exception {
+    private List<Outcome> concurrentlyActions(List<NamedAction> actions) throws Exception {
         CountDownLatch ready = new CountDownLatch(actions.size()); CountDownLatch start = new CountDownLatch(1);
         ExecutorService pool = Executors.newFixedThreadPool(actions.size());
         try {
             List<Future<Outcome>> futures = new ArrayList<>();
-            for (Callable<EnrollmentView> action : actions) futures.add(pool.submit(() -> {
-                ready.countDown(); start.await(); try { return new Outcome(action.call(), null); }
-                catch (Throwable failure) { return new Outcome(null, failure); }
+            for (NamedAction action : actions) futures.add(pool.submit(() -> {
+                ready.countDown(); start.await(); try { return new Outcome(action.name(), action.callable().call(), null); }
+                catch (Throwable failure) { return new Outcome(action.name(), null, failure); }
             }));
-            ready.await(); start.countDown(); List<Outcome> outcomes = new ArrayList<>();
-            for (Future<Outcome> future : futures) outcomes.add(future.get()); return outcomes;
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue(); start.countDown(); List<Outcome> outcomes = new ArrayList<>();
+            for (Future<Outcome> future : futures) outcomes.add(future.get(10, TimeUnit.SECONDS)); return outcomes;
         } finally { pool.shutdownNow(); }
     }
 
     private Offering offering(String id) { return inTransaction(c -> repository.requireOffering(c, id)); }
+    private void assertOfferingCountsMatchActiveRows(String... offeringIds) {
+        for (String offeringId : offeringIds) assertThat(offering(offeringId).enrolledCount()).isEqualTo(activeCount(offeringId));
+    }
     private long activeCount(String id) {
         try (Connection c = connections.open(); var s = c.prepareStatement(
                 "SELECT COUNT(*) FROM tblEnrollment WHERE offeringId=? AND enrollmentStatus='ACTIVE'")) {
@@ -200,5 +213,6 @@ class ConcurrentAdjustmentTest {
         return new TransactionManager(connections).inTransaction(work);
     }
     private static Path schema() { return Path.of("..", "vcampus-database", "schema", "030_course.sql"); }
-    private record Outcome(EnrollmentView result, Throwable failure) { boolean succeeded() { return failure == null; } }
+    private record NamedAction(String name, Callable<EnrollmentView> callable) { }
+    private record Outcome(String action, EnrollmentView result, Throwable failure) { boolean succeeded() { return failure == null; } }
 }

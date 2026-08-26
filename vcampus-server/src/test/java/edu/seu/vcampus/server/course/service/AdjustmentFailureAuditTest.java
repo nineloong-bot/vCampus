@@ -5,6 +5,7 @@ import edu.seu.vcampus.common.course.ChangeOfferingCommand;
 import edu.seu.vcampus.common.course.LateAddCommand;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.course.domain.CourseForbiddenException;
+import edu.seu.vcampus.server.course.domain.StudentIneligibleException;
 import edu.seu.vcampus.server.course.domain.OfferingFullException;
 import edu.seu.vcampus.server.course.domain.ScheduleConflictPolicy;
 import edu.seu.vcampus.server.course.domain.TermWindowPolicy;
@@ -104,6 +105,33 @@ class AdjustmentFailureAuditTest {
     }
 
     @Test
+    void lockedStudentIdDriftRejectsLateAddDropAndChangeAndWritesFailureAudits() {
+        seedCatalogAndOffering("add-target", 2, 0);
+        seedSecondOffering("drop-source", "course-2", 2, 1);
+        seedSecondOffering("change-source", "course-3", 2, 1);
+        seedSecondOffering("change-target", "course-4", 2, 0);
+        Enrollment dropSource = seedActive("drop-source", "student");
+        Enrollment changeSource = seedActive("change-source", "student");
+
+        assertThatThrownBy(() -> studentIdDriftService().addDuringAdjustment("token", new LateAddCommand("add-target")))
+                .isInstanceOf(StudentIneligibleException.class);
+        assertThatThrownBy(() -> studentIdDriftService().dropDuringAdjustment("token", new DropCommand(dropSource.enrollmentId(), 0)))
+                .isInstanceOf(StudentIneligibleException.class);
+        assertThatThrownBy(() -> studentIdDriftService().changeDuringAdjustment("token",
+                new ChangeOfferingCommand(changeSource.enrollmentId(), "change-target", 0)))
+                .isInstanceOf(StudentIneligibleException.class);
+
+        assertThat(activeCount("add-target")).isZero();
+        assertThat(enrollment(dropSource.enrollmentId()).enrollmentStatus()).isEqualTo("ACTIVE");
+        assertThat(enrollment(changeSource.enrollmentId()).enrollmentStatus()).isEqualTo("ACTIVE");
+        assertThat(activeCount("change-target")).isZero();
+        assertThat(adjustments()).hasSize(3).allSatisfy(a -> {
+            assertThat(a.operationResult()).isEqualTo("FAILED");
+            assertThat(a.failureCode()).isEqualTo("COURSE_STUDENT_INELIGIBLE");
+        });
+    }
+
+    @Test
     void missingAndForeignSourcesAreIndistinguishableAndBothWriteFailureAudits() {
         seedCatalogAndOffering("source", 2, 1);
         Enrollment foreign = seedActive("source", "other-student");
@@ -195,6 +223,16 @@ class AdjustmentFailureAuditTest {
             return repository.insertOffering(c, new Offering(offeringId, "term", courseId, "teacher", offeringId,
                     capacity, count, "OPEN", 0, null, null), List.of());
         });
+    }
+
+    private CourseService studentIdDriftService() {
+        AtomicInteger calls = new AtomicInteger();
+        return new CourseServiceImpl(ignored -> new CourseSessionIdentity("user", "STUDENT"),
+                ignored -> calls.incrementAndGet() == 1
+                        ? new StudentEnrollmentEligibility("student", "ACTIVE")
+                        : new StudentEnrollmentEligibility("other-student", "ACTIVE"), repository,
+                new StripedResourceLockManager(), new TransactionManager(connections), new TermWindowPolicy(),
+                new ScheduleConflictPolicy(), Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     private CourseRepository failFailedAuditInsert(CourseRepository delegate) {
