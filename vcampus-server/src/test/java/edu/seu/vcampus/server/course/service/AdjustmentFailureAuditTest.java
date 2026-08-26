@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 class AdjustmentFailureAuditTest {
     private static final Instant NOW = Instant.parse("2026-08-10T00:00:00Z");
@@ -125,10 +126,16 @@ class AdjustmentFailureAuditTest {
         assertThat(enrollment(dropSource.enrollmentId()).enrollmentStatus()).isEqualTo("ACTIVE");
         assertThat(enrollment(changeSource.enrollmentId()).enrollmentStatus()).isEqualTo("ACTIVE");
         assertThat(activeCount("change-target")).isZero();
-        assertThat(adjustments()).hasSize(3).allSatisfy(a -> {
-            assertThat(a.operationResult()).isEqualTo("FAILED");
-            assertThat(a.failureCode()).isEqualTo("COURSE_STUDENT_INELIGIBLE");
-        });
+        assertThat(offering("add-target").enrolledCount()).isZero();
+        assertThat(offering("drop-source").enrolledCount()).isEqualTo(1);
+        assertThat(offering("change-source").enrolledCount()).isEqualTo(1);
+        assertThat(offering("change-target").enrolledCount()).isZero();
+        assertThat(adjustments()).hasSize(3).extracting(EnrollmentAdjustment::adjustmentType,
+                EnrollmentAdjustment::operationResult, EnrollmentAdjustment::failureCode)
+                .containsExactlyInAnyOrder(
+                        tuple("ADD", "FAILED", "COURSE_STUDENT_INELIGIBLE"),
+                        tuple("DROP", "FAILED", "COURSE_STUDENT_INELIGIBLE"),
+                        tuple("CHANGE", "FAILED", "COURSE_STUDENT_INELIGIBLE"));
     }
 
     @Test

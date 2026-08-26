@@ -102,6 +102,9 @@ class ConcurrentAdjustmentTest {
         } else {
             assertThat(activeCount("source")).isZero(); assertThat(activeCount("target")).isZero();
         }
+        assertThat(outcomes).filteredOn(outcome -> !outcome.succeeded())
+                .extracting(outcome -> ((CourseRuleException) outcome.failure()).code())
+                .containsOnly("COURSE_ENROLLMENT_NOT_ACTIVE");
         assertOfferingCountsMatchActiveRows("source", "target");
     }
 
@@ -114,6 +117,9 @@ class ConcurrentAdjustmentTest {
                 new NamedAction("left", () -> shared.changeDuringAdjustment("student-left", new ChangeOfferingCommand(left.enrollmentId(), "target", 0))),
                 new NamedAction("right", () -> shared.changeDuringAdjustment("student-right", new ChangeOfferingCommand(right.enrollmentId(), "target", 0)))));
         assertThat(outcomes).filteredOn(Outcome::succeeded).hasSize(1);
+        assertThat(outcomes).filteredOn(outcome -> !outcome.succeeded())
+                .extracting(outcome -> ((CourseRuleException) outcome.failure()).code())
+                .containsOnly("COURSE_OFFERING_FULL");
         assertThat(activeCount("target")).isEqualTo(1); assertThat(offering("target").enrolledCount()).isEqualTo(1);
         assertThat(activeCount("left") + activeCount("right")).isEqualTo(1);
         assertOfferingCountsMatchActiveRows("left", "right", "target");
@@ -182,7 +188,7 @@ class ConcurrentAdjustmentTest {
             List<Outcome> outcomes = new ArrayList<>();
             for (Future<Outcome> future : futures) outcomes.add(future.get(10, TimeUnit.SECONDS));
             return outcomes;
-        } finally { pool.shutdownNow(); }
+        } finally { shutdownAndAssert(pool); }
     }
 
     private List<Outcome> concurrentlyActions(List<NamedAction> actions) throws Exception {
@@ -196,7 +202,17 @@ class ConcurrentAdjustmentTest {
             }));
             assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue(); start.countDown(); List<Outcome> outcomes = new ArrayList<>();
             for (Future<Outcome> future : futures) outcomes.add(future.get(10, TimeUnit.SECONDS)); return outcomes;
-        } finally { pool.shutdownNow(); }
+        } finally { shutdownAndAssert(pool); }
+    }
+
+    private static void shutdownAndAssert(ExecutorService pool) {
+        pool.shutdownNow();
+        try {
+            assertThat(pool.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError("interrupted while shutting down concurrent adjustment test", interrupted);
+        }
     }
 
     private Offering offering(String id) { return inTransaction(c -> repository.requireOffering(c, id)); }
