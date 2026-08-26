@@ -117,6 +117,29 @@ class OrganizationRepositoryTest {
         }
     }
 
+    @Test
+    void creatingClassInitializesItsStudentNumberSequence() throws Exception {
+        try (Connection connection = provider.open()) {
+            repository.insertDepartment(connection,
+                    new Department("dep-eng", "ENG", "工学院", true, 0));
+            repository.insertMajor(connection,
+                    new Major("major-honors", "dep-eng", "09J", "计算机拔尖班", true, 0));
+            repository.insertClass(connection,
+                    new StudentClass("class-1", "major-honors", "09J-2024-1", "拔尖一班",
+                            2024, 1, true, 0));
+
+            try (var statement = connection.prepareStatement(
+                    "SELECT currentValue, maxValue FROM tblNumberSequence WHERE sequenceKey = ?")) {
+                statement.setString(1, "STUDENT_NUMBER:09J:24:1");
+                try (var result = statement.executeQuery()) {
+                    assertThat(result.next()).isTrue();
+                    assertThat(result.getInt("currentValue")).isZero();
+                    assertThat(result.getInt("maxValue")).isEqualTo(99);
+                }
+            }
+        }
+    }
+
     private static void executeSchema(Connection connection, Path schema) throws Exception {
         String sql = Files.readString(schema);
         for (String statementSql : sql.split(";")) {

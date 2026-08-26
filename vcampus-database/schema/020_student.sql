@@ -41,3 +41,15 @@ CREATE UNIQUE INDEX uk_tblClass_major_year_number
     ON tblClass (majorId, enrollmentYear, classNumber);
 CREATE INDEX idx_tblClass_majorId ON tblClass (majorId);
 CREATE INDEX idx_tblClass_enrollmentYear ON tblClass (enrollmentYear);
+
+CREATE TABLE tblNumberSequence (
+    sequenceKey VARCHAR(64) PRIMARY KEY,
+    currentValue LONG NOT NULL,
+    maxValue LONG NOT NULL,
+    rowVersion LONG NOT NULL,
+    updatedAt DATETIME NOT NULL
+);
+
+INSERT INTO tblNumberSequence
+    (sequenceKey, currentValue, maxValue, rowVersion, updatedAt)
+VALUES ('CAMPUS_CARD_GLOBAL', 0, 9999, 0, NOW());

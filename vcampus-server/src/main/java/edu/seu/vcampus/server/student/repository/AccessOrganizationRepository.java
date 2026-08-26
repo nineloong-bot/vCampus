@@ -14,6 +14,8 @@ import java.util.Optional;
 
 /** Access JDBC implementation of the organization repository. */
 public final class AccessOrganizationRepository implements OrganizationRepository {
+    private final NumberSequenceRepository sequences = new NumberSequenceRepository();
+
     @Override
     public void insertDepartment(Connection connection, Department department) {
         executeInsert(connection,
@@ -55,6 +57,12 @@ public final class AccessOrganizationRepository implements OrganizationRepositor
                     statement.setBoolean(7, studentClass.active());
                     statement.setLong(8, studentClass.rowVersion());
                 });
+        Major major = findMajor(connection, studentClass.majorId()).orElseThrow(() ->
+                new OrganizationHierarchyException("Class major does not exist"));
+        String year = String.format("%02d", studentClass.enrollmentYear() % 100);
+        String sequenceKey = "STUDENT_NUMBER:" + major.majorCode() + ":" + year
+                + ":" + studentClass.classNumber();
+        sequences.getOrCreate(connection, sequenceKey, 99);
     }
 
     @Override
