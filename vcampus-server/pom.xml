@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>edu.seu.vcampus</groupId>
+        <artifactId>vcampus-parent</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+    <artifactId>vcampus-server</artifactId>
+    <dependencies>
+        <dependency><groupId>edu.seu.vcampus</groupId><artifactId>vcampus-common</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>io.github.spannm</groupId><artifactId>ucanaccess</artifactId></dependency>
+        <dependency><groupId>org.slf4j</groupId><artifactId>slf4j-api</artifactId></dependency>
+        <dependency><groupId>ch.qos.logback</groupId><artifactId>logback-classic</artifactId><scope>runtime</scope></dependency>
+        <dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><scope>test</scope></dependency>
+        <dependency><groupId>org.assertj</groupId><artifactId>assertj-core</artifactId><scope>test</scope></dependency>
+        <dependency><groupId>org.mockito</groupId><artifactId>mockito-junit-jupiter</artifactId><scope>test</scope></dependency>
+    </dependencies>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.jacoco</groupId><artifactId>jacoco-maven-plugin</artifactId>
+                <executions>
+                    <execution><goals><goal>prepare-agent</goal></goals></execution>
+                    <execution><id>report</id><phase>verify</phase><goals><goal>report</goal></goals></execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId><artifactId>maven-shade-plugin</artifactId>
+                <executions><execution><phase>package</phase><goals><goal>shade</goal></goals>
+                    <configuration>
+                        <outputFile>${project.parent.basedir}/vcampus-distribution/lib/vCampusServer.jar</outputFile>
+                        <createDependencyReducedPom>false</createDependencyReducedPom>
+                        <transformers>
+                            <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                            <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                <mainClass>edu.seu.vcampus.server.bootstrap.ServerMain</mainClass>
+                            </transformer>
+                        </transformers>
+                    </configuration>
+                </execution></executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId><artifactId>maven-resources-plugin</artifactId><version>3.4.0</version>
+                <executions><execution><id>distribution-docs</id><phase>prepare-package</phase><goals><goal>copy-resources</goal></goals>
+                    <configuration><outputDirectory>${project.parent.basedir}/vcampus-distribution/docs</outputDirectory>
+                        <resources>
+                            <resource><directory>${project.parent.basedir}/docs/superpowers/specs</directory><targetPath>specs</targetPath></resource>
+                            <resource><directory>${project.parent.basedir}/docs/ui-review</directory><targetPath>ui-review</targetPath><includes><include>manifest.md</include></includes></resource>
+                        </resources>
+                    </configuration>
+                </execution></executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>
