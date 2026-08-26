@@ -30,8 +30,14 @@
             <fileNamePattern>${LOG_DIR}/database.%d{yyyy-MM-dd}.log.gz</fileNamePattern><maxHistory>14</maxHistory>
         </rollingPolicy><encoder><pattern>%date %-5level [%thread] %logger - %msg%n</pattern></encoder>
     </appender>
-    <logger name="vcampus.business" level="INFO" additivity="false"><appender-ref ref="BUSINESS"/></logger>
-    <logger name="vcampus.security" level="INFO" additivity="false"><appender-ref ref="SECURITY"/></logger>
-    <logger name="vcampus.database" level="INFO" additivity="false"><appender-ref ref="DATABASE"/></logger>
+    <logger name="vcampus.business" level="INFO" additivity="false">
+        <appender-ref ref="BUSINESS"/><appender-ref ref="CONSOLE"/>
+    </logger>
+    <logger name="vcampus.security" level="INFO" additivity="false">
+        <appender-ref ref="SECURITY"/><appender-ref ref="CONSOLE"/>
+    </logger>
+    <logger name="vcampus.database" level="INFO" additivity="false">
+        <appender-ref ref="DATABASE"/><appender-ref ref="CONSOLE"/>
+    </logger>
     <root level="INFO"><appender-ref ref="CONSOLE"/><appender-ref ref="SERVER"/></root>
 </configuration>
