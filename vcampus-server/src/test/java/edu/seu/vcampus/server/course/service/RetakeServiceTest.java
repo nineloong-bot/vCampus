@@ -386,10 +386,12 @@ class RetakeServiceTest {
             return null;
         });
 
-        assertThat(results.stream().filter(Outcome::success)).hasSize(1);
-        assertThat(results.stream().filter(result -> !result.success()))
-                .extracting(result -> ((CourseRuleException) result.failure()).code())
-                .containsExactly("COURSE_OUTCOME_IMPORT_INVALID");
+        int winnerIndex = results.get(0).success() ? 0 : 1;
+        int loserIndex = 1 - winnerIndex;
+        assertThat(results.get(winnerIndex).success()).isTrue();
+        assertThat(results.get(loserIndex).failure())
+                .isInstanceOf(CourseRuleException.class)
+                .extracting("code").isEqualTo("COURSE_OUTCOME_IMPORT_INVALID");
         assertThat(attemptCount()).isOne();
         edu.seu.vcampus.server.course.repository.CourseAttempt persisted =
                 new TransactionManager(connections).inTransaction(connection ->
@@ -397,8 +399,7 @@ class RetakeServiceTest {
                                 connection, "shared-source").orElseThrow());
         assertThat(persisted)
                 .extracting("sourceReference", "outcome")
-                .satisfiesExactly(value -> assertThat(value).isEqualTo("shared-source"),
-                        value -> assertThat(value).isIn("FAILED", "PASSED"));
+                .containsExactly("shared-source", winnerIndex == 0 ? "FAILED" : "PASSED");
     }
 
     @Test
@@ -411,11 +412,17 @@ class RetakeServiceTest {
                         0, null, null)));
 
         EnrollmentView result = service.enrollRetake(TOKEN, new RetakeCommand("offering-1"));
+        Enrollment persisted = new TransactionManager(connections).inTransaction(
+                connection -> repository.requireEnrollment(connection, result.enrollmentId()));
 
         assertThat(result.enrollmentId()).isEqualTo("retained-enrollment");
         assertThat(result.enrollmentType()).isEqualTo("RETAKE");
         assertThat(result.enrollmentStatus()).isEqualTo("ACTIVE");
         assertThat(result.droppedAt()).isNull();
+        assertThat(persisted.enrollmentId()).isEqualTo("retained-enrollment");
+        assertThat(persisted.enrollmentType()).isEqualTo("RETAKE");
+        assertThat(persisted.enrollmentStatus()).isEqualTo("ACTIVE");
+        assertThat(persisted.droppedAt()).isNull();
         assertThat(naturalKeyCount(STUDENT_ID, "offering-1")).isOne();
         assertThat(activeCount("offering-1")).isOne();
         assertThat(readOffering("offering-1").enrolledCount()).isEqualTo(activeCount("offering-1"));
