@@ -1,0 +1,210 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1540" viewBox="0 0 1800 1540" role="img" aria-labelledby="title desc">
+  <title id="title">vCampus 模块功能关系架构图</title>
+  <desc id="desc">展示客户端、共享协议、服务端业务模块、公共基础设施和 Access 数据库之间的关系，并区分当前已实现基础框架与待实现业务模块。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L12,6 L0,12 z" fill="#3568a8"/>
+    </marker>
+    <marker id="arrow-plan" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L12,6 L0,12 z" fill="#b46a1f"/>
+    </marker>
+    <style>
+      .bg { fill: #f7f9fc; }
+      .group { fill: #ffffff; stroke: #9aa9bb; stroke-width: 2; }
+      .group-title { fill: #203247; font: 600 24px "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; }
+      .title { fill: #17283d; font: 700 38px "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; }
+      .subtitle { fill: #607086; font: 400 18px "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; }
+      .node { fill: #eef5ff; stroke: #5d83b6; stroke-width: 2; }
+      .node-plan { fill: #fff4e7; stroke: #cc8a42; stroke-width: 2; }
+      .node-data { fill: #eef8f1; stroke: #5b936a; stroke-width: 2; }
+      .node-missing { fill: #fff0f0; stroke: #bd5f5f; stroke-width: 2.5; }
+      .node-title { fill: #1e3047; font: 600 19px "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; text-anchor: middle; }
+      .node-text { fill: #4f6074; font: 400 15px "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; text-anchor: middle; }
+      .small { fill: #65758a; font: 400 14px "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; }
+      .edge { fill: none; stroke: #3568a8; stroke-width: 2.5; marker-end: url(#arrow); }
+      .edge-plan { fill: none; stroke: #b46a1f; stroke-width: 2.5; stroke-dasharray: 9 7; marker-end: url(#arrow-plan); }
+      .bus { fill: none; stroke: #7a8b9f; stroke-width: 2; }
+      .edge-label { fill: #80501e; font: 500 14px "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; text-anchor: middle; }
+      .legend { fill: #42546a; font: 400 15px "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1800" height="1540"/>
+  <text class="title" x="900" y="48" text-anchor="middle">vCampus 模块功能关系架构图</text>
+  <text class="subtitle" x="900" y="78" text-anchor="middle">当前分支 as811 · 基础框架已实现，五个业务模块按设计文档待落地</text>
+
+  <rect class="node" x="690" y="98" width="420" height="62" rx="12"/>
+  <text class="node-title" x="900" y="126">使用者</text>
+  <text class="node-text" x="900" y="149">学生 · 教师 · 管理员</text>
+  <path class="edge" d="M900 160 L900 190"/>
+
+  <rect class="group" x="55" y="190" width="1690" height="330" rx="18"/>
+  <text class="group-title" x="80" y="225">客户端｜vCampusClient.jar</text>
+
+  <rect class="node" x="95" y="252" width="260" height="78" rx="12"/>
+  <text class="node-title" x="225" y="282">Swing 应用外壳</text>
+  <text class="node-text" x="225" y="308">MainFrame / 页面导航｜已实现</text>
+
+  <rect class="node-plan" x="405" y="244" width="230" height="94" rx="12"/>
+  <text class="node-title" x="520" y="274">用户管理 UI</text>
+  <text class="node-text" x="520" y="299">登录 · 注册 · 权限</text>
+  <text class="node-text" x="520" y="321">账户与安全审计</text>
+
+  <rect class="node-plan" x="660" y="244" width="230" height="94" rx="12"/>
+  <text class="node-title" x="775" y="274">学籍管理 UI</text>
+  <text class="node-text" x="775" y="299">学生档案 · 组织</text>
+  <text class="node-text" x="775" y="321">新生录取</text>
+
+  <rect class="node-plan" x="915" y="244" width="230" height="94" rx="12"/>
+  <text class="node-title" x="1030" y="274">选课系统 UI</text>
+  <text class="node-text" x="1030" y="299">课程 · 教学班 · 选课</text>
+  <text class="node-text" x="1030" y="321">课表与退改补</text>
+
+  <rect class="node-plan" x="1170" y="244" width="230" height="94" rx="12"/>
+  <text class="node-title" x="1285" y="274">图书馆 UI</text>
+  <text class="node-text" x="1285" y="299">检索 · 借阅 · 归还</text>
+  <text class="node-text" x="1285" y="321">续借与历史</text>
+
+  <rect class="node-plan" x="1425" y="244" width="230" height="94" rx="12"/>
+  <text class="node-title" x="1540" y="274">校园商城 UI</text>
+  <text class="node-text" x="1540" y="299">商品 · 购物车 · 订单</text>
+  <text class="node-text" x="1540" y="321">店铺与模拟支付</text>
+
+  <path class="bus" d="M355 291 L405 291"/>
+  <path class="bus" d="M520 338 L520 365 M775 338 L775 365 M1030 338 L1030 365 M1285 338 L1285 365 M1540 338 L1540 365 M520 365 L1540 365"/>
+  <path class="edge" d="M1030 365 L1030 395"/>
+
+  <rect class="node" x="700" y="395" width="660" height="82" rx="12"/>
+  <text class="node-title" x="1030" y="426">客户端通信层</text>
+  <text class="node-text" x="1030" y="452">ClientConnection · PendingRequests · 连接状态｜已实现</text>
+
+  <path class="edge" d="M1030 477 L1030 545"/>
+  <rect class="node" x="635" y="545" width="790" height="82" rx="12"/>
+  <text class="node-title" x="1030" y="576">共享协议｜vcampus-common</text>
+  <text class="node-text" x="1030" y="602">Message · ResponseBody · DTO · 分页与错误结构｜已实现基础结构</text>
+  <path class="edge" d="M1030 627 L1030 680"/>
+
+  <rect class="group" x="55" y="680" width="1690" height="590" rx="18"/>
+  <text class="group-title" x="80" y="716">服务端｜vCampusServer.jar</text>
+
+  <rect class="node" x="360" y="744" width="300" height="76" rx="12"/>
+  <text class="node-title" x="510" y="774">SocketServer</text>
+  <text class="node-text" x="510" y="800">连接与线程管理｜已实现</text>
+
+  <rect class="node" x="800" y="744" width="300" height="76" rx="12"/>
+  <text class="node-title" x="950" y="774">MessageRouter</text>
+  <text class="node-text" x="950" y="800">命令分发｜当前仅注册 PING</text>
+  <path class="edge" d="M660 782 L800 782"/>
+
+  <text class="small" x="100" y="858">业务模块｜设计完成 / 待实现</text>
+  <path class="bus" d="M950 820 L950 850 M230 850 L1510 850 M230 850 L230 878 M550 850 L550 878 M870 850 L870 878 M1190 850 L1190 878 M1510 850 L1510 878"/>
+
+  <rect class="node-plan" x="95" y="878" width="270" height="134" rx="12"/>
+  <text class="node-title" x="230" y="909">用户模块</text>
+  <text class="node-text" x="230" y="936">账户 · 密码 · 会话</text>
+  <text class="node-text" x="230" y="959">角色权限 · 安全审计</text>
+  <text class="node-text" x="230" y="982">提供统一鉴权接口</text>
+
+  <rect class="node-plan" x="415" y="878" width="270" height="134" rx="12"/>
+  <text class="node-title" x="550" y="909">学籍模块</text>
+  <text class="node-text" x="550" y="936">学生档案 · 组织结构</text>
+  <text class="node-text" x="550" y="959">一卡通号 · 学号生成</text>
+  <text class="node-text" x="550" y="982">提供选课资格查询</text>
+
+  <rect class="node-plan" x="735" y="878" width="270" height="134" rx="12"/>
+  <text class="node-title" x="870" y="909">选课模块</text>
+  <text class="node-text" x="870" y="936">学期 · 课程 · 教学班</text>
+  <text class="node-text" x="870" y="959">选课 · 退改补 · 重修</text>
+  <text class="node-text" x="870" y="982">课表与容量控制</text>
+
+  <rect class="node-plan" x="1055" y="878" width="270" height="134" rx="12"/>
+  <text class="node-title" x="1190" y="909">图书馆模块</text>
+  <text class="node-text" x="1190" y="936">书目 · 馆藏副本</text>
+  <text class="node-text" x="1190" y="959">借阅 · 归还 · 续借</text>
+  <text class="node-text" x="1190" y="982">借阅策略与逾期控制</text>
+
+  <rect class="node-plan" x="1375" y="878" width="270" height="134" rx="12"/>
+  <text class="node-title" x="1510" y="909">商城模块</text>
+  <text class="node-text" x="1510" y="936">店铺 · 商品 SKU · 购物车</text>
+  <text class="node-text" x="1510" y="959">订单 · 库存预留</text>
+  <text class="node-text" x="1510" y="982">模拟支付与履约</text>
+
+  <path class="edge-plan" d="M415 930 L365 930"/>
+  <text class="edge-label" x="390" y="918">创建学生账户</text>
+  <path class="edge-plan" d="M735 970 L685 970"/>
+  <text class="edge-label" x="710" y="958">查询学籍资格</text>
+
+  <path class="bus" d="M230 1012 L230 1042 M550 1012 L550 1042 M870 1012 L870 1042 M1190 1012 L1190 1042 M1510 1012 L1510 1042 M230 1042 L1510 1042"/>
+  <text class="small" x="100" y="1080">公共服务端基础设施｜已实现</text>
+
+  <rect class="node" x="115" y="1095" width="330" height="92" rx="12"/>
+  <text class="node-title" x="280" y="1127">AuthorizationPort</text>
+  <text class="node-text" x="280" y="1154">统一鉴权入口</text>
+
+  <rect class="node" x="515" y="1095" width="330" height="92" rx="12"/>
+  <text class="node-title" x="680" y="1127">RequestDeduplicator</text>
+  <text class="node-text" x="680" y="1154">写请求幂等控制</text>
+
+  <rect class="node" x="915" y="1095" width="330" height="92" rx="12"/>
+  <text class="node-title" x="1080" y="1127">资源锁管理</text>
+  <text class="node-text" x="1080" y="1154">StripedResourceLockManager</text>
+
+  <rect class="node" x="1315" y="1095" width="330" height="92" rx="12"/>
+  <text class="node-title" x="1480" y="1127">TransactionManager</text>
+  <text class="node-text" x="1480" y="1154">Access 事务管理</text>
+
+  <path class="edge-plan" d="M280 1095 C280 1055 230 1050 230 1012"/>
+  <text class="edge-label" x="312" y="1068">用户模块提供</text>
+  <path class="edge" d="M870 1042 L870 1060 L680 1060 L680 1095"/>
+  <path class="edge" d="M845 1141 L915 1141"/>
+  <path class="edge" d="M1245 1141 L1315 1141"/>
+  <path class="edge-plan" d="M550 1042 L550 1072 L280 1072 L280 1095"/>
+  <text class="edge-label" x="420" y="1061">各业务模块统一鉴权</text>
+
+  <path class="edge" d="M1480 1187 L1480 1300"/>
+
+  <rect class="group" x="55" y="1300" width="1690" height="200" rx="18"/>
+  <text class="group-title" x="80" y="1336">数据层｜Microsoft Access</text>
+
+  <rect class="node-data" x="90" y="1360" width="205" height="78" rx="10"/>
+  <text class="node-title" x="192" y="1390">001_common</text>
+  <text class="node-text" x="192" y="1416">请求去重｜已有 SQL</text>
+
+  <rect class="node-plan" x="315" y="1360" width="205" height="78" rx="10"/>
+  <text class="node-title" x="417" y="1390">010_user</text>
+  <text class="node-text" x="417" y="1416">用户 · 权限 · 审计</text>
+
+  <rect class="node-plan" x="540" y="1360" width="205" height="78" rx="10"/>
+  <text class="node-title" x="642" y="1390">020_student</text>
+  <text class="node-text" x="642" y="1416">组织 · 学生 · 编号</text>
+
+  <rect class="node-plan" x="765" y="1360" width="205" height="78" rx="10"/>
+  <text class="node-title" x="867" y="1390">030_course</text>
+  <text class="node-text" x="867" y="1416">课程 · 教学班 · 选课</text>
+
+  <rect class="node-plan" x="990" y="1360" width="205" height="78" rx="10"/>
+  <text class="node-title" x="1092" y="1390">040_library</text>
+  <text class="node-text" x="1092" y="1416">书目 · 副本 · 借阅</text>
+
+  <rect class="node-plan" x="1215" y="1360" width="205" height="78" rx="10"/>
+  <text class="node-title" x="1317" y="1390">050_shop</text>
+  <text class="node-text" x="1317" y="1416">店铺 · 订单 · 支付</text>
+
+  <rect class="node-missing" x="1460" y="1350" width="235" height="98" rx="49"/>
+  <text class="node-title" x="1577" y="1387">vCampus.accdb</text>
+  <text class="node-text" x="1577" y="1413">当前缺少实际文件</text>
+
+  <path class="bus" d="M192 1438 L192 1462 M417 1438 L417 1462 M642 1438 L642 1462 M867 1438 L867 1462 M1092 1438 L1092 1462 M1317 1438 L1317 1462 M192 1462 L1425 1462"/>
+  <path class="edge" d="M1425 1462 C1470 1462 1490 1450 1510 1438"/>
+
+  <rect class="node" x="72" y="1511" width="20" height="16" rx="3"/>
+  <text class="legend" x="102" y="1525">蓝色：当前已实现基础框架</text>
+  <rect class="node-plan" x="360" y="1511" width="20" height="16" rx="3"/>
+  <text class="legend" x="390" y="1525">橙色：已有设计、待实现</text>
+  <rect class="node-data" x="650" y="1511" width="20" height="16" rx="3"/>
+  <text class="legend" x="680" y="1525">绿色：已有数据库脚本</text>
+  <rect class="node-missing" x="940" y="1511" width="20" height="16" rx="3"/>
+  <text class="legend" x="970" y="1525">红色：当前缺失</text>
+  <path class="edge-plan" d="M1210 1519 L1265 1519"/>
+  <text class="legend" x="1280" y="1525">虚线：设计中的跨模块调用</text>
+</svg>
