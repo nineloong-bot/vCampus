@@ -131,7 +131,7 @@ class CourseEnrollmentServiceTest {
     }
 
     @Test
-    void rechecksEligibilityInsideTheLockedTransaction() {
+    void rechecksEligibilityUnderLocksBeforeTransaction() {
         seedCatalog("PLANNED", NOW.minusSeconds(60), NOW.plusSeconds(60));
         seedOffering("offering-1", "course-1", 3, 0, "OPEN", List.of());
         AtomicInteger calls = new AtomicInteger();
@@ -149,7 +149,7 @@ class CourseEnrollmentServiceTest {
     }
 
     @Test
-    void rechecksSessionAndRoleInsideTheLockedTransaction() {
+    void rechecksSessionAndRoleUnderLocksBeforeTransaction() {
         seedCatalog("PLANNED", NOW.minusSeconds(60), NOW.plusSeconds(60));
         seedOffering("offering-1", "course-1", 3, 0, "OPEN", List.of());
         AtomicInteger calls = new AtomicInteger();
@@ -161,6 +161,43 @@ class CourseEnrollmentServiceTest {
 
         assertThatThrownBy(() -> changingService.enroll(TOKEN, new EnrollCommand("offering-1")))
                 .isInstanceOf(CourseForbiddenException.class);
+        assertThat(calls).hasValue(2);
+        assertThat(activeCount("offering-1")).isZero();
+        assertThat(readOffering("offering-1").enrolledCount()).isZero();
+    }
+
+    @Test
+    void rejectsChangedSessionUserUnderLocksBeforeTransaction() {
+        seedCatalog("PLANNED", NOW.minusSeconds(60), NOW.plusSeconds(60));
+        seedOffering("offering-1", "course-1", 3, 0, "OPEN", List.of());
+        students.put("user-2", new StudentEnrollmentEligibility(STUDENT_ID, "ACTIVE"));
+        AtomicInteger calls = new AtomicInteger();
+        CourseAuthorizationGateway changingSession = ignored -> calls.incrementAndGet() == 1
+                ? new CourseSessionIdentity(USER_ID, "STUDENT")
+                : new CourseSessionIdentity("user-2", "STUDENT");
+        CourseService changingService = service(changingSession, students::get,
+                new StripedResourceLockManager());
+
+        assertThatThrownBy(() -> changingService.enroll(TOKEN, new EnrollCommand("offering-1")))
+                .isInstanceOf(CourseForbiddenException.class);
+        assertThat(calls).hasValue(2);
+        assertThat(activeCount("offering-1")).isZero();
+        assertThat(readOffering("offering-1").enrolledCount()).isZero();
+    }
+
+    @Test
+    void rejectsChangedEligibleStudentUnderLocksBeforeTransaction() {
+        seedCatalog("PLANNED", NOW.minusSeconds(60), NOW.plusSeconds(60));
+        seedOffering("offering-1", "course-1", 3, 0, "OPEN", List.of());
+        AtomicInteger calls = new AtomicInteger();
+        CourseStudentGateway changingEligibility = ignored -> calls.incrementAndGet() == 1
+                ? new StudentEnrollmentEligibility(STUDENT_ID, "ACTIVE")
+                : new StudentEnrollmentEligibility("student-2", "ACTIVE");
+        CourseService changingService = service(sessions::get, changingEligibility,
+                new StripedResourceLockManager());
+
+        assertThatThrownBy(() -> changingService.enroll(TOKEN, new EnrollCommand("offering-1")))
+                .isInstanceOf(StudentIneligibleException.class);
         assertThat(calls).hasValue(2);
         assertThat(activeCount("offering-1")).isZero();
         assertThat(readOffering("offering-1").enrolledCount()).isZero();
