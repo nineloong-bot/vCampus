@@ -5,6 +5,8 @@ import edu.seu.vcampus.common.protocol.Message;
 import edu.seu.vcampus.common.protocol.MessageType;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.server.routing.MessageRouter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -20,6 +22,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Accepts socket clients and dispatches their requests on a bounded pool. */
 public final class SocketServer implements AutoCloseable {
+    private static final Logger LOGGER = LoggerFactory.getLogger(SocketServer.class);
     private final ServerSocket serverSocket;
     private final MessageRouter router;
     private final ThreadPoolExecutor workers;
@@ -46,6 +49,7 @@ public final class SocketServer implements AutoCloseable {
             Socket socket;
             try {
                 socket = serverSocket.accept();
+                LOGGER.info("客户端已连接，remote={}", socket.getRemoteSocketAddress());
             } catch (SocketException error) {
                 if (!accepting.get()) {
                     break;
@@ -61,19 +65,29 @@ public final class SocketServer implements AutoCloseable {
     }
 
     private void handle(Socket socket) {
-        try (ClientConnection connection = new ClientConnection(socket, UUID.randomUUID().toString())) {
+        String connectionId = UUID.randomUUID().toString();
+        try (ClientConnection connection = new ClientConnection(socket, connectionId)) {
             while (!socket.isClosed()) {
                 Message request = connection.read();
                 ResponseBody<?> body = router.route(request, connection.context());
                 connection.send(new Message(request.requestId(), MessageType.RESPONSE,
                         request.command(), null, body, System.currentTimeMillis()));
+                LOGGER.info("请求完成，connectionId={} requestId={} command={} success={} code={}",
+                        connectionId, request.requestId(), request.command(),
+                        body.success(), body.code());
             }
         } catch (IOException | ClassNotFoundException ignored) {
-            // The connection is finished; request failures are mapped above this runtime.
+            LOGGER.debug("客户端连接结束，connectionId={}", connectionId, ignored);
+        } catch (RuntimeException error) {
+            LOGGER.error("请求处理异常，connectionId={}", connectionId, error);
+        } finally {
+            LOGGER.info("客户端已断开，connectionId={} remote={}",
+                    connectionId, socket.getRemoteSocketAddress());
         }
     }
 
     private void sendBusyAndClose(Socket socket) {
+        LOGGER.warn("拒绝客户端连接：服务器繁忙，remote={}", socket.getRemoteSocketAddress());
         ErrorDetail detail = new ErrorDetail("COMMON_SERVER_BUSY", "服务器繁忙",
                 Map.of(), UUID.randomUUID().toString(), true);
         try (ClientConnection connection = new ClientConnection(socket, "rejected")) {

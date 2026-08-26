@@ -16,19 +16,19 @@
         <file>${LOG_DIR}/business.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
             <fileNamePattern>${LOG_DIR}/business.%d{yyyy-MM-dd}.log.gz</fileNamePattern><maxHistory>14</maxHistory>
-        </rollingPolicy><encoder><pattern>%date %msg%n</pattern></encoder>
+        </rollingPolicy><encoder><pattern>%date %-5level [%thread] %logger - %msg%n</pattern></encoder>
     </appender>
     <appender name="SECURITY" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOG_DIR}/security.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
             <fileNamePattern>${LOG_DIR}/security.%d{yyyy-MM-dd}.log.gz</fileNamePattern><maxHistory>14</maxHistory>
-        </rollingPolicy><encoder><pattern>%date %msg%n</pattern></encoder>
+        </rollingPolicy><encoder><pattern>%date %-5level [%thread] %logger - %msg%n</pattern></encoder>
     </appender>
     <appender name="DATABASE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOG_DIR}/database.log</file>
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
             <fileNamePattern>${LOG_DIR}/database.%d{yyyy-MM-dd}.log.gz</fileNamePattern><maxHistory>14</maxHistory>
-        </rollingPolicy><encoder><pattern>%date %msg%n</pattern></encoder>
+        </rollingPolicy><encoder><pattern>%date %-5level [%thread] %logger - %msg%n</pattern></encoder>
     </appender>
     <logger name="vcampus.business" level="INFO" additivity="false"><appender-ref ref="BUSINESS"/></logger>
     <logger name="vcampus.security" level="INFO" additivity="false"><appender-ref ref="SECURITY"/></logger>

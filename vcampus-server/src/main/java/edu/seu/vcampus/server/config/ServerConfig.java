@@ -10,6 +10,7 @@ import java.util.Properties;
 /** Validated immutable server startup configuration. */
 public record ServerConfig(
         int port,
+        int logViewerPort,
         int maxConnections,
         int workerThreads,
         Path databasePath,
@@ -33,6 +34,10 @@ public record ServerConfig(
         Objects.requireNonNull(properties, "properties");
         Objects.requireNonNull(baseDirectory, "baseDirectory");
         int port = integer(properties, "server.port", 1, 65_535);
+        int logViewerPort = integer(properties, "server.logViewerPort", 1, 65_535);
+        if (logViewerPort == port) {
+            throw new ConfigurationException("server.logViewerPort 不能与 server.port 相同");
+        }
         int maxConnections = integer(properties, "server.maxConnections", 1, 10_000);
         int workerThreads = integer(properties, "server.workerThreads", 1, 1_024);
         int sessionTimeout = integer(properties, "session.timeoutMinutes", 1, 1_440);
@@ -40,11 +45,7 @@ public record ServerConfig(
         int retention = integer(properties, "dedup.retentionHours", 1, 720);
         String database = required(properties, "database.path");
         Path databasePath = baseDirectory.resolve(database).normalize().toAbsolutePath();
-        if (!Files.isRegularFile(databasePath)) {
-            throw new ConfigurationException(
-                    "database.path 指向的 Access 数据库不存在: " + databasePath);
-        }
-        return new ServerConfig(port, maxConnections, workerThreads, databasePath,
+        return new ServerConfig(port, logViewerPort, maxConnections, workerThreads, databasePath,
                 sessionTimeout, reservation, retention);
     }
 

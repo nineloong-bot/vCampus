@@ -1,6 +1,7 @@
 package edu.seu.vcampus.client.core.ui;
 
 import edu.seu.vcampus.client.core.navigation.PageNavigator;
+import edu.seu.vcampus.common.user.UserView;
 
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -17,17 +18,38 @@ public final class MainFrame extends JFrame {
 
     /** Creates the structural header, navigation, content, and footer seams. */
     public MainFrame() {
+        this(null);
+    }
+
+    /** Creates the application shell for an authenticated user. */
+    public MainFrame(UserView user) {
         super("vCampus");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
         header.add(new JLabel("vCampus"), BorderLayout.WEST);
-        header.add(new ConnectionStatusPanel(), BorderLayout.EAST);
+        if (user != null) {
+            header.add(new JLabel(user.loginId() + " · " + roleName(user), JLabel.CENTER),
+                    BorderLayout.CENTER);
+            content.add(new JLabel("登录成功，欢迎 " + user.loginId(), JLabel.CENTER));
+        }
+        header.add(new ConnectionStatusPanel(user == null ? "未连接" : "连接正常"),
+                BorderLayout.EAST);
         footer.add(new JLabel("就绪"), BorderLayout.WEST);
         add(header, BorderLayout.NORTH);
         add(navigation, BorderLayout.WEST);
         add(content, BorderLayout.CENTER);
         add(footer, BorderLayout.SOUTH);
         pack();
+        setSize(900, 600);
+        setLocationRelativeTo(null);
+    }
+
+    private static String roleName(UserView user) {
+        return switch (user.role()) {
+            case STUDENT -> "学生";
+            case TEACHER -> "教师";
+            case ADMIN -> "管理员";
+        };
     }
 
     /** Returns the header extension point. */

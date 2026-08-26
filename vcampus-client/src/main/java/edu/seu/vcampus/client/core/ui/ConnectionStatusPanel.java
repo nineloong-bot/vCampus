@@ -14,7 +14,13 @@ public final class ConnectionStatusPanel extends JPanel {
 
     /** Creates the status panel. */
     public ConnectionStatusPanel() {
+        this("未连接");
+    }
+
+    /** Creates the status panel with a known initial state. */
+    public ConnectionStatusPanel(String initialStatus) {
         super(new FlowLayout(FlowLayout.RIGHT));
+        status.setText(initialStatus);
         add(status);
     }
 

@@ -24,6 +24,7 @@ class ServerConfigTest {
         ServerConfig config = ServerConfig.from(validProperties(), baseDirectory);
 
         assertThat(config.port()).isEqualTo(8888);
+        assertThat(config.logViewerPort()).isEqualTo(8889);
         assertThat(config.databasePath()).isEqualTo(
                 baseDirectory.resolve("data/vCampus.accdb").normalize());
         assertThat(config.workerThreads()).isEqualTo(8);
@@ -40,18 +41,21 @@ class ServerConfigTest {
     }
 
     @Test
-    void rejectsMissingDatabase() {
+    void allowsDatabaseCreationOnFirstRun() throws Exception {
         Properties properties = validProperties();
         properties.setProperty("database.path", "data/missing.accdb");
+        Files.deleteIfExists(baseDirectory.resolve("data/missing.accdb"));
 
-        assertThatThrownBy(() -> ServerConfig.from(properties, baseDirectory))
-                .isInstanceOf(ConfigurationException.class)
-                .hasMessageContaining("database.path");
+        ServerConfig config = ServerConfig.from(properties, baseDirectory);
+
+        assertThat(config.databasePath()).isEqualTo(
+                baseDirectory.resolve("data/missing.accdb").normalize());
     }
 
     private static Properties validProperties() {
         Properties properties = new Properties();
         properties.setProperty("server.port", "8888");
+        properties.setProperty("server.logViewerPort", "8889");
         properties.setProperty("server.maxConnections", "100");
         properties.setProperty("server.workerThreads", "8");
         properties.setProperty("database.path", "data/vCampus.accdb");

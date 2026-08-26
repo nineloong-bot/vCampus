@@ -1,7 +1,7 @@
 package edu.seu.vcampus.client;
 
 import edu.seu.vcampus.client.core.network.ClientConnection;
-import edu.seu.vcampus.client.core.ui.MainFrame;
+import edu.seu.vcampus.client.user.ui.LoginFrame;
 
 import javax.swing.SwingUtilities;
 import java.io.InputStream;
@@ -23,10 +23,12 @@ public final class ClientMain {
             String host = required(properties, "server.host");
             int port = integer(properties, "server.port", 1, 65_535);
             int connectTimeout = integer(properties, "connection.timeoutSeconds", 1, 300);
+            int requestTimeout = integer(properties, "request.timeoutSeconds", 1, 300);
             ClientConnection connection = new ClientConnection(host, port);
             connection.connect(Duration.ofSeconds(connectTimeout));
             Runtime.getRuntime().addShutdownHook(new Thread(connection::close, "vcampus-client-close"));
-            SwingUtilities.invokeLater(() -> new MainFrame().setVisible(true));
+            SwingUtilities.invokeLater(() -> new LoginFrame(
+                    connection, Duration.ofSeconds(requestTimeout)).setVisible(true));
         } catch (Exception error) {
             System.err.println("客户端启动失败：" + error.getMessage());
             System.exit(2);

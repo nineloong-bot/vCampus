@@ -14,6 +14,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class EdtSafetyTest {
     @Test
+    void acceptsKnownInitialConnectionState() throws Exception {
+        ConnectionStatusPanel[] holder = new ConnectionStatusPanel[1];
+        SwingUtilities.invokeAndWait(() -> holder[0] = new ConnectionStatusPanel("连接正常"));
+
+        assertThat(holder[0].statusText()).isEqualTo("连接正常");
+    }
+
+    @Test
     void responseCallbackUpdatesStatusOnEdt() throws Exception {
         ConnectionStatusPanel[] holder = new ConnectionStatusPanel[1];
         SwingUtilities.invokeAndWait(() -> holder[0] = new ConnectionStatusPanel());
