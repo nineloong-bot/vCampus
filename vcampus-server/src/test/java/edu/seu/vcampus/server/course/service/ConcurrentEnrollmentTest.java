@@ -81,9 +81,15 @@ class ConcurrentEnrollmentTest {
         for (int index = 0; index < clients; index++) {
             registerStudent("token-" + index, "student-" + index);
         }
+        StripedResourceLockManager sharedLocks = new StripedResourceLockManager();
+        List<CourseService> independentlyConstructedServices = new ArrayList<>();
+        for (int index = 0; index < clients; index++) {
+            independentlyConstructedServices.add(createService(sharedLocks));
+        }
 
         List<Outcome<EnrollmentView>> outcomes = concurrently(clients,
-                index -> service.enroll("token-" + index, new EnrollCommand("offering-1")));
+                index -> independentlyConstructedServices.get(index)
+                        .enroll("token-" + index, new EnrollCommand("offering-1")));
 
         assertThat(outcomes.stream().filter(Outcome::isSuccess)).hasSize(1);
         assertThat(activeCount("offering-1")).isEqualTo(30);
@@ -133,6 +139,18 @@ class ConcurrentEnrollmentTest {
         String userId = "user-" + studentId;
         sessions.put(token, new CourseSessionIdentity(userId, "STUDENT"));
         students.put(userId, new StudentEnrollmentEligibility(studentId, "ACTIVE"));
+    }
+
+    private CourseService createService(StripedResourceLockManager locks) {
+        return new CourseServiceImpl(
+                sessions::get,
+                userId -> students.get(userId),
+                repository,
+                locks,
+                new TransactionManager(connections),
+                new TermWindowPolicy(),
+                new ScheduleConflictPolicy(),
+                Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     private Offering offering(String offeringId) {

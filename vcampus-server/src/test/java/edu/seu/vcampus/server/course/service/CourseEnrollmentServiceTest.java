@@ -28,18 +28,23 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.SQLException;
 import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
@@ -94,6 +99,20 @@ class CourseEnrollmentServiceTest {
     }
 
     @Test
+    void usesOneCapturedInstantForTheWindowDecisionAndEnrollmentTime() {
+        seedCatalog("PLANNED", NOW, NOW.plusSeconds(60));
+        seedOffering("offering-1", "course-1", 3, 0, "OPEN", List.of());
+        AdvancingClock clock = new AdvancingClock(NOW, NOW.plusSeconds(120));
+        CourseService tickingService = service(sessions::get, students::get,
+                new StripedResourceLockManager(), repository, clock);
+
+        EnrollmentView result = tickingService.enroll(TOKEN, new EnrollCommand("offering-1"));
+
+        assertThat(result.enrolledAt()).isEqualTo(NOW);
+        assertThat(clock.instantCalls()).isOne();
+    }
+
+    @Test
     void requiresStudentRoleBeforeResolvingEligibility() {
         sessions.put(TOKEN, new CourseSessionIdentity(USER_ID, "TEACHER"));
 
@@ -145,6 +164,28 @@ class CourseEnrollmentServiceTest {
         assertThat(calls).hasValue(2);
         assertThat(activeCount("offering-1")).isZero();
         assertThat(readOffering("offering-1").enrolledCount()).isZero();
+    }
+
+    @Test
+    void databaseBackedGatewaysFinishBeforeTheCourseTransactionOpens() {
+        seedCatalog("PLANNED", NOW.minusSeconds(60), NOW.plusSeconds(60));
+        seedOffering("offering-1", "course-1", 3, 0, "OPEN", List.of());
+        ConnectionProvider singleSlot = new RejectNestedConnectionProvider(connections);
+        CourseAuthorizationGateway databaseAuthorization = ignored -> withGatewayConnection(
+                singleSlot, () -> new CourseSessionIdentity(USER_ID, "STUDENT"));
+        CourseStudentGateway databaseStudents = ignored -> withGatewayConnection(
+                singleSlot, () -> new StudentEnrollmentEligibility(STUDENT_ID, "ACTIVE"));
+        CourseService boundedService = new CourseServiceImpl(
+                databaseAuthorization, databaseStudents, repository,
+                new StripedResourceLockManager(), new TransactionManager(singleSlot),
+                new TermWindowPolicy(), new ScheduleConflictPolicy(),
+                Clock.fixed(NOW, ZoneOffset.UTC));
+
+        EnrollmentView enrolled = boundedService.enroll(TOKEN, new EnrollCommand("offering-1"));
+
+        assertThat(enrolled.studentId()).isEqualTo(STUDENT_ID);
+        assertThat(activeCount("offering-1")).isEqualTo(1);
+        assertThat(readOffering("offering-1").enrolledCount()).isEqualTo(1);
     }
 
     @Test
@@ -241,12 +282,62 @@ class CourseEnrollmentServiceTest {
         assertThat(readOffering("offering-1").enrolledCount()).isEqualTo(1);
     }
 
+    @Test
+    void rollsBackNewEnrollmentWhenCountChangeFails() {
+        seedCatalog("PLANNED", NOW.minusSeconds(60), NOW.plusSeconds(60));
+        seedOffering("offering-1", "course-1", 3, 0, "OPEN", List.of());
+        CourseService failingService = service(sessions::get, students::get,
+                new StripedResourceLockManager(), failOnCountChange(repository),
+                Clock.fixed(NOW, ZoneOffset.UTC));
+
+        assertThatThrownBy(() -> failingService.enroll(TOKEN, new EnrollCommand("offering-1")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("forced enrollment-count failure");
+
+        assertThat(enrollmentCount("offering-1")).isZero();
+        assertThat(activeCount("offering-1")).isZero();
+        assertThat(readOffering("offering-1").enrolledCount()).isZero();
+    }
+
+    @Test
+    void rollsBackReactivationWhenCountChangeFails() {
+        seedCatalog("PLANNED", NOW.minusSeconds(60), NOW.plusSeconds(60));
+        seedOffering("offering-1", "course-1", 3, 0, "OPEN", List.of());
+        inTransaction(connection -> repository.insertEnrollment(connection,
+                new Enrollment("retained-enrollment", "offering-1", STUDENT_ID, "LATE_ADD", "DROPPED",
+                        NOW.minusSeconds(600), NOW.minusSeconds(300), 0, null, null)));
+        CourseService failingService = service(sessions::get, students::get,
+                new StripedResourceLockManager(), failOnCountChange(repository),
+                Clock.fixed(NOW, ZoneOffset.UTC));
+
+        assertThatThrownBy(() -> failingService.enroll(TOKEN, new EnrollCommand("offering-1")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("forced enrollment-count failure");
+
+        Enrollment retained = inTransaction(connection -> repository.findEnrollment(
+                connection, STUDENT_ID, "offering-1").orElseThrow());
+        assertThat(retained.enrollmentStatus()).isEqualTo("DROPPED");
+        assertThat(retained.enrollmentType()).isEqualTo("LATE_ADD");
+        assertThat(retained.droppedAt()).isEqualTo(NOW.minusSeconds(300));
+        assertThat(activeCount("offering-1")).isZero();
+        assertThat(readOffering("offering-1").enrolledCount()).isZero();
+    }
+
     private CourseService service(CourseAuthorizationGateway authorization,
                                   CourseStudentGateway studentGateway,
                                   ResourceLockManager lockManager) {
-        return new CourseServiceImpl(authorization, studentGateway, repository, lockManager,
+        return service(authorization, studentGateway, lockManager, repository,
+                Clock.fixed(NOW, ZoneOffset.UTC));
+    }
+
+    private CourseService service(CourseAuthorizationGateway authorization,
+                                  CourseStudentGateway studentGateway,
+                                  ResourceLockManager lockManager,
+                                  CourseRepository courseRepository,
+                                  Clock courseClock) {
+        return new CourseServiceImpl(authorization, studentGateway, courseRepository, lockManager,
                 new TransactionManager(connections), new TermWindowPolicy(),
-                new ScheduleConflictPolicy(), Clock.fixed(NOW, ZoneOffset.UTC));
+                new ScheduleConflictPolicy(), courseClock);
     }
 
     private void seedCatalog(String termStatus, Instant enrollmentStart, Instant enrollmentEnd) {
@@ -285,9 +376,17 @@ class CourseEnrollmentServiceTest {
     }
 
     private long activeCount(String offeringId) {
+        return enrollmentCountWhere(offeringId, " AND enrollmentStatus='ACTIVE'");
+    }
+
+    private long enrollmentCount(String offeringId) {
+        return enrollmentCountWhere(offeringId, "");
+    }
+
+    private long enrollmentCountWhere(String offeringId, String predicate) {
         try (Connection connection = connections.open();
              var statement = connection.prepareStatement(
-                     "SELECT COUNT(*) FROM tblEnrollment WHERE offeringId=? AND enrollmentStatus='ACTIVE'")) {
+                     "SELECT COUNT(*) FROM tblEnrollment WHERE offeringId=?" + predicate)) {
             statement.setString(1, offeringId);
             try (var result = statement.executeQuery()) {
                 result.next();
@@ -302,6 +401,29 @@ class CourseEnrollmentServiceTest {
         return new TransactionManager(connections).inTransaction(work);
     }
 
+    private static <T> T withGatewayConnection(ConnectionProvider provider, Supplier<T> work) {
+        try (Connection ignored = provider.open()) {
+            return work.get();
+        } catch (SQLException error) {
+            throw new IllegalStateException("gateway connection failed", error);
+        }
+    }
+
+    private static CourseRepository failOnCountChange(CourseRepository delegate) {
+        return (CourseRepository) Proxy.newProxyInstance(
+                CourseRepository.class.getClassLoader(), new Class<?>[]{CourseRepository.class},
+                (proxy, method, arguments) -> {
+                    if ("changeEnrolledCount".equals(method.getName())) {
+                        throw new IllegalStateException("forced enrollment-count failure");
+                    }
+                    try {
+                        return method.invoke(delegate, arguments);
+                    } catch (InvocationTargetException error) {
+                        throw error.getCause();
+                    }
+                });
+    }
+
     private static Schedule schedule(String id, String offeringId, DayOfWeek day,
                                      int startPeriod, int endPeriod, int startWeek, int endWeek) {
         return new Schedule(id, offeringId, day, startPeriod, endPeriod,
@@ -310,5 +432,75 @@ class CourseEnrollmentServiceTest {
 
     private static Path schema() {
         return Path.of("..", "vcampus-database", "schema", "030_course.sql");
+    }
+
+    private static final class RejectNestedConnectionProvider implements ConnectionProvider {
+        private final ConnectionProvider delegate;
+        private final AtomicBoolean inUse = new AtomicBoolean();
+
+        private RejectNestedConnectionProvider(ConnectionProvider delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public Connection open() throws SQLException {
+            if (!inUse.compareAndSet(false, true)) {
+                throw new SQLException("nested connection acquisition rejected");
+            }
+            Connection actual;
+            try {
+                actual = delegate.open();
+            } catch (SQLException error) {
+                inUse.set(false);
+                throw error;
+            }
+            AtomicBoolean closed = new AtomicBoolean();
+            return (Connection) Proxy.newProxyInstance(
+                    Connection.class.getClassLoader(), new Class<?>[]{Connection.class},
+                    (proxy, method, arguments) -> {
+                        if ("close".equals(method.getName()) && closed.compareAndSet(false, true)) {
+                            try {
+                                return method.invoke(actual, arguments);
+                            } finally {
+                                inUse.set(false);
+                            }
+                        }
+                        try {
+                            return method.invoke(actual, arguments);
+                        } catch (InvocationTargetException error) {
+                            throw error.getCause();
+                        }
+                    });
+        }
+    }
+
+    private static final class AdvancingClock extends Clock {
+        private final Instant first;
+        private final Instant later;
+        private final AtomicInteger calls = new AtomicInteger();
+
+        private AdvancingClock(Instant first, Instant later) {
+            this.first = first;
+            this.later = later;
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            return calls.getAndIncrement() == 0 ? first : later;
+        }
+
+        private int instantCalls() {
+            return calls.get();
+        }
     }
 }

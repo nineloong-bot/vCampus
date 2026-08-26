@@ -55,10 +55,7 @@ public final class CourseServiceImpl implements CourseService {
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
-    /**
-     * Uses the declared student-then-offering lock order and repeats mutable rule
-     * validation inside the transaction while both locks are held.
-     */
+    /** Uses the declared student-then-offering lock order and repeats mutable validation. */
     @Override
     public EnrollmentView enroll(String sessionToken, EnrollCommand command) {
         Objects.requireNonNull(command, "command");
@@ -68,7 +65,7 @@ public final class CourseServiceImpl implements CourseService {
         List<ResourceKey> orderedKeys = List.of(
                 new ResourceKey("STUDENT", initial.studentId()),
                 new ResourceKey("OFFERING", command.offeringId()));
-        return locks.withLocks(orderedKeys, () -> transactions.inTransaction(connection -> {
+        return locks.withLocks(orderedKeys, () -> {
             CourseSessionIdentity currentIdentity = requireStudentSession(sessionToken);
             if (!identity.userId().equals(currentIdentity.userId())) {
                 throw new CourseForbiddenException();
@@ -78,16 +75,19 @@ public final class CourseServiceImpl implements CourseService {
             if (!initial.studentId().equals(current.studentId())) {
                 throw new StudentIneligibleException();
             }
-            return enrollLocked(connection, current.studentId(), command.offeringId());
-        }));
+            Instant operationTime = clock.instant();
+            return transactions.inTransaction(connection ->
+                    enrollLocked(connection, current.studentId(), command.offeringId(), operationTime));
+        });
     }
 
-    private EnrollmentView enrollLocked(Connection connection, String studentId, String offeringId) {
+    private EnrollmentView enrollLocked(Connection connection, String studentId, String offeringId,
+                                        Instant operationTime) {
         Offering offering = repository.requireOffering(connection, offeringId);
         if (!"OPEN".equals(offering.offeringStatus())) {
             throw new EnrollmentClosedException();
         }
-        windows.requireEnrollmentOpen(repository.requireTerm(connection, offering.termId()), clock.instant());
+        windows.requireEnrollmentOpen(repository.requireTerm(connection, offering.termId()), operationTime);
         List<Enrollment> active = repository.findActiveByStudentAndTerm(
                 connection, studentId, offering.termId());
         requireNoDuplicate(connection, active, offering);
@@ -95,10 +95,9 @@ public final class CourseServiceImpl implements CourseService {
         if (offering.enrolledCount() >= offering.capacity()) {
             throw new OfferingFullException();
         }
-        Instant now = clock.instant();
         Enrollment saved = repository.insertEnrollment(connection, new Enrollment(
                 UUID.randomUUID().toString(), offeringId, studentId, "NORMAL", "ACTIVE",
-                now, null, 0, null, null));
+                operationTime, null, 0, null, null));
         repository.changeEnrolledCount(connection, offeringId, 1);
         return toView(saved);
     }
