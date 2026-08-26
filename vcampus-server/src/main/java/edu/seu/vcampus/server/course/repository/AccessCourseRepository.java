@@ -30,6 +30,9 @@ public final class AccessCourseRepository implements CourseRepository {
     @Override public List<Offering> findOfferingsByTerm(Connection c, String termId) {
         return offerings.findOfferingsByTerm(c, termId);
     }
+    @Override public OfferingSearchPage searchOfferings(Connection c, OfferingSearchCriteria criteria) {
+        return offerings.searchOfferings(c, criteria);
+    }
     @Override public Offering updateOffering(Connection c, Offering value, long version,
                                              List<Schedule> schedules) {
         return offerings.updateOffering(c, value, version, schedules);

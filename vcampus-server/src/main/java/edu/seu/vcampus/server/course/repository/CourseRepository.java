@@ -39,6 +39,9 @@ public interface CourseRepository {
     /** Lists offerings belonging to a term. */
     List<Offering> findOfferingsByTerm(Connection connection, String termId);
 
+    /** Searches offerings in the database using catalog, schedule, availability, and page filters. */
+    OfferingSearchPage searchOfferings(Connection connection, OfferingSearchCriteria criteria);
+
     /** Replaces an offering and its complete schedule collection under optimistic locking. */
     Offering updateOffering(Connection connection, Offering offering, long expectedVersion,
                             List<Schedule> schedules);

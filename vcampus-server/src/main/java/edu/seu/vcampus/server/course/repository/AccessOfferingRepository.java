@@ -35,6 +35,21 @@ final class AccessOfferingRepository {
         } catch (SQLException error) { throw CourseJdbc.failure("list offerings", error); }
     }
 
+    OfferingSearchPage searchOfferings(Connection c, OfferingSearchCriteria criteria) {
+        SearchSql search = searchSql(criteria);
+        long total = count(c, search);
+        List<Offering> values = new ArrayList<>();
+        int start = criteria.page() * criteria.pageSize();
+        try (PreparedStatement s = c.prepareStatement("SELECT o.*" + search.fromWhere() + " ORDER BY o.className, o.offeringId")) {
+            bind(s, search.parameters());
+            s.setMaxRows(start + criteria.pageSize());
+            try (ResultSet r = s.executeQuery()) {
+                for (int seen = 0; r.next(); seen++) if (seen >= start) values.add(offering(r));
+            }
+            return new OfferingSearchPage(values, total);
+        } catch (SQLException error) { throw CourseJdbc.failure("search offerings", error); }
+    }
+
     Offering updateOffering(Connection c, Offering offering, long expected, List<Schedule> schedules) {
         Instant now = Instant.now();
         String sql = "UPDATE tblCourseOffering SET termId=?, courseId=?, teacherUserId=?, className=?, capacity=?, enrolledCount=?, offeringStatus=?, rowVersion=?, updatedAt=? WHERE offeringId=? AND rowVersion=?";
@@ -79,5 +94,35 @@ final class AccessOfferingRepository {
 
     private static Schedule schedule(ResultSet r) throws SQLException {
         return new Schedule(r.getString("scheduleId"), r.getString("offeringId"), DayOfWeek.of(r.getInt("dayOfWeek")), r.getInt("startPeriod"), r.getInt("endPeriod"), r.getInt("startWeek"), r.getInt("endWeek"), r.getString("classroom"));
+    }
+
+    private static long count(Connection c, SearchSql search) {
+        try (PreparedStatement s = c.prepareStatement("SELECT COUNT(*)" + search.fromWhere())) {
+            bind(s, search.parameters()); try (ResultSet r = s.executeQuery()) { return r.next() ? r.getLong(1) : 0; }
+        } catch (SQLException error) { throw CourseJdbc.failure("count offerings", error); }
+    }
+
+    private static SearchSql searchSql(OfferingSearchCriteria criteria) {
+        StringBuilder sql = new StringBuilder(" FROM tblCourseOffering o INNER JOIN tblCourse c ON o.courseId=c.courseId WHERE 1=1");
+        List<Object> parameters = new ArrayList<>();
+        if (criteria.termId() != null && !criteria.termId().isBlank()) { sql.append(" AND o.termId=?"); parameters.add(criteria.termId()); }
+        if (criteria.keyword() != null && !criteria.keyword().isBlank()) {
+            sql.append(" AND (o.className LIKE ? OR c.courseCode LIKE ? OR c.courseName LIKE ?)");
+            String pattern = "%" + criteria.keyword().trim() + "%";
+            parameters.add(pattern); parameters.add(pattern); parameters.add(pattern);
+        }
+        if (criteria.dayOfWeek() != null) { sql.append(" AND EXISTS (SELECT * FROM tblCourseSchedule s WHERE s.offeringId=o.offeringId AND s.dayOfWeek=?)"); parameters.add(criteria.dayOfWeek().getValue()); }
+        if (criteria.availableOnly()) sql.append(" AND o.offeringStatus='OPEN' AND o.enrolledCount < o.capacity");
+        return new SearchSql(sql.toString(), parameters);
+    }
+
+    private static void bind(PreparedStatement statement, List<Object> parameters) throws SQLException {
+        for (int i = 0; i < parameters.size(); i++) {
+            Object value = parameters.get(i);
+            if (value instanceof Integer integer) statement.setInt(i + 1, integer); else statement.setString(i + 1, (String) value);
+        }
+    }
+
+    private record SearchSql(String fromWhere, List<Object> parameters) {
     }
 }
