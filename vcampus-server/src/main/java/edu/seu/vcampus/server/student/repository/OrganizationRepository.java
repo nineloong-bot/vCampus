@@ -16,6 +16,7 @@ public interface OrganizationRepository {
     Optional<Department> findDepartment(Connection connection, String departmentId);
     Optional<Major> findMajor(Connection connection, String majorId);
     Optional<StudentClass> findClass(Connection connection, String classId);
+    List<Department> listDepartments(Connection connection, boolean activeOnly);
     List<Major> listActiveMajors(Connection connection, String departmentId);
     List<StudentClass> listActiveClasses(Connection connection, String majorId);
     boolean classBelongsTo(Connection connection, String classId,

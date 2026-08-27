@@ -84,6 +84,17 @@ public final class AccessOrganizationRepository implements OrganizationRepositor
     }
 
     @Override
+    public List<Department> listDepartments(Connection connection, boolean activeOnly) {
+        String sql = "SELECT departmentId, departmentCode, departmentName, isActive, rowVersion FROM tblDepartment"
+                + (activeOnly ? " WHERE isActive = TRUE" : "") + " ORDER BY departmentCode";
+        try (var statement = connection.prepareStatement(sql); var result = statement.executeQuery()) {
+            List<Department> values = new ArrayList<>();
+            while (result.next()) values.add(mapDepartment(result));
+            return List.copyOf(values);
+        } catch (SQLException error) { throw failure("Cannot list departments", error); }
+    }
+
+    @Override
     public List<Major> listActiveMajors(Connection connection, String departmentId) {
         String sql = "SELECT majorId, departmentId, majorCode, majorName, isActive, rowVersion FROM tblMajor WHERE departmentId = ? AND isActive = TRUE ORDER BY majorCode";
         return queryMany(connection, sql, departmentId, this::mapMajor);

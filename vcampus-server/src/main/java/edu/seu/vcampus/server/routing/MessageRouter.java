@@ -23,6 +23,9 @@ public final class MessageRouter {
         }
     }
 
+    /** Reports whether a command has a registered handler. */
+    public boolean isRegistered(String command) { return handlers.containsKey(command); }
+
     /** Routes a message to its registered handler. */
     public ResponseBody<? extends Serializable> route(
             Message message, ClientContext context) {
