@@ -34,6 +34,10 @@ final class AccessOfferingRepository {
             return values;
         } catch (SQLException error) { throw CourseJdbc.failure("list offerings", error); }
     }
+    List<Offering> findOfferingsByTeacher(Connection c,String teacherUserId){
+        List<Offering> values=new ArrayList<>();
+        try(PreparedStatement s=c.prepareStatement("SELECT * FROM tblCourseOffering WHERE teacherUserId=? ORDER BY className")){s.setString(1,teacherUserId);try(ResultSet r=s.executeQuery()){while(r.next())values.add(offering(r));}return values;}catch(SQLException e){throw CourseJdbc.failure("list teacher offerings",e);}
+    }
 
     OfferingSearchPage searchOfferings(Connection c, OfferingSearchCriteria criteria) {
         SearchSql search = searchSql(criteria);

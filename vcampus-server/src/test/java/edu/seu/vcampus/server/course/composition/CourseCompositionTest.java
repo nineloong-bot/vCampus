@@ -1,0 +1,3 @@
+package edu.seu.vcampus.server.course.composition;
+import edu.seu.vcampus.server.routing.MessageRouter; import org.junit.jupiter.api.Test; import java.time.Clock; import java.util.Map; import static org.assertj.core.api.Assertions.*;
+class CourseCompositionTest { @Test void oneCompositionOwnsOneStableSharedLockManagerAndRegistersOnce(){CourseComposition c=CourseComposition.create(()->{throw new AssertionError("database must stay lazy");},t->new edu.seu.vcampus.server.course.service.CourseSessionIdentity("u","ADMIN"),u->null,Clock.systemUTC());assertThat(c.resourceLocks()).isSameAs(c.resourceLocks());MessageRouter r=new MessageRouter(Map.of());c.register(r);assertThatThrownBy(()->c.register(r)).isInstanceOf(IllegalStateException.class);} }

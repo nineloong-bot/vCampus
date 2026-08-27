@@ -58,6 +58,10 @@ public interface CourseRepository {
     /** Returns active enrollments for a student in a term. */
     List<Enrollment> findActiveByStudentAndTerm(Connection connection, String studentId,
                                                  String termId);
+    /** Returns all active enrollments for one student. */
+    List<Enrollment> findActiveByStudent(Connection connection, String studentId);
+    /** Returns offerings assigned to one teacher. */
+    List<Offering> findOfferingsByTeacher(Connection connection, String teacherUserId);
 
     /** Inserts an enrollment or reactivates the retained dropped row for the same natural key. */
     Enrollment insertEnrollment(Connection connection, Enrollment enrollment);

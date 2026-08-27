@@ -49,6 +49,8 @@ public final class AccessCourseRepository implements CourseRepository {
     @Override public List<Enrollment> findActiveByStudentAndTerm(Connection c, String studentId, String termId) {
         return enrollments.findActiveByStudentAndTerm(c, studentId, termId);
     }
+    @Override public List<Enrollment> findActiveByStudent(Connection c,String studentId){return enrollments.findActiveByStudent(c,studentId);}
+    @Override public List<Offering> findOfferingsByTeacher(Connection c,String teacherUserId){return offerings.findOfferingsByTeacher(c,teacherUserId);}
     @Override public Enrollment insertEnrollment(Connection c, Enrollment value) {
         return enrollments.insertEnrollment(c, value);
     }

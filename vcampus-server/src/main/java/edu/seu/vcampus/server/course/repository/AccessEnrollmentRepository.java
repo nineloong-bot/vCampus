@@ -38,6 +38,11 @@ final class AccessEnrollmentRepository {
         } catch (SQLException error) { throw CourseJdbc.failure("list active enrollments", error); }
     }
 
+    List<Enrollment> findActiveByStudent(Connection c,String studentId){
+        List<Enrollment> values=new ArrayList<>();
+        try(PreparedStatement s=c.prepareStatement("SELECT * FROM tblEnrollment WHERE studentId=? AND enrollmentStatus='ACTIVE' ORDER BY enrolledAt")){s.setString(1,studentId);try(ResultSet r=s.executeQuery()){while(r.next())values.add(enrollment(r));}return values;}catch(SQLException e){throw CourseJdbc.failure("list active enrollments",e);}
+    }
+
     Enrollment insertEnrollment(Connection c, Enrollment value) {
         Optional<Enrollment> existing = findEnrollment(c, value.studentId(), value.offeringId());
         if (existing.isPresent()) {
