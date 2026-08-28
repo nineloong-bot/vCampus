@@ -4,6 +4,8 @@ import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.user.LoginCommand;
 import edu.seu.vcampus.common.user.LoginResult;
+import edu.seu.vcampus.common.user.TeacherAccountApplicationCommand;
+import edu.seu.vcampus.common.user.UserView;
 
 import java.time.Duration;
 import java.util.UUID;
@@ -24,5 +26,12 @@ public final class UserClient {
     public CompletableFuture<ResponseBody<LoginResult>> login(String loginId, char[] password) {
         return connection.send("USER_LOGIN",
                 new LoginCommand(loginId, password, clientInstanceId), timeout);
+    }
+
+    /** Submits a public teacher account application. */
+    public CompletableFuture<ResponseBody<UserView>> registerTeacher(
+            String loginId, char[] password) {
+        return connection.send("USER_REGISTER",
+                new TeacherAccountApplicationCommand(loginId, password), timeout);
     }
 }

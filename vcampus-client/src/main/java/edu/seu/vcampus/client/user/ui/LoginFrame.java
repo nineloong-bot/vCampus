@@ -2,6 +2,11 @@ package edu.seu.vcampus.client.user.ui;
 
 import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.core.ui.MainFrame;
+import edu.seu.vcampus.client.core.ui.theme.UiBorders;
+import edu.seu.vcampus.client.core.ui.theme.UiColors;
+import edu.seu.vcampus.client.core.ui.theme.UiSpacing;
+import edu.seu.vcampus.client.core.ui.theme.UiThemeInstaller;
+import edu.seu.vcampus.client.core.ui.theme.UiTypography;
 import edu.seu.vcampus.client.user.UserClient;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.user.LoginResult;
@@ -9,6 +14,7 @@ import edu.seu.vcampus.common.user.LoginResult;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JFrame;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JPasswordField;
@@ -17,7 +23,7 @@ import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.Color;
-import java.awt.Font;
+import java.awt.Dimension;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
@@ -32,49 +38,96 @@ public final class LoginFrame extends JFrame {
     private final JPasswordField password = new JPasswordField(18);
     private final JLabel status = new JLabel("已连接到服务器", SwingConstants.CENTER);
     private final JButton login = new JButton("登录");
+    private final JButton register = new JButton("申请教师账号");
 
     public LoginFrame(ClientConnection connection, Duration requestTimeout) {
         super("vCampus 登录");
+        UiThemeInstaller.install();
         this.connection = connection;
         this.users = new UserClient(connection, requestTimeout);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setContentPane(content());
         login.addActionListener(event -> submit());
+        register.addActionListener(event -> new TeacherAccountApplicationDialog(this, users).setVisible(true));
         password.addActionListener(event -> submit());
         getRootPane().setDefaultButton(login);
-        setSize(760, 480);
+        setSize(860, 540);
         setLocationRelativeTo(null);
     }
 
     private JPanel content() {
-        JPanel root = new JPanel(new BorderLayout(24, 24));
-        root.setBorder(BorderFactory.createEmptyBorder(44, 70, 44, 70));
+        JPanel root = new JPanel(new BorderLayout());
+        root.setBackground(UiColors.BACKGROUND_PAGE);
 
-        JLabel title = new JLabel("vCampus", SwingConstants.CENTER);
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 30f));
-        root.add(title, BorderLayout.NORTH);
+        JPanel brand = new JPanel(new GridBagLayout());
+        brand.setBackground(UiColors.PRIMARY);
+        brand.setPreferredSize(new Dimension(300, 0));
+        GridBagConstraints brandCell = new GridBagConstraints();
+        brandCell.gridx = 0;
+        brandCell.gridy = 0;
+        brandCell.insets = new Insets(0, UiSpacing.XL, UiSpacing.SM, UiSpacing.XL);
+        JLabel brandTitle = new JLabel("vCampus");
+        brandTitle.setFont(UiTypography.DISPLAY.deriveFont(30f));
+        brandTitle.setForeground(UiColors.TEXT_ON_PRIMARY);
+        brand.add(brandTitle, brandCell);
+        brandCell.gridy = 1;
+        brandCell.insets = new Insets(0, UiSpacing.XL, 0, UiSpacing.XL);
+        JLabel brandSubtitle = new JLabel("虚拟校园 · 一站式校园服务");
+        brandSubtitle.setFont(UiTypography.BODY);
+        brandSubtitle.setForeground(UiColors.TEXT_ON_PRIMARY);
+        brand.add(brandSubtitle, brandCell);
+        root.add(brand, BorderLayout.WEST);
 
         JPanel form = new JPanel(new GridBagLayout());
+        form.setBackground(UiColors.BACKGROUND_PAGE);
+        form.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createEmptyBorder(54, 54, 54, 54),
+                BorderFactory.createEmptyBorder(0, 0, 0, 0)));
         GridBagConstraints cell = new GridBagConstraints();
-        cell.insets = new Insets(8, 8, 8, 8);
+        cell.insets = new Insets(UiSpacing.SM, UiSpacing.SM, UiSpacing.SM, UiSpacing.SM);
         cell.fill = GridBagConstraints.HORIZONTAL;
-        addRow(form, cell, 0, "账号", loginId);
-        addRow(form, cell, 1, "密码", password);
+        cell.weightx = 1;
+        JLabel title = new JLabel("欢迎回来");
+        title.setFont(UiTypography.PAGE_TITLE);
+        title.setForeground(UiColors.TEXT_PRIMARY);
         cell.gridx = 0;
-        cell.gridy = 2;
+        cell.gridy = 0;
         cell.gridwidth = 2;
-        form.add(new JLabel("演示账号：ADMIN / Admin1234", SwingConstants.CENTER), cell);
-        cell.gridy = 3;
-        form.add(login, cell);
+        cell.insets = new Insets(0, 8, 4, 8);
+        form.add(title, cell);
+        JLabel hint = new JLabel("登录后进入你的虚拟校园");
+        hint.setFont(UiTypography.BODY);
+        hint.setForeground(UiColors.TEXT_SECONDARY);
+        cell.gridy = 1;
+        cell.insets = new Insets(0, 8, 20, 8);
+        form.add(hint, cell);
+        addRow(form, cell, 2, "账号", loginId);
+        addRow(form, cell, 3, "密码", password);
+        cell.gridx = 0;
         cell.gridy = 4;
-        status.setForeground(new Color(40, 100, 70));
+        cell.gridwidth = 2;
+        JLabel demo = new JLabel("演示账号：ADMIN / Admin1234", SwingConstants.CENTER);
+        demo.setFont(UiTypography.CAPTION);
+        demo.setForeground(UiColors.TEXT_SECONDARY);
+        form.add(demo, cell);
+        cell.gridy = 5;
+        cell.insets = new Insets(16, 8, 8, 8);
+        stylePrimary(login);
+        form.add(login, cell);
+        cell.gridy = 6;
+        styleSecondary(register);
+        form.add(register, cell);
+        cell.gridy = 7;
+        cell.insets = new Insets(12, 8, 0, 8);
+        status.setFont(UiTypography.CAPTION);
+        status.setForeground(UiColors.SUCCESS_FG);
         form.add(status, cell);
         root.add(form, BorderLayout.CENTER);
         return root;
     }
 
     private static void addRow(JPanel panel, GridBagConstraints cell, int row,
-            String label, java.awt.Component field) {
+            String label, JComponent field) {
         cell.gridx = 0;
         cell.gridy = row;
         cell.gridwidth = 1;
@@ -82,14 +135,34 @@ public final class LoginFrame extends JFrame {
         panel.add(new JLabel(label), cell);
         cell.gridx = 1;
         cell.weightx = 1;
+        field.setFont(UiTypography.BODY);
+        field.setBackground(Color.WHITE);
+        field.setBorder(BorderFactory.createCompoundBorder(
+                UiBorders.SECTION, BorderFactory.createEmptyBorder(6, 8, 6, 8)));
         panel.add(field, cell);
+    }
+
+    private static void stylePrimary(JButton button) {
+        button.setFont(UiTypography.BODY_BOLD);
+        button.setForeground(UiColors.TEXT_ON_PRIMARY);
+        button.setBackground(UiColors.PRIMARY);
+        button.setFocusPainted(false);
+        button.setBorder(BorderFactory.createEmptyBorder(10, 12, 10, 12));
+    }
+
+    private static void styleSecondary(JButton button) {
+        button.setFont(UiTypography.BODY);
+        button.setForeground(UiColors.PRIMARY);
+        button.setBackground(UiColors.BACKGROUND_SUBTLE);
+        button.setFocusPainted(false);
+        button.setBorder(BorderFactory.createEmptyBorder(10, 12, 10, 12));
     }
 
     private void submit() {
         char[] submittedPassword = password.getPassword();
         String submittedLoginId = loginId.getText();
         login.setEnabled(false);
-        status.setForeground(new Color(70, 90, 130));
+        status.setForeground(UiColors.TEXT_SECONDARY);
         status.setText("正在登录…");
         users.login(submittedLoginId, submittedPassword)
                 .whenComplete((response, error) -> {
@@ -116,7 +189,7 @@ public final class LoginFrame extends JFrame {
     }
 
     private void showError(String message) {
-        status.setForeground(new Color(180, 45, 45));
+        status.setForeground(UiColors.ACCENT);
         status.setText(message);
     }
 }

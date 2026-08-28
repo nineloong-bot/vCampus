@@ -9,6 +9,8 @@ import edu.seu.vcampus.server.monitoring.LogViewerServer;
 import edu.seu.vcampus.server.routing.MessageRouter;
 import edu.seu.vcampus.server.user.AccessDatabase;
 import edu.seu.vcampus.server.user.LoginService;
+import edu.seu.vcampus.server.user.AccountManagementService;
+import edu.seu.vcampus.server.session.SessionRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,10 +50,17 @@ public final class ServerMain {
     private static void run(ServerConfig config) throws Exception {
         AccessDatabase database = new AccessDatabase(config.databasePath());
         database.initialize();
-        LoginService loginService = new LoginService(database);
+        SessionRegistry sessions = new SessionRegistry();
+        LoginService loginService = new LoginService(database, sessions);
+        AccountManagementService accountService = new AccountManagementService(database, sessions);
         MessageRouter router = new MessageRouter(Map.of(
                 "PING", (request, context) -> ResponseBody.success(EmptyResponse.INSTANCE),
-                "USER_LOGIN", loginService::login));
+                "USER_LOGIN", loginService::login,
+                "USER_REGISTER", accountService::register,
+                "USER_LOGOUT", accountService::logout,
+                "USER_GET_CURRENT", accountService::current,
+                "USER_CHANGE_PASSWORD", accountService::changePassword,
+                "USER_SEARCH", accountService::search));
         SocketServer server = new SocketServer(config.port(), config.workerThreads(),
                 config.maxConnections(), router);
         LogViewerServer logViewer = new LogViewerServer(

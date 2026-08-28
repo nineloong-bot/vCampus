@@ -9,6 +9,7 @@ import edu.seu.vcampus.common.user.UserRole;
 import edu.seu.vcampus.common.user.UserView;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import edu.seu.vcampus.server.routing.ClientContext;
+import edu.seu.vcampus.server.session.SessionRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,9 +29,15 @@ public final class LoginService {
     private static final Logger SECURITY_LOGGER = LoggerFactory.getLogger("vcampus.security");
     private final ConnectionProvider connections;
     private final PasswordHasher passwords = new PasswordHasher();
+    private final SessionRegistry sessions;
 
     public LoginService(ConnectionProvider connections) {
+        this(connections, new SessionRegistry());
+    }
+
+    public LoginService(ConnectionProvider connections, SessionRegistry sessions) {
         this.connections = connections;
+        this.sessions = sessions;
     }
 
     /** Handles one USER_LOGIN request without exposing credential details. */
@@ -58,10 +65,10 @@ public final class LoginService {
                 return failure("AUTH_ACCOUNT_DISABLED", "账户当前不可登录",
                         request.requestId(), false);
             }
-            LoginResult result = new LoginResult(
-                    UUID.randomUUID().toString(),
-                    new UserView(account.userId(), account.loginId(),
-                            UserRole.valueOf(account.roleCode())),
+            UserView user = new UserView(account.userId(), account.loginId(),
+                    UserRole.valueOf(account.roleCode()));
+            String sessionToken = sessions.create(user, account.mustChangePassword());
+            LoginResult result = new LoginResult(sessionToken, user,
                     Set.of(),
                     account.mustChangePassword());
             SECURITY_LOGGER.info(
