@@ -6,6 +6,12 @@ import edu.seu.vcampus.client.core.ui.theme.UiSpacing;
 import edu.seu.vcampus.client.course.service.CourseClientException;
 import edu.seu.vcampus.common.course.EnrollmentView;
 import edu.seu.vcampus.common.course.EnrollCommand;
+import edu.seu.vcampus.common.course.LateAddCommand;
+import edu.seu.vcampus.common.course.DropCommand;
+import edu.seu.vcampus.common.course.ChangeOfferingCommand;
+import edu.seu.vcampus.common.course.RetakeCommand;
+import edu.seu.vcampus.common.course.RetakeEligibility;
+import edu.seu.vcampus.common.protocol.EmptyResponse;
 import edu.seu.vcampus.common.course.OfferingSearchQuery;
 import edu.seu.vcampus.common.course.OfferingSummary;
 import edu.seu.vcampus.common.course.ScheduleItem;
@@ -146,6 +152,91 @@ class CourseUiTest {
         assertThat(table.getRowCount()).isEqualTo(1);
         assertThat(table.getValueAt(0, 0)).isEqualTo("offering-real-1");
         assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.NORMAL);
+    }
+
+    @Test
+    void adjustmentChangeUsesSelectedEnrollmentTargetAndExpectedVersion() throws Exception {
+        AtomicReference<ChangeOfferingCommand> submitted = new AtomicReference<>();
+        CourseUiGateway base = CourseUiGateway.preview();
+        CourseUiGateway gateway = new CourseUiGateway() {
+            public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) { return base.searchOfferings(query); }
+            public CompletableFuture<List<EnrollmentView>> currentEnrollments() {
+                return CompletableFuture.completedFuture(List.of(new EnrollmentView(
+                        "enrollment-source", "o1", "s1", "NORMAL", "ACTIVE", Instant.now(), null, 7)));
+            }
+            public CompletableFuture<List<ScheduleItem>> currentSchedule() { return CompletableFuture.completedFuture(List.of()); }
+            public CompletableFuture<EnrollmentView> enroll(EnrollCommand command) { return base.enroll(command); }
+            @Override public CompletableFuture<EnrollmentView> lateAdd(LateAddCommand command) { return base.enroll(new EnrollCommand(command.offeringId())); }
+            @Override public CompletableFuture<EmptyResponse> drop(DropCommand command) { return CompletableFuture.completedFuture(EmptyResponse.INSTANCE); }
+            @Override public CompletableFuture<EnrollmentView> change(ChangeOfferingCommand command) {
+                submitted.set(command);
+                return CompletableFuture.completedFuture(new EnrollmentView(
+                        "enrollment-source", command.targetOfferingId(), "s1", "NORMAL", "ACTIVE", Instant.now(), null, 8));
+            }
+            @Override public CompletableFuture<RetakeEligibility> checkRetake(String courseId) { return CompletableFuture.completedFuture(new RetakeEligibility(courseId, false, List.of(), "")); }
+            @Override public CompletableFuture<EnrollmentView> enrollRetake(RetakeCommand command) { return base.enroll(new EnrollCommand(command.offeringId())); }
+        };
+        AdjustmentPanel panel = onEdt(() -> new AdjustmentPanel(gateway));
+        SwingUtilities.invokeAndWait(() -> { });
+        List<JTable> tables = descendants(panel).stream().filter(JTable.class::isInstance).map(JTable.class::cast).toList();
+        JButton change = descendants(panel).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
+                .filter(button -> "确认改选".equals(button.getText())).findFirst().orElseThrow();
+
+        assertThat(tables.get(0).getColumnName(0)).isEqualTo("课程");
+        assertThat(tables.get(0).getValueAt(0, 0)).isEqualTo("高等数学");
+        assertThat(tables.get(0).getValueAt(0, 1)).isEqualTo("01班");
+        assertThat(tables.get(0).getValueAt(0, 2)).isEqualTo("正常选课");
+        assertThat(tables.get(0).getValueAt(0, 3)).isEqualTo("有效");
+
+        SwingUtilities.invokeAndWait(() -> {
+            tables.get(0).setRowSelectionInterval(0, 0);
+            tables.get(1).setRowSelectionInterval(1, 1);
+            change.doClick();
+        });
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(submitted.get()).isEqualTo(new ChangeOfferingCommand("enrollment-source", "o2", 7));
+        assertThat(labels(panel)).anyMatch(text -> text.contains("改选成功"));
+    }
+
+    @Test
+    void retakeRequiresEligibilityCheckBeforeSubmittingSelectedOffering() throws Exception {
+        AtomicReference<String> checkedCourse = new AtomicReference<>();
+        AtomicReference<RetakeCommand> submitted = new AtomicReference<>();
+        CourseUiGateway base = CourseUiGateway.preview();
+        CourseUiGateway gateway = new CourseUiGateway() {
+            public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) { return base.searchOfferings(query); }
+            public CompletableFuture<List<EnrollmentView>> currentEnrollments() { return CompletableFuture.completedFuture(List.of()); }
+            public CompletableFuture<List<ScheduleItem>> currentSchedule() { return CompletableFuture.completedFuture(List.of()); }
+            public CompletableFuture<EnrollmentView> enroll(EnrollCommand command) { return base.enroll(command); }
+            @Override public CompletableFuture<RetakeEligibility> checkRetake(String courseId) {
+                checkedCourse.set(courseId);
+                return CompletableFuture.completedFuture(new RetakeEligibility(courseId, true, List.of("failed-1"), "FAILED_ATTEMPT"));
+            }
+            @Override public CompletableFuture<EnrollmentView> enrollRetake(RetakeCommand command) {
+                submitted.set(command);
+                return CompletableFuture.completedFuture(new EnrollmentView(
+                        "retake-1", command.offeringId(), "s1", "RETAKE", "ACTIVE", Instant.now(), null, 0));
+            }
+        };
+        RetakePanel panel = onEdt(() -> new RetakePanel(gateway));
+        SwingUtilities.invokeAndWait(() -> { });
+        JTable table = descendants(panel).stream().filter(JTable.class::isInstance).map(JTable.class::cast).findFirst().orElseThrow();
+        JButton check = descendants(panel).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
+                .filter(button -> "检查重修资格".equals(button.getText())).findFirst().orElseThrow();
+        JButton enroll = descendants(panel).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
+                .filter(button -> "确认重修".equals(button.getText())).findFirst().orElseThrow();
+
+        assertThat(enroll.isEnabled()).isFalse();
+        SwingUtilities.invokeAndWait(() -> { table.setRowSelectionInterval(0, 0); check.doClick(); });
+        SwingUtilities.invokeAndWait(() -> { });
+        assertThat(checkedCourse.get()).isEqualTo("o1");
+        assertThat(enroll.isEnabled()).isTrue();
+        SwingUtilities.invokeAndWait(enroll::doClick);
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(submitted.get()).isEqualTo(new RetakeCommand("o1"));
+        assertThat(labels(panel)).anyMatch(text -> text.contains("重修选课成功"));
     }
 
     private static CourseUiGateway gateway(CompletableFuture<PageResult<OfferingSummary>> offerings) {

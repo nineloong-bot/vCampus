@@ -40,7 +40,7 @@ public final class CourseUiScreenshotGenerator {
         Path output = Path.of("docs/ui-review/course");
         Files.createDirectories(output);
         UiThemeInstaller.install();
-        JComponent[] pages = new JComponent[6];
+        JComponent[] pages = new JComponent[8];
         SwingUtilities.invokeAndWait(() -> {
             pages[0] = shell(new OfferingSearchPanel(CourseUiGateway.preview()));
             pages[1] = shell(new MySchedulePanel(CourseUiGateway.preview()));
@@ -51,6 +51,8 @@ public final class CourseUiScreenshotGenerator {
                     new IllegalStateException("internal details")))));
             pages[5] = shell(new OfferingSearchPanel(gateway(CompletableFuture.failedFuture(
                     new CourseClientException("COMMON_NETWORK_ERROR", "socket details", null, true)))));
+            pages[6] = shell(new AdjustmentPanel(CourseUiGateway.preview()));
+            pages[7] = shell(new RetakePanel(CourseUiGateway.preview()));
         });
         // A second EDT turn lets completed asynchronous preview futures render.
         SwingUtilities.invokeAndWait(() -> { });
@@ -62,6 +64,8 @@ public final class CourseUiScreenshotGenerator {
                 capture(pages[3], output.resolve("c01-offering-search--empty.png"));
                 capture(pages[4], output.resolve("c01-offering-search--error.png"));
                 capture(pages[5], output.resolve("c01-offering-search--disconnected.png"));
+                capture(pages[6], output.resolve("c05-adjustment--normal.png"));
+                capture(pages[7], output.resolve("c06-retake--normal.png"));
             } catch (Exception error) {
                 throw new RuntimeException(error);
             }
