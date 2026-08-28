@@ -16,6 +16,11 @@ import edu.seu.vcampus.common.course.TermView;
 import edu.seu.vcampus.common.course.ImportCourseOutcomesCommand;
 import edu.seu.vcampus.common.course.CreateCourseCommand;
 import edu.seu.vcampus.common.course.UpdateCourseCommand;
+import edu.seu.vcampus.common.course.CreateTermCommand;
+import edu.seu.vcampus.common.course.UpdateTermCommand;
+import edu.seu.vcampus.common.course.CreateOfferingCommand;
+import edu.seu.vcampus.common.course.UpdateOfferingCommand;
+import edu.seu.vcampus.common.course.OfferingView;
 import edu.seu.vcampus.common.course.TermPhaseView;
 import edu.seu.vcampus.common.protocol.EmptyResponse;
 import edu.seu.vcampus.common.course.OfferingSearchQuery;
@@ -62,5 +67,9 @@ final class CourseClientGateway implements CourseUiGateway {
     public CompletableFuture<EmptyResponse> importOutcomes(ImportCourseOutcomesCommand command) { return client.importOutcomes(command); }
     public CompletableFuture<CourseView> createCourse(CreateCourseCommand command) { return client.createCourse(command); }
     public CompletableFuture<CourseView> updateCourse(UpdateCourseCommand command) { return client.updateCourse(command); }
+    public CompletableFuture<TermView> createTerm(CreateTermCommand command) { return client.createTerm(command); }
+    public CompletableFuture<TermView> updateTerm(UpdateTermCommand command) { return client.updateTerm(command); }
+    public CompletableFuture<OfferingView> createOffering(CreateOfferingCommand command) { return client.createOffering(command); }
+    public CompletableFuture<OfferingView> updateOffering(UpdateOfferingCommand command) { return client.updateOffering(command); }
     public CompletableFuture<TermPhaseView> getTermPhase(String termId) { return client.getTermPhase(termId); }
 }

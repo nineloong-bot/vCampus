@@ -15,6 +15,11 @@ import edu.seu.vcampus.common.course.TermView;
 import edu.seu.vcampus.common.course.ImportCourseOutcomesCommand;
 import edu.seu.vcampus.common.course.CreateCourseCommand;
 import edu.seu.vcampus.common.course.UpdateCourseCommand;
+import edu.seu.vcampus.common.course.CreateTermCommand;
+import edu.seu.vcampus.common.course.UpdateTermCommand;
+import edu.seu.vcampus.common.course.CreateOfferingCommand;
+import edu.seu.vcampus.common.course.UpdateOfferingCommand;
+import edu.seu.vcampus.common.course.OfferingView;
 import edu.seu.vcampus.common.course.TermPhaseView;
 import edu.seu.vcampus.common.protocol.EmptyResponse;
 import edu.seu.vcampus.common.course.OfferingSearchQuery;
@@ -42,6 +47,10 @@ public interface CourseUiGateway {
     default CompletableFuture<EmptyResponse> importOutcomes(ImportCourseOutcomesCommand command) { return unsupported(); }
     default CompletableFuture<CourseView> createCourse(CreateCourseCommand command) { return unsupported(); }
     default CompletableFuture<CourseView> updateCourse(UpdateCourseCommand command) { return unsupported(); }
+    default CompletableFuture<TermView> createTerm(CreateTermCommand command) { return unsupported(); }
+    default CompletableFuture<TermView> updateTerm(UpdateTermCommand command) { return unsupported(); }
+    default CompletableFuture<OfferingView> createOffering(CreateOfferingCommand command) { return unsupported(); }
+    default CompletableFuture<OfferingView> updateOffering(UpdateOfferingCommand command) { return unsupported(); }
     default CompletableFuture<TermPhaseView> getTermPhase(String termId) { return unsupported(); }
 
     private static <T> CompletableFuture<T> unsupported() {
@@ -54,7 +63,9 @@ public interface CourseUiGateway {
                 new ScheduleItem("s2", "o2", "CS201", "数据结构", "02班", "李老师", "WEDNESDAY", 3, 4, 1, 16, "计算中心-305"),
                 new ScheduleItem("s3", "o3", "PHYS101", "大学物理", "01班", "王老师", "FRIDAY", 5, 6, 1, 16, "教三-108"));
         List<OfferingSummary> offerings = schedule.stream().map(item -> new OfferingSummary(
-                item.offeringId(), "2026-autumn", item.offeringId(), item.courseCode(), item.courseName(),
+                item.offeringId(), "2026-autumn", switch (item.courseCode()) {
+                    case "MATH101" -> "c1"; case "CS201" -> "c2"; default -> "c3";
+                }, item.courseCode(), item.courseName(),
                 item.teacherUserId(), item.className(), 40, 28, "OPEN", 0, List.of(item))).toList();
         return new CourseUiGateway() {
             public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) {
@@ -127,6 +138,29 @@ public interface CourseUiGateway {
                         command.courseId(), command.courseCode(), command.courseName(), command.credit(),
                         command.totalHours(), command.description(), command.active(), command.expectedVersion() + 1,
                         java.time.Instant.now(), java.time.Instant.now()));
+            }
+            public CompletableFuture<TermView> createTerm(CreateTermCommand command) {
+                return CompletableFuture.completedFuture(new TermView("preview-created-term", command.termCode(),
+                        command.termName(), command.startDate(), command.endDate(), command.enrollmentStartAt(),
+                        command.enrollmentEndAt(), command.adjustmentStartAt(), command.adjustmentEndAt(),
+                        command.termStatus(), 0, java.time.Instant.now(), java.time.Instant.now()));
+            }
+            public CompletableFuture<TermView> updateTerm(UpdateTermCommand command) {
+                return CompletableFuture.completedFuture(new TermView(command.termId(), command.termCode(),
+                        command.termName(), command.startDate(), command.endDate(), command.enrollmentStartAt(),
+                        command.enrollmentEndAt(), command.adjustmentStartAt(), command.adjustmentEndAt(),
+                        command.termStatus(), command.expectedVersion() + 1, java.time.Instant.now(), java.time.Instant.now()));
+            }
+            public CompletableFuture<OfferingView> createOffering(CreateOfferingCommand command) {
+                return CompletableFuture.completedFuture(new OfferingView("preview-created-offering", command.termId(),
+                        command.courseId(), command.teacherUserId(), command.className(), command.capacity(), 0,
+                        command.offeringStatus(), 0, java.time.Instant.now(), java.time.Instant.now(), List.of()));
+            }
+            public CompletableFuture<OfferingView> updateOffering(UpdateOfferingCommand command) {
+                return CompletableFuture.completedFuture(new OfferingView(command.offeringId(), command.termId(),
+                        command.courseId(), command.teacherUserId(), command.className(), command.capacity(), 0,
+                        command.offeringStatus(), command.expectedVersion() + 1, java.time.Instant.now(),
+                        java.time.Instant.now(), List.of()));
             }
             public CompletableFuture<TermPhaseView> getTermPhase(String termId) {
                 return CompletableFuture.completedFuture(new TermPhaseView(termId, "ACTIVE", "ADJUSTMENT",

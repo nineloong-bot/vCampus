@@ -24,6 +24,11 @@ import edu.seu.vcampus.common.course.ImportCourseOutcomesCommand;
 import edu.seu.vcampus.common.course.CourseOutcome;
 import edu.seu.vcampus.common.course.CreateCourseCommand;
 import edu.seu.vcampus.common.course.UpdateCourseCommand;
+import edu.seu.vcampus.common.course.CreateTermCommand;
+import edu.seu.vcampus.common.course.UpdateTermCommand;
+import edu.seu.vcampus.common.course.CreateOfferingCommand;
+import edu.seu.vcampus.common.course.UpdateOfferingCommand;
+import edu.seu.vcampus.common.course.OfferingView;
 import edu.seu.vcampus.common.course.TermPhaseView;
 import edu.seu.vcampus.common.paging.PageResult;
 import org.junit.jupiter.api.Test;
@@ -36,6 +41,7 @@ import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.Component;
@@ -256,7 +262,7 @@ class CourseUiTest {
         assertThat(enroll.isEnabled()).isFalse();
         SwingUtilities.invokeAndWait(() -> { table.setRowSelectionInterval(0, 0); check.doClick(); });
         SwingUtilities.invokeAndWait(() -> { });
-        assertThat(checkedCourse.get()).isEqualTo("o1");
+        assertThat(checkedCourse.get()).isEqualTo("c1");
         assertThat(enroll.isEnabled()).isTrue();
         SwingUtilities.invokeAndWait(enroll::doClick);
         SwingUtilities.invokeAndWait(() -> { });
@@ -487,6 +493,104 @@ class CourseUiTest {
     }
 
     @Test
+    void termEditorSubmitsCompleteTypedCreateCommand() throws Exception {
+        AtomicReference<CreateTermCommand> submitted = new AtomicReference<>();
+        CourseUiGateway base = gateway(CompletableFuture.completedFuture(new PageResult<>(List.of(), 0, 20, 0)));
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(base) {
+            @Override public CompletableFuture<TermView> createTerm(CreateTermCommand command) {
+                submitted.set(command);
+                return CompletableFuture.completedFuture(new TermView("term-new", command.termCode(), command.termName(),
+                        command.startDate(), command.endDate(), command.enrollmentStartAt(), command.enrollmentEndAt(),
+                        command.adjustmentStartAt(), command.adjustmentEndAt(), command.termStatus(), 0, Instant.now(), Instant.now()));
+            }
+        };
+        TermEditorDialog dialog = onEdt(() -> new TermEditorDialog(null, gateway, null, () -> { }));
+
+        SwingUtilities.invokeAndWait(() -> {
+            textField(dialog, "学期代码").setText("2027-2028-1");
+            textField(dialog, "学期名称").setText("2027—2028学年秋季学期");
+            textField(dialog, "开学日期").setText("2027-09-01");
+            textField(dialog, "结束日期").setText("2028-01-15");
+            textField(dialog, "选课开始").setText("2027-08-20 08:00");
+            textField(dialog, "选课结束").setText("2027-08-31 23:59");
+            textField(dialog, "退改补开始").setText("2027-09-01 08:00");
+            textField(dialog, "退改补结束").setText("2027-09-08 23:59");
+            descendants(dialog).stream().filter(JComboBox.class::isInstance).map(JComboBox.class::cast)
+                    .findFirst().orElseThrow().setSelectedItem("ACTIVE");
+            descendants(dialog).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
+                    .filter(button -> "创建学期".equals(button.getText())).findFirst().orElseThrow().doClick();
+        });
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(submitted.get()).isEqualTo(new CreateTermCommand("2027-2028-1", "2027—2028学年秋季学期",
+                LocalDate.parse("2027-09-01"), LocalDate.parse("2028-01-15"),
+                Instant.parse("2027-08-20T00:00:00Z"), Instant.parse("2027-08-31T15:59:00Z"),
+                Instant.parse("2027-09-01T00:00:00Z"), Instant.parse("2027-09-08T15:59:00Z"), "ACTIVE"));
+        SwingUtilities.invokeAndWait(dialog::dispose);
+    }
+
+    @Test
+    void termEditorPreservesIdentityAndOptimisticVersionWhenUpdating() throws Exception {
+        TermView existing = CourseUiGateway.preview().listTerms().join().get(0);
+        AtomicReference<UpdateTermCommand> submitted = new AtomicReference<>();
+        CourseUiGateway base = gateway(CompletableFuture.completedFuture(new PageResult<>(List.of(), 0, 20, 0)));
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(base) {
+            @Override public CompletableFuture<TermView> updateTerm(UpdateTermCommand command) {
+                submitted.set(command);
+                return CompletableFuture.completedFuture(existing);
+            }
+        };
+        TermEditorDialog dialog = onEdt(() -> new TermEditorDialog(null, gateway, existing, () -> { }));
+
+        SwingUtilities.invokeAndWait(() -> {
+            textField(dialog, "学期名称").setText("秋季学期（调整）");
+            descendants(dialog).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
+                    .filter(button -> "保存修改".equals(button.getText())).findFirst().orElseThrow().doClick();
+        });
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(submitted.get().termId()).isEqualTo(existing.termId());
+        assertThat(submitted.get().termName()).isEqualTo("秋季学期（调整）");
+        assertThat(submitted.get().expectedVersion()).isEqualTo(existing.rowVersion());
+        SwingUtilities.invokeAndWait(dialog::dispose);
+    }
+
+    @Test
+    void offeringEditorSubmitsAggregateScheduleAndPreservesVersion() throws Exception {
+        OfferingSummary existing = CourseUiGateway.preview()
+                .searchOfferings(new OfferingSearchQuery("2026-autumn", "", null, false, 0, 20)).join().items().get(0);
+        AtomicReference<UpdateOfferingCommand> submitted = new AtomicReference<>();
+        CourseUiGateway base = gateway(CompletableFuture.completedFuture(new PageResult<>(List.of(), 0, 20, 0)));
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(base) {
+            @Override public CompletableFuture<OfferingView> updateOffering(UpdateOfferingCommand command) {
+                submitted.set(command);
+                return CompletableFuture.completedFuture(new OfferingView(command.offeringId(), command.termId(),
+                        command.courseId(), command.teacherUserId(), command.className(), command.capacity(),
+                        existing.enrolledCount(), command.offeringStatus(), command.expectedVersion() + 1,
+                        Instant.now(), Instant.now(), existing.schedules()));
+            }
+        };
+        OfferingEditorDialog dialog = onEdt(() -> new OfferingEditorDialog(null, gateway, existing, () -> { }));
+
+        SwingUtilities.invokeAndWait(() -> {
+            textField(dialog, "教师用户编号").setText("teacher-9");
+            textField(dialog, "容量").setText("48");
+            descendants(dialog).stream().filter(JTextArea.class::isInstance).map(JTextArea.class::cast)
+                    .findFirst().orElseThrow().setText("周二,3,4,1,16,教一-203\nTHURSDAY,5,6,2,15,教二-301");
+            descendants(dialog).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
+                    .filter(button -> "保存修改".equals(button.getText())).findFirst().orElseThrow().doClick();
+        });
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(submitted.get()).isEqualTo(new UpdateOfferingCommand(existing.offeringId(), existing.termId(),
+                existing.courseId(), "teacher-9", existing.className(), 48, existing.offeringStatus(),
+                existing.rowVersion(), List.of(
+                new CreateOfferingCommand.ScheduleInput("TUESDAY", 3, 4, 1, 16, "教一-203"),
+                new CreateOfferingCommand.ScheduleInput("THURSDAY", 5, 6, 2, 15, "教二-301"))));
+        SwingUtilities.invokeAndWait(dialog::dispose);
+    }
+
+    @Test
     void offeringChangeDialogShowsRequiredComparisonAndConfirmsExplicitly() throws Exception {
         List<OfferingSummary> offerings = CourseUiGateway.preview()
                 .searchOfferings(new OfferingSearchQuery("2026-autumn", "", null, true, 0, 20)).join().items();
@@ -569,6 +673,18 @@ class CourseUiTest {
         return descendants(root).stream().filter(JTextField.class::isInstance).map(JTextField.class::cast)
                 .filter(field -> accessibleName.equals(field.getAccessibleContext().getAccessibleName()))
                 .findFirst().orElseThrow();
+    }
+
+    private abstract static class DelegatingCourseUiGateway implements CourseUiGateway {
+        private final CourseUiGateway delegate;
+
+        private DelegatingCourseUiGateway(CourseUiGateway delegate) { this.delegate = delegate; }
+        public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) {
+            return delegate.searchOfferings(query);
+        }
+        public CompletableFuture<List<EnrollmentView>> currentEnrollments() { return delegate.currentEnrollments(); }
+        public CompletableFuture<List<ScheduleItem>> currentSchedule() { return delegate.currentSchedule(); }
+        public CompletableFuture<EnrollmentView> enroll(EnrollCommand command) { return delegate.enroll(command); }
     }
 
     private static <T> T onEdt(java.util.concurrent.Callable<T> supplier) throws Exception {

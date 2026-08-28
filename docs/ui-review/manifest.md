@@ -10,15 +10,17 @@ the dedicated UI design-system implementation plan.
 
 ## Course module visual baseline
 
-- Branch/commit baseline: `course` / `45eff29` plus the current state-model follow-up.
+- Branch baseline: `course`; screenshots are regenerated from the current tested branch state.
 - Shared source: theme tokens copied byte-for-byte from teammate branch `origin/as811`;
   the course module does not modify `MainFrame` or the shared shell.
-- Reviewed locally at 1280 × 800: `course/c01-offering-search--normal.png`,
-  `course/c01-offering-search--loading.png`, `course/c01-offering-search--empty.png`,
-  `course/c01-offering-search--error.png`, `course/c01-offering-search--disconnected.png`,
-  and `course/c04-my-schedule--normal.png`.
+- Reviewed locally at 1280 × 800: C-01 normal/loading/empty/error/disconnected,
+  C-04 through C-11 normal management surfaces. The 720/680/640 px dialog review set
+  includes C-02 atomic-change confirmation, C-07 term create, C-08 course create, and
+  C-09 offering edit (`course/c02-*`, `course/c07-term-editor-*`,
+  `course/c08-course-editor-*`, `course/c09-offering-editor-*`).
 - Automated coverage: shared palette/dimensions, query-list structure, table rules,
-  weekly-grid structure, stable navigation IDs, and loading/empty/disconnected states.
+  weekly-grid structure, stable navigation IDs, loading/empty/disconnected states,
+  complete term windows, optimistic versions, and aggregate offering schedules.
 - External UI review: pending a non-course teammate, as required by the UI specification.
 - Shared-component dependency: no fetched teammate branch currently contains the
   specification-named shared buttons, paged table, state panels, or confirm dialog;

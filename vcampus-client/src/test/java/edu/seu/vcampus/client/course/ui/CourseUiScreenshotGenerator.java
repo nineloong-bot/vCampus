@@ -43,6 +43,8 @@ public final class CourseUiScreenshotGenerator {
         JComponent[] pages = new JComponent[13];
         CourseEditorDialog[] dialogs = new CourseEditorDialog[1];
         OfferingDetailDialog[] offeringDialogs = new OfferingDetailDialog[1];
+        TermEditorDialog[] termDialogs = new TermEditorDialog[1];
+        OfferingEditorDialog[] offeringEditorDialogs = new OfferingEditorDialog[1];
         SwingUtilities.invokeAndWait(() -> {
             pages[0] = shell(new OfferingSearchPanel(CourseUiGateway.preview()));
             pages[1] = shell(new MySchedulePanel(CourseUiGateway.preview()));
@@ -67,6 +69,8 @@ public final class CourseUiScreenshotGenerator {
             OfferingSummary target = alternateClass(source);
             offeringDialogs[0] = new OfferingDetailDialog(null, source, target,
                     "未发现时间冲突（服务端提交时将再次校验）", () -> { });
+            termDialogs[0] = new TermEditorDialog(null, CourseUiGateway.preview(), null, () -> { });
+            offeringEditorDialogs[0] = new OfferingEditorDialog(null, CourseUiGateway.preview(), source, () -> { });
         });
         // A second EDT turn lets completed asynchronous preview futures render.
         SwingUtilities.invokeAndWait(() -> { });
@@ -89,6 +93,10 @@ public final class CourseUiScreenshotGenerator {
                 dialogs[0].dispose();
                 capture((JComponent) offeringDialogs[0].getContentPane(), output.resolve("c02-offering-change--confirm.png"), 720, 460);
                 offeringDialogs[0].dispose();
+                capture((JComponent) termDialogs[0].getContentPane(), output.resolve("c07-term-editor--create.png"), 640, 720);
+                termDialogs[0].dispose();
+                capture((JComponent) offeringEditorDialogs[0].getContentPane(), output.resolve("c09-offering-editor--edit.png"), 680, 690);
+                offeringEditorDialogs[0].dispose();
             } catch (Exception error) {
                 throw new RuntimeException(error);
             }
