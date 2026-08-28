@@ -6,7 +6,7 @@ CREATE TABLE tblBook (
     publisher VARCHAR(128),
     publishDate DATETIME,
     category VARCHAR(64) NOT NULL,
-    description LONGTEXT,
+    description MEMO,
     isActive YESNO NOT NULL,
     rowVersion LONG NOT NULL
 );
