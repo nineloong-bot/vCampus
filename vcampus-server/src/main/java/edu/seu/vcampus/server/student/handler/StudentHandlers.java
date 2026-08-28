@@ -13,6 +13,7 @@ import edu.seu.vcampus.server.student.service.StudentService;
 import edu.seu.vcampus.server.student.service.StudentAdmissionException;
 import edu.seu.vcampus.server.student.service.StudentNotFoundException;
 import edu.seu.vcampus.server.student.numbering.StudentNumberingException;
+import edu.seu.vcampus.server.student.repository.OrganizationHierarchyException;
 
 import java.io.Serializable;
 import java.util.List;
@@ -26,7 +27,8 @@ public final class StudentHandlers {
     public static final List<String> COMMANDS = List.of("STUDENT_CREATE", "STUDENT_GET_CURRENT",
             "STUDENT_GET", "STUDENT_SEARCH", "STUDENT_UPDATE_CONTACT",
             "STUDENT_UPDATE_ENROLLMENT", "STUDENT_CHANGE_STATUS", "STUDENT_LIST_DEPARTMENTS",
-            "STUDENT_LIST_MAJORS", "STUDENT_LIST_CLASSES");
+            "STUDENT_LIST_MAJORS", "STUDENT_LIST_CLASSES", "STUDENT_GET_CHANGES",
+            "STUDENT_SAVE_DEPARTMENT", "STUDENT_SAVE_MAJOR", "STUDENT_SAVE_CLASS");
 
     private final StudentAdmissionService admissions;
     private final StudentService students;
@@ -63,7 +65,9 @@ public final class StudentHandlers {
         }));
         router.register("STUDENT_GET", typed(EntityIdRequest.class, (message, body) -> {
             StudentPrincipal principal = principal(message);
-            return isStaff(principal) ? success(students.getStudent(body.entityId())) : forbidden();
+            if (!isStaff(principal)) return forbidden();
+            StudentView value = students.getStudent(body.entityId());
+            return success(principal.hasRole("TEACHER") ? withoutContact(value) : value);
         }));
         router.register("STUDENT_SEARCH", typed(StudentSearchQuery.class, (message, body) -> {
             StudentPrincipal principal = principal(message);
@@ -82,12 +86,25 @@ public final class StudentHandlers {
         router.register("STUDENT_LIST_DEPARTMENTS", typed(ActiveOnlyQuery.class,
                 (message, body) -> authenticated(message,
                         () -> new ArrayList<>(organizations.listDepartments(body.activeOnly())))));
-        router.register("STUDENT_LIST_MAJORS", typed(ParentIdQuery.class,
+        router.register("STUDENT_LIST_MAJORS", typed(OrganizationChildrenQuery.class,
                 (message, body) -> authenticated(message,
-                        () -> new ArrayList<>(organizations.listMajors(body.parentId())))));
-        router.register("STUDENT_LIST_CLASSES", typed(ParentIdQuery.class,
+                        () -> new ArrayList<>(organizations.listMajors(body.parentId(), body.activeOnly())))));
+        router.register("STUDENT_LIST_CLASSES", typed(OrganizationChildrenQuery.class,
                 (message, body) -> authenticated(message,
-                        () -> new ArrayList<>(organizations.listClasses(body.parentId())))));
+                        () -> new ArrayList<>(organizations.listClasses(body.parentId(), body.activeOnly())))));
+        router.register("STUDENT_GET_CHANGES", typed(EntityIdRequest.class, (message, body) -> {
+            StudentPrincipal principal = principal(message);
+            return isStaff(principal) ? success(new ArrayList<>(students.listChanges(body.entityId()))) : forbidden();
+        }));
+        router.register("STUDENT_SAVE_DEPARTMENT", typed(SaveDepartmentCommand.class,
+                (message, body) -> write(message, () -> admin(message,
+                        () -> organizations.saveDepartment(body)))));
+        router.register("STUDENT_SAVE_MAJOR", typed(SaveMajorCommand.class,
+                (message, body) -> write(message, () -> admin(message,
+                        () -> organizations.saveMajor(body)))));
+        router.register("STUDENT_SAVE_CLASS", typed(SaveClassCommand.class,
+                (message, body) -> write(message, () -> admin(message,
+                        () -> organizations.saveClass(body)))));
     }
 
     private ResponseBody<? extends Serializable> updateContact(Message message,
@@ -126,6 +143,13 @@ public final class StudentHandlers {
         return principal.hasRole("TEACHER") || principal.hasRole("ADMIN");
     }
 
+    private static StudentView withoutContact(StudentView value) {
+        return new StudentView(value.studentId(), value.userId(), value.campusCardNumber(),
+                value.studentNumber(), value.studentType(), value.studentName(), value.gender(),
+                null, null, value.majorId(), value.classId(), value.enrollmentDate(),
+                value.status(), value.rowVersion());
+    }
+
     private static RequestContext context(Message message, StudentPrincipal principal) {
         return new RequestContext(message.requestId(), principal.userId(), "socket");
     }
@@ -145,6 +169,10 @@ public final class StudentHandlers {
                 return ResponseBody.failure(error.code(), error.getMessage(), null);
             } catch (StudentNumberingException error) {
                 return ResponseBody.failure(error.code(), error.getMessage(), null);
+            } catch (OrganizationHierarchyException error) {
+                return ResponseBody.failure("STUDENT_ORGANIZATION_HAS_ACTIVE_CHILDREN", error.getMessage(), null);
+            } catch (UnsupportedOperationException error) {
+                return ResponseBody.failure("COMMON_NOT_SUPPORTED", error.getMessage(), null);
             } catch (IllegalArgumentException error) {
                 return ResponseBody.failure("COMMON_INVALID_REQUEST", error.getMessage(), null);
             }

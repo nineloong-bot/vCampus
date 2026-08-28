@@ -96,14 +96,59 @@ public final class AccessOrganizationRepository implements OrganizationRepositor
 
     @Override
     public List<Major> listActiveMajors(Connection connection, String departmentId) {
+        return listMajors(connection, departmentId, true);
+    }
+
+    @Override
+    public List<Major> listMajors(Connection connection, String departmentId, boolean activeOnly) {
         String sql = "SELECT majorId, departmentId, majorCode, majorName, isActive, rowVersion FROM tblMajor WHERE departmentId = ? AND isActive = TRUE ORDER BY majorCode";
+        if (!activeOnly) sql = "SELECT majorId, departmentId, majorCode, majorName, isActive, rowVersion FROM tblMajor WHERE departmentId = ? ORDER BY majorCode";
         return queryMany(connection, sql, departmentId, this::mapMajor);
     }
 
     @Override
     public List<StudentClass> listActiveClasses(Connection connection, String majorId) {
+        return listClasses(connection, majorId, true);
+    }
+
+    @Override
+    public List<StudentClass> listClasses(Connection connection, String majorId, boolean activeOnly) {
         String sql = "SELECT classId, majorId, classCode, className, enrollmentYear, classNumber, isActive, rowVersion FROM tblClass WHERE majorId = ? AND isActive = TRUE ORDER BY enrollmentYear, classNumber";
+        if (!activeOnly) sql = "SELECT classId, majorId, classCode, className, enrollmentYear, classNumber, isActive, rowVersion FROM tblClass WHERE majorId = ? ORDER BY enrollmentYear, classNumber";
         return queryMany(connection, sql, majorId, this::mapClass);
+    }
+
+    @Override
+    public void updateDepartment(Connection connection, Department value, long expectedVersion) {
+        if (!value.active() && count(connection,
+                "SELECT COUNT(*) FROM tblMajor WHERE departmentId = ? AND isActive = TRUE", value.departmentId()) > 0)
+            throw new OrganizationHierarchyException("Department has active majors");
+        update(connection, "UPDATE tblDepartment SET departmentCode=?, departmentName=?, isActive=?, rowVersion=rowVersion+1 WHERE departmentId=? AND rowVersion=?",
+                statement -> { statement.setString(1, value.departmentCode()); statement.setString(2, value.departmentName());
+                    statement.setBoolean(3, value.active()); statement.setString(4, value.departmentId()); statement.setLong(5, expectedVersion); });
+    }
+
+    @Override
+    public void updateMajor(Connection connection, Major value, long expectedVersion) {
+        if (!value.active() && count(connection,
+                "SELECT COUNT(*) FROM tblClass WHERE majorId = ? AND isActive = TRUE", value.majorId()) > 0)
+            throw new OrganizationHierarchyException("Major has active classes");
+        update(connection, "UPDATE tblMajor SET departmentId=?, majorCode=?, majorName=?, isActive=?, rowVersion=rowVersion+1 WHERE majorId=? AND rowVersion=?",
+                statement -> { statement.setString(1, value.departmentId()); statement.setString(2, value.majorCode());
+                    statement.setString(3, value.majorName()); statement.setBoolean(4, value.active());
+                    statement.setString(5, value.majorId()); statement.setLong(6, expectedVersion); });
+    }
+
+    @Override
+    public void updateClass(Connection connection, StudentClass value, long expectedVersion) {
+        if (!value.active() && count(connection,
+                "SELECT COUNT(*) FROM tblStudent WHERE classId = ? AND studentStatus = 'ACTIVE'", value.classId()) > 0)
+            throw new OrganizationHierarchyException("Class has active students");
+        update(connection, "UPDATE tblClass SET majorId=?, classCode=?, className=?, enrollmentYear=?, classNumber=?, isActive=?, rowVersion=rowVersion+1 WHERE classId=? AND rowVersion=?",
+                statement -> { statement.setString(1, value.majorId()); statement.setString(2, value.classCode());
+                    statement.setString(3, value.className()); statement.setInt(4, value.enrollmentYear());
+                    statement.setInt(5, value.classNumber()); statement.setBoolean(6, value.active());
+                    statement.setString(7, value.classId()); statement.setLong(8, expectedVersion); });
     }
 
     @Override
@@ -218,6 +263,16 @@ public final class AccessOrganizationRepository implements OrganizationRepositor
             statement.executeUpdate();
         } catch (SQLException error) {
             throw failure("Cannot insert organization", error);
+        }
+    }
+
+    private void update(Connection connection, String sql, SqlBinder binder) {
+        try (var statement = connection.prepareStatement(sql)) {
+            binder.bind(statement);
+            if (statement.executeUpdate() != 1)
+                throw new ConcurrentModificationException("Organization version changed");
+        } catch (SQLException error) {
+            throw failure("Cannot update organization", error);
         }
     }
 

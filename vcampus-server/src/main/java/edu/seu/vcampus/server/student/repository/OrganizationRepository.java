@@ -17,10 +17,15 @@ public interface OrganizationRepository {
     Optional<Major> findMajor(Connection connection, String majorId);
     Optional<StudentClass> findClass(Connection connection, String classId);
     List<Department> listDepartments(Connection connection, boolean activeOnly);
+    List<Major> listMajors(Connection connection, String departmentId, boolean activeOnly);
+    List<StudentClass> listClasses(Connection connection, String majorId, boolean activeOnly);
     List<Major> listActiveMajors(Connection connection, String departmentId);
     List<StudentClass> listActiveClasses(Connection connection, String majorId);
     boolean classBelongsTo(Connection connection, String classId,
                            String majorId, String departmentId);
     void deactivateDepartment(Connection connection, String departmentId, long expectedVersion);
     void deactivateMajor(Connection connection, String majorId, long expectedVersion);
+    void updateDepartment(Connection connection, Department department, long expectedVersion);
+    void updateMajor(Connection connection, Major major, long expectedVersion);
+    void updateClass(Connection connection, StudentClass studentClass, long expectedVersion);
 }

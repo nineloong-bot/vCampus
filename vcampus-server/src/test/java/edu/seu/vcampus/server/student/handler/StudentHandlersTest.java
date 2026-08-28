@@ -37,7 +37,7 @@ class StudentHandlersTest {
     }
 
     @Test
-    void allTenCommandsAreRegistered() {
+    void allStudentCommandsIncludingAdministrationAreRegistered() {
         var router = new MessageRouter(Map.of());
         new StudentHandlers((command, context) -> null, studentService(), organizationQuery(),
                 token -> new StudentPrincipal("admin-1", Set.of("ADMIN"), Set.of("STUDENT_WRITE")))
@@ -45,6 +45,9 @@ class StudentHandlersTest {
 
         assertThat(StudentHandlers.COMMANDS).allSatisfy(command ->
                 assertThat(router.isRegistered(command)).isTrue());
+        assertThat(StudentHandlers.COMMANDS).contains(
+                "STUDENT_GET_CHANGES", "STUDENT_SAVE_DEPARTMENT",
+                "STUDENT_SAVE_MAJOR", "STUDENT_SAVE_CLASS");
     }
 
     @Test
@@ -97,6 +100,22 @@ class StudentHandlersTest {
         assertThat(operator).hasValue("admin-42");
     }
 
+    @Test
+    void teacherDetailResponseRemovesPrivateContactFields() {
+        var router = new MessageRouter(Map.of());
+        StudentService profiles = studentServiceWithProfile();
+        new StudentHandlers((command, context) -> null, profiles, organizationQuery(),
+                token -> new StudentPrincipal("teacher-1", Set.of("TEACHER"), Set.of())).register(router);
+
+        var response = router.route(request("STUDENT_GET",
+                new edu.seu.vcampus.common.student.EntityIdRequest("student-1")), client());
+        var view = (edu.seu.vcampus.common.student.StudentView) response.data();
+
+        assertThat(view.email()).isNull();
+        assertThat(view.phone()).isNull();
+        assertThat(view.studentNumber()).isEqualTo("09024101");
+    }
+
     private static Message request(String command, java.io.Serializable body) {
         return new Message("8e7c1a21-9d44-4c82-978b-df34326a0341", MessageType.REQUEST,
                 command, "token", body, System.currentTimeMillis());
@@ -107,6 +126,23 @@ class StudentHandlersTest {
         return new StudentService() {
             public edu.seu.vcampus.common.student.StudentView getStudent(String id) { return null; }
             public edu.seu.vcampus.common.student.StudentView getCurrentStudent(String id) { return null; }
+            public edu.seu.vcampus.common.paging.PageResult<edu.seu.vcampus.common.student.StudentSummary> searchStudents(edu.seu.vcampus.common.student.StudentSearchQuery q) { return null; }
+            public edu.seu.vcampus.common.student.StudentView updateContact(edu.seu.vcampus.common.student.UpdateStudentContactCommand c) { return null; }
+            public edu.seu.vcampus.common.student.StudentView updateEnrollment(edu.seu.vcampus.common.student.UpdateStudentEnrollmentCommand c) { return null; }
+            public edu.seu.vcampus.common.student.StudentView changeStatus(edu.seu.vcampus.common.student.ChangeStudentStatusCommand c) { return null; }
+        };
+    }
+
+    private static StudentService studentServiceWithProfile() {
+        return new StudentService() {
+            public edu.seu.vcampus.common.student.StudentView getStudent(String id) {
+                return new edu.seu.vcampus.common.student.StudentView("student-1", "user-1",
+                        "213240001", "09024101", StudentType.UNDERGRADUATE, "张三", "MALE",
+                        "private@seu.edu.cn", "13800000000", "major-1", "class-1",
+                        java.time.LocalDate.of(2024, 9, 1),
+                        edu.seu.vcampus.common.student.StudentStatus.ACTIVE, 1);
+            }
+            public edu.seu.vcampus.common.student.StudentView getCurrentStudent(String id) { return getStudent(id); }
             public edu.seu.vcampus.common.paging.PageResult<edu.seu.vcampus.common.student.StudentSummary> searchStudents(edu.seu.vcampus.common.student.StudentSearchQuery q) { return null; }
             public edu.seu.vcampus.common.student.StudentView updateContact(edu.seu.vcampus.common.student.UpdateStudentContactCommand c) { return null; }
             public edu.seu.vcampus.common.student.StudentView updateEnrollment(edu.seu.vcampus.common.student.UpdateStudentEnrollmentCommand c) { return null; }

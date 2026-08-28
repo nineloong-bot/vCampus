@@ -16,6 +16,9 @@ public interface StudentService {
         return updateEnrollment(command);
     }
     StudentView changeStatus(ChangeStudentStatusCommand command);
+    default java.util.List<edu.seu.vcampus.common.student.StudentChangeView> listChanges(String studentId) {
+        return java.util.List.of();
+    }
     default StudentView changeStatus(ChangeStudentStatusCommand command, String operatorUserId) {
         return changeStatus(command);
     }

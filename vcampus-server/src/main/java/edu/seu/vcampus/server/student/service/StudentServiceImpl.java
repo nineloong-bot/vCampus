@@ -152,6 +152,13 @@ public final class StudentServiceImpl implements StudentService, StudentQueryPor
                 .map(student -> student.status() == StudentStatus.ACTIVE).orElse(false));
     }
 
+    @Override public List<StudentChangeView> listChanges(String studentId) {
+        return transactions.inTransaction(connection -> {
+            requireById(connection, studentId);
+            return changes.listByStudentId(connection, studentId);
+        });
+    }
+
     private Student requireById(java.sql.Connection connection, String studentId) {
         return students.findById(connection, studentId).orElseThrow(StudentNotFoundException::new);
     }

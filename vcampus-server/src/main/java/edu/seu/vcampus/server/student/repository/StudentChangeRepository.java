@@ -1,14 +1,39 @@
 package edu.seu.vcampus.server.student.repository;
 
+import edu.seu.vcampus.common.student.StudentChangeView;
+
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 /** Writes immutable student change history inside caller-owned transactions. */
 public final class StudentChangeRepository {
+    public List<StudentChangeView> listByStudentId(Connection connection, String studentId) {
+        String sql = "SELECT changeId, studentId, changeType, oldValue, newValue, reason, operatorUserId, effectiveDate, createdAt FROM tblStudentChange WHERE studentId = ? ORDER BY createdAt DESC";
+        try (var statement = connection.prepareStatement(sql)) {
+            statement.setString(1, studentId);
+            try (var result = statement.executeQuery()) {
+                List<StudentChangeView> values = new ArrayList<>();
+                while (result.next()) {
+                    var effective = result.getTimestamp("effectiveDate");
+                    var created = result.getTimestamp("createdAt");
+                    values.add(new StudentChangeView(result.getString("changeId"),
+                            result.getString("studentId"), result.getString("changeType"),
+                            result.getString("oldValue"), result.getString("newValue"),
+                            result.getString("reason"), result.getString("operatorUserId"),
+                            effective.toLocalDateTime().toLocalDate(), created.toInstant()));
+                }
+                return List.copyOf(values);
+            }
+        } catch (SQLException error) {
+            throw new OrganizationPersistenceException("Cannot read student changes", error);
+        }
+    }
     public void insertAdmission(Connection connection, String changeId, String studentId,
             String newValue, String operatorUserId, LocalDate effectiveDate, Instant createdAt) {
         String sql = "INSERT INTO tblStudentChange (changeId, studentId, changeType, oldValue, newValue, reason, operatorUserId, effectiveDate, createdAt) VALUES (?, ?, 'ADMISSION', NULL, ?, ?, ?, ?, ?)";
