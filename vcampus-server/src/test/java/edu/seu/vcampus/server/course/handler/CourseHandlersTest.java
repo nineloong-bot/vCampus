@@ -8,6 +8,8 @@ import edu.seu.vcampus.server.routing.*;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
+import java.time.*;
 import java.util.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,9 +30,7 @@ class CourseHandlersTest {
                 "COURSE_ADJUSTMENT_ADD", "COURSE_ADJUSTMENT_DROP", "COURSE_ADJUSTMENT_CHANGE",
                 "COURSE_RETAKE_CHECK", "COURSE_RETAKE_ENROLL", "COURSE_GET_MY_SCHEDULE",
                 "COURSE_GET_MY_ENROLLMENTS", "COURSE_IMPORT_OUTCOMES", "COURSE_CREATE",
-                "COURSE_UPDATE", "COURSE_CREATE_OFFERING", "COURSE_UPDATE_OFFERING",
-                "COURSE_TERM_LIST", "COURSE_TERM_CREATE", "COURSE_TERM_UPDATE",
-                "COURSE_CATALOG_SEARCH", "COURSE_ADJUSTMENT_AUDIT_SEARCH", "COURSE_GET_TERM_PHASE");
+                "COURSE_UPDATE", "COURSE_CREATE_OFFERING", "COURSE_UPDATE_OFFERING");
         commands.forEach(command -> assertThat(route(router, command, "student", validBody(command)).code())
                 .isNotEqualTo("COMMON_INTERNAL_ERROR"));
         ResponseBody<?> duplicate = route(router, "COURSE_ENROLL", "student", new EnrollCommand("o-1"));
@@ -38,6 +38,56 @@ class CourseHandlersTest {
         org.assertj.core.api.Assertions.assertThatThrownBy(() ->
                 new CourseHandlers(service, auth, CourseWriteExecutor.direct()).register(router))
                 .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test void routesManagementAndPhaseCommandsToTheirExactTypedServiceMethods() {
+        MessageRouter router = router();
+        CreateTermCommand create = (CreateTermCommand) validBody("COURSE_TERM_CREATE");
+        UpdateTermCommand update = (UpdateTermCommand) validBody("COURSE_TERM_UPDATE");
+        CourseCatalogQuery catalog = (CourseCatalogQuery) validBody("COURSE_CATALOG_SEARCH");
+        AdjustmentAuditQuery audit = (AdjustmentAuditQuery) validBody("COURSE_ADJUSTMENT_AUDIT_SEARCH");
+        EntityIdRequest phase = (EntityIdRequest) validBody("COURSE_GET_TERM_PHASE");
+
+        ResponseBody<?> termsResponse = route(router, "COURSE_TERM_LIST", "admin", EmptyRequest.INSTANCE);
+        assertThat(termsResponse.success()).isTrue();
+        assertThat(termsResponse.data()).isInstanceOf(List.class).isEqualTo(service.termListResult);
+        assertThat(route(router, "COURSE_TERM_CREATE", "admin", create).data()).isEqualTo(service.createdTermResult);
+        assertThat(route(router, "COURSE_TERM_UPDATE", "admin", update).data()).isEqualTo(service.updatedTermResult);
+        assertThat(route(router, "COURSE_CATALOG_SEARCH", "admin", catalog).data()).isEqualTo(service.catalogResult);
+        assertThat(route(router, "COURSE_ADJUSTMENT_AUDIT_SEARCH", "admin", audit).data()).isEqualTo(service.auditResult);
+        assertThat(route(router, "COURSE_GET_TERM_PHASE", "admin", phase).data()).isEqualTo(service.phaseResult);
+
+        assertThat(service.listTermsCalls).isOne();
+        assertThat(service.createTermCommands).containsExactly(create);
+        assertThat(service.updateTermCommands).containsExactly(update);
+        assertThat(service.catalogQueries).containsExactly(catalog);
+        assertThat(service.auditQueries).containsExactly(audit);
+        assertThat(service.phaseTermIds).containsExactly("t");
+    }
+
+    @Test void rejectsStudentsBeforeInvokingAdminManagementServices() {
+        MessageRouter router = router();
+        for (String command : List.of("COURSE_TERM_LIST", "COURSE_TERM_CREATE", "COURSE_TERM_UPDATE",
+                "COURSE_CATALOG_SEARCH", "COURSE_ADJUSTMENT_AUDIT_SEARCH")) {
+            ResponseBody<?> response = route(router, command, "student", validBody(command));
+            assertThat(response.success()).as(command).isFalse();
+            assertThat(response.code()).as(command).isEqualTo("COMMON_FORBIDDEN");
+        }
+        assertThat(service.listTermsCalls).isZero();
+        assertThat(service.createTermCommands).isEmpty();
+        assertThat(service.updateTermCommands).isEmpty();
+        assertThat(service.catalogQueries).isEmpty();
+        assertThat(service.auditQueries).isEmpty();
+    }
+
+    @Test void exposesTermPhaseToEveryPublishedRole() {
+        MessageRouter router = router();
+        for (String token : List.of("student", "teacher", "admin")) {
+            ResponseBody<?> response = route(router, "COURSE_GET_TERM_PHASE", token, new EntityIdRequest("term-" + token));
+            assertThat(response.success()).as(token).isTrue();
+            assertThat(response.data()).as(token).isEqualTo(service.phaseResult);
+        }
+        assertThat(service.phaseTermIds).containsExactly("term-student", "term-teacher", "term-admin");
     }
 
     @Test void enforcesRolesAtHandlerBoundaryIncludingAdminOnlyImport() {
@@ -111,11 +161,27 @@ class CourseHandlersTest {
     }
 
     private static final class StubService implements CourseService {
+        private static final Instant TIME = Instant.parse("2026-08-10T00:00:00Z");
+        final List<TermView> termListResult = List.of(term("term-list"));
+        final TermView createdTermResult = term("term-created");
+        final TermView updatedTermResult = term("term-updated");
+        final edu.seu.vcampus.common.paging.PageResult<CourseView> catalogResult =
+                new edu.seu.vcampus.common.paging.PageResult<>(List.of(new CourseView("course-catalog", "CS-S", "哨兵课程", BigDecimal.ONE, 16, null, true, 3, TIME, TIME)), 4, 5, 6);
+        final edu.seu.vcampus.common.paging.PageResult<AdjustmentAuditView> auditResult =
+                new edu.seu.vcampus.common.paging.PageResult<>(List.of(new AdjustmentAuditView("audit-sentinel", "student-sentinel", "ADD", null, "offering-sentinel", "SUCCESS", null, TIME)), 7, 8, 9);
+        final TermPhaseView phaseResult = new TermPhaseView("term-phase", "ACTIVE", "ADJUSTMENT", TIME,
+                TIME.minusSeconds(40), TIME.minusSeconds(30), TIME.minusSeconds(20), TIME.plusSeconds(20));
+        int listTermsCalls;
+        final List<CreateTermCommand> createTermCommands = new ArrayList<>();
+        final List<UpdateTermCommand> updateTermCommands = new ArrayList<>();
+        final List<CourseCatalogQuery> catalogQueries = new ArrayList<>();
+        final List<AdjustmentAuditQuery> auditQueries = new ArrayList<>();
+        final List<String> phaseTermIds = new ArrayList<>();
         RuntimeException enrollFailure;
-        public List<TermView> listTerms(){return List.of();} public TermView createTerm(CreateTermCommand c){return null;} public TermView updateTerm(UpdateTermCommand c){return null;}
-        public edu.seu.vcampus.common.paging.PageResult<CourseView> searchCatalog(CourseCatalogQuery q){return new edu.seu.vcampus.common.paging.PageResult<>(List.of(),0,20,0);}
-        public edu.seu.vcampus.common.paging.PageResult<AdjustmentAuditView> searchAdjustmentAudits(AdjustmentAuditQuery q){return new edu.seu.vcampus.common.paging.PageResult<>(List.of(),0,20,0);}
-        public TermPhaseView getTermPhase(String id){return null;}
+        public List<TermView> listTerms(){listTermsCalls++;return termListResult;} public TermView createTerm(CreateTermCommand c){createTermCommands.add(c);return createdTermResult;} public TermView updateTerm(UpdateTermCommand c){updateTermCommands.add(c);return updatedTermResult;}
+        public edu.seu.vcampus.common.paging.PageResult<CourseView> searchCatalog(CourseCatalogQuery q){catalogQueries.add(q);return catalogResult;}
+        public edu.seu.vcampus.common.paging.PageResult<AdjustmentAuditView> searchAdjustmentAudits(AdjustmentAuditQuery q){auditQueries.add(q);return auditResult;}
+        public TermPhaseView getTermPhase(String id){phaseTermIds.add(id);return phaseResult;}
         public CourseView createCourse(CreateCourseCommand c){return null;} public CourseView updateCourse(UpdateCourseCommand c){return null;}
         public OfferingView createOffering(CreateOfferingCommand c){return null;} public OfferingView updateOffering(UpdateOfferingCommand c){return null;}
         public edu.seu.vcampus.common.paging.PageResult<OfferingSummary> searchOfferings(OfferingSearchQuery q){return new edu.seu.vcampus.common.paging.PageResult<>(List.of(),0,20,0);}
@@ -125,5 +191,11 @@ class CourseHandlersTest {
         public EnrollmentView enrollRetake(String t,RetakeCommand c){return enroll(t,new EnrollCommand(c.offeringId()));}
         public List<ScheduleItem> getCurrentSchedule(String t){return List.of();} public List<EnrollmentView> getCurrentEnrollments(String t){return List.of();}
         public RetakeEligibility checkRetakeEligibility(String t,String c){return new RetakeEligibility(c,false,List.of(),"x");} public void importCourseOutcomes(ImportCourseOutcomesCommand c){}
+
+        private static TermView term(String id) {
+            return new TermView(id, "2026-1", id, LocalDate.of(2026, 9, 1), LocalDate.of(2027, 1, 1),
+                    TIME.minusSeconds(40), TIME.minusSeconds(30), TIME.minusSeconds(20), TIME.plusSeconds(20),
+                    "ACTIVE", 2, TIME, TIME);
+        }
     }
 }

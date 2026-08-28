@@ -17,6 +17,7 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.time.*;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -29,6 +30,7 @@ class CourseManagementServiceTest {
     private TransactionManager transactions;
     private CourseRepository repository;
     private CourseService service;
+    private List<String> studentGatewayUserIds;
 
     @BeforeEach void createRealService() throws Exception {
         Path data = Path.of("target", "test-data");
@@ -49,12 +51,49 @@ class CourseManagementServiceTest {
                 if (!"teacher-1".equals(userId) || !"TEACHER".equals(role)) throw new IllegalArgumentException("teacher");
             }
         };
-        service = new CourseServiceImpl(authorization, ignored -> new StudentEnrollmentEligibility("student-1", "ACTIVE"),
+        studentGatewayUserIds = new ArrayList<>();
+        service = new CourseServiceImpl(authorization, userId -> {
+                    studentGatewayUserIds.add(userId);
+                    return switch (userId) {
+                        case "student-user" -> new StudentEnrollmentEligibility("student-1", "ACTIVE");
+                        case "admin-user" -> new StudentEnrollmentEligibility("admin-student", "ACTIVE");
+                        default -> throw new IllegalArgumentException("unknown user");
+                    };
+                },
                 repository, new StripedResourceLockManager(), transactions, new TermWindowPolicy(),
                 new ScheduleConflictPolicy(), Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
-    @Test void studentScheduleUsesRealLabelsAndStudentBoundAdminSeesSameEnrollment(){TermView term=service.createTerm(termCommand());CourseView course=service.createCourse(courseCommand("CS101","程序设计"));var input=new CreateOfferingCommand.ScheduleInput("MONDAY",1,2,1,16,"教一-101");OfferingView offering=service.createOffering(new CreateOfferingCommand(term.termId(),course.courseId(),"teacher-1","01班",30,"OPEN",List.of(input)));EnrollmentView enrolled=service.enroll("student",new EnrollCommand(offering.offeringId()));assertThat(service.getCurrentSchedule("student")).singleElement().extracting(ScheduleItem::courseCode,ScheduleItem::courseName).containsExactly("CS101","程序设计");assertThat(service.getCurrentSchedule("admin")).singleElement().extracting(ScheduleItem::offeringId).isEqualTo(offering.offeringId());assertThat(service.getCurrentEnrollments("admin")).extracting(EnrollmentView::enrollmentId).containsExactly(enrolled.enrollmentId());}
+    @Test void scheduleAndEnrollmentsStayBoundToEachSessionStudent() {
+        TermView term = service.createTerm(termCommand());
+        CourseView studentCourse = service.createCourse(courseCommand("CS101", "程序设计"));
+        CourseView adminCourse = service.createCourse(courseCommand("CS102", "离散数学"));
+        OfferingView studentOffering = service.createOffering(new CreateOfferingCommand(term.termId(), studentCourse.courseId(),
+                "teacher-1", "学生班", 30, "OPEN", List.of(new CreateOfferingCommand.ScheduleInput("MONDAY", 1, 2, 1, 16, "教一-101"))));
+        OfferingView adminOffering = service.createOffering(new CreateOfferingCommand(term.termId(), adminCourse.courseId(),
+                "teacher-1", "管理员班", 30, "OPEN", List.of(new CreateOfferingCommand.ScheduleInput("TUESDAY", 3, 4, 1, 16, "教二-202"))));
+        EnrollmentView studentEnrollment = service.enroll("student", new EnrollCommand(studentOffering.offeringId()));
+        EnrollmentView adminEnrollment = service.enroll("admin", new EnrollCommand(adminOffering.offeringId()));
+        studentGatewayUserIds.clear();
+
+        assertThat(service.getCurrentSchedule("student")).singleElement().satisfies(item -> {
+            assertThat(item.offeringId()).isEqualTo(studentOffering.offeringId());
+            assertThat(item.courseCode()).isEqualTo("CS101");
+            assertThat(item.courseName()).isEqualTo("程序设计");
+        });
+        assertThat(service.getCurrentSchedule("admin")).singleElement().satisfies(item -> {
+            assertThat(item.offeringId()).isEqualTo(adminOffering.offeringId());
+            assertThat(item.courseCode()).isEqualTo("CS102");
+            assertThat(item.courseName()).isEqualTo("离散数学");
+        });
+        assertThat(service.getCurrentEnrollments("student")).extracting(EnrollmentView::enrollmentId)
+                .containsExactly(studentEnrollment.enrollmentId());
+        assertThat(service.getCurrentEnrollments("admin")).extracting(EnrollmentView::enrollmentId)
+                .containsExactly(adminEnrollment.enrollmentId());
+        assertThat(studentGatewayUserIds).containsExactly(
+                "student-user", "student-user", "admin-user", "admin-user",
+                "student-user", "student-user", "admin-user", "admin-user");
+    }
 
     @Test void persistsListsAndOptimisticallyUpdatesTermsAndCatalog() {
         TermView term = service.createTerm(termCommand());
