@@ -3,11 +3,17 @@ package edu.seu.vcampus.server.shop.repository;
 import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.shop.SellerApplicationQuery;
 import edu.seu.vcampus.common.shop.SellerApplicationStatus;
+import edu.seu.vcampus.common.shop.ProductSearchQuery;
+import edu.seu.vcampus.common.shop.ProductSortMode;
+import edu.seu.vcampus.common.shop.ProductStatus;
+import edu.seu.vcampus.common.shop.ProductSummary;
 import edu.seu.vcampus.common.shop.ShopErrorCode;
 import edu.seu.vcampus.common.shop.ShopStatus;
 import edu.seu.vcampus.server.shop.ShopException;
 import edu.seu.vcampus.server.shop.domain.SellerApplication;
 import edu.seu.vcampus.server.shop.domain.Shop;
+import edu.seu.vcampus.server.shop.domain.Product;
+import edu.seu.vcampus.server.shop.domain.ProductSku;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -196,6 +202,202 @@ public final class AccessShopRepository implements ShopRepository {
         }
     }
 
+    @Override
+    public Shop updateShopProfile(Connection connection, Shop shop, long expectedVersion) throws Exception {
+        String sql = "UPDATE tblShop SET shopName = ?, description = ?, category = ?, contact = ?, "
+                + "updatedAt = ?, rowVersion = rowVersion + 1 WHERE shopId = ? AND rowVersion = ?";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, shop.shopName());
+            statement.setString(2, shop.description());
+            statement.setString(3, shop.category());
+            statement.setString(4, shop.contact());
+            setInstant(statement, 5, shop.updatedAt());
+            statement.setString(6, shop.shopId());
+            statement.setLong(7, expectedVersion);
+            if (statement.executeUpdate() != 1) {
+                throw new ShopException(ShopErrorCode.SHOP_STATUS_INVALID, "Stale shop version");
+            }
+        }
+        return findShopById(connection, shop.shopId()).orElseThrow();
+    }
+
+    @Override
+    public Optional<Product> findProductById(Connection connection, String productId) throws Exception {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT * FROM tblProduct WHERE productId = ?")) {
+            statement.setString(1, productId);
+            try (ResultSet result = statement.executeQuery()) {
+                return result.next() ? Optional.of(mapProduct(result)) : Optional.empty();
+            }
+        }
+    }
+
+    @Override
+    public List<ProductSku> findSkusByProduct(Connection connection, String productId) throws Exception {
+        List<ProductSku> skus = new ArrayList<>();
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT * FROM tblProductSku WHERE productId = ? ORDER BY skuId")) {
+            statement.setString(1, productId);
+            try (ResultSet result = statement.executeQuery()) {
+                while (result.next()) {
+                    skus.add(mapSku(result));
+                }
+            }
+        }
+        return skus;
+    }
+
+    @Override
+    public Product insertProduct(Connection connection, Product product) throws Exception {
+        String sql = "INSERT INTO tblProduct (productId, shopId, productName, category, description, "
+                + "productStatus, salesCount, rowVersion, createdAt, updatedAt) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, product.productId());
+            statement.setString(2, product.shopId());
+            statement.setString(3, product.productName());
+            statement.setString(4, product.category());
+            statement.setString(5, product.description());
+            statement.setString(6, product.status().name());
+            statement.setLong(7, product.salesCount());
+            statement.setLong(8, product.rowVersion());
+            setInstant(statement, 9, product.createdAt());
+            setInstant(statement, 10, product.updatedAt());
+            statement.executeUpdate();
+        }
+        return product;
+    }
+
+    @Override
+    public Product updateProduct(Connection connection, Product product,
+            long expectedVersion) throws Exception {
+        String sql = "UPDATE tblProduct SET productName = ?, category = ?, description = ?, "
+                + "updatedAt = ?, rowVersion = rowVersion + 1 WHERE productId = ? AND rowVersion = ?";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, product.productName());
+            statement.setString(2, product.category());
+            statement.setString(3, product.description());
+            setInstant(statement, 4, product.updatedAt());
+            statement.setString(5, product.productId());
+            statement.setLong(6, expectedVersion);
+            if (statement.executeUpdate() != 1) {
+                throw new ShopException(ShopErrorCode.SHOP_PRODUCT_INACTIVE, "Stale product version");
+            }
+        }
+        return findProductById(connection, product.productId()).orElseThrow();
+    }
+
+    @Override
+    public Product updateProductStatus(Connection connection, String productId,
+            ProductStatus status, Instant updatedAt, long expectedVersion) throws Exception {
+        String sql = "UPDATE tblProduct SET productStatus = ?, updatedAt = ?, "
+                + "rowVersion = rowVersion + 1 WHERE productId = ? AND rowVersion = ?";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, status.name());
+            setInstant(statement, 2, updatedAt);
+            statement.setString(3, productId);
+            statement.setLong(4, expectedVersion);
+            if (statement.executeUpdate() != 1) {
+                throw new ShopException(ShopErrorCode.SHOP_PRODUCT_INACTIVE, "Stale product version");
+            }
+        }
+        return findProductById(connection, productId).orElseThrow();
+    }
+
+    @Override
+    public ProductSku insertSku(Connection connection, ProductSku sku) throws Exception {
+        String sql = "INSERT INTO tblProductSku (skuId, productId, skuName, unitPrice, "
+                + "stockQuantity, reservedQuantity, isActive, rowVersion) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            bindSku(statement, sku);
+            statement.executeUpdate();
+        }
+        return sku;
+    }
+
+    @Override
+    public ProductSku updateSku(Connection connection, ProductSku sku,
+            long expectedVersion) throws Exception {
+        String sql = "UPDATE tblProductSku SET skuName = ?, unitPrice = ?, stockQuantity = ?, "
+                + "isActive = ?, rowVersion = rowVersion + 1 WHERE skuId = ? AND productId = ? "
+                + "AND rowVersion = ?";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, sku.skuName());
+            statement.setBigDecimal(2, sku.unitPrice());
+            statement.setLong(3, sku.stockQuantity());
+            statement.setBoolean(4, sku.active());
+            statement.setString(5, sku.skuId());
+            statement.setString(6, sku.productId());
+            statement.setLong(7, expectedVersion);
+            if (statement.executeUpdate() != 1) {
+                throw new ShopException(ShopErrorCode.SHOP_SKU_UNAVAILABLE, "Stale or foreign SKU");
+            }
+        }
+        return findSkusByProduct(connection, sku.productId()).stream()
+                .filter(candidate -> candidate.skuId().equals(sku.skuId())).findFirst().orElseThrow();
+    }
+
+    @Override
+    public PageResult<ProductSummary> searchCatalog(Connection connection,
+            ProductSearchQuery query, String shopId) throws Exception {
+        StringBuilder sql = new StringBuilder("SELECT p.productId, p.shopId, s.shopName, "
+                + "p.productName, p.category, MIN(k.unitPrice) AS minimumPrice, "
+                + "p.salesCount, p.createdAt FROM (tblProduct p INNER JOIN tblShop s "
+                + "ON p.shopId = s.shopId) INNER JOIN tblProductSku k ON p.productId = k.productId "
+                + "WHERE s.shopStatus = 'ACTIVE' AND p.productStatus = 'ACTIVE' "
+                + "AND k.isActive = TRUE AND k.stockQuantity - k.reservedQuantity > 0");
+        List<Object> values = new ArrayList<>();
+        if (shopId != null) {
+            sql.append(" AND p.shopId = ?");
+            values.add(shopId);
+        }
+        if (query.keyword() != null && !query.keyword().isBlank()) {
+            sql.append(" AND p.productName LIKE ?");
+            values.add("%" + query.keyword().strip() + "%");
+        }
+        if (query.category() != null && !query.category().isBlank()) {
+            sql.append(" AND p.category = ?");
+            values.add(query.category().strip());
+        }
+        sql.append(" GROUP BY p.productId, p.shopId, s.shopName, p.productName, p.category, "
+                + "p.salesCount, p.createdAt HAVING 1 = 1");
+        if (query.minPrice() != null) {
+            sql.append(" AND MIN(k.unitPrice) >= ?");
+            values.add(query.minPrice());
+        }
+        if (query.maxPrice() != null) {
+            sql.append(" AND MIN(k.unitPrice) <= ?");
+            values.add(query.maxPrice());
+        }
+        ProductSortMode sort = query.sortMode() == null ? ProductSortMode.SALES_DESC : query.sortMode();
+        sql.append(sort == ProductSortMode.PRICE_DESC
+                ? " ORDER BY MIN(k.unitPrice) DESC, p.createdAt DESC"
+                : " ORDER BY p.salesCount DESC, p.createdAt DESC");
+        List<ProductSummary> all = new ArrayList<>();
+        try (PreparedStatement statement = connection.prepareStatement(sql.toString())) {
+            for (int index = 0; index < values.size(); index++) {
+                Object value = values.get(index);
+                if (value instanceof java.math.BigDecimal money) {
+                    statement.setBigDecimal(index + 1, money);
+                } else {
+                    statement.setString(index + 1, value.toString());
+                }
+            }
+            try (ResultSet result = statement.executeQuery()) {
+                while (result.next()) {
+                    all.add(new ProductSummary(result.getString("productId"),
+                            result.getString("shopId"), result.getString("shopName"),
+                            result.getString("productName"), result.getString("category"),
+                            result.getBigDecimal("minimumPrice"), result.getLong("salesCount"),
+                            instant(result, "createdAt")));
+                }
+            }
+        }
+        int from = Math.min(query.pageNumber() * query.pageSize(), all.size());
+        int to = Math.min(from + query.pageSize(), all.size());
+        return new PageResult<>(all.subList(from, to), query.pageNumber(), query.pageSize(), all.size());
+    }
+
     private static void bindApplication(PreparedStatement statement,
             SellerApplication application) throws Exception {
         statement.setString(1, application.applicationId());
@@ -210,6 +412,17 @@ public final class AccessShopRepository implements ShopRepository {
         setInstant(statement, 10, application.submittedAt());
         setInstant(statement, 11, application.reviewedAt());
         statement.setLong(12, application.rowVersion());
+    }
+
+    private static void bindSku(PreparedStatement statement, ProductSku sku) throws Exception {
+        statement.setString(1, sku.skuId());
+        statement.setString(2, sku.productId());
+        statement.setString(3, sku.skuName());
+        statement.setBigDecimal(4, sku.unitPrice());
+        statement.setLong(5, sku.stockQuantity());
+        statement.setLong(6, sku.reservedQuantity());
+        statement.setBoolean(7, sku.active());
+        statement.setLong(8, sku.rowVersion());
     }
 
     private static SellerApplication mapApplication(ResultSet result) throws Exception {
@@ -230,6 +443,22 @@ public final class AccessShopRepository implements ShopRepository {
                 result.getString("suspensionReason"), result.getString("suspendedByUserId"),
                 instant(result, "suspendedAt"), result.getLong("rowVersion"),
                 instant(result, "createdAt"), instant(result, "updatedAt"));
+    }
+
+    private static Product mapProduct(ResultSet result) throws Exception {
+        return new Product(result.getString("productId"), result.getString("shopId"),
+                result.getString("productName"), result.getString("category"),
+                result.getString("description"), ProductStatus.valueOf(
+                        result.getString("productStatus")), result.getLong("salesCount"),
+                result.getLong("rowVersion"), instant(result, "createdAt"),
+                instant(result, "updatedAt"));
+    }
+
+    private static ProductSku mapSku(ResultSet result) throws Exception {
+        return new ProductSku(result.getString("skuId"), result.getString("productId"),
+                result.getString("skuName"), result.getBigDecimal("unitPrice"),
+                result.getLong("stockQuantity"), result.getLong("reservedQuantity"),
+                result.getBoolean("isActive"), result.getLong("rowVersion"));
     }
 
     private static Instant instant(ResultSet result, String column) throws Exception {
