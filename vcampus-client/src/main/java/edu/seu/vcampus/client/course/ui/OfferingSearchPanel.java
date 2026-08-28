@@ -106,7 +106,8 @@ public final class OfferingSearchPanel extends AbstractCoursePanel {
     public void refresh() {
         long request = requestSequence.incrementAndGet();
         showState(ViewState.LOADING, "正在加载教学班，请稍候");
-        gateway.searchOfferings(new OfferingSearchQuery("2026-autumn", keyword.getText(), null, true, 0, 20))
+        gateway.currentTermId().thenCompose(term -> gateway.searchOfferings(new OfferingSearchQuery(
+                        term, keyword.getText(), selectedDay(), true, 0, 20)))
                 .whenComplete((page, error) -> SwingUtilities.invokeLater(() -> {
                     if (request != requestSequence.get()) return;
                     model.setRowCount(0);
@@ -137,6 +138,13 @@ public final class OfferingSearchPanel extends AbstractCoursePanel {
                     showState(page.items().isEmpty() ? ViewState.EMPTY : ViewState.NORMAL,
                             page.items().isEmpty() ? "未找到教学班，请调整筛选条件或重置查询" : "");
                 }));
+    }
+
+    private String selectedDay() {
+        return switch (weekday.getSelectedIndex()) {
+            case 1 -> "MONDAY"; case 2 -> "TUESDAY"; case 3 -> "WEDNESDAY";
+            case 4 -> "THURSDAY"; case 5 -> "FRIDAY"; default -> null;
+        };
     }
 
     private void enrollSelected(JButton button) {

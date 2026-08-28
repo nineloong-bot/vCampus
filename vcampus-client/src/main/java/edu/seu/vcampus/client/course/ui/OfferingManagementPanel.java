@@ -25,7 +25,7 @@ import java.util.List;
 /** Administrator offering list backed by live offering search. */
 public final class OfferingManagementPanel extends AbstractCoursePanel {
     private final CourseUiGateway gateway;
-    private final JTextField termId = field("学期编号", "2026-autumn");
+    private final JTextField termId = field("学期编号", "");
     private final JTextField keyword = field("课程或教学班", "");
     private final DefaultTableModel model = readOnlyModel(
             "课程代码", "课程名称", "教学班", "授课教师", "容量", "已选", "状态", "版本");
@@ -43,7 +43,7 @@ public final class OfferingManagementPanel extends AbstractCoursePanel {
         scroll.setBorder(BorderFactory.createLineBorder(UiColors.BORDER_DEFAULT));
         body.add(scroll, BorderLayout.CENTER);
         body.add(actions(), BorderLayout.SOUTH);
-        search();
+        initializeTerm();
     }
 
     private JPanel actions() {
@@ -77,13 +77,22 @@ public final class OfferingManagementPanel extends AbstractCoursePanel {
         panel.add(keyword);
         panel.add(Box.createHorizontalGlue());
         JButton reset = secondary("重置条件");
-        reset.addActionListener(event -> { termId.setText("2026-autumn"); keyword.setText(""); search(); });
+        reset.addActionListener(event -> { keyword.setText(""); initializeTerm(); });
         panel.add(reset);
         panel.add(Box.createHorizontalStrut(UiSpacing.SM));
         JButton search = primary("查询教学班");
         search.addActionListener(event -> search());
         panel.add(search);
         return panel;
+    }
+
+    private void initializeTerm() {
+        showState(ViewState.LOADING, "正在读取当前学期，请稍候");
+        gateway.currentTermId().whenComplete((term, error) -> SwingUtilities.invokeLater(() -> {
+            if (error != null) { showState(ViewState.ERROR, "尚未配置可用学期，请先在学期管理中创建学期"); return; }
+            termId.setText(term);
+            search();
+        }));
     }
 
     private void search() {

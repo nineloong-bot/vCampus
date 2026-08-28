@@ -60,6 +60,8 @@ class CourseUiTest {
     @Test
     void queryPageUsesReviewedTemplateAndSharedTokens() throws Exception {
         OfferingSearchPanel panel = onEdt(() -> new OfferingSearchPanel(CourseUiGateway.preview()));
+        SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> { });
 
         assertThat(panel.getLayout()).isInstanceOf(BorderLayout.class);
         assertThat(panel.getBackground()).isEqualTo(UiColors.BACKGROUND_PAGE);
@@ -73,6 +75,35 @@ class CourseUiTest {
         assertThat(table.getTableHeader().getBackground()).isEqualTo(UiColors.BACKGROUND_SUBTLE);
         assertThat(table.getValueAt(0, 4).toString()).startsWith("星期一");
         assertThat(descendants(panel)).anyMatch(JScrollPane.class::isInstance);
+    }
+
+    @Test
+    void offeringSearchUsesResolvedTermIdAndSelectedWeekday() throws Exception {
+        AtomicReference<OfferingSearchQuery> submitted = new AtomicReference<>();
+        CourseUiGateway base = CourseUiGateway.preview();
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(base) {
+            @Override public CompletableFuture<String> currentTermId() {
+                return CompletableFuture.completedFuture("term-real-uuid");
+            }
+            @Override public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) {
+                submitted.set(query);
+                return CompletableFuture.completedFuture(new PageResult<>(List.of(), 0, 20, 0));
+            }
+        };
+        OfferingSearchPanel panel = onEdt(() -> new OfferingSearchPanel(gateway));
+        SwingUtilities.invokeAndWait(() -> { });
+
+        SwingUtilities.invokeAndWait(() -> {
+            descendants(panel).stream().filter(JComboBox.class::isInstance).map(JComboBox.class::cast)
+                    .filter(combo -> "上课日期".equals(combo.getAccessibleContext().getAccessibleName()))
+                    .findFirst().orElseThrow().setSelectedIndex(2);
+            descendants(panel).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
+                    .filter(button -> "查询教学班".equals(button.getText())).findFirst().orElseThrow().doClick();
+        });
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(submitted.get().termId()).isEqualTo("term-real-uuid");
+        assertThat(submitted.get().dayOfWeek()).isEqualTo("TUESDAY");
     }
 
     @Test

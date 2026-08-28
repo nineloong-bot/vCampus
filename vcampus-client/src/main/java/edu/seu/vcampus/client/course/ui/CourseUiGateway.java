@@ -52,6 +52,7 @@ public interface CourseUiGateway {
     default CompletableFuture<OfferingView> createOffering(CreateOfferingCommand command) { return unsupported(); }
     default CompletableFuture<OfferingView> updateOffering(UpdateOfferingCommand command) { return unsupported(); }
     default CompletableFuture<TermPhaseView> getTermPhase(String termId) { return unsupported(); }
+    default CompletableFuture<String> currentTermId() { return CompletableFuture.completedFuture("2026-autumn"); }
 
     private static <T> CompletableFuture<T> unsupported() {
         return CompletableFuture.failedFuture(new UnsupportedOperationException("Course operation is not connected"));

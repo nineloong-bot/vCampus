@@ -114,8 +114,10 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
     private void refresh() {
         showState(ViewState.LOADING, "正在加载调整数据，请稍候");
         var enrollmentRequest = gateway.currentEnrollments();
-        var offeringRequest = gateway.searchOfferings(new OfferingSearchQuery("2026-autumn", "", null, true, 0, 100));
-        var phaseRequest = gateway.getTermPhase("2026-autumn");
+        var termRequest = gateway.currentTermId();
+        var offeringRequest = termRequest.thenCompose(term -> gateway.searchOfferings(
+                new OfferingSearchQuery(term, "", null, true, 0, 100)));
+        var phaseRequest = termRequest.thenCompose(gateway::getTermPhase);
         var scheduleRequest = gateway.currentSchedule();
         enrollmentRequest.thenCombine(offeringRequest, PartialData::new).thenCombine(phaseRequest,
                 (partial, phase) -> new PartialDataWithPhase(partial.enrollments(), partial.offerings(), phase))

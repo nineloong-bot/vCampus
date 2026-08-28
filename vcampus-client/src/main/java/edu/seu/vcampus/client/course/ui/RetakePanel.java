@@ -73,7 +73,8 @@ public final class RetakePanel extends AbstractCoursePanel {
 
     private void loadOfferings() {
         showState(ViewState.LOADING, "正在加载重修教学班，请稍候");
-        gateway.searchOfferings(new OfferingSearchQuery("2026-autumn", "", null, true, 0, 100))
+        gateway.currentTermId().thenCompose(term -> gateway.searchOfferings(
+                        new OfferingSearchQuery(term, "", null, true, 0, 100)))
                 .whenComplete((page, error) -> SwingUtilities.invokeLater(() -> {
                     model.setRowCount(0);
                     offerings.clear();
