@@ -16,6 +16,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import edu.seu.vcampus.server.course.domain.CourseConcurrentModificationException;
 
 class CourseRepositoryTest {
     private CourseRepository repository;
@@ -59,6 +60,9 @@ class CourseRepositoryTest {
                 new Enrollment(original.enrollmentId(), original.offeringId(), original.studentId(), "NORMAL", "DROPPED",
                         original.enrolledAt(), Instant.parse("2026-01-12T00:00:00Z"), original.rowVersion(), original.createdAt(), original.updatedAt()),
                 original.rowVersion());
+        assertThatThrownBy(() -> repository.updateEnrollment(connection, original, original.rowVersion()))
+                .isInstanceOf(CourseConcurrentModificationException.class)
+                .extracting("code").isEqualTo("COMMON_CONCURRENT_MODIFICATION");
 
         Enrollment reactivated = repository.insertEnrollment(connection, enrollment("new-enrollment-id", "ACTIVE"));
 
@@ -77,6 +81,8 @@ class CourseRepositoryTest {
         seedCatalog();
         Term initialTerm = repository.requireTerm(connection, "term-1");
         Term updatedTerm = repository.updateTerm(connection, initialTerm, initialTerm.rowVersion());
+        assertThatThrownBy(() -> repository.updateTerm(connection, initialTerm, initialTerm.rowVersion()))
+                .isInstanceOf(CourseConcurrentModificationException.class);
         Offering initialOffering = repository.insertOffering(connection, offering("offering-1", 30), List.of());
 
         Offering counted = repository.changeEnrolledCount(connection, initialOffering.offeringId(), 1);
@@ -160,7 +166,7 @@ class CourseRepositoryTest {
         assertThat(reloadedCourse.courseName()).isEqualTo("Advanced Programming");
         assertThat(reloadedCourse.totalHours()).isEqualTo(64);
         assertThatThrownBy(() -> repository.updateCourse(connection, originalCourse, originalCourse.rowVersion()))
-                .isInstanceOf(IllegalStateException.class).hasMessageContaining("Stale course version");
+                .isInstanceOf(CourseConcurrentModificationException.class);
 
         Offering originalOffering = repository.insertOffering(connection, offering("offering-1", 30),
                 List.of(schedule(DayOfWeek.MONDAY, 1, 2)));
@@ -173,7 +179,7 @@ class CourseRepositoryTest {
         assertThat(repository.findSchedules(connection, updatedOffering.offeringId()))
                 .extracting(Schedule::dayOfWeek).containsExactly(DayOfWeek.FRIDAY);
         assertThatThrownBy(() -> repository.updateOffering(connection, originalOffering, originalOffering.rowVersion(), List.of()))
-                .isInstanceOf(IllegalStateException.class).hasMessageContaining("Stale offering version");
+                .isInstanceOf(CourseConcurrentModificationException.class);
     }
 
     @Test

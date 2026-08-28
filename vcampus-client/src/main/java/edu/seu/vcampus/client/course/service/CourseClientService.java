@@ -12,6 +12,9 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 
 /** Typed, non-blocking client facade for the complete course command surface. */
 public final class CourseClientService {
@@ -65,10 +68,10 @@ public final class CourseClientService {
     private CompletableFuture<Serializable> raw(String command, Serializable body, Duration timeout) {
         CompletableFuture<? extends edu.seu.vcampus.common.protocol.ResponseBody<? extends Serializable>> sent;
         try { sent = transport.<Serializable>send(command, body, timeout); }
-        catch (RuntimeException failure) { return CompletableFuture.failedFuture(network()); }
+        catch (RuntimeException failure) { return CompletableFuture.failedFuture(transportFailure(failure)); }
         if (sent == null) return CompletableFuture.failedFuture(malformed());
         return sent.handle((response, failure) -> {
-            if (failure != null) throw network();
+            if (failure != null) throw transportFailure(failure);
             if (response == null) throw malformed();
             if (response.success()) {
                 if (response.data() == null || !"SUCCESS".equals(response.code())) throw malformed();
@@ -86,5 +89,12 @@ public final class CourseClientService {
     }
 
     private static CourseClientException network() { return new CourseClientException("COMMON_NETWORK_ERROR", "网络连接异常，请检查连接后重试", null, true); }
+    private static CourseClientException timeout() { return new CourseClientException("COMMON_TIMEOUT", "请求超时，请稍后重试", null, true); }
+    private static CourseClientException transportFailure(Throwable failure) {
+        Throwable cause = failure;
+        while ((cause instanceof CompletionException || cause instanceof ExecutionException)
+                && cause.getCause() != null) cause = cause.getCause();
+        return cause instanceof TimeoutException ? timeout() : network();
+    }
     private static CourseClientException malformed() { return new CourseClientException("COMMON_PROTOCOL_ERROR", "服务器响应无效，请稍后重试", null, true); }
 }

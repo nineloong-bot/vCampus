@@ -95,7 +95,7 @@ class AdjustmentRuleCoverageTest {
         assertThatThrownBy(() -> service.dropDuringAdjustment("token", new DropCommand(source.enrollmentId(), 1))).isInstanceOf(EnrollmentVersionMismatchException.class);
         assertThatThrownBy(() -> service.changeDuringAdjustment("token", new ChangeOfferingCommand(source.enrollmentId(), "target", 1))).isInstanceOf(EnrollmentVersionMismatchException.class);
         assertThat(enrollment(source.enrollmentId()).enrollmentStatus()).isEqualTo("ACTIVE"); assertThat(count("source")).isEqualTo(1); assertThat(count("target")).isZero();
-        assertThat(audits()).hasSize(2).allSatisfy(a -> assertThat(a.failureCode()).isEqualTo("COURSE_ENROLLMENT_VERSION_CONFLICT"));
+        assertThat(audits()).hasSize(2).allSatisfy(a -> assertThat(a.failureCode()).isEqualTo("COMMON_CONCURRENT_MODIFICATION"));
     }
 
     @Test void sameCourseChangeExcludesSourceAndDroppedTargetReactivatesItsStableRecord() {

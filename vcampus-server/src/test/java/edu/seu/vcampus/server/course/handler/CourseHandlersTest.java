@@ -28,7 +28,9 @@ class CourseHandlersTest {
                 "COURSE_ADJUSTMENT_ADD", "COURSE_ADJUSTMENT_DROP", "COURSE_ADJUSTMENT_CHANGE",
                 "COURSE_RETAKE_CHECK", "COURSE_RETAKE_ENROLL", "COURSE_GET_MY_SCHEDULE",
                 "COURSE_GET_MY_ENROLLMENTS", "COURSE_IMPORT_OUTCOMES", "COURSE_CREATE",
-                "COURSE_UPDATE", "COURSE_CREATE_OFFERING", "COURSE_UPDATE_OFFERING");
+                "COURSE_UPDATE", "COURSE_CREATE_OFFERING", "COURSE_UPDATE_OFFERING",
+                "COURSE_TERM_LIST", "COURSE_TERM_CREATE", "COURSE_TERM_UPDATE",
+                "COURSE_CATALOG_SEARCH", "COURSE_ADJUSTMENT_AUDIT_SEARCH", "COURSE_GET_TERM_PHASE");
         commands.forEach(command -> assertThat(route(router, command, "student", validBody(command)).code())
                 .isNotEqualTo("COMMON_INTERNAL_ERROR"));
         ResponseBody<?> duplicate = route(router, "COURSE_ENROLL", "student", new EnrollCommand("o-1"));
@@ -44,6 +46,8 @@ class CourseHandlersTest {
         assertThat(route(router, "COURSE_ENROLL", "teacher", new EnrollCommand("o-1")).code()).isEqualTo("COMMON_FORBIDDEN");
         assertThat(route(router, "COURSE_GET_MY_SCHEDULE", "teacher", EmptyRequest.INSTANCE).success()).isTrue();
         assertThat(route(router, "COURSE_GET_MY_ENROLLMENTS", "teacher", EmptyRequest.INSTANCE).code()).isEqualTo("COMMON_FORBIDDEN");
+        assertThat(route(router, "COURSE_GET_MY_ENROLLMENTS", "admin", EmptyRequest.INSTANCE).success()).isTrue();
+        assertThat(route(router, "COURSE_ENROLL", "admin", new EnrollCommand("o-1")).success()).isTrue();
         assertThat(route(router, "COURSE_IMPORT_OUTCOMES", "student", validBody("COURSE_IMPORT_OUTCOMES")).code()).isEqualTo("COMMON_FORBIDDEN");
         assertThat(route(router, "COURSE_IMPORT_OUTCOMES", "admin", validBody("COURSE_IMPORT_OUTCOMES")).success()).isTrue();
     }
@@ -59,6 +63,10 @@ class CourseHandlersTest {
         assertThat(response.code()).isEqualTo("COMMON_INTERNAL_ERROR");
         assertThat(response.message()).doesNotContain("SELECT", "/private", "RuntimeException");
         assertThat(response.error().traceId()).isNotBlank();
+        service.enrollFailure = new edu.seu.vcampus.server.course.domain.CourseConcurrentModificationException();
+        ResponseBody<?> conflict = route(router, "COURSE_ENROLL", "student", new EnrollCommand("o-1"));
+        assertThat(conflict.code()).isEqualTo("COMMON_CONCURRENT_MODIFICATION");
+        assertThat(conflict.message()).contains("刷新");
     }
 
     @Test void voidCommandsReturnEmptyResponseAndWritesKeepRequestIdentity() {
@@ -80,6 +88,12 @@ class CourseHandlersTest {
     private static Serializable validBody(String c) {
         return switch (c) {
             case "COURSE_SEARCH_OFFERINGS" -> new OfferingSearchQuery(null, null, null, false, 0, 20);
+            case "COURSE_TERM_LIST" -> EmptyRequest.INSTANCE;
+            case "COURSE_TERM_CREATE" -> new CreateTermCommand("2026-1","秋",java.time.LocalDate.of(2026,9,1),java.time.LocalDate.of(2027,1,1),java.time.Instant.EPOCH,java.time.Instant.EPOCH.plusSeconds(1),java.time.Instant.EPOCH.plusSeconds(2),java.time.Instant.EPOCH.plusSeconds(3),"PLANNED");
+            case "COURSE_TERM_UPDATE" -> new UpdateTermCommand("t","2026-1","秋",java.time.LocalDate.of(2026,9,1),java.time.LocalDate.of(2027,1,1),java.time.Instant.EPOCH,java.time.Instant.EPOCH.plusSeconds(1),java.time.Instant.EPOCH.plusSeconds(2),java.time.Instant.EPOCH.plusSeconds(3),"ACTIVE",0);
+            case "COURSE_CATALOG_SEARCH" -> new CourseCatalogQuery(null,null,0,20);
+            case "COURSE_ADJUSTMENT_AUDIT_SEARCH" -> new AdjustmentAuditQuery(null,null,null,null,0,20);
+            case "COURSE_GET_TERM_PHASE" -> new EntityIdRequest("t");
             case "COURSE_ENROLL" -> new EnrollCommand("o-1");
             case "COURSE_ADJUSTMENT_ADD" -> new LateAddCommand("o-1");
             case "COURSE_ADJUSTMENT_DROP" -> new DropCommand("e-1", 0);

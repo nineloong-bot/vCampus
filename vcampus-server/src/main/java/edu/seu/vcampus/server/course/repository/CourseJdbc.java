@@ -1,6 +1,7 @@
 package edu.seu.vcampus.server.course.repository;
 
 import edu.seu.vcampus.server.persistence.PersistenceException;
+import edu.seu.vcampus.server.course.domain.CourseConcurrentModificationException;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -34,7 +35,7 @@ final class CourseJdbc {
         return new IllegalStateException(entity + " not found: " + id);
     }
 
-    static IllegalStateException stale(String entity, String id) {
-        return new IllegalStateException("Stale " + entity + " version: " + id);
+    static CourseConcurrentModificationException stale(String entity, String id) {
+        return new CourseConcurrentModificationException();
     }
 }
