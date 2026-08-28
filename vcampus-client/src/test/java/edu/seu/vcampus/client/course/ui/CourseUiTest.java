@@ -198,7 +198,10 @@ class CourseUiTest {
             }
         };
         AdjustmentPanel panel = onEdt(() -> new AdjustmentPanel(gateway,
-                (owner, source, target, conflict, confirm) -> confirm.run()));
+                (owner, source, target, conflict, request, onSuccess) -> {
+                    request.get().join();
+                    onSuccess.run();
+                }));
         SwingUtilities.invokeAndWait(() -> { });
         List<JTable> tables = descendants(panel).stream().filter(JTable.class::isInstance).map(JTable.class::cast).toList();
         JButton change = descendants(panel).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
@@ -503,6 +506,34 @@ class CourseUiTest {
                 .filter(button -> "确认改选".equals(button.getText())).findFirst().orElseThrow().doClick());
 
         assertThat(confirmed.get()).isTrue();
+        SwingUtilities.invokeAndWait(dialog::dispose);
+    }
+
+    @Test
+    void offeringChangeDialogStaysOpenAndExplainsServerRejection() throws Exception {
+        OfferingSummary source = CourseUiGateway.preview()
+                .searchOfferings(new OfferingSearchQuery("2026-autumn", "", null, true, 0, 20)).join().items().get(0);
+        ScheduleItem targetSchedule = new ScheduleItem("s1b", "o1b", source.courseCode(), source.courseName(),
+                "02班", "赵老师", "TUESDAY", 3, 4, 1, 16, "教一-203");
+        OfferingSummary target = new OfferingSummary("o1b", source.termId(), source.courseId(), source.courseCode(),
+                source.courseName(), "赵老师", "02班", 40, 40, "OPEN", 0, List.of(targetSchedule));
+        OfferingDetailDialog dialog = onEdt(() -> new OfferingDetailDialog(
+                null, source, target, "未发现时间冲突（服务端提交时将再次校验）",
+                () -> CompletableFuture.failedFuture(new CourseClientException(
+                        "COURSE_OFFERING_FULL", "internal capacity detail", null, false)), () -> { }));
+
+        SwingUtilities.invokeAndWait(() -> {
+            dialog.setModal(false);
+            dialog.setVisible(true);
+            descendants(dialog).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
+                    .filter(button -> "确认改选".equals(button.getText())).findFirst().orElseThrow().doClick();
+        });
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(dialog.isShowing()).isTrue();
+        assertThat(labels(dialog)).contains("教学班容量已满，请选择其他教学班");
+        assertThat(descendants(dialog).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
+                .filter(button -> "确认改选".equals(button.getText())).findFirst().orElseThrow().isEnabled()).isTrue();
         SwingUtilities.invokeAndWait(dialog::dispose);
     }
 

@@ -3,17 +3,23 @@ package edu.seu.vcampus.client.course.ui;
 import edu.seu.vcampus.client.core.ui.theme.UiColors;
 import edu.seu.vcampus.client.core.ui.theme.UiSpacing;
 import edu.seu.vcampus.client.core.ui.theme.UiTypography;
+import edu.seu.vcampus.client.course.service.CourseClientException;
 import edu.seu.vcampus.common.course.OfferingSummary;
 import edu.seu.vcampus.common.course.ScheduleItem;
 
 import javax.swing.BorderFactory;
 import javax.swing.JDialog;
+import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.Dialog;
 import java.awt.FlowLayout;
 import java.awt.Window;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /** Standard 720 px offering detail/change-preview dialog. */
@@ -38,6 +44,15 @@ public final class OfferingDetailDialog extends JDialog {
 
     public OfferingDetailDialog(Window owner, OfferingSummary source, OfferingSummary target,
                                 String conflictResult, Runnable onConfirm) {
+        this(owner, source, target, conflictResult, () -> {
+            onConfirm.run();
+            return CompletableFuture.completedFuture(null);
+        }, () -> { });
+    }
+
+    OfferingDetailDialog(Window owner, OfferingSummary source, OfferingSummary target,
+                         String conflictResult, Supplier<CompletableFuture<?>> request,
+                         Runnable onSuccess) {
         super(owner, "改选确认", Dialog.ModalityType.APPLICATION_MODAL);
         JPanel root = new JPanel(new BorderLayout(0, UiSpacing.XL));
         root.setBackground(UiColors.BACKGROUND_PAGE);
@@ -65,16 +80,58 @@ public final class OfferingDetailDialog extends JDialog {
 
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, UiSpacing.MD, 0));
         actions.setOpaque(false);
+        JLabel error = text(" ", UiTypography.BODY, UiColors.ACCENT);
+        actions.add(error);
         var cancel = AbstractCoursePanel.secondary("取消改选");
         cancel.addActionListener(event -> dispose());
         actions.add(cancel);
-        var confirm = AbstractCoursePanel.primary("确认改选");
-        confirm.addActionListener(event -> { onConfirm.run(); dispose(); });
+        JButton confirm = AbstractCoursePanel.primary("确认改选");
+        confirm.addActionListener(event -> submit(request, onSuccess, confirm, cancel, error));
         actions.add(confirm);
         root.add(actions, BorderLayout.SOUTH);
         setContentPane(root);
+        getRootPane().setDefaultButton(confirm);
         setSize(720, 460);
         setLocationRelativeTo(owner);
+    }
+
+    private void submit(Supplier<CompletableFuture<?>> request, Runnable onSuccess,
+                        JButton confirm, JButton cancel, JLabel error) {
+        error.setText(" ");
+        confirm.setEnabled(false);
+        cancel.setEnabled(false);
+        confirm.setText("正在改选…");
+        CompletableFuture<?> pending;
+        try {
+            pending = request.get();
+        } catch (RuntimeException failure) {
+            pending = CompletableFuture.failedFuture(failure);
+        }
+        pending.whenComplete((ignored, failure) -> SwingUtilities.invokeLater(() -> {
+            confirm.setEnabled(true);
+            cancel.setEnabled(true);
+            confirm.setText("确认改选");
+            if (failure != null) {
+                error.setText(changeError(failure));
+                return;
+            }
+            onSuccess.run();
+            dispose();
+        }));
+    }
+
+    private static String changeError(Throwable failure) {
+        Throwable cause = failure;
+        while (cause instanceof CompletionException && cause.getCause() != null) cause = cause.getCause();
+        if (cause instanceof CourseClientException clientFailure) {
+            return switch (clientFailure.code()) {
+                case "COURSE_OFFERING_FULL" -> "教学班容量已满，请选择其他教学班";
+                case "COURSE_SCHEDULE_CONFLICT" -> "目标教学班与当前课表冲突，请调整选择";
+                case "COMMON_CONCURRENT_MODIFICATION" -> "原选课记录已变化，请刷新后重试";
+                default -> clientFailure.getMessage();
+            };
+        }
+        return "改选失败，请检查连接后重试";
     }
 
     private static JPanel offeringSummary(String heading, OfferingSummary offering, String note) {

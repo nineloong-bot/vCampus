@@ -34,7 +34,8 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
     @FunctionalInterface
     interface ChangeConfirmation {
         void show(java.awt.Window owner, OfferingSummary source, OfferingSummary target,
-                  String conflictResult, Runnable onConfirm);
+                  String conflictResult, java.util.function.Supplier<java.util.concurrent.CompletableFuture<?>> request,
+                  Runnable onSuccess);
     }
 
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("MM-dd HH:mm").withZone(ZoneId.systemDefault());
@@ -50,8 +51,8 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
     private final List<ScheduleItem> currentSchedule = new ArrayList<>();
 
     public AdjustmentPanel(CourseUiGateway gateway) {
-        this(gateway, (owner, source, target, conflict, onConfirm) ->
-                new OfferingDetailDialog(owner, source, target, conflict, onConfirm).setVisible(true));
+        this(gateway, (owner, source, target, conflict, request, onSuccess) ->
+                new OfferingDetailDialog(owner, source, target, conflict, request, onSuccess).setVisible(true));
     }
 
     AdjustmentPanel(CourseUiGateway gateway, ChangeConfirmation confirmation) {
@@ -204,9 +205,9 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
         if (sourceOffering == null) { showState(ViewState.ERROR, "原教学班信息尚未同步，请刷新后重试"); return; }
         String conflict = conflictResult(sourceOffering, targetOffering);
         confirmation.show(SwingUtilities.getWindowAncestor(this), sourceOffering, targetOffering, conflict,
-                () -> submit(button, "正在改选…", gateway.change(new ChangeOfferingCommand(
+                () -> gateway.change(new ChangeOfferingCommand(
                         selected.enrollmentId(), targetOffering.offeringId(), selected.rowVersion())),
-                        "改选成功，原选课已安全替换"));
+                () -> showState(ViewState.NORMAL, "改选成功，原选课已安全替换"));
     }
 
     private String conflictResult(OfferingSummary source, OfferingSummary target) {
