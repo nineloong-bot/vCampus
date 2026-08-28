@@ -2,6 +2,7 @@ package edu.seu.vcampus.client.course.ui;
 
 import edu.seu.vcampus.client.course.service.CourseClientService;
 import edu.seu.vcampus.common.course.EnrollmentView;
+import edu.seu.vcampus.common.course.EnrollCommand;
 import edu.seu.vcampus.common.course.OfferingSearchQuery;
 import edu.seu.vcampus.common.course.OfferingSummary;
 import edu.seu.vcampus.common.course.ScheduleItem;
@@ -29,5 +30,9 @@ final class CourseClientGateway implements CourseUiGateway {
 
     public CompletableFuture<List<ScheduleItem>> currentSchedule() {
         return client.getCurrentSchedule();
+    }
+
+    public CompletableFuture<EnrollmentView> enroll(EnrollCommand command) {
+        return client.enroll(command);
     }
 }

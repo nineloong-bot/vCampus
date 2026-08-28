@@ -5,6 +5,7 @@ import edu.seu.vcampus.client.core.ui.theme.UiDimensions;
 import edu.seu.vcampus.client.core.ui.theme.UiSpacing;
 import edu.seu.vcampus.client.course.service.CourseClientException;
 import edu.seu.vcampus.common.course.EnrollmentView;
+import edu.seu.vcampus.common.course.EnrollCommand;
 import edu.seu.vcampus.common.course.OfferingSearchQuery;
 import edu.seu.vcampus.common.course.OfferingSummary;
 import edu.seu.vcampus.common.course.ScheduleItem;
@@ -22,7 +23,9 @@ import java.awt.Component;
 import java.awt.Container;
 import java.util.ArrayList;
 import java.util.List;
+import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -41,6 +44,7 @@ class CourseUiTest {
         assertThat(table.getRowHeight()).isEqualTo(UiDimensions.TABLE_ROW_HEIGHT);
         assertThat(table.getShowVerticalLines()).isFalse();
         assertThat(table.getTableHeader().getBackground()).isEqualTo(UiColors.BACKGROUND_SUBTLE);
+        assertThat(table.getValueAt(0, 4).toString()).startsWith("星期一");
         assertThat(descendants(panel)).anyMatch(JScrollPane.class::isInstance);
     }
 
@@ -95,11 +99,61 @@ class CourseUiTest {
         assertThat(labels(disconnected)).noneMatch(text -> text.contains("socket details"));
     }
 
+    @Test
+    void selectedOfferingCanBeEnrolledAndSuccessRemainsVisible() throws Exception {
+        AtomicReference<EnrollCommand> submitted = new AtomicReference<>();
+        CourseUiGateway gateway = new CourseUiGateway() {
+            public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) {
+                return CourseUiGateway.preview().searchOfferings(query);
+            }
+            public CompletableFuture<List<EnrollmentView>> currentEnrollments() { return CompletableFuture.completedFuture(List.of()); }
+            public CompletableFuture<List<ScheduleItem>> currentSchedule() { return CompletableFuture.completedFuture(List.of()); }
+            @Override public CompletableFuture<EnrollmentView> enroll(EnrollCommand command) {
+                submitted.set(command);
+                return CompletableFuture.completedFuture(new EnrollmentView(
+                        "e1", command.offeringId(), "s1", "NORMAL", "ACTIVE", Instant.now(), null, 0));
+            }
+        };
+        OfferingSearchPanel panel = onEdt(() -> new OfferingSearchPanel(gateway));
+        SwingUtilities.invokeAndWait(() -> { });
+        JTable table = descendants(panel).stream().filter(JTable.class::isInstance).map(JTable.class::cast).findFirst().orElseThrow();
+        JButton enroll = descendants(panel).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
+                .filter(button -> "选择教学班".equals(button.getText())).findFirst().orElseThrow();
+
+        SwingUtilities.invokeAndWait(() -> { table.setRowSelectionInterval(0, 0); enroll.doClick(); });
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(submitted.get().offeringId()).isEqualTo("o1");
+        assertThat(labels(panel)).anyMatch(text -> text.contains("课程已选上"));
+    }
+
+    @Test
+    void myEnrollmentsLoadsRealGatewayRowsAsynchronously() throws Exception {
+        CourseUiGateway base = CourseUiGateway.preview();
+        CourseUiGateway gateway = new CourseUiGateway() {
+            public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) { return base.searchOfferings(query); }
+            public CompletableFuture<List<EnrollmentView>> currentEnrollments() {
+                return CompletableFuture.completedFuture(List.of(new EnrollmentView(
+                        "e1", "offering-real-1", "student-real", "NORMAL", "ACTIVE", Instant.parse("2026-08-28T08:00:00Z"), null, 2)));
+            }
+            public CompletableFuture<List<ScheduleItem>> currentSchedule() { return CompletableFuture.completedFuture(List.of()); }
+            public CompletableFuture<EnrollmentView> enroll(EnrollCommand command) { return base.enroll(command); }
+        };
+        MyEnrollmentPanel panel = onEdt(() -> new MyEnrollmentPanel(gateway));
+        SwingUtilities.invokeAndWait(() -> { });
+        JTable table = descendants(panel).stream().filter(JTable.class::isInstance).map(JTable.class::cast).findFirst().orElseThrow();
+
+        assertThat(table.getRowCount()).isEqualTo(1);
+        assertThat(table.getValueAt(0, 0)).isEqualTo("offering-real-1");
+        assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.NORMAL);
+    }
+
     private static CourseUiGateway gateway(CompletableFuture<PageResult<OfferingSummary>> offerings) {
         return new CourseUiGateway() {
             public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) { return offerings; }
             public CompletableFuture<List<EnrollmentView>> currentEnrollments() { return CompletableFuture.completedFuture(List.of()); }
             public CompletableFuture<List<ScheduleItem>> currentSchedule() { return CompletableFuture.completedFuture(List.of()); }
+            public CompletableFuture<EnrollmentView> enroll(EnrollCommand command) { return CompletableFuture.failedFuture(new UnsupportedOperationException()); }
         };
     }
 

@@ -1,6 +1,7 @@
 package edu.seu.vcampus.client.course.ui;
 
 import edu.seu.vcampus.common.course.EnrollmentView;
+import edu.seu.vcampus.common.course.EnrollCommand;
 import edu.seu.vcampus.common.course.OfferingSearchQuery;
 import edu.seu.vcampus.common.course.OfferingSummary;
 import edu.seu.vcampus.common.course.ScheduleItem;
@@ -14,6 +15,7 @@ public interface CourseUiGateway {
     CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query);
     CompletableFuture<List<EnrollmentView>> currentEnrollments();
     CompletableFuture<List<ScheduleItem>> currentSchedule();
+    CompletableFuture<EnrollmentView> enroll(EnrollCommand command);
 
     static CourseUiGateway preview() {
         List<ScheduleItem> schedule = List.of(
@@ -32,6 +34,11 @@ public interface CourseUiGateway {
             }
             public CompletableFuture<List<ScheduleItem>> currentSchedule() {
                 return CompletableFuture.completedFuture(schedule);
+            }
+            public CompletableFuture<EnrollmentView> enroll(EnrollCommand command) {
+                return CompletableFuture.completedFuture(new EnrollmentView(
+                        "preview-enrollment", command.offeringId(), "preview-student", "NORMAL", "ACTIVE",
+                        java.time.Instant.now(), null, 0));
             }
         };
     }

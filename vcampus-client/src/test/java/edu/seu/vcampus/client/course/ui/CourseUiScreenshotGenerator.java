@@ -7,6 +7,7 @@ import edu.seu.vcampus.client.core.ui.theme.UiThemeInstaller;
 import edu.seu.vcampus.client.core.ui.theme.UiTypography;
 import edu.seu.vcampus.client.course.service.CourseClientException;
 import edu.seu.vcampus.common.course.EnrollmentView;
+import edu.seu.vcampus.common.course.EnrollCommand;
 import edu.seu.vcampus.common.course.OfferingSearchQuery;
 import edu.seu.vcampus.common.course.OfferingSummary;
 import edu.seu.vcampus.common.course.ScheduleItem;
@@ -72,6 +73,7 @@ public final class CourseUiScreenshotGenerator {
             public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) { return offerings; }
             public CompletableFuture<List<EnrollmentView>> currentEnrollments() { return CompletableFuture.completedFuture(List.of()); }
             public CompletableFuture<List<ScheduleItem>> currentSchedule() { return CompletableFuture.completedFuture(List.of()); }
+            public CompletableFuture<EnrollmentView> enroll(EnrollCommand command) { return CompletableFuture.failedFuture(new UnsupportedOperationException()); }
         };
     }
 

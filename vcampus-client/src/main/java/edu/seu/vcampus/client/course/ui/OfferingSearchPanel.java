@@ -6,6 +6,7 @@ import edu.seu.vcampus.client.core.ui.theme.UiSpacing;
 import edu.seu.vcampus.client.core.ui.theme.UiTypography;
 import edu.seu.vcampus.common.course.OfferingSearchQuery;
 import edu.seu.vcampus.common.course.OfferingSummary;
+import edu.seu.vcampus.common.course.EnrollCommand;
 import edu.seu.vcampus.client.course.service.CourseClientException;
 
 import javax.swing.BorderFactory;
@@ -24,6 +25,8 @@ import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.ArrayList;
+import java.util.List;
 
 /** Query-list page for available teaching offerings. */
 public final class OfferingSearchPanel extends AbstractCoursePanel {
@@ -35,6 +38,7 @@ public final class OfferingSearchPanel extends AbstractCoursePanel {
         public boolean isCellEditable(int row, int column) { return false; }
     };
     private final JTable results = table(new Object[0][0], new Object[0]);
+    private final List<OfferingSummary> visibleOfferings = new ArrayList<>();
     private final AtomicLong requestSequence = new AtomicLong();
 
     public OfferingSearchPanel(CourseUiGateway gateway) {
@@ -49,7 +53,13 @@ public final class OfferingSearchPanel extends AbstractCoursePanel {
         body.add(filters(), BorderLayout.NORTH);
         JPanel listing = new JPanel(new BorderLayout(0, UiSpacing.MD));
         listing.setOpaque(false);
-        listing.add(summary, BorderLayout.NORTH);
+        JPanel resultHeader = new JPanel(new BorderLayout());
+        resultHeader.setOpaque(false);
+        resultHeader.add(summary, BorderLayout.WEST);
+        JButton enroll = primary("选择教学班");
+        enroll.addActionListener(event -> enrollSelected(enroll));
+        resultHeader.add(enroll, BorderLayout.EAST);
+        listing.add(resultHeader, BorderLayout.NORTH);
         JScrollPane scroll = new JScrollPane(results);
         scroll.setBorder(BorderFactory.createLineBorder(UiColors.BORDER_DEFAULT));
         listing.add(scroll, BorderLayout.CENTER);
@@ -100,6 +110,7 @@ public final class OfferingSearchPanel extends AbstractCoursePanel {
                 .whenComplete((page, error) -> SwingUtilities.invokeLater(() -> {
                     if (request != requestSequence.get()) return;
                     model.setRowCount(0);
+                    visibleOfferings.clear();
                     if (error != null) {
                         Throwable cause = error;
                         while (cause instanceof java.util.concurrent.CompletionException && cause.getCause() != null) cause = cause.getCause();
@@ -116,7 +127,8 @@ public final class OfferingSearchPanel extends AbstractCoursePanel {
                         return;
                     }
                     for (OfferingSummary row : page.items()) {
-                        String time = row.schedules().isEmpty() ? "待安排" : row.schedules().getFirst().dayOfWeek()
+                        visibleOfferings.add(row);
+                        String time = row.schedules().isEmpty() ? "待安排" : dayName(row.schedules().getFirst().dayOfWeek())
                                 + " 第" + row.schedules().getFirst().startPeriod() + "–" + row.schedules().getFirst().endPeriod() + "节";
                         model.addRow(new Object[]{row.courseCode(), row.courseName(), row.className(), row.teacherUserId(), time,
                                 (row.capacity() - row.enrolledCount()) + " / " + row.capacity(), "可选"});
@@ -125,5 +137,53 @@ public final class OfferingSearchPanel extends AbstractCoursePanel {
                     showState(page.items().isEmpty() ? ViewState.EMPTY : ViewState.NORMAL,
                             page.items().isEmpty() ? "未找到教学班，请调整筛选条件或重置查询" : "");
                 }));
+    }
+
+    private void enrollSelected(JButton button) {
+        int selected = results.getSelectedRow();
+        if (selected < 0 || selected >= visibleOfferings.size()) {
+            showState(ViewState.ERROR, "请先在结果表中选择一个教学班");
+            return;
+        }
+        OfferingSummary offering = visibleOfferings.get(results.convertRowIndexToModel(selected));
+        button.setEnabled(false);
+        button.setText("正在选课…");
+        showState(ViewState.SUBMITTING, "正在提交选课，请勿重复操作");
+        gateway.enroll(new EnrollCommand(offering.offeringId())).whenComplete((enrollment, error) ->
+                SwingUtilities.invokeLater(() -> {
+                    button.setEnabled(true);
+                    button.setText("选择教学班");
+                    if (error == null) {
+                        int remaining = Math.max(0, offering.capacity() - offering.enrolledCount() - 1);
+                        model.setValueAt(remaining + " / " + offering.capacity(), selected, 5);
+                        showState(ViewState.NORMAL, "课程已选上，可在“我的选课”和“我的课表”查看");
+                        return;
+                    }
+                    Throwable cause = error;
+                    while (cause instanceof java.util.concurrent.CompletionException && cause.getCause() != null) cause = cause.getCause();
+                    if (cause instanceof CourseClientException failure) {
+                        switch (failure.code()) {
+                            case "COURSE_OFFERING_FULL" -> showState(ViewState.ERROR, "教学班容量已满，请选择其他教学班");
+                            case "COURSE_SCHEDULE_CONFLICT" -> showState(ViewState.ERROR, "所选教学班与当前课表冲突，请调整选择");
+                            case "COMMON_CONCURRENT_MODIFICATION" -> showState(ViewState.CONFLICT, "教学班信息已变化，请刷新后重试");
+                            default -> showState(ViewState.ERROR, failure.getMessage());
+                        }
+                    } else {
+                        showState(ViewState.DISCONNECTED, "选课请求未送达，请检查连接后重试");
+                    }
+                }));
+    }
+
+    private static String dayName(String day) {
+        return switch (day) {
+            case "MONDAY" -> "星期一";
+            case "TUESDAY" -> "星期二";
+            case "WEDNESDAY" -> "星期三";
+            case "THURSDAY" -> "星期四";
+            case "FRIDAY" -> "星期五";
+            case "SATURDAY" -> "星期六";
+            case "SUNDAY" -> "星期日";
+            default -> day;
+        };
     }
 }
