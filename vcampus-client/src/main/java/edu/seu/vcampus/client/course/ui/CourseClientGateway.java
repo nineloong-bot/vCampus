@@ -33,10 +33,10 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
 /** Production adapter from Swing's narrow seam to the typed course client. */
-final class CourseClientGateway implements CourseUiGateway {
+public final class CourseClientGateway implements CourseUiGateway {
     private final CourseClientService client;
 
-    CourseClientGateway(CourseClientService client) {
+    public CourseClientGateway(CourseClientService client) {
         this.client = Objects.requireNonNull(client);
     }
 

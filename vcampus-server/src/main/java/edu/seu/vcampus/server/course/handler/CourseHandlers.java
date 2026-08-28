@@ -10,7 +10,7 @@ public final class CourseHandlers {
  public CourseHandlers(CourseService service,CourseAuthorizationGateway authorization,CourseWriteExecutor writes){this.service=Objects.requireNonNull(service);this.authorization=Objects.requireNonNull(authorization);this.writes=Objects.requireNonNull(writes);}
  /** Claims all exact commands from the course specification. */
  public void register(MessageRouter r){
-  r.register("COURSE_TERM_LIST",read(EmptyRequest.class,Set.of("ADMIN"),(m,b)->(Serializable)new ArrayList<>(service.listTerms())));
+  r.register("COURSE_TERM_LIST",read(EmptyRequest.class,Set.of("STUDENT","TEACHER","ADMIN"),(m,b)->(Serializable)new ArrayList<>(service.listTerms())));
   r.register("COURSE_TERM_CREATE",write(CreateTermCommand.class,Set.of("ADMIN"),(m,b)->service.createTerm(b)));
   r.register("COURSE_TERM_UPDATE",write(UpdateTermCommand.class,Set.of("ADMIN"),(m,b)->service.updateTerm(b)));
   r.register("COURSE_CATALOG_SEARCH",read(CourseCatalogQuery.class,Set.of("ADMIN"),(m,b)->service.searchCatalog(b)));

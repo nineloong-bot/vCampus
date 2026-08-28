@@ -3,4 +3,6 @@
 **/target/
 vcampus-distribution/lib/*.jar
 vcampus-distribution/docs/
+vcampus-distribution/data/
+vcampus-distribution/database/
 vcampus-distribution/logs/

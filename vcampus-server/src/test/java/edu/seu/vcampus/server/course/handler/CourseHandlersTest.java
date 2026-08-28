@@ -67,7 +67,7 @@ class CourseHandlersTest {
 
     @Test void rejectsStudentsBeforeInvokingAdminManagementServices() {
         MessageRouter router = router();
-        for (String command : List.of("COURSE_TERM_LIST", "COURSE_TERM_CREATE", "COURSE_TERM_UPDATE",
+        for (String command : List.of("COURSE_TERM_CREATE", "COURSE_TERM_UPDATE",
                 "COURSE_CATALOG_SEARCH", "COURSE_ADJUSTMENT_AUDIT_SEARCH")) {
             ResponseBody<?> response = route(router, command, "student", validBody(command));
             assertThat(response.success()).as(command).isFalse();
@@ -78,6 +78,16 @@ class CourseHandlersTest {
         assertThat(service.updateTermCommands).isEmpty();
         assertThat(service.catalogQueries).isEmpty();
         assertThat(service.auditQueries).isEmpty();
+    }
+
+    @Test void exposesReadOnlyTermDiscoveryToEveryPublishedRole() {
+        MessageRouter router = router();
+        for (String token : List.of("student", "teacher", "admin")) {
+            ResponseBody<?> response = route(router, "COURSE_TERM_LIST", token, EmptyRequest.INSTANCE);
+            assertThat(response.success()).as(token).isTrue();
+            assertThat(response.data()).isEqualTo(service.termListResult);
+        }
+        assertThat(service.listTermsCalls).isEqualTo(3);
     }
 
     @Test void exposesTermPhaseToEveryPublishedRole() {

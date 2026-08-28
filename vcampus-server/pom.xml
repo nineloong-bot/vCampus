@@ -44,14 +44,24 @@
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId><artifactId>maven-resources-plugin</artifactId><version>3.4.0</version>
-                <executions><execution><id>distribution-docs</id><phase>prepare-package</phase><goals><goal>copy-resources</goal></goals>
-                    <configuration><outputDirectory>${project.parent.basedir}/vcampus-distribution/docs</outputDirectory>
-                        <resources>
-                            <resource><directory>${project.parent.basedir}/docs/superpowers/specs</directory><targetPath>specs</targetPath></resource>
-                            <resource><directory>${project.parent.basedir}/docs/ui-review</directory><targetPath>ui-review</targetPath><includes><include>manifest.md</include></includes></resource>
-                        </resources>
-                    </configuration>
-                </execution></executions>
+                <executions>
+                    <execution><id>distribution-docs</id><phase>prepare-package</phase><goals><goal>copy-resources</goal></goals>
+                        <configuration><outputDirectory>${project.parent.basedir}/vcampus-distribution/docs</outputDirectory>
+                            <resources>
+                                <resource><directory>${project.parent.basedir}/docs/superpowers/specs</directory><targetPath>specs</targetPath></resource>
+                                <resource><directory>${project.parent.basedir}/docs/ui-review</directory><targetPath>ui-review</targetPath><includes><include>manifest.md</include></includes></resource>
+                                <resource><directory>${project.parent.basedir}/docs</directory><includes><include>course-demo-guide.md</include></includes></resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                    <execution><id>distribution-course-schema</id><phase>prepare-package</phase><goals><goal>copy-resources</goal></goals>
+                        <configuration><outputDirectory>${project.parent.basedir}/vcampus-distribution/database/schema</outputDirectory>
+                            <resources><resource><directory>${project.parent.basedir}/vcampus-database/schema</directory>
+                                <includes><include>001_common.sql</include><include>030_course.sql</include></includes>
+                            </resource></resources>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
