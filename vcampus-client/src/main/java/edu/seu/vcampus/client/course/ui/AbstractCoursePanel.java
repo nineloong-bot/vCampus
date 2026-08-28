@@ -16,6 +16,7 @@ import javax.swing.ListSelectionModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Insets;
@@ -139,7 +140,16 @@ abstract class AbstractCoursePanel extends JPanel {
         table.getTableHeader().setBackground(UiColors.BACKGROUND_SUBTLE);
         table.getTableHeader().setForeground(UiColors.TEXT_PRIMARY);
         table.getTableHeader().setPreferredSize(new Dimension(0, UiDimensions.TABLE_ROW_HEIGHT));
-        DefaultTableCellRenderer renderer = new DefaultTableCellRenderer();
+        DefaultTableCellRenderer renderer = new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable source, Object value, boolean selected,
+                                                           boolean focused, int row, int column) {
+                JLabel cell = (JLabel) super.getTableCellRendererComponent(
+                        source, value, selected, focused, row, column);
+                cell.setToolTipText(value == null ? null : value.toString());
+                return cell;
+            }
+        };
         renderer.setBorder(BorderFactory.createEmptyBorder(0, UiSpacing.SM, 0, UiSpacing.SM));
         table.setDefaultRenderer(Object.class, renderer);
         table.getAccessibleContext().setAccessibleName("课程数据表格");

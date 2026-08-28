@@ -34,6 +34,7 @@ import edu.seu.vcampus.common.paging.PageResult;
 import org.junit.jupiter.api.Test;
 
 import javax.swing.JButton;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -75,6 +76,20 @@ class CourseUiTest {
         assertThat(table.getTableHeader().getBackground()).isEqualTo(UiColors.BACKGROUND_SUBTLE);
         assertThat(table.getValueAt(0, 4).toString()).startsWith("星期一");
         assertThat(descendants(panel)).anyMatch(JScrollPane.class::isInstance);
+    }
+
+    @Test
+    void constrainedTableCellsExposeTheirFullTextAsATooltip() throws Exception {
+        JTable table = onEdt(() -> AbstractCoursePanel.table(
+                new Object[][]{{"08-20 08:00 至 09-01 00:00"}},
+                new Object[]{"正常选课窗口"}));
+
+        Component rendered = onEdt(() -> table.getCellRenderer(0, 0)
+                .getTableCellRendererComponent(table, table.getValueAt(0, 0), false, false, 0, 0));
+
+        assertThat(rendered).isInstanceOf(JComponent.class);
+        assertThat(((JComponent) rendered).getToolTipText())
+                .isEqualTo("08-20 08:00 至 09-01 00:00");
     }
 
     @Test
@@ -161,6 +176,26 @@ class CourseUiTest {
         assertThat(composition.administrativePages().keySet()).containsExactly(
                 "course.terms", "course.catalog", "course.offering-admin", "course.outcome-import", "course.adjustment-audit");
         assertThat(composition.allPages()).hasSize(10);
+    }
+
+    @Test
+    void everyInteractiveCoursePageControlHasAnAccessibleNameAndKeyboardFocus() throws Exception {
+        CourseUiComposition composition = onEdt(() -> new CourseUiComposition(CourseUiGateway.preview()));
+        SwingUtilities.invokeAndWait(() -> { });
+        List<String> missingNames = new ArrayList<>();
+        List<String> inaccessibleByKeyboard = new ArrayList<>();
+
+        composition.allPages().forEach((pageId, page) -> descendants(page).stream()
+                .filter(CourseUiTest::isInteractiveControl)
+                .forEach(component -> {
+                    String name = component.getAccessibleContext().getAccessibleName();
+                    String description = pageId + ":" + component.getClass().getSimpleName();
+                    if (name == null || name.isBlank()) missingNames.add(description);
+                    if (!component.isFocusable()) inaccessibleByKeyboard.add(description + ":" + name);
+                }));
+
+        assertThat(missingNames).as("interactive controls without accessible names").isEmpty();
+        assertThat(inaccessibleByKeyboard).as("interactive controls excluded from keyboard focus").isEmpty();
     }
 
     @Test
@@ -826,6 +861,13 @@ class CourseUiTest {
             if (child instanceof Container nested) all.addAll(descendants(nested));
         }
         return all;
+    }
+
+    private static boolean isInteractiveControl(Component component) {
+        if (component instanceof JButton && component.getParent() instanceof JComboBox<?>) return false;
+        return component instanceof JButton || component instanceof JTextField
+                || component instanceof JTextArea || component instanceof JComboBox<?>
+                || component instanceof JCheckBox || component instanceof JTable;
     }
 
     private static List<String> labels(Container root) {

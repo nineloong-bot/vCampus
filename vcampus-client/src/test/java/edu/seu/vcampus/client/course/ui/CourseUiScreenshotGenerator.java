@@ -96,6 +96,14 @@ public final class CourseUiScreenshotGenerator {
                 capture(pages[13], output.resolve("c03-my-enrollment--normal.png"));
                 capture(pages[14], output.resolve("c04-my-schedule--empty.png"));
                 capture(pages[15], output.resolve("c04-my-schedule--disconnected.png"));
+                capture(pages[0], output.resolve("c01-offering-search--1024x680.png"), 1024, 680);
+                capture(pages[1], output.resolve("c04-my-schedule--1024x680.png"), 1024, 680);
+                capture(pages[6], output.resolve("c05-adjustment--1024x680.png"), 1024, 680);
+                capture(pages[8], output.resolve("c07-term-management--1024x680.png"), 1024, 680);
+                captureScaled(pages[0], output.resolve("c01-offering-search--150pct.png"), 1024, 680, 1.5);
+                captureScaled(pages[1], output.resolve("c04-my-schedule--150pct.png"), 1024, 680, 1.5);
+                captureScaled(pages[6], output.resolve("c05-adjustment--150pct.png"), 1024, 680, 1.5);
+                captureScaled(pages[8], output.resolve("c07-term-management--150pct.png"), 1024, 680, 1.5);
                 capture((JComponent) dialogs[0].getContentPane(), output.resolve("c08-course-editor--create.png"), 560, 620);
                 dialogs[0].dispose();
                 capture((JComponent) offeringDialogs[0].getContentPane(), output.resolve("c02-offering-change--confirm.png"), 720, 460);
@@ -187,6 +195,18 @@ public final class CourseUiScreenshotGenerator {
         SwingUtilities.invokeLater(() -> { });
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
         Graphics2D graphics = image.createGraphics(); component.printAll(graphics); graphics.dispose();
+        ImageIO.write(image, "png", target.toFile()); host.dispose();
+    }
+
+    private static void captureScaled(JComponent component, Path target, int logicalWidth,
+                                      int logicalHeight, double scale) throws Exception {
+        JFrame host = new JFrame(); host.setUndecorated(true); host.setContentPane(component);
+        host.setSize(logicalWidth, logicalHeight); host.addNotify(); host.validate();
+        int pixelWidth = (int) Math.round(logicalWidth * scale);
+        int pixelHeight = (int) Math.round(logicalHeight * scale);
+        BufferedImage image = new BufferedImage(pixelWidth, pixelHeight, BufferedImage.TYPE_INT_RGB);
+        Graphics2D graphics = image.createGraphics();
+        graphics.scale(scale, scale); component.printAll(graphics); graphics.dispose();
         ImageIO.write(image, "png", target.toFile()); host.dispose();
     }
 }

@@ -30,8 +30,8 @@ public final class AdjustmentAuditPanel extends AbstractCoursePanel {
     private final CourseUiGateway gateway;
     private final JTextField student = field("学生编号");
     private final JTextField term = field("学期编号");
-    private final JComboBox<String> type = combo("全部操作", "补选", "退选", "改选");
-    private final JComboBox<String> result = combo("全部结果", "成功", "失败");
+    private final JComboBox<String> type = combo("操作类型", "全部操作", "补选", "退选", "改选");
+    private final JComboBox<String> result = combo("操作结果", "全部结果", "成功", "失败");
     private final DefaultTableModel model = readOnlyModel("操作时间", "学生", "操作", "原教学班", "目标教学班", "结果", "失败原因");
 
     public AdjustmentAuditPanel(CourseUiGateway gateway) {
@@ -117,11 +117,12 @@ public final class AdjustmentAuditPanel extends AbstractCoursePanel {
         return field;
     }
 
-    private static JComboBox<String> combo(String... values) {
+    private static JComboBox<String> combo(String accessibleName, String... values) {
         JComboBox<String> combo = new JComboBox<>(values);
         combo.setFont(UiTypography.BODY);
         combo.setPreferredSize(new Dimension(100, UiDimensions.CONTROL_HEIGHT));
         combo.setMaximumSize(new Dimension(110, UiDimensions.CONTROL_HEIGHT));
+        combo.getAccessibleContext().setAccessibleName(accessibleName);
         return combo;
     }
 

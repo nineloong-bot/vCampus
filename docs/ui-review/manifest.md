@@ -15,6 +15,9 @@ the dedicated UI design-system implementation plan.
   the course module does not modify `MainFrame` or the shared shell.
 - Reviewed locally at 1280 × 800: C-01 normal/loading/empty/error/disconnected,
   C-03 through C-11 normal student/management surfaces, plus C-04 empty/disconnected states.
+  The dense C-01, C-04, C-05, and C-07 layouts also have 1024 × 680 minimum-size captures
+  (`course/*--1024x680.png`) and 150% device-scale captures at the same logical window size
+  (`course/*--150pct.png`, 1536 × 1020 device pixels).
   The 720/680/640 px dialog review set
   includes C-02 atomic-change confirmation, C-07 term create, C-08 course create, and
   C-09 offering edit (`course/c02-*`, `course/c07-term-editor-*`,
@@ -22,8 +25,9 @@ the dedicated UI design-system implementation plan.
 - Automated coverage: shared palette/dimensions, query-list structure, table rules,
   weekly-grid structure, stable navigation IDs, loading/empty/disconnected states,
   complete term windows, optimistic versions, aggregate offering schedules, latest-request
-  ordering, and disposal-safe page/dialog callbacks. The real-socket suite also exercises two
-  independent students competing for the one-seat Demo offering.
+  ordering, disposal-safe page/dialog callbacks, keyboard focus/accessibility names on every
+  business control, and full-text tooltips for width-constrained table cells. The real-socket
+  suite also exercises two independent students competing for the one-seat Demo offering.
 - External UI review: pending a non-course teammate, as required by the UI specification.
 - Shared-component dependency: no fetched teammate branch currently contains the
   specification-named shared buttons, paged table, state panels, or confirm dialog;
