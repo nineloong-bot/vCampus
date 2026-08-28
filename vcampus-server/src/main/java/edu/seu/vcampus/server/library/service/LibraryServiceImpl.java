@@ -1,19 +1,11 @@
 package edu.seu.vcampus.server.library.service;
 
-import edu.seu.vcampus.common.library.BorrowBookCommand;
-import edu.seu.vcampus.common.library.CopyStatus;
-import edu.seu.vcampus.common.library.LoanStatus;
-import edu.seu.vcampus.common.library.LoanView;
-import edu.seu.vcampus.common.library.RenewLoanCommand;
-import edu.seu.vcampus.common.library.ReturnBookCommand;
+import edu.seu.vcampus.common.library.*;
+import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.server.concurrency.ResourceKey;
 import edu.seu.vcampus.server.concurrency.ResourceLockManager;
-import edu.seu.vcampus.server.library.domain.BookCopy;
-import edu.seu.vcampus.server.library.domain.Loan;
-import edu.seu.vcampus.server.library.domain.LoanPolicy;
-import edu.seu.vcampus.server.library.repository.BookRepository;
-import edu.seu.vcampus.server.library.repository.LibraryPolicyRepository;
-import edu.seu.vcampus.server.library.repository.LoanRepository;
+import edu.seu.vcampus.server.library.domain.*;
+import edu.seu.vcampus.server.library.repository.*;
 import edu.seu.vcampus.server.persistence.TransactionManager;
 
 import java.time.Clock;
@@ -33,6 +25,7 @@ public final class LibraryServiceImpl implements LibraryService {
     private final ResourceLockManager locks;
     private final Clock clock;
     private final Supplier<String> idGenerator;
+    private final LibraryReadAdminOperations operations;
 
     public LibraryServiceImpl(LibraryIdentityPort identities, BookRepository books,
             LoanRepository loans, LibraryPolicyRepository policies,
@@ -46,6 +39,18 @@ public final class LibraryServiceImpl implements LibraryService {
         this.locks = Objects.requireNonNull(locks, "locks");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator");
+        this.operations = new LibraryReadAdminOperations(identities, books, loans, policies,
+                transactions, clock, idGenerator);
+    }
+
+    @Override
+    public PageResult<BookSummary> searchBooks(BookSearchQuery query) {
+        return operations.searchBooks(query);
+    }
+
+    @Override
+    public BookDetail getBook(String bookId) {
+        return operations.getBook(bookId);
     }
 
     @Override
@@ -137,6 +142,46 @@ public final class LibraryServiceImpl implements LibraryService {
             BookCopy copy = books.requireCopy(connection, loan.copyId());
             return toView(renewed, copy.bookId());
         }));
+    }
+
+    @Override
+    public List<LoanView> getCurrentLoans(String sessionToken) {
+        return operations.getCurrentLoans(sessionToken);
+    }
+
+    @Override
+    public PageResult<LoanView> getLoanHistory(String sessionToken, LoanHistoryQuery query) {
+        return operations.getLoanHistory(sessionToken, query);
+    }
+
+    @Override
+    public BookView createBook(CreateBookCommand command) {
+        return operations.createBook(command);
+    }
+
+    @Override
+    public BookView updateBook(UpdateBookCommand command) {
+        return operations.updateBook(command);
+    }
+
+    @Override
+    public BookCopyView addCopy(AddBookCopyCommand command) {
+        return operations.addCopy(command);
+    }
+
+    @Override
+    public BookCopyView changeCopyStatus(ChangeCopyStatusCommand command) {
+        return operations.changeCopyStatus(command);
+    }
+
+    @Override
+    public PageResult<LoanView> searchAllLoans(AdminLoanSearchQuery query) {
+        return operations.searchAllLoans(query);
+    }
+
+    @Override
+    public LibraryPolicyView updatePolicy(UpdateLibraryPolicyCommand command) {
+        return operations.updatePolicy(command);
     }
 
     private static void requireOwnership(Loan loan, BorrowerIdentity borrower) {

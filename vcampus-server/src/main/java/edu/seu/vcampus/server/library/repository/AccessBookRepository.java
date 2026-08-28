@@ -1,6 +1,10 @@
 package edu.seu.vcampus.server.library.repository;
 
+import edu.seu.vcampus.common.library.BookDetail;
+import edu.seu.vcampus.common.library.BookSearchQuery;
+import edu.seu.vcampus.common.library.BookSummary;
 import edu.seu.vcampus.common.library.CopyStatus;
+import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.server.library.domain.Book;
 import edu.seu.vcampus.server.library.domain.BookCopy;
 
@@ -47,6 +51,40 @@ public final class AccessBookRepository implements BookRepository {
                         result.getString("publisher"), publishDate == null ? null : publishDate.toLocalDate(),
                         result.getString("category"), result.getString("description"),
                         result.getBoolean("isActive"), result.getLong("rowVersion"));
+            }
+        }
+    }
+
+    @Override
+    public PageResult<BookSummary> search(Connection connection, BookSearchQuery query)
+            throws SQLException {
+        return AccessCatalogQueries.search(connection, query);
+    }
+
+    @Override
+    public BookDetail requireDetail(Connection connection, String bookId) throws SQLException {
+        return AccessCatalogQueries.detail(requireBook(connection, bookId), connection);
+    }
+
+    @Override
+    public void updateBook(Connection connection, Book book, long expectedVersion)
+            throws SQLException {
+        String sql = "UPDATE tblBook SET isbn = ?, title = ?, author = ?, publisher = ?, "
+                + "publishDate = ?, category = ?, description = ?, isActive = ?, "
+                + "rowVersion = rowVersion + 1 WHERE bookId = ? AND rowVersion = ?";
+        try (var statement = connection.prepareStatement(sql)) {
+            statement.setString(1, book.isbn());
+            statement.setString(2, book.title());
+            statement.setString(3, book.author());
+            statement.setString(4, book.publisher());
+            statement.setDate(5, book.publishDate() == null ? null : Date.valueOf(book.publishDate()));
+            statement.setString(6, book.category());
+            statement.setString(7, book.description());
+            statement.setBoolean(8, book.active());
+            statement.setString(9, book.bookId());
+            statement.setLong(10, expectedVersion);
+            if (statement.executeUpdate() != 1) {
+                throw new ConcurrentModificationException("Book changed: " + book.bookId());
             }
         }
     }
