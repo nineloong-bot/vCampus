@@ -3,6 +3,12 @@ package edu.seu.vcampus.client.course.ui;
 import edu.seu.vcampus.client.core.ui.theme.UiColors;
 import edu.seu.vcampus.client.core.ui.theme.UiDimensions;
 import edu.seu.vcampus.client.core.ui.theme.UiSpacing;
+import edu.seu.vcampus.client.course.service.CourseClientException;
+import edu.seu.vcampus.common.course.EnrollmentView;
+import edu.seu.vcampus.common.course.OfferingSearchQuery;
+import edu.seu.vcampus.common.course.OfferingSummary;
+import edu.seu.vcampus.common.course.ScheduleItem;
+import edu.seu.vcampus.common.paging.PageResult;
 import org.junit.jupiter.api.Test;
 
 import javax.swing.JButton;
@@ -16,6 +22,7 @@ import java.awt.Component;
 import java.awt.Container;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -66,6 +73,34 @@ class CourseUiTest {
         assertThat(composition.administrativePages().keySet()).containsExactly(
                 "course.terms", "course.catalog", "course.offering-admin", "course.outcome-import", "course.adjustment-audit");
         assertThat(composition.allPages()).hasSize(10);
+    }
+
+    @Test
+    void queryShowsLoadingEmptyAndDisconnectedStatesWithActionableChineseText() throws Exception {
+        CompletableFuture<PageResult<OfferingSummary>> request = new CompletableFuture<>();
+        OfferingSearchPanel panel = onEdt(() -> new OfferingSearchPanel(gateway(request)));
+        assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.LOADING);
+
+        request.complete(new PageResult<>(List.of(), 0, 20, 0));
+        SwingUtilities.invokeAndWait(() -> { });
+        assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.EMPTY);
+        assertThat(labels(panel)).anyMatch(text -> text.contains("未找到教学班"));
+
+        CompletableFuture<PageResult<OfferingSummary>> failed = CompletableFuture.failedFuture(
+                new CourseClientException("COMMON_NETWORK_ERROR", "socket details", null, true));
+        OfferingSearchPanel disconnected = onEdt(() -> new OfferingSearchPanel(gateway(failed)));
+        SwingUtilities.invokeAndWait(() -> { });
+        assertThat(disconnected.viewState()).isEqualTo(AbstractCoursePanel.ViewState.DISCONNECTED);
+        assertThat(labels(disconnected)).anyMatch(text -> text.contains("连接已断开"));
+        assertThat(labels(disconnected)).noneMatch(text -> text.contains("socket details"));
+    }
+
+    private static CourseUiGateway gateway(CompletableFuture<PageResult<OfferingSummary>> offerings) {
+        return new CourseUiGateway() {
+            public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) { return offerings; }
+            public CompletableFuture<List<EnrollmentView>> currentEnrollments() { return CompletableFuture.completedFuture(List.of()); }
+            public CompletableFuture<List<ScheduleItem>> currentSchedule() { return CompletableFuture.completedFuture(List.of()); }
+        };
     }
 
     private static List<Component> descendants(Container root) {

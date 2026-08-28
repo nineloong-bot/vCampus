@@ -6,6 +6,7 @@ import edu.seu.vcampus.client.core.ui.theme.UiSpacing;
 import edu.seu.vcampus.client.core.ui.theme.UiTypography;
 import edu.seu.vcampus.common.course.OfferingSearchQuery;
 import edu.seu.vcampus.common.course.OfferingSummary;
+import edu.seu.vcampus.client.course.service.CourseClientException;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -94,11 +95,26 @@ public final class OfferingSearchPanel extends AbstractCoursePanel {
 
     public void refresh() {
         long request = requestSequence.incrementAndGet();
+        showState(ViewState.LOADING, "正在加载教学班，请稍候");
         gateway.searchOfferings(new OfferingSearchQuery("2026-autumn", keyword.getText(), null, true, 0, 20))
                 .whenComplete((page, error) -> SwingUtilities.invokeLater(() -> {
                     if (request != requestSequence.get()) return;
                     model.setRowCount(0);
-                    if (error != null) { summary.setText("加载失败，请检查连接后重试"); return; }
+                    if (error != null) {
+                        Throwable cause = error;
+                        while (cause instanceof java.util.concurrent.CompletionException && cause.getCause() != null) cause = cause.getCause();
+                        if (cause instanceof CourseClientException failure
+                                && ("COMMON_NETWORK_ERROR".equals(failure.code()) || "COMMON_TIMEOUT".equals(failure.code()))) {
+                            summary.setText("共 0 条");
+                            showState(ViewState.DISCONNECTED, "连接已断开，请检查网络后重试；已加载内容将继续保留");
+                        } else if (cause instanceof CourseClientException failure
+                                && "COMMON_CONCURRENT_MODIFICATION".equals(failure.code())) {
+                            showState(ViewState.CONFLICT, "教学班信息已被修改，请刷新数据后重试");
+                        } else {
+                            showState(ViewState.ERROR, "加载教学班失败，请稍后重试或重置筛选条件");
+                        }
+                        return;
+                    }
                     for (OfferingSummary row : page.items()) {
                         String time = row.schedules().isEmpty() ? "待安排" : row.schedules().getFirst().dayOfWeek()
                                 + " 第" + row.schedules().getFirst().startPeriod() + "–" + row.schedules().getFirst().endPeriod() + "节";
@@ -106,6 +122,8 @@ public final class OfferingSearchPanel extends AbstractCoursePanel {
                                 (row.capacity() - row.enrolledCount()) + " / " + row.capacity(), "可选"});
                     }
                     summary.setText("共 " + page.total() + " 条");
+                    showState(page.items().isEmpty() ? ViewState.EMPTY : ViewState.NORMAL,
+                            page.items().isEmpty() ? "未找到教学班，请调整筛选条件或重置查询" : "");
                 }));
     }
 }

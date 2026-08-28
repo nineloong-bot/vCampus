@@ -5,6 +5,12 @@ import edu.seu.vcampus.client.core.ui.theme.UiDimensions;
 import edu.seu.vcampus.client.core.ui.theme.UiSpacing;
 import edu.seu.vcampus.client.core.ui.theme.UiThemeInstaller;
 import edu.seu.vcampus.client.core.ui.theme.UiTypography;
+import edu.seu.vcampus.client.course.service.CourseClientException;
+import edu.seu.vcampus.common.course.EnrollmentView;
+import edu.seu.vcampus.common.course.OfferingSearchQuery;
+import edu.seu.vcampus.common.course.OfferingSummary;
+import edu.seu.vcampus.common.course.ScheduleItem;
+import edu.seu.vcampus.common.paging.PageResult;
 
 import javax.imageio.ImageIO;
 import javax.swing.BorderFactory;
@@ -22,6 +28,8 @@ import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /** Deterministic 1280x800 visual-review fixture using the teammate shell tokens. */
 public final class CourseUiScreenshotGenerator {
@@ -31,10 +39,17 @@ public final class CourseUiScreenshotGenerator {
         Path output = Path.of("docs/ui-review/course");
         Files.createDirectories(output);
         UiThemeInstaller.install();
-        JComponent[] pages = new JComponent[2];
+        JComponent[] pages = new JComponent[6];
         SwingUtilities.invokeAndWait(() -> {
             pages[0] = shell(new OfferingSearchPanel(CourseUiGateway.preview()));
             pages[1] = shell(new MySchedulePanel(CourseUiGateway.preview()));
+            pages[2] = shell(new OfferingSearchPanel(gateway(new CompletableFuture<>())));
+            pages[3] = shell(new OfferingSearchPanel(gateway(CompletableFuture.completedFuture(
+                    new PageResult<>(List.of(), 0, 20, 0)))));
+            pages[4] = shell(new OfferingSearchPanel(gateway(CompletableFuture.failedFuture(
+                    new IllegalStateException("internal details")))));
+            pages[5] = shell(new OfferingSearchPanel(gateway(CompletableFuture.failedFuture(
+                    new CourseClientException("COMMON_NETWORK_ERROR", "socket details", null, true)))));
         });
         // A second EDT turn lets completed asynchronous preview futures render.
         SwingUtilities.invokeAndWait(() -> { });
@@ -42,10 +57,22 @@ public final class CourseUiScreenshotGenerator {
             try {
                 capture(pages[0], output.resolve("c01-offering-search--normal.png"));
                 capture(pages[1], output.resolve("c04-my-schedule--normal.png"));
+                capture(pages[2], output.resolve("c01-offering-search--loading.png"));
+                capture(pages[3], output.resolve("c01-offering-search--empty.png"));
+                capture(pages[4], output.resolve("c01-offering-search--error.png"));
+                capture(pages[5], output.resolve("c01-offering-search--disconnected.png"));
             } catch (Exception error) {
                 throw new RuntimeException(error);
             }
         });
+    }
+
+    private static CourseUiGateway gateway(CompletableFuture<PageResult<OfferingSummary>> offerings) {
+        return new CourseUiGateway() {
+            public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) { return offerings; }
+            public CompletableFuture<List<EnrollmentView>> currentEnrollments() { return CompletableFuture.completedFuture(List.of()); }
+            public CompletableFuture<List<ScheduleItem>> currentSchedule() { return CompletableFuture.completedFuture(List.of()); }
+        };
     }
 
     private static JPanel shell(JComponent page) {

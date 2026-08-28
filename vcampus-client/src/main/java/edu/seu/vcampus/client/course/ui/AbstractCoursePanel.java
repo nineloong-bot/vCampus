@@ -22,7 +22,11 @@ import java.awt.Insets;
 
 /** Shared course-page composition that consumes the teammate-owned UI tokens. */
 abstract class AbstractCoursePanel extends JPanel {
+    enum ViewState { INITIAL, LOADING, NORMAL, EMPTY, ERROR, DISCONNECTED, SUBMITTING, CONFLICT }
+
     protected final JPanel body = new JPanel(new BorderLayout(0, UiSpacing.LG));
+    private final JLabel stateNotice = label("", UiTypography.BODY, UiColors.TEXT_PRIMARY);
+    private volatile ViewState viewState = ViewState.INITIAL;
 
     protected AbstractCoursePanel(String title, String description) {
         super(new BorderLayout(0, UiSpacing.XL));
@@ -32,6 +36,25 @@ abstract class AbstractCoursePanel extends JPanel {
         body.setOpaque(false);
         add(heading(title, description), BorderLayout.NORTH);
         add(body, BorderLayout.CENTER);
+        stateNotice.setOpaque(true);
+        stateNotice.setBackground(UiColors.BACKGROUND_SUBTLE);
+        stateNotice.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, UiColors.BORDER_DEFAULT),
+                BorderFactory.createEmptyBorder(UiSpacing.MD, UiSpacing.LG, UiSpacing.MD, UiSpacing.LG)));
+        stateNotice.setVisible(false);
+        add(stateNotice, BorderLayout.SOUTH);
+    }
+
+    final ViewState viewState() {
+        return viewState;
+    }
+
+    protected final void showState(ViewState state, String message) {
+        ViewState previous = viewState;
+        viewState = state;
+        stateNotice.setText(message == null ? "" : message);
+        stateNotice.setVisible(state != ViewState.INITIAL && state != ViewState.NORMAL);
+        firePropertyChange("course.viewState", previous, state);
     }
 
     private static JPanel heading(String title, String description) {
