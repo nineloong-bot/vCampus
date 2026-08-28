@@ -11,9 +11,11 @@
 - 管理员：审核开店申请、停用店铺/商品、查询平台订单及支付日志。
 - 一个用户最多拥有一家有效店铺。申请人必须是有效学生或教师账户。
 
-## 3. 店主状态
+## 3. 店主申请与店铺状态
 
-`DRAFT → PENDING → APPROVED/REJECTED`；驳回后修改可再次提交；批准后可被 `SUSPENDED`，管理员可恢复。驳回和停用必须填写原因。审核通过和创建店铺在同一事务完成。
+店主申请状态为 `DRAFT → PENDING → APPROVED` 或 `DRAFT → PENDING → REJECTED → DRAFT`。新申请先保存为草稿，再由申请人显式提交；待审核申请不可编辑。驳回后，申请人修改申请时回到 `DRAFT`，随后可以再次提交。同一用户只能有一个未结束申请；已有已批准店铺的用户不能再次申请。
+
+店铺状态独立于申请状态，按照 `ACTIVE ↔ SUSPENDED` 变化。管理员停用店铺时必须填写原因，恢复店铺不改变已批准申请。审核通过、将申请标记为 `APPROVED` 和创建 `ACTIVE` 店铺必须在同一事务完成。
 
 ## 4. 商品与店铺规则
 
@@ -64,7 +66,7 @@ Product: DRAFT → ACTIVE → INACTIVE
 Shop: ACTIVE ↔ SUSPENDED
 ```
 
-买家只能取消待支付订单组；支付成功后由店主推进备货和发货，买家确认收货。超出课程范围的退款请求以客服提示结束，不改变支付状态。
+买家只能取消待支付订单组；支付成功后由店主推进备货和发货，买家确认收货。买家确认某个子订单收货后更新该子订单；当订单组内所有子订单均为 `COMPLETED` 时，在同一事务中将订单组更新为 `COMPLETED`。超出课程范围的退款请求以客服提示结束，不改变支付状态。
 
 ## 9. Swing 页面
 
@@ -77,6 +79,8 @@ Shop: ACTIVE ↔ SUSPENDED
 `ProductDetailPanel` 显示店铺名称和“进入店铺”按钮。点击后由统一页面导航器打开 `BuyerShopPanel`；该页面显示店铺名称、简介、经营分类、联系方式以及分页商品列表，点击店内商品可再次打开 `ProductDetailPanel`。
 
 客户端使用 `MainFrame` 中的统一导航器和 `CardLayout` 切换页面。页面只提交 `productId` 或 `shopId` 导航请求，不直接创建或持有目标页面。返回历史只保存页面类型与编号参数，最多保留最近 20 条；目标路由与当前路由完全相同时忽略重复跳转。由用户点击产生的“商品详情 → 店铺主页 → 商品详情”属于正常导航，不构成自动循环。
+
+导航路由至少包含商城首页、商品搜索、商品详情和买家店铺主页。用户从首页或搜索结果进入商品详情后，必须能够按访问顺序返回原页面；历史项只保存查询条件或实体编号，不保存 Swing 页面实例。
 
 收银台只展示模拟标识、支付渠道、订单号、金额和成功/失败/取消按钮，不采集真实账号、卡号、密码或验证码。
 
@@ -92,6 +96,7 @@ enum PaymentAttemptStatus { STARTED, SUCCEEDED, FAILED, CANCELLED }
 enum OrderStatus { PENDING_PAYMENT, PAID, PREPARING, SHIPPED,
                    COMPLETED, CANCELLED }
 enum ProductSortMode { SALES_DESC, PRICE_DESC }
+enum SellerReviewDecision { APPROVE, REJECT }
 
 record HomeProductQuery(BigDecimal minPrice, BigDecimal maxPrice,
                         ProductSortMode sortMode,
@@ -113,6 +118,126 @@ record ShopSummary(String shopId, String shopName)
 record ShopDetail(String shopId, String shopName, String description,
                   String category, String contact, ShopStatus shopStatus)
         implements Serializable {}
+record PlatformOrderQuery(String orderNumber, String buyerUserId,
+                          String shopId, OrderStatus orderStatus,
+                          int pageNumber, int pageSize)
+        implements Serializable {}
+record PaymentSearchQuery(String paymentNumber, PaymentStatus paymentStatus,
+                          PaymentChannel channel,
+                          int pageNumber, int pageSize)
+        implements Serializable {}
+
+record SellerApplicationQuery(String applicantUserId,
+                              SellerApplicationStatus status,
+                              int pageNumber, int pageSize)
+        implements Serializable {}
+record SellerApplicationView(String applicationId, String applicantUserId,
+                             String shopName, String description,
+                             String category, String contact,
+                             SellerApplicationStatus status,
+                             String reviewReason, String reviewerUserId,
+                             Instant submittedAt, Instant reviewedAt,
+                             long rowVersion)
+        implements Serializable {}
+record ShopView(String shopId, String ownerUserId, String shopName,
+                String description, String category, String contact,
+                ShopStatus status, String suspensionReason,
+                String suspendedByUserId, Instant suspendedAt,
+                long rowVersion)
+        implements Serializable {}
+
+record ProductSummary(String productId, String shopId, String shopName,
+                      String productName, String category,
+                      BigDecimal minimumPrice, long salesCount,
+                      Instant createdAt)
+        implements Serializable {}
+record ProductSkuView(String skuId, String skuName, BigDecimal unitPrice,
+                      long availableQuantity, boolean active,
+                      long rowVersion)
+        implements Serializable {}
+record ProductDetail(String productId, String productName, String category,
+                     String description, ProductStatus status,
+                     long salesCount, ShopSummary shop,
+                     List<ProductSkuView> skus, Instant createdAt)
+        implements Serializable {}
+record ProductView(String productId, String productName, String category,
+                   String description, ProductStatus status,
+                   long salesCount, long rowVersion,
+                   List<ProductSkuView> skus)
+        implements Serializable {}
+
+record CartItemView(String cartItemId, String productId, String productName,
+                    String skuId, String skuName, String shopId,
+                    String shopName, BigDecimal displayedUnitPrice,
+                    int quantity, long rowVersion)
+        implements Serializable {}
+record CartView(String cartId, List<CartItemView> items,
+                BigDecimal displayedTotal)
+        implements Serializable {}
+record OrderItemView(String orderItemId, String productName,
+                     String skuName, String shopName,
+                     BigDecimal unitPrice, int quantity,
+                     BigDecimal lineAmount)
+        implements Serializable {}
+record OrderSummary(String orderId, String orderGroupId, String orderNumber,
+                    String shopId, String shopName, BigDecimal orderAmount,
+                    OrderStatus status, Instant createdAt)
+        implements Serializable {}
+record OrderSearchQuery(OrderStatus status, int pageNumber, int pageSize)
+        implements Serializable {}
+record SellerOrderQuery(OrderStatus status, String orderNumber,
+                        int pageNumber, int pageSize)
+        implements Serializable {}
+record SellerOrderView(String orderId, String orderGroupId,
+                       String orderNumber, String buyerUserId,
+                       BigDecimal orderAmount, OrderStatus status,
+                       List<OrderItemView> items, Instant createdAt,
+                       long rowVersion)
+        implements Serializable {}
+record PlatformOrderView(String orderId, String orderGroupId,
+                         String orderNumber, String buyerUserId,
+                         String shopId, String shopName,
+                         BigDecimal orderAmount, OrderStatus status,
+                         Instant createdAt)
+        implements Serializable {}
+record PaymentView(String paymentId, String orderGroupId,
+                   String paymentNumber, BigDecimal amount,
+                   PaymentStatus status, PaymentChannel successfulChannel,
+                   Instant expiresAt, Instant completedAt,
+                   long rowVersion)
+        implements Serializable {}
+record CheckoutResult(String orderGroupId, String paymentId,
+                      String paymentNumber, BigDecimal totalAmount,
+                      Instant expiresAt, List<OrderSummary> orders)
+        implements Serializable {}
+
+record UpdateShopCommand(String shopName, String description,
+                         String category, String contact,
+                         long expectedVersion)
+        implements Serializable {}
+record CreateSkuCommand(String skuName, BigDecimal unitPrice,
+                        long stockQuantity, boolean active)
+        implements Serializable {}
+record UpsertSkuCommand(String skuId, String skuName, BigDecimal unitPrice,
+                        long stockQuantity, boolean active,
+                        long expectedVersion)
+        implements Serializable {}
+record CreateProductCommand(String productName, String category,
+                            String description,
+                            List<CreateSkuCommand> skus)
+        implements Serializable {}
+record UpdateProductCommand(String productId, String productName,
+                            String category, String description,
+                            List<UpsertSkuCommand> skus,
+                            long expectedVersion)
+        implements Serializable {}
+record ChangeProductStatusCommand(String productId, ProductStatus targetStatus,
+                                  long expectedVersion)
+        implements Serializable {}
+record UpdateOrderStatusCommand(String orderId, OrderStatus expectedStatus,
+                                OrderStatus targetStatus,
+                                long expectedVersion)
+        implements Serializable {}
 
 record AddCartItemCommand(String skuId, int quantity)
         implements Serializable {}
@@ -127,10 +252,27 @@ record CheckoutCommand(List<CheckoutItem> items,
 record SimulatePaymentCommand(String paymentId, PaymentChannel channel,
                               PaymentAttemptStatus simulatedResult)
         implements Serializable {}
-record ApplySellerCommand(String shopName, String description,
-                          String category, String contact)
+record SaveSellerDraftCommand(String applicationId, String shopName,
+                              String description, String category,
+                              String contact, long expectedVersion)
+        implements Serializable {}
+record SubmitSellerApplicationCommand(String applicationId,
+                                      long expectedVersion)
+        implements Serializable {}
+record ReviewSellerApplicationCommand(String applicationId,
+                                      SellerReviewDecision decision,
+                                      String reason, long expectedVersion)
+        implements Serializable {}
+record SuspendShopCommand(String shopId, String reason,
+                          long expectedVersion)
+        implements Serializable {}
+record ResumeShopCommand(String shopId, long expectedVersion)
         implements Serializable {}
 ```
+
+首次保存草稿时 `applicationId` 为空且 `expectedVersion=0`；后续修改必须携带服务器返回的申请编号和版本号。提交操作只接受当前用户自己的 `DRAFT` 申请。审核决定为 `REJECT` 时 `reason` 非空；停用店铺时 `reason` 非空。
+
+分页返回统一使用公共基础模块定义的 `PageResult<T>`，商城模块不得重复定义同名分页类型。所有 DTO 必须实现 `Serializable`，金额使用 `BigDecimal`，时间使用 `Instant`。
 
 `ProductDetail` 只包含一个 `ShopSummary`，用于展示店铺名称和发起跳转；`ShopDetail` 不内嵌商品列表，店内商品通过 `ShopProductQuery` 分页获取。`ProductSummary` 也不得内嵌完整 `ShopDetail`，从而避免 Socket DTO 循环引用和重复传输。
 
@@ -158,8 +300,11 @@ public interface ShopService {
 }
 
 public interface SellerService {
-    SellerApplicationView apply(String sessionToken,
-                                ApplySellerCommand command);
+    SellerApplicationView saveDraft(String sessionToken,
+                                    SaveSellerDraftCommand command);
+    SellerApplicationView submitApplication(
+            String sessionToken, SubmitSellerApplicationCommand command);
+    SellerApplicationView getMyApplication(String sessionToken);
     ShopView updateShop(String sessionToken, UpdateShopCommand command);
     ProductView createProduct(String sessionToken,
                               CreateProductCommand command);
@@ -179,6 +324,10 @@ public interface ShopAdminService {
     SellerApplicationView reviewApplication(
             ReviewSellerApplicationCommand command);
     void suspendShop(SuspendShopCommand command);
+    void resumeShop(ResumeShopCommand command);
+    PageResult<PlatformOrderView> searchPlatformOrders(
+            PlatformOrderQuery query);
+    PageResult<PaymentView> searchPayments(PaymentSearchQuery query);
 }
 ```
 
@@ -186,9 +335,9 @@ public interface ShopAdminService {
 
 买家命令：`SHOP_HOME`、`SHOP_SEARCH_PRODUCTS`、`SHOP_GET_PRODUCT`、`SHOP_GET_SHOP`、`SHOP_GET_SHOP_PRODUCTS`、`SHOP_GET_CART`、`SHOP_CART_ADD`、`SHOP_CART_UPDATE`、`SHOP_CART_REMOVE`、`SHOP_CHECKOUT`、`SHOP_SIMULATE_PAYMENT`、`SHOP_GET_MY_ORDERS`、`SHOP_CANCEL_ORDER_GROUP`、`SHOP_CONFIRM_RECEIPT`。`SHOP_HOME`、`SHOP_SEARCH_PRODUCTS` 和 `SHOP_GET_SHOP_PRODUCTS` 均接受价格区间与排序参数；排序参数为空时按 `SALES_DESC` 处理。
 
-店主命令：`SHOP_APPLY_SELLER`、`SHOP_GET_SELLER_APPLICATION`、`SHOP_UPDATE_PROFILE`、`SHOP_CREATE_PRODUCT`、`SHOP_UPDATE_PRODUCT`、`SHOP_CHANGE_PRODUCT_STATUS`、`SHOP_GET_SELLER_ORDERS`、`SHOP_UPDATE_ORDER_STATUS`。
+店主命令：`SHOP_SAVE_SELLER_DRAFT`、`SHOP_SUBMIT_SELLER_APPLICATION`、`SHOP_GET_SELLER_APPLICATION`、`SHOP_UPDATE_PROFILE`、`SHOP_CREATE_PRODUCT`、`SHOP_UPDATE_PRODUCT`、`SHOP_CHANGE_PRODUCT_STATUS`、`SHOP_GET_SELLER_ORDERS`、`SHOP_UPDATE_ORDER_STATUS`。
 
-管理员命令：`SHOP_SEARCH_SELLER_APPLICATIONS`、`SHOP_REVIEW_SELLER_APPLICATION`、`SHOP_SUSPEND`、`SHOP_SEARCH_PLATFORM_ORDERS`、`SHOP_SEARCH_PAYMENTS`。全部写命令必须幂等。
+管理员命令：`SHOP_SEARCH_SELLER_APPLICATIONS`、`SHOP_REVIEW_SELLER_APPLICATION`、`SHOP_SUSPEND`、`SHOP_RESUME`、`SHOP_SEARCH_PLATFORM_ORDERS`、`SHOP_SEARCH_PAYMENTS`。全部写命令必须携带幂等键；同一用户以同一幂等键重复发送相同命令时返回首次结果，不得重复改变数据。
 
 ## 13. 数据库
 
@@ -224,6 +373,9 @@ public interface ShopAdminService {
 | `category` | 经营分类 | `VARCHAR(64)` | 非空 |
 | `contact` | 店铺联系方式 | `VARCHAR(128)` | 非空 |
 | `shopStatus` | 店铺状态 | `VARCHAR(16)` | 非空；`ACTIVE/SUSPENDED` |
+| `suspensionReason` | 最近一次停用原因 | `VARCHAR(256)` | 可空；`SUSPENDED` 时非空 |
+| `suspendedByUserId` | 最近一次执行停用的管理员编号 | `VARCHAR(36)` | 可空；外键关联 `tblUser.userId` |
+| `suspendedAt` | 最近一次停用时间 | `DATETIME` | 可空；`SUSPENDED` 时非空 |
 | `rowVersion` | 乐观锁版本号 | `LONG` | 非空；默认 `0` |
 | `createdAt` | 店铺创建时间 | `DATETIME` | 非空 |
 | `updatedAt` | 最后更新时间 | `DATETIME` | 非空 |
@@ -381,11 +533,18 @@ public interface ShopAdminService {
 - 支付锁定 `PAYMENT:<paymentId>`、`ORDER_GROUP:<id>` 和排序后的 SKU；状态不是 `PENDING` 时返回已有终态。失败尝试只追加 `tblPaymentAttempt`，不释放预留；成功时扣减库存并按订单明细数量累加商品 `salesCount`，明确取消或超时才释放预留。支付状态校验和销量累加必须位于同一事务，确保重复成功回调不会重复累计销量。
 - 店主更新商品锁定 `PRODUCT:<id>`/`SKU:<id>` 并校验店铺所有权。
 - 审核锁定 `SELLER_APPLICATION:<id>` 和 `USER:<applicantUserId>`，防止重复通过和一人多店。
+- 保存草稿、提交申请、审核、停用和恢复均校验 `rowVersion`；恢复只允许将 `SUSPENDED` 店铺变为 `ACTIVE`，并保留最近一次停用审计字段。
 - 过期恢复任务与支付回调使用相同支付锁，避免同时释放和扣减库存。
 
 ## 15. 错误码
 
-`SHOP_SELLER_APPLICATION_EXISTS`、`SHOP_SELLER_NOT_APPROVED`、`SHOP_NOT_FOUND`、`SHOP_NOT_OWNER`、`SHOP_SUSPENDED`、`SHOP_PRODUCT_INACTIVE`、`SHOP_SKU_UNAVAILABLE`、`SHOP_PRICE_FILTER_INVALID`、`SHOP_PRICE_CHANGED`、`SHOP_INSUFFICIENT_STOCK`、`SHOP_CART_EMPTY`、`SHOP_ORDER_STATUS_INVALID`、`SHOP_ORDER_NOT_OWNED`、`PAYMENT_ALREADY_COMPLETED`、`PAYMENT_NOT_PENDING`、`PAYMENT_AMOUNT_MISMATCH`。
+`SHOP_SELLER_APPLICATION_EXISTS`、`SHOP_SELLER_APPLICATION_STATUS_INVALID`、`SHOP_SELLER_NOT_APPROVED`、`SHOP_NOT_FOUND`、`SHOP_NOT_OWNER`、`SHOP_SUSPENDED`、`SHOP_STATUS_INVALID`、`SHOP_PRODUCT_INACTIVE`、`SHOP_SKU_UNAVAILABLE`、`SHOP_PRICE_FILTER_INVALID`、`SHOP_PRICE_CHANGED`、`SHOP_INSUFFICIENT_STOCK`、`SHOP_CART_EMPTY`、`SHOP_ORDER_STATUS_INVALID`、`SHOP_ORDER_NOT_OWNED`、`PAYMENT_ALREADY_COMPLETED`、`PAYMENT_NOT_PENDING`、`PAYMENT_AMOUNT_MISMATCH`。
+
+- 申请重复或申请状态不允许当前操作时分别返回 `SHOP_SELLER_APPLICATION_EXISTS`、`SHOP_SELLER_APPLICATION_STATUS_INVALID`。
+- 用户没有已批准且正常营业的店铺、目标资源不存在、不属于当前店主或店铺已停用时，分别返回 `SHOP_SELLER_NOT_APPROVED`、`SHOP_NOT_FOUND`、`SHOP_NOT_OWNER`、`SHOP_SUSPENDED`；不合法的店铺状态转换返回 `SHOP_STATUS_INVALID`。
+- 商品已下架、SKU 不可售、价格区间非法、结算价格变化、库存不足或未选择有效购物车项时，分别返回对应的 `SHOP_PRODUCT_INACTIVE`、`SHOP_SKU_UNAVAILABLE`、`SHOP_PRICE_FILTER_INVALID`、`SHOP_PRICE_CHANGED`、`SHOP_INSUFFICIENT_STOCK`、`SHOP_CART_EMPTY`。
+- 订单状态不允许操作或订单不属于当前用户时，分别返回 `SHOP_ORDER_STATUS_INVALID`、`SHOP_ORDER_NOT_OWNED`。
+- 使用同一用户和同一幂等键重试已经成功的支付命令时直接返回首次成功结果，不返回错误；以新的幂等键操作 `SUCCEEDED` 支付单返回 `PAYMENT_ALREADY_COMPLETED`，操作 `CANCELLED/EXPIRED` 支付单返回 `PAYMENT_NOT_PENDING`。支付单金额与订单组实时总额不一致时返回 `PAYMENT_AMOUNT_MISMATCH`，且不得扣减或释放库存。
 
 ## 16. 日志与隐私
 
@@ -393,12 +552,15 @@ public interface ShopAdminService {
 
 ## 17. 测试与验收
 
-- 教师/学生可申请，管理员通过后才出现店主能力；一人不能拥有两店。
+- 教师/学生可保存草稿并显式提交；待审核申请不可编辑，驳回后修改回到草稿并可再次提交。
+- 管理员通过后才出现店主能力；重复审核不能创建第二家店，一人不能拥有两店。
+- 停用必须记录原因、管理员和时间；恢复后店铺重新可见且已批准申请保持 `APPROVED`。
 - 店主不能修改其他店铺商品或订单。
 - 商品列表过滤停用店铺、下架商品和无可售库存 SKU。
 - 商品详情展示 `ShopSummary` 并可进入对应 `BuyerShopPanel`；店铺主页只返回该店铺的可售商品，点击店内商品可进入对应商品详情。
 - 店铺不存在时返回 `SHOP_NOT_FOUND`，店铺停用时返回 `SHOP_SUSPENDED`；两种情况都不能展示店铺商品。
 - 商品详情与店铺主页反复跳转只能由用户操作触发，不得自动递归创建页面或在 DTO 中互相嵌套完整对象；重复当前路由不新增导航记录，返回历史不超过 20 条。
+- 从首页或搜索结果进入商品详情后，返回操作恢复原页面及其查询条件。
 - 多 SKU 商品使用最低可售 SKU 价格展示和筛选；价格区间包含上下边界，非法区间返回 `SHOP_PRICE_FILTER_INVALID`。
 - 未指定排序方式时按销量从高到低排序；选择价格排序时按最低可售 SKU 价格从高到低排序；主要排序值相同时按创建时间从新到旧排序。
 - 相同 SKU 重复加购合并数量，重登后购物车保留。
@@ -408,6 +570,8 @@ public interface ShopAdminService {
 - 支付成功重复回调只扣库存一次，且商品销量只累计一次。
 - 失败尝试后可在预留期内重试且不重复预留；明确取消和超时只释放一次预留。
 - 过期任务与成功回调并发时最终状态唯一且库存守恒。
+- 最后一个子订单确认收货时，订单组在同一事务中变为 `COMPLETED`。
+- 管理员可分页查询平台订单和支付记录，查询操作不得改变业务数据。
 - 收银台和日志不出现敏感支付字段。
 
 ## 18. 文件边界
