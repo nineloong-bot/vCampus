@@ -14,7 +14,7 @@ the dedicated UI design-system implementation plan.
 - Shared source: theme tokens copied byte-for-byte from teammate branch `origin/as811`;
   the course module does not modify `MainFrame` or the shared shell.
 - Reviewed locally at 1280 × 800: C-01 normal/loading/empty/error/disconnected,
-  C-04 through C-11 normal management surfaces. The 720/680/640 px dialog review set
+  C-03 through C-11 normal student/management surfaces. The 720/680/640 px dialog review set
   includes C-02 atomic-change confirmation, C-07 term create, C-08 course create, and
   C-09 offering edit (`course/c02-*`, `course/c07-term-editor-*`,
   `course/c08-course-editor-*`, `course/c09-offering-editor-*`).

@@ -42,7 +42,7 @@ import edu.seu.vcampus.common.course.*;
 import edu.seu.vcampus.common.paging.PageResult;
 
 /** Concurrency-safe implementation of course enrollment application rules. */
-public final class CourseServiceImpl implements CourseService {
+public final class CourseServiceImpl implements CourseService, CourseQueryPort {
     private final CourseAuthorizationGateway authorization;
     private final CourseStudentGateway students;
     private final CourseRepository repository;
@@ -90,6 +90,8 @@ public final class CourseServiceImpl implements CourseService {
     @Override public List<ScheduleItem> getCurrentSchedule(String token){var identity=authorization.requireSession(token);if(identity==null)throw new CourseForbiddenException();if("STUDENT".equals(identity.role())||"ADMIN".equals(identity.role())){StudentEnrollmentEligibility initial;try{initial=requireEligible(students.getEnrollmentEligibility(identity.userId()));}catch(CourseRuleException e){if("ADMIN".equals(identity.role()))return List.of();throw e;}return locks.withLocks(List.of(new ResourceKey("STUDENT",initial.studentId())),()->{var currentIdentity=authorization.requireSession(token);if(currentIdentity==null||!identity.userId().equals(currentIdentity.userId())||!identity.role().equals(currentIdentity.role()))throw new CourseForbiddenException();var current=requireEligible(students.getEnrollmentEligibility(currentIdentity.userId()));if(!initial.studentId().equals(current.studentId()))throw new StudentIneligibleException();return scheduleForStudent(current.studentId());});}if("TEACHER".equals(identity.role()))return transactions.inTransaction(c->scheduleItems(c,repository.findOfferingsByTeacher(c,identity.userId())));throw new CourseForbiddenException();}
 
     private List<ScheduleItem> scheduleForStudent(String studentId){return transactions.inTransaction(c->scheduleItems(c,repository.findActiveByStudent(c,studentId).stream().map(e->repository.requireOffering(c,e.offeringId())).toList()));}
+    @Override public boolean hasActiveEnrollment(String studentId){if(studentId==null||studentId.isBlank())throw new IllegalArgumentException("studentId");return transactions.inTransaction(c->!repository.findActiveByStudent(c,studentId).isEmpty());}
+    @Override public List<CourseSummary> findCoursesByStudent(String studentId){if(studentId==null||studentId.isBlank())throw new IllegalArgumentException("studentId");return transactions.inTransaction(c->repository.findActiveByStudent(c,studentId).stream().map(e->repository.requireOffering(c,e.offeringId())).map(o->repository.requireCourse(c,o.courseId())).map(course->new CourseSummary(course.courseId(),course.courseCode(),course.courseName())).distinct().toList());}
     private List<ScheduleItem> scheduleItems(Connection c,List<Offering> offerings){List<ScheduleItem> result=new ArrayList<>();for(var o:offerings){var course=repository.requireCourse(c,o.courseId());result.addAll(toScheduleItems(repository.findSchedules(c,o.offeringId()),o,course));}return List.copyOf(result);}
 
     private static List<Schedule> toSchedules(String offeringId,List<CreateOfferingCommand.ScheduleInput> values){return values.stream().map(s->new Schedule(null,offeringId,DayOfWeek.valueOf(s.dayOfWeek().toUpperCase()),s.startPeriod(),s.endPeriod(),s.startWeek(),s.endWeek(),s.classroom())).toList();}

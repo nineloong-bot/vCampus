@@ -40,7 +40,7 @@ public final class CourseUiScreenshotGenerator {
         Path output = Path.of("docs/ui-review/course");
         Files.createDirectories(output);
         UiThemeInstaller.install();
-        JComponent[] pages = new JComponent[13];
+        JComponent[] pages = new JComponent[14];
         CourseEditorDialog[] dialogs = new CourseEditorDialog[1];
         OfferingDetailDialog[] offeringDialogs = new OfferingDetailDialog[1];
         TermEditorDialog[] termDialogs = new TermEditorDialog[1];
@@ -62,6 +62,7 @@ public final class CourseUiScreenshotGenerator {
             pages[10] = shell(new OfferingManagementPanel(CourseUiGateway.preview()));
             pages[11] = shell(new OutcomeImportPanel(CourseUiGateway.preview()));
             pages[12] = shell(new AdjustmentAuditPanel(CourseUiGateway.preview()));
+            pages[13] = shell(new MyEnrollmentPanel(CourseUiGateway.preview()));
             dialogs[0] = new CourseEditorDialog(null, CourseUiGateway.preview(), null, () -> { });
             List<OfferingSummary> previewOfferings = CourseUiGateway.preview()
                     .searchOfferings(new OfferingSearchQuery("2026-autumn", "", null, true, 0, 20)).join().items();
@@ -89,6 +90,7 @@ public final class CourseUiScreenshotGenerator {
                 capture(pages[10], output.resolve("c09-offering-management--normal.png"));
                 capture(pages[11], output.resolve("c10-outcome-import--normal.png"));
                 capture(pages[12], output.resolve("c11-adjustment-audit--normal.png"));
+                capture(pages[13], output.resolve("c03-my-enrollment--normal.png"));
                 capture((JComponent) dialogs[0].getContentPane(), output.resolve("c08-course-editor--create.png"), 560, 620);
                 dialogs[0].dispose();
                 capture((JComponent) offeringDialogs[0].getContentPane(), output.resolve("c02-offering-change--confirm.png"), 720, 460);
