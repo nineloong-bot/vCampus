@@ -42,6 +42,7 @@ public final class CourseUiScreenshotGenerator {
         UiThemeInstaller.install();
         JComponent[] pages = new JComponent[13];
         CourseEditorDialog[] dialogs = new CourseEditorDialog[1];
+        OfferingDetailDialog[] offeringDialogs = new OfferingDetailDialog[1];
         SwingUtilities.invokeAndWait(() -> {
             pages[0] = shell(new OfferingSearchPanel(CourseUiGateway.preview()));
             pages[1] = shell(new MySchedulePanel(CourseUiGateway.preview()));
@@ -60,6 +61,12 @@ public final class CourseUiScreenshotGenerator {
             pages[11] = shell(new OutcomeImportPanel(CourseUiGateway.preview()));
             pages[12] = shell(new AdjustmentAuditPanel(CourseUiGateway.preview()));
             dialogs[0] = new CourseEditorDialog(null, CourseUiGateway.preview(), null, () -> { });
+            List<OfferingSummary> previewOfferings = CourseUiGateway.preview()
+                    .searchOfferings(new OfferingSearchQuery("2026-autumn", "", null, true, 0, 20)).join().items();
+            OfferingSummary source = previewOfferings.get(0);
+            OfferingSummary target = alternateClass(source);
+            offeringDialogs[0] = new OfferingDetailDialog(null, source, target,
+                    "未发现时间冲突（服务端提交时将再次校验）", () -> { });
         });
         // A second EDT turn lets completed asynchronous preview futures render.
         SwingUtilities.invokeAndWait(() -> { });
@@ -80,10 +87,19 @@ public final class CourseUiScreenshotGenerator {
                 capture(pages[12], output.resolve("c11-adjustment-audit--normal.png"));
                 capture((JComponent) dialogs[0].getContentPane(), output.resolve("c08-course-editor--create.png"), 560, 620);
                 dialogs[0].dispose();
+                capture((JComponent) offeringDialogs[0].getContentPane(), output.resolve("c02-offering-change--confirm.png"), 720, 460);
+                offeringDialogs[0].dispose();
             } catch (Exception error) {
                 throw new RuntimeException(error);
             }
         });
+    }
+
+    private static OfferingSummary alternateClass(OfferingSummary source) {
+        ScheduleItem schedule = new ScheduleItem("s1b", "o1b", source.courseCode(), source.courseName(),
+                "02班", "赵老师", "TUESDAY", 3, 4, 1, 16, "教一-203");
+        return new OfferingSummary("o1b", source.termId(), source.courseId(), source.courseCode(),
+                source.courseName(), "赵老师", "02班", 40, 31, "OPEN", 0, List.of(schedule));
     }
 
     private static CourseUiGateway gateway(CompletableFuture<PageResult<OfferingSummary>> offerings) {

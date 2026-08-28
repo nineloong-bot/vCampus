@@ -10,6 +10,7 @@ import edu.seu.vcampus.common.course.LateAddCommand;
 import edu.seu.vcampus.common.course.OfferingSearchQuery;
 import edu.seu.vcampus.common.course.OfferingSummary;
 import edu.seu.vcampus.common.course.TermPhaseView;
+import edu.seu.vcampus.common.course.ScheduleItem;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -30,8 +31,15 @@ import java.time.format.DateTimeFormatter;
 
 /** Adjustment-window page for live add, drop, and atomic change commands. */
 public final class AdjustmentPanel extends AbstractCoursePanel {
+    @FunctionalInterface
+    interface ChangeConfirmation {
+        void show(java.awt.Window owner, OfferingSummary source, OfferingSummary target,
+                  String conflictResult, Runnable onConfirm);
+    }
+
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("MM-dd HH:mm").withZone(ZoneId.systemDefault());
     private final CourseUiGateway gateway;
+    private final ChangeConfirmation confirmation;
     private final JLabel phaseSummary = label("正在读取服务端阶段…", UiTypography.BODY, UiColors.TEXT_PRIMARY);
     private final DefaultTableModel enrollmentModel = readOnlyModel("课程", "教学班", "类型", "状态", "版本");
     private final DefaultTableModel offeringModel = readOnlyModel("课程代码", "课程名称", "教学班", "余量", "状态");
@@ -39,10 +47,17 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
     private final JTable offeringTable = table(new Object[0][0], new Object[0]);
     private final List<EnrollmentView> enrollments = new ArrayList<>();
     private final List<OfferingSummary> offerings = new ArrayList<>();
+    private final List<ScheduleItem> currentSchedule = new ArrayList<>();
 
     public AdjustmentPanel(CourseUiGateway gateway) {
+        this(gateway, (owner, source, target, conflict, onConfirm) ->
+                new OfferingDetailDialog(owner, source, target, conflict, onConfirm).setVisible(true));
+    }
+
+    AdjustmentPanel(CourseUiGateway gateway, ChangeConfirmation confirmation) {
         super("选课调整", "调整开放期内可补选、退选或原子改选；失败不会影响原选课。");
         this.gateway = gateway;
+        this.confirmation = confirmation;
         enrollmentTable.setModel(enrollmentModel);
         enrollmentTable.getTableHeader().setBackground(UiColors.BACKGROUND_SUBTLE);
         enrollmentTable.getAccessibleContext().setAccessibleName("当前选课记录");
@@ -100,19 +115,24 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
         var enrollmentRequest = gateway.currentEnrollments();
         var offeringRequest = gateway.searchOfferings(new OfferingSearchQuery("2026-autumn", "", null, true, 0, 100));
         var phaseRequest = gateway.getTermPhase("2026-autumn");
+        var scheduleRequest = gateway.currentSchedule();
         enrollmentRequest.thenCombine(offeringRequest, PartialData::new).thenCombine(phaseRequest,
-                (partial, phase) -> new Data(partial.enrollments(), partial.offerings(), phase)).whenComplete((data, error) ->
+                (partial, phase) -> new PartialDataWithPhase(partial.enrollments(), partial.offerings(), phase))
+                .thenCombine(scheduleRequest, (partial, schedule) -> new Data(
+                        partial.enrollments(), partial.offerings(), partial.phase(), schedule)).whenComplete((data, error) ->
                 SwingUtilities.invokeLater(() -> {
                     enrollmentModel.setRowCount(0);
                     offeringModel.setRowCount(0);
                     enrollments.clear();
                     offerings.clear();
+                    currentSchedule.clear();
                     if (error != null) {
                         showState(ViewState.DISCONNECTED, "无法加载调整数据，请检查连接后重试");
                         return;
                     }
                     enrollments.addAll(data.enrollments());
                     offerings.addAll(data.offerings().items());
+                    currentSchedule.addAll(data.schedule());
                     phaseSummary.setText(phaseText(data.phase()));
                     for (EnrollmentView row : enrollments) {
                         OfferingSummary offering = findOffering(row.offeringId());
@@ -180,8 +200,31 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
         if (source < 0 || target < 0) { showState(ViewState.ERROR, "请同时选择原选课记录和目标教学班"); return; }
         EnrollmentView selected = enrollments.get(source);
         OfferingSummary targetOffering = offerings.get(target);
-        submit(button, "正在改选…", gateway.change(new ChangeOfferingCommand(
-                selected.enrollmentId(), targetOffering.offeringId(), selected.rowVersion())), "改选成功，原选课已安全替换");
+        OfferingSummary sourceOffering = findOffering(selected.offeringId());
+        if (sourceOffering == null) { showState(ViewState.ERROR, "原教学班信息尚未同步，请刷新后重试"); return; }
+        String conflict = conflictResult(sourceOffering, targetOffering);
+        confirmation.show(SwingUtilities.getWindowAncestor(this), sourceOffering, targetOffering, conflict,
+                () -> submit(button, "正在改选…", gateway.change(new ChangeOfferingCommand(
+                        selected.enrollmentId(), targetOffering.offeringId(), selected.rowVersion())),
+                        "改选成功，原选课已安全替换"));
+    }
+
+    private String conflictResult(OfferingSummary source, OfferingSummary target) {
+        for (ScheduleItem targetTime : target.schedules()) {
+            for (ScheduleItem existing : currentSchedule) {
+                if (existing.offeringId().equals(source.offeringId())) continue;
+                if (overlaps(targetTime, existing)) {
+                    return "发现时间冲突：" + existing.courseName() + " · " + existing.className();
+                }
+            }
+        }
+        return "未发现时间冲突（服务端提交时将再次校验）";
+    }
+
+    private static boolean overlaps(ScheduleItem left, ScheduleItem right) {
+        return left.dayOfWeek().equals(right.dayOfWeek())
+                && left.startWeek() <= right.endWeek() && right.startWeek() <= left.endWeek()
+                && left.startPeriod() <= right.endPeriod() && right.startPeriod() <= left.endPeriod();
     }
 
     private void submit(JButton button, String busyText, java.util.concurrent.CompletableFuture<?> request, String success) {
@@ -211,6 +254,9 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
     }
 
     private record PartialData(List<EnrollmentView> enrollments, edu.seu.vcampus.common.paging.PageResult<OfferingSummary> offerings) { }
+    private record PartialDataWithPhase(List<EnrollmentView> enrollments,
+                                        edu.seu.vcampus.common.paging.PageResult<OfferingSummary> offerings,
+                                        TermPhaseView phase) { }
     private record Data(List<EnrollmentView> enrollments, edu.seu.vcampus.common.paging.PageResult<OfferingSummary> offerings,
-                        TermPhaseView phase) { }
+                        TermPhaseView phase, List<ScheduleItem> schedule) { }
 }

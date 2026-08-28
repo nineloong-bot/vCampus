@@ -197,7 +197,8 @@ class CourseUiTest {
                         Instant.parse("2026-09-08T16:00:00Z")));
             }
         };
-        AdjustmentPanel panel = onEdt(() -> new AdjustmentPanel(gateway));
+        AdjustmentPanel panel = onEdt(() -> new AdjustmentPanel(gateway,
+                (owner, source, target, conflict, confirm) -> confirm.run()));
         SwingUtilities.invokeAndWait(() -> { });
         List<JTable> tables = descendants(panel).stream().filter(JTable.class::isInstance).map(JTable.class::cast).toList();
         JButton change = descendants(panel).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
@@ -479,6 +480,29 @@ class CourseUiTest {
 
         assertThat(submitted.get()).isEqualTo(new UpdateCourseCommand(
                 "course-7", "SE101", "软件工程基础", new BigDecimal("4.5"), 72, "原简介", true, 7));
+        SwingUtilities.invokeAndWait(dialog::dispose);
+    }
+
+    @Test
+    void offeringChangeDialogShowsRequiredComparisonAndConfirmsExplicitly() throws Exception {
+        List<OfferingSummary> offerings = CourseUiGateway.preview()
+                .searchOfferings(new OfferingSearchQuery("2026-autumn", "", null, true, 0, 20)).join().items();
+        OfferingSummary source = offerings.get(0);
+        ScheduleItem targetSchedule = new ScheduleItem("s1b", "o1b", source.courseCode(), source.courseName(),
+                "02班", "赵老师", "TUESDAY", 3, 4, 1, 16, "教一-203");
+        OfferingSummary target = new OfferingSummary("o1b", source.termId(), source.courseId(), source.courseCode(),
+                source.courseName(), "赵老师", "02班", 40, 31, "OPEN", 0, List.of(targetSchedule));
+        AtomicReference<Boolean> confirmed = new AtomicReference<>(false);
+        OfferingDetailDialog dialog = onEdt(() -> new OfferingDetailDialog(
+                null, source, target, "未发现时间冲突（服务端提交时将再次校验）",
+                () -> confirmed.set(true)));
+
+        assertThat(labels(dialog)).contains("原教学班", "目标教学班", "高等数学 · 01班", "高等数学 · 02班",
+                "容量：28 / 40", "未发现时间冲突（服务端提交时将再次校验）");
+        SwingUtilities.invokeAndWait(() -> descendants(dialog).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
+                .filter(button -> "确认改选".equals(button.getText())).findFirst().orElseThrow().doClick());
+
+        assertThat(confirmed.get()).isTrue();
         SwingUtilities.invokeAndWait(dialog::dispose);
     }
 
