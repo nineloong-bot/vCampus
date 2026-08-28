@@ -17,4 +17,6 @@ public interface LoanRepository {
     Loan require(Connection connection, String loanId) throws SQLException;
 
     void update(Connection connection, Loan loan, long expectedVersion) throws SQLException;
+
+    int markOverdue(Connection connection, Instant now) throws SQLException;
 }

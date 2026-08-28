@@ -79,11 +79,11 @@ final class LibraryServiceFixture {
         }
     }
 
-    void seedOverdue(String copyId, String userId) throws Exception {
+    Loan seedOverdue(String copyId, String userId) throws Exception {
         try (Connection connection = connections.open()) {
             BookCopy copy = books.requireCopy(connection, copyId);
             books.updateCopyStatus(connection, copyId, CopyStatus.BORROWED, copy.rowVersion());
-            loans.insert(connection, new Loan(UUID.randomUUID().toString(), copyId, userId,
+            return loans.insert(connection, new Loan(UUID.randomUUID().toString(), copyId, userId,
                     NOW.minus(31, ChronoUnit.DAYS), NOW.minus(1, ChronoUnit.DAYS), null,
                     0, LoanStatus.ACTIVE, 0));
         }

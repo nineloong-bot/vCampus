@@ -94,6 +94,16 @@ public final class AccessLoanRepository implements LoanRepository {
         }
     }
 
+    @Override
+    public int markOverdue(Connection connection, Instant now) throws SQLException {
+        String sql = "UPDATE tblBookLoan SET loanStatus = 'OVERDUE', "
+                + "rowVersion = rowVersion + 1 WHERE loanStatus = 'ACTIVE' AND dueAt < ?";
+        try (var statement = connection.prepareStatement(sql)) {
+            statement.setTimestamp(1, Timestamp.from(now));
+            return statement.executeUpdate();
+        }
+    }
+
     private static void bindLoan(java.sql.PreparedStatement statement, Loan loan) throws SQLException {
         statement.setString(1, loan.loanId());
         statement.setString(2, loan.copyId());

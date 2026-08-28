@@ -4,6 +4,8 @@ import edu.seu.vcampus.common.library.BorrowBookCommand;
 import edu.seu.vcampus.common.library.CopyStatus;
 import edu.seu.vcampus.common.library.LoanStatus;
 import edu.seu.vcampus.common.library.LoanView;
+import edu.seu.vcampus.common.library.RenewLoanCommand;
+import edu.seu.vcampus.common.library.ReturnBookCommand;
 import edu.seu.vcampus.server.concurrency.ResourceKey;
 import edu.seu.vcampus.server.concurrency.ResourceLockManager;
 import edu.seu.vcampus.server.library.domain.BookCopy;
@@ -75,6 +77,72 @@ public final class LibraryServiceImpl implements LibraryService {
                     copy.rowVersion());
             return toView(loan, copy.bookId());
         }));
+    }
+
+    @Override
+    public LoanView returnBook(String sessionToken, ReturnBookCommand command) {
+        Objects.requireNonNull(command, "command");
+        BorrowerIdentity borrower = identities.requireBorrower(sessionToken);
+        ResourceKey loanKey = new ResourceKey("LOAN", command.loanId());
+        return locks.withLocks(List.of(loanKey), () -> {
+            Loan snapshot = transactions.inTransaction(connection ->
+                    loans.require(connection, command.loanId()));
+            ResourceKey copyKey = new ResourceKey("BOOK_COPY", snapshot.copyId());
+            return locks.withLocks(List.of(copyKey), () -> transactions.inTransaction(connection -> {
+                Loan loan = loans.require(connection, command.loanId());
+                requireOwnership(loan, borrower);
+                if (loan.status() == LoanStatus.RETURNED || loan.returnedAt() != null) {
+                    throw new LoanAlreadyReturnedException(loan.loanId());
+                }
+                if (loan.status() != LoanStatus.ACTIVE && loan.status() != LoanStatus.OVERDUE) {
+                    throw new LoanNotActiveException(loan.loanId());
+                }
+                BookCopy copy = books.requireCopy(connection, loan.copyId());
+                Loan returned = new Loan(loan.loanId(), loan.copyId(), loan.borrowerUserId(),
+                        loan.borrowedAt(), loan.dueAt(), clock.instant(), loan.renewCount(),
+                        LoanStatus.RETURNED, loan.rowVersion() + 1);
+                loans.update(connection, returned, command.expectedVersion());
+                books.updateCopyStatus(connection, copy.copyId(), CopyStatus.AVAILABLE,
+                        copy.rowVersion());
+                return toView(returned, copy.bookId());
+            }));
+        });
+    }
+
+    @Override
+    public LoanView renew(String sessionToken, RenewLoanCommand command) {
+        Objects.requireNonNull(command, "command");
+        BorrowerIdentity borrower = identities.requireBorrower(sessionToken);
+        List<ResourceKey> keys = List.of(
+                new ResourceKey("LIBRARY_USER", borrower.userId()),
+                new ResourceKey("LOAN", command.loanId()));
+        return locks.withLocks(keys, () -> transactions.inTransaction(connection -> {
+            Loan loan = loans.require(connection, command.loanId());
+            requireOwnership(loan, borrower);
+            Instant now = clock.instant();
+            if (loan.status() == LoanStatus.OVERDUE || loan.dueAt().isBefore(now)) {
+                throw new LoanOverdueException(loan.loanId());
+            }
+            if (loan.status() != LoanStatus.ACTIVE) {
+                throw new LoanNotActiveException(loan.loanId());
+            }
+            LoanPolicy policy = policies.require(connection, borrower.roleCode());
+            if (loan.renewCount() >= policy.maxRenewals()) {
+                throw new RenewalLimitReachedException(loan.loanId());
+            }
+            Loan renewed = new Loan(loan.loanId(), loan.copyId(), loan.borrowerUserId(),
+                    loan.borrowedAt(), loan.dueAt().plus(policy.renewalDays(), ChronoUnit.DAYS),
+                    null, loan.renewCount() + 1, LoanStatus.ACTIVE, loan.rowVersion() + 1);
+            loans.update(connection, renewed, command.expectedVersion());
+            BookCopy copy = books.requireCopy(connection, loan.copyId());
+            return toView(renewed, copy.bookId());
+        }));
+    }
+
+    private static void requireOwnership(Loan loan, BorrowerIdentity borrower) {
+        if (!loan.borrowerUserId().equals(borrower.userId())) {
+            throw new LoanOwnershipException(loan.loanId());
+        }
     }
 
     private static LoanView toView(Loan loan, String bookId) {
