@@ -22,6 +22,8 @@ import edu.seu.vcampus.common.course.CourseView;
 import edu.seu.vcampus.common.course.TermView;
 import edu.seu.vcampus.common.course.ImportCourseOutcomesCommand;
 import edu.seu.vcampus.common.course.CourseOutcome;
+import edu.seu.vcampus.common.course.CreateCourseCommand;
+import edu.seu.vcampus.common.course.UpdateCourseCommand;
 import edu.seu.vcampus.common.paging.PageResult;
 import org.junit.jupiter.api.Test;
 
@@ -31,6 +33,8 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
+import javax.swing.JTextField;
+import javax.swing.JCheckBox;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.Component;
@@ -301,6 +305,7 @@ class CourseUiTest {
         assertThat(table.getRowCount()).isEqualTo(1);
         assertThat(table.getValueAt(0, 0)).isEqualTo("MATH101");
         assertThat(table.getValueAt(0, 4)).isEqualTo("启用");
+        assertThat(buttons(panel)).contains("新建课程", "编辑所选");
         assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.NORMAL);
     }
 
@@ -402,6 +407,73 @@ class CourseUiTest {
         assertThat(labels(audits)).contains("学生编号", "学期编号", "操作类型", "操作结果");
     }
 
+    @Test
+    void courseEditorSubmitsTypedCreateCommandFromVisibleFields() throws Exception {
+        AtomicReference<CreateCourseCommand> submitted = new AtomicReference<>();
+        AtomicReference<Boolean> saved = new AtomicReference<>(false);
+        CourseUiGateway gateway = new CourseUiGateway() {
+            public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) { return CourseUiGateway.preview().searchOfferings(query); }
+            public CompletableFuture<List<EnrollmentView>> currentEnrollments() { return CompletableFuture.completedFuture(List.of()); }
+            public CompletableFuture<List<ScheduleItem>> currentSchedule() { return CompletableFuture.completedFuture(List.of()); }
+            public CompletableFuture<EnrollmentView> enroll(EnrollCommand command) { return CompletableFuture.failedFuture(new UnsupportedOperationException()); }
+            @Override public CompletableFuture<CourseView> createCourse(CreateCourseCommand command) {
+                submitted.set(command);
+                return CompletableFuture.completedFuture(new CourseView(
+                        "c-new", command.courseCode(), command.courseName(), command.credit(), command.totalHours(),
+                        command.description(), command.active(), 0, Instant.now(), Instant.now()));
+            }
+        };
+        CourseEditorDialog dialog = onEdt(() -> new CourseEditorDialog(null, gateway, null, () -> saved.set(true)));
+
+        SwingUtilities.invokeAndWait(() -> {
+            textField(dialog, "课程代码").setText("SE101");
+            textField(dialog, "课程名称").setText("软件工程导论");
+            textField(dialog, "学分").setText("4.5");
+            textField(dialog, "总学时").setText("72");
+            descendants(dialog).stream().filter(JTextArea.class::isInstance).map(JTextArea.class::cast).findFirst().orElseThrow()
+                    .setText("软件工程基础课程");
+            descendants(dialog).stream().filter(JCheckBox.class::isInstance).map(JCheckBox.class::cast).findFirst().orElseThrow()
+                    .setSelected(true);
+            descendants(dialog).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
+                    .filter(button -> "创建课程".equals(button.getText())).findFirst().orElseThrow().doClick();
+        });
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(submitted.get()).isEqualTo(new CreateCourseCommand(
+                "SE101", "软件工程导论", new BigDecimal("4.5"), 72, "软件工程基础课程", true));
+        assertThat(saved.get()).isTrue();
+        SwingUtilities.invokeAndWait(dialog::dispose);
+    }
+
+    @Test
+    void courseEditorPreservesIdAndVersionWhenUpdating() throws Exception {
+        AtomicReference<UpdateCourseCommand> submitted = new AtomicReference<>();
+        CourseView existing = new CourseView("course-7", "SE101", "软件工程导论", new BigDecimal("4.5"), 72,
+                "原简介", true, 7, Instant.now(), Instant.now());
+        CourseUiGateway gateway = new CourseUiGateway() {
+            public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) { return CourseUiGateway.preview().searchOfferings(query); }
+            public CompletableFuture<List<EnrollmentView>> currentEnrollments() { return CompletableFuture.completedFuture(List.of()); }
+            public CompletableFuture<List<ScheduleItem>> currentSchedule() { return CompletableFuture.completedFuture(List.of()); }
+            public CompletableFuture<EnrollmentView> enroll(EnrollCommand command) { return CompletableFuture.failedFuture(new UnsupportedOperationException()); }
+            @Override public CompletableFuture<CourseView> updateCourse(UpdateCourseCommand command) {
+                submitted.set(command);
+                return CompletableFuture.completedFuture(existing);
+            }
+        };
+        CourseEditorDialog dialog = onEdt(() -> new CourseEditorDialog(null, gateway, existing, () -> { }));
+
+        SwingUtilities.invokeAndWait(() -> {
+            textField(dialog, "课程名称").setText("软件工程基础");
+            descendants(dialog).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
+                    .filter(button -> "保存修改".equals(button.getText())).findFirst().orElseThrow().doClick();
+        });
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(submitted.get()).isEqualTo(new UpdateCourseCommand(
+                "course-7", "SE101", "软件工程基础", new BigDecimal("4.5"), 72, "原简介", true, 7));
+        SwingUtilities.invokeAndWait(dialog::dispose);
+    }
+
     private static CourseUiGateway gateway(CompletableFuture<PageResult<OfferingSummary>> offerings) {
         return new CourseUiGateway() {
             public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) { return offerings; }
@@ -428,6 +500,12 @@ class CourseUiTest {
     private static List<String> buttons(Container root) {
         return descendants(root).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
                 .map(JButton::getText).toList();
+    }
+
+    private static JTextField textField(Container root, String accessibleName) {
+        return descendants(root).stream().filter(JTextField.class::isInstance).map(JTextField.class::cast)
+                .filter(field -> accessibleName.equals(field.getAccessibleContext().getAccessibleName()))
+                .findFirst().orElseThrow();
     }
 
     private static <T> T onEdt(java.util.concurrent.Callable<T> supplier) throws Exception {

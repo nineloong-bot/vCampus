@@ -41,6 +41,7 @@ public final class CourseUiScreenshotGenerator {
         Files.createDirectories(output);
         UiThemeInstaller.install();
         JComponent[] pages = new JComponent[13];
+        CourseEditorDialog[] dialogs = new CourseEditorDialog[1];
         SwingUtilities.invokeAndWait(() -> {
             pages[0] = shell(new OfferingSearchPanel(CourseUiGateway.preview()));
             pages[1] = shell(new MySchedulePanel(CourseUiGateway.preview()));
@@ -58,6 +59,7 @@ public final class CourseUiScreenshotGenerator {
             pages[10] = shell(new OfferingManagementPanel(CourseUiGateway.preview()));
             pages[11] = shell(new OutcomeImportPanel(CourseUiGateway.preview()));
             pages[12] = shell(new AdjustmentAuditPanel(CourseUiGateway.preview()));
+            dialogs[0] = new CourseEditorDialog(null, CourseUiGateway.preview(), null, () -> { });
         });
         // A second EDT turn lets completed asynchronous preview futures render.
         SwingUtilities.invokeAndWait(() -> { });
@@ -76,6 +78,8 @@ public final class CourseUiScreenshotGenerator {
                 capture(pages[10], output.resolve("c09-offering-management--normal.png"));
                 capture(pages[11], output.resolve("c10-outcome-import--normal.png"));
                 capture(pages[12], output.resolve("c11-adjustment-audit--normal.png"));
+                capture((JComponent) dialogs[0].getContentPane(), output.resolve("c08-course-editor--create.png"), 560, 620);
+                dialogs[0].dispose();
             } catch (Exception error) {
                 throw new RuntimeException(error);
             }
@@ -125,10 +129,14 @@ public final class CourseUiScreenshotGenerator {
     }
 
     private static void capture(JComponent component, Path target) throws Exception {
+        capture(component, target, UiDimensions.WINDOW_WIDTH, UiDimensions.WINDOW_HEIGHT);
+    }
+
+    private static void capture(JComponent component, Path target, int width, int height) throws Exception {
         JFrame host = new JFrame(); host.setUndecorated(true); host.setContentPane(component);
-        host.setSize(UiDimensions.WINDOW_WIDTH, UiDimensions.WINDOW_HEIGHT); host.addNotify(); host.validate();
+        host.setSize(width, height); host.addNotify(); host.validate();
         SwingUtilities.invokeLater(() -> { });
-        BufferedImage image = new BufferedImage(UiDimensions.WINDOW_WIDTH, UiDimensions.WINDOW_HEIGHT, BufferedImage.TYPE_INT_RGB);
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
         Graphics2D graphics = image.createGraphics(); component.printAll(graphics); graphics.dispose();
         ImageIO.write(image, "png", target.toFile()); host.dispose();
     }

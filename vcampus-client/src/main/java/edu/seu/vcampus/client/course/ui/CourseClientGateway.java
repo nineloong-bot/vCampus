@@ -14,6 +14,8 @@ import edu.seu.vcampus.common.course.CourseCatalogQuery;
 import edu.seu.vcampus.common.course.CourseView;
 import edu.seu.vcampus.common.course.TermView;
 import edu.seu.vcampus.common.course.ImportCourseOutcomesCommand;
+import edu.seu.vcampus.common.course.CreateCourseCommand;
+import edu.seu.vcampus.common.course.UpdateCourseCommand;
 import edu.seu.vcampus.common.protocol.EmptyResponse;
 import edu.seu.vcampus.common.course.OfferingSearchQuery;
 import edu.seu.vcampus.common.course.OfferingSummary;
@@ -57,4 +59,6 @@ final class CourseClientGateway implements CourseUiGateway {
     public CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery query) { return client.searchCatalog(query); }
     public CompletableFuture<List<TermView>> listTerms() { return client.listTerms(); }
     public CompletableFuture<EmptyResponse> importOutcomes(ImportCourseOutcomesCommand command) { return client.importOutcomes(command); }
+    public CompletableFuture<CourseView> createCourse(CreateCourseCommand command) { return client.createCourse(command); }
+    public CompletableFuture<CourseView> updateCourse(UpdateCourseCommand command) { return client.updateCourse(command); }
 }
