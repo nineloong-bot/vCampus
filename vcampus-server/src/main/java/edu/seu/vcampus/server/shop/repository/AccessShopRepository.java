@@ -7,6 +7,8 @@ import edu.seu.vcampus.common.shop.ProductSearchQuery;
 import edu.seu.vcampus.common.shop.ProductSortMode;
 import edu.seu.vcampus.common.shop.ProductStatus;
 import edu.seu.vcampus.common.shop.ProductSummary;
+import edu.seu.vcampus.common.shop.CartItemView;
+import edu.seu.vcampus.common.shop.CartView;
 import edu.seu.vcampus.common.shop.ShopErrorCode;
 import edu.seu.vcampus.common.shop.ShopStatus;
 import edu.seu.vcampus.server.shop.ShopException;
@@ -14,6 +16,7 @@ import edu.seu.vcampus.server.shop.domain.SellerApplication;
 import edu.seu.vcampus.server.shop.domain.Shop;
 import edu.seu.vcampus.server.shop.domain.Product;
 import edu.seu.vcampus.server.shop.domain.ProductSku;
+import edu.seu.vcampus.server.shop.domain.CartItem;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -398,6 +401,162 @@ public final class AccessShopRepository implements ShopRepository {
         return new PageResult<>(all.subList(from, to), query.pageNumber(), query.pageSize(), all.size());
     }
 
+    @Override
+    public Optional<ProductSku> findSellableSku(Connection connection, String skuId) throws Exception {
+        String sql = "SELECT k.* FROM (tblProductSku k INNER JOIN tblProduct p "
+                + "ON k.productId = p.productId) INNER JOIN tblShop s ON p.shopId = s.shopId "
+                + "WHERE k.skuId = ? AND k.isActive = TRUE AND p.productStatus = 'ACTIVE' "
+                + "AND s.shopStatus = 'ACTIVE' AND k.stockQuantity - k.reservedQuantity > 0";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, skuId);
+            try (ResultSet result = statement.executeQuery()) {
+                return result.next() ? Optional.of(mapSku(result)) : Optional.empty();
+            }
+        }
+    }
+
+    @Override
+    public Optional<String> findCartIdByUser(Connection connection, String userId) throws Exception {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT cartId FROM tblCart WHERE userId = ?")) {
+            statement.setString(1, userId);
+            try (ResultSet result = statement.executeQuery()) {
+                return result.next() ? Optional.of(result.getString(1)) : Optional.empty();
+            }
+        }
+    }
+
+    @Override
+    public String insertCart(Connection connection, String cartId,
+            String userId, Instant updatedAt) throws Exception {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "INSERT INTO tblCart (cartId, userId, updatedAt) VALUES (?, ?, ?)")) {
+            statement.setString(1, cartId);
+            statement.setString(2, userId);
+            setInstant(statement, 3, updatedAt);
+            statement.executeUpdate();
+            return cartId;
+        }
+    }
+
+    @Override
+    public Optional<CartItem> findCartItemBySku(Connection connection,
+            String cartId, String skuId) throws Exception {
+        return findCartItem(connection, "cartId = ? AND skuId = ?", cartId, skuId);
+    }
+
+    @Override
+    public Optional<CartItem> findCartItemById(Connection connection,
+            String cartItemId) throws Exception {
+        return findCartItem(connection, "cartItemId = ?", cartItemId);
+    }
+
+    private Optional<CartItem> findCartItem(Connection connection, String predicate,
+            String... values) throws Exception {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT * FROM tblCartItem WHERE " + predicate)) {
+            for (int index = 0; index < values.length; index++) {
+                statement.setString(index + 1, values[index]);
+            }
+            try (ResultSet result = statement.executeQuery()) {
+                return result.next() ? Optional.of(mapCartItem(result)) : Optional.empty();
+            }
+        }
+    }
+
+    @Override
+    public CartItem insertCartItem(Connection connection, CartItem item) throws Exception {
+        String sql = "INSERT INTO tblCartItem (cartItemId, cartId, skuId, quantity, rowVersion, "
+                + "createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, item.cartItemId());
+            statement.setString(2, item.cartId());
+            statement.setString(3, item.skuId());
+            statement.setLong(4, item.quantity());
+            statement.setLong(5, item.rowVersion());
+            setInstant(statement, 6, item.createdAt());
+            setInstant(statement, 7, item.updatedAt());
+            statement.executeUpdate();
+        }
+        touchCart(connection, item.cartId(), item.updatedAt());
+        return item;
+    }
+
+    @Override
+    public CartItem updateCartItemQuantity(Connection connection, String cartItemId,
+            long quantity, Instant updatedAt, long expectedVersion) throws Exception {
+        CartItem existing = findCartItemById(connection, cartItemId)
+                .orElseThrow(() -> new IllegalStateException("Cart item does not exist"));
+        try (PreparedStatement statement = connection.prepareStatement(
+                "UPDATE tblCartItem SET quantity = ?, updatedAt = ?, rowVersion = rowVersion + 1 "
+                        + "WHERE cartItemId = ? AND rowVersion = ?")) {
+            statement.setLong(1, quantity);
+            setInstant(statement, 2, updatedAt);
+            statement.setString(3, cartItemId);
+            statement.setLong(4, expectedVersion);
+            if (statement.executeUpdate() != 1) {
+                throw new IllegalStateException("Stale cart item version");
+            }
+        }
+        touchCart(connection, existing.cartId(), updatedAt);
+        return findCartItemById(connection, cartItemId).orElseThrow();
+    }
+
+    @Override
+    public void deleteCartItem(Connection connection, String cartItemId, String cartId) throws Exception {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "DELETE FROM tblCartItem WHERE cartItemId = ? AND cartId = ?")) {
+            statement.setString(1, cartItemId);
+            statement.setString(2, cartId);
+            if (statement.executeUpdate() != 1) {
+                throw new SecurityException("Cart item is not owned by user");
+            }
+        }
+        touchCart(connection, cartId, Instant.now());
+    }
+
+    @Override
+    public CartView loadCart(Connection connection, String userId) throws Exception {
+        Optional<String> cartId = findCartIdByUser(connection, userId);
+        if (cartId.isEmpty()) {
+            return new CartView(null, List.of(), java.math.BigDecimal.ZERO.setScale(2));
+        }
+        String sql = "SELECT i.cartItemId, p.productId, p.productName, k.skuId, k.skuName, "
+                + "s.shopId, s.shopName, k.unitPrice, i.quantity, i.rowVersion "
+                + "FROM ((tblCartItem i INNER JOIN tblProductSku k ON i.skuId = k.skuId) "
+                + "INNER JOIN tblProduct p ON k.productId = p.productId) "
+                + "INNER JOIN tblShop s ON p.shopId = s.shopId WHERE i.cartId = ? "
+                + "ORDER BY i.createdAt, i.cartItemId";
+        List<CartItemView> items = new ArrayList<>();
+        java.math.BigDecimal total = java.math.BigDecimal.ZERO;
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, cartId.get());
+            try (ResultSet result = statement.executeQuery()) {
+                while (result.next()) {
+                    java.math.BigDecimal price = result.getBigDecimal("unitPrice");
+                    int quantity = Math.toIntExact(result.getLong("quantity"));
+                    items.add(new CartItemView(result.getString("cartItemId"),
+                            result.getString("productId"), result.getString("productName"),
+                            result.getString("skuId"), result.getString("skuName"),
+                            result.getString("shopId"), result.getString("shopName"),
+                            price, quantity, result.getLong("rowVersion")));
+                    total = total.add(price.multiply(java.math.BigDecimal.valueOf(quantity)));
+                }
+            }
+        }
+        return new CartView(cartId.get(), items, total);
+    }
+
+    private static void touchCart(Connection connection, String cartId, Instant updatedAt)
+            throws Exception {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "UPDATE tblCart SET updatedAt = ? WHERE cartId = ?")) {
+            setInstant(statement, 1, updatedAt);
+            statement.setString(2, cartId);
+            statement.executeUpdate();
+        }
+    }
+
     private static void bindApplication(PreparedStatement statement,
             SellerApplication application) throws Exception {
         statement.setString(1, application.applicationId());
@@ -459,6 +618,13 @@ public final class AccessShopRepository implements ShopRepository {
                 result.getString("skuName"), result.getBigDecimal("unitPrice"),
                 result.getLong("stockQuantity"), result.getLong("reservedQuantity"),
                 result.getBoolean("isActive"), result.getLong("rowVersion"));
+    }
+
+    private static CartItem mapCartItem(ResultSet result) throws Exception {
+        return new CartItem(result.getString("cartItemId"), result.getString("cartId"),
+                result.getString("skuId"), result.getLong("quantity"),
+                result.getLong("rowVersion"), instant(result, "createdAt"),
+                instant(result, "updatedAt"));
     }
 
     private static Instant instant(ResultSet result, String column) throws Exception {

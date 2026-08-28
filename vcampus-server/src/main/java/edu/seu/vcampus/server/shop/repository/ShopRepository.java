@@ -4,6 +4,7 @@ import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.shop.ProductSearchQuery;
 import edu.seu.vcampus.common.shop.ProductStatus;
 import edu.seu.vcampus.common.shop.ProductSummary;
+import edu.seu.vcampus.common.shop.CartView;
 import edu.seu.vcampus.common.shop.SellerApplicationQuery;
 import edu.seu.vcampus.common.shop.SellerApplicationStatus;
 import edu.seu.vcampus.common.shop.ShopStatus;
@@ -11,6 +12,7 @@ import edu.seu.vcampus.server.shop.domain.SellerApplication;
 import edu.seu.vcampus.server.shop.domain.Shop;
 import edu.seu.vcampus.server.shop.domain.Product;
 import edu.seu.vcampus.server.shop.domain.ProductSku;
+import edu.seu.vcampus.server.shop.domain.CartItem;
 
 import java.sql.Connection;
 import java.time.Instant;
@@ -62,4 +64,23 @@ public interface ShopRepository {
 
     PageResult<ProductSummary> searchCatalog(Connection connection,
             ProductSearchQuery query, String shopId) throws Exception;
+
+    Optional<ProductSku> findSellableSku(Connection connection, String skuId) throws Exception;
+
+    Optional<String> findCartIdByUser(Connection connection, String userId) throws Exception;
+
+    String insertCart(Connection connection, String cartId, String userId, Instant updatedAt) throws Exception;
+
+    Optional<CartItem> findCartItemBySku(Connection connection, String cartId, String skuId) throws Exception;
+
+    Optional<CartItem> findCartItemById(Connection connection, String cartItemId) throws Exception;
+
+    CartItem insertCartItem(Connection connection, CartItem item) throws Exception;
+
+    CartItem updateCartItemQuantity(Connection connection, String cartItemId,
+            long quantity, Instant updatedAt, long expectedVersion) throws Exception;
+
+    void deleteCartItem(Connection connection, String cartItemId, String cartId) throws Exception;
+
+    CartView loadCart(Connection connection, String userId) throws Exception;
 }
