@@ -9,6 +9,7 @@ import edu.seu.vcampus.common.course.EnrollmentView;
 import edu.seu.vcampus.common.course.LateAddCommand;
 import edu.seu.vcampus.common.course.OfferingSearchQuery;
 import edu.seu.vcampus.common.course.OfferingSummary;
+import edu.seu.vcampus.common.course.TermPhaseView;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -24,10 +25,14 @@ import java.awt.BorderLayout;
 import java.awt.GridLayout;
 import java.util.ArrayList;
 import java.util.List;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 
 /** Adjustment-window page for live add, drop, and atomic change commands. */
 public final class AdjustmentPanel extends AbstractCoursePanel {
+    private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("MM-dd HH:mm").withZone(ZoneId.systemDefault());
     private final CourseUiGateway gateway;
+    private final JLabel phaseSummary = label("正在读取服务端阶段…", UiTypography.BODY, UiColors.TEXT_PRIMARY);
     private final DefaultTableModel enrollmentModel = readOnlyModel("课程", "教学班", "类型", "状态", "版本");
     private final DefaultTableModel offeringModel = readOnlyModel("课程代码", "课程名称", "教学班", "余量", "状态");
     private final JTable enrollmentTable = table(new Object[0][0], new Object[0]);
@@ -44,6 +49,11 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
         offeringTable.setModel(offeringModel);
         offeringTable.getTableHeader().setBackground(UiColors.BACKGROUND_SUBTLE);
         offeringTable.getAccessibleContext().setAccessibleName("可调整教学班");
+
+        phaseSummary.setOpaque(true);
+        phaseSummary.setBackground(UiColors.BACKGROUND_SUBTLE);
+        phaseSummary.setBorder(BorderFactory.createEmptyBorder(UiSpacing.MD, UiSpacing.LG, UiSpacing.MD, UiSpacing.LG));
+        body.add(phaseSummary, BorderLayout.NORTH);
 
         JPanel tables = new JPanel(new GridLayout(2, 1, 0, UiSpacing.LG));
         tables.setOpaque(false);
@@ -89,7 +99,9 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
         showState(ViewState.LOADING, "正在加载调整数据，请稍候");
         var enrollmentRequest = gateway.currentEnrollments();
         var offeringRequest = gateway.searchOfferings(new OfferingSearchQuery("2026-autumn", "", null, true, 0, 100));
-        enrollmentRequest.thenCombine(offeringRequest, Data::new).whenComplete((data, error) ->
+        var phaseRequest = gateway.getTermPhase("2026-autumn");
+        enrollmentRequest.thenCombine(offeringRequest, PartialData::new).thenCombine(phaseRequest,
+                (partial, phase) -> new Data(partial.enrollments(), partial.offerings(), phase)).whenComplete((data, error) ->
                 SwingUtilities.invokeLater(() -> {
                     enrollmentModel.setRowCount(0);
                     offeringModel.setRowCount(0);
@@ -101,6 +113,7 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
                     }
                     enrollments.addAll(data.enrollments());
                     offerings.addAll(data.offerings().items());
+                    phaseSummary.setText(phaseText(data.phase()));
                     for (EnrollmentView row : enrollments) {
                         OfferingSummary offering = findOffering(row.offeringId());
                         enrollmentModel.addRow(new Object[]{
@@ -114,6 +127,17 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
                             Math.max(0, row.capacity() - row.enrolledCount()) + " / " + row.capacity(), "可调整"});
                     showState(ViewState.NORMAL, "");
                 }));
+    }
+
+    private static String phaseText(TermPhaseView phase) {
+        String status = switch (phase.phase()) {
+            case "ENROLLMENT" -> "正常选课开放";
+            case "ADJUSTMENT" -> "退改补开放";
+            default -> "只读阶段";
+        };
+        if ("CLOSED".equals(phase.termStatus())) status = "学期已关闭";
+        return "服务端阶段：" + status + "    退改补时间窗：" + TIME.format(phase.adjustmentStartAt())
+                + " 至 " + TIME.format(phase.adjustmentEndAt()) + "    服务器时间：" + TIME.format(phase.serverTime());
     }
 
     private OfferingSummary findOffering(String offeringId) {
@@ -186,5 +210,7 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
         };
     }
 
-    private record Data(List<EnrollmentView> enrollments, edu.seu.vcampus.common.paging.PageResult<OfferingSummary> offerings) { }
+    private record PartialData(List<EnrollmentView> enrollments, edu.seu.vcampus.common.paging.PageResult<OfferingSummary> offerings) { }
+    private record Data(List<EnrollmentView> enrollments, edu.seu.vcampus.common.paging.PageResult<OfferingSummary> offerings,
+                        TermPhaseView phase) { }
 }

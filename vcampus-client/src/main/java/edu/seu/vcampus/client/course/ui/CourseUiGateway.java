@@ -15,6 +15,7 @@ import edu.seu.vcampus.common.course.TermView;
 import edu.seu.vcampus.common.course.ImportCourseOutcomesCommand;
 import edu.seu.vcampus.common.course.CreateCourseCommand;
 import edu.seu.vcampus.common.course.UpdateCourseCommand;
+import edu.seu.vcampus.common.course.TermPhaseView;
 import edu.seu.vcampus.common.protocol.EmptyResponse;
 import edu.seu.vcampus.common.course.OfferingSearchQuery;
 import edu.seu.vcampus.common.course.OfferingSummary;
@@ -41,6 +42,7 @@ public interface CourseUiGateway {
     default CompletableFuture<EmptyResponse> importOutcomes(ImportCourseOutcomesCommand command) { return unsupported(); }
     default CompletableFuture<CourseView> createCourse(CreateCourseCommand command) { return unsupported(); }
     default CompletableFuture<CourseView> updateCourse(UpdateCourseCommand command) { return unsupported(); }
+    default CompletableFuture<TermPhaseView> getTermPhase(String termId) { return unsupported(); }
 
     private static <T> CompletableFuture<T> unsupported() {
         return CompletableFuture.failedFuture(new UnsupportedOperationException("Course operation is not connected"));
@@ -125,6 +127,12 @@ public interface CourseUiGateway {
                         command.courseId(), command.courseCode(), command.courseName(), command.credit(),
                         command.totalHours(), command.description(), command.active(), command.expectedVersion() + 1,
                         java.time.Instant.now(), java.time.Instant.now()));
+            }
+            public CompletableFuture<TermPhaseView> getTermPhase(String termId) {
+                return CompletableFuture.completedFuture(new TermPhaseView(termId, "ACTIVE", "ADJUSTMENT",
+                        java.time.Instant.parse("2026-09-03T00:00:00Z"), java.time.Instant.parse("2026-08-20T00:00:00Z"),
+                        java.time.Instant.parse("2026-08-31T16:00:00Z"), java.time.Instant.parse("2026-09-01T00:00:00Z"),
+                        java.time.Instant.parse("2026-09-08T16:00:00Z")));
             }
         };
     }

@@ -24,6 +24,7 @@ import edu.seu.vcampus.common.course.ImportCourseOutcomesCommand;
 import edu.seu.vcampus.common.course.CourseOutcome;
 import edu.seu.vcampus.common.course.CreateCourseCommand;
 import edu.seu.vcampus.common.course.UpdateCourseCommand;
+import edu.seu.vcampus.common.course.TermPhaseView;
 import edu.seu.vcampus.common.paging.PageResult;
 import org.junit.jupiter.api.Test;
 
@@ -189,6 +190,12 @@ class CourseUiTest {
             }
             @Override public CompletableFuture<RetakeEligibility> checkRetake(String courseId) { return CompletableFuture.completedFuture(new RetakeEligibility(courseId, false, List.of(), "")); }
             @Override public CompletableFuture<EnrollmentView> enrollRetake(RetakeCommand command) { return base.enroll(new EnrollCommand(command.offeringId())); }
+            @Override public CompletableFuture<TermPhaseView> getTermPhase(String termId) {
+                return CompletableFuture.completedFuture(new TermPhaseView(termId, "ACTIVE", "ADJUSTMENT",
+                        Instant.parse("2026-09-03T00:00:00Z"), Instant.parse("2026-08-20T00:00:00Z"),
+                        Instant.parse("2026-08-31T16:00:00Z"), Instant.parse("2026-09-01T00:00:00Z"),
+                        Instant.parse("2026-09-08T16:00:00Z")));
+            }
         };
         AdjustmentPanel panel = onEdt(() -> new AdjustmentPanel(gateway));
         SwingUtilities.invokeAndWait(() -> { });
@@ -201,6 +208,7 @@ class CourseUiTest {
         assertThat(tables.get(0).getValueAt(0, 1)).isEqualTo("01班");
         assertThat(tables.get(0).getValueAt(0, 2)).isEqualTo("正常选课");
         assertThat(tables.get(0).getValueAt(0, 3)).isEqualTo("有效");
+        assertThat(labels(panel)).anyMatch(text -> text.contains("退改补开放") && text.contains("09-01") && text.contains("09-09"));
 
         SwingUtilities.invokeAndWait(() -> {
             tables.get(0).setRowSelectionInterval(0, 0);
