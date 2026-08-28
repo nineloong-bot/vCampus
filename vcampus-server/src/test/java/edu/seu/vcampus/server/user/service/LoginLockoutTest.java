@@ -101,6 +101,21 @@ class LoginLockoutTest {
         assertThat(login("Password1").sessionToken()).isNotBlank();
     }
 
+    @Test
+    void successfulLoginAfterLockoutResetsFailureCount() {
+        for (int attempt = 0; attempt < 5; attempt++) {
+            assertThatThrownBy(() -> login("wrong")).isInstanceOf(InvalidCredentialsException.class);
+        }
+        clock.advance(Duration.ofMinutes(15));
+
+        login("Password1");
+
+        UserAccount account = transactions.inTransaction(connection ->
+                users.findByNormalizedLoginId(connection, "ALICE").orElseThrow());
+        assertThat(account.failedLoginCount()).isZero();
+        assertThat(account.lockedUntil()).isNull();
+    }
+
     private edu.seu.vcampus.common.user.LoginResult login(String password) {
         return service.login(new LoginCommand("alice", password.toCharArray(), "client"),
                 new ClientContext("connection", "127.0.0.1"));

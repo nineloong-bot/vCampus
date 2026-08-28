@@ -60,9 +60,8 @@ final class AuthenticationService {
                 auditUnknownLogin();
                 throw new InvalidCredentialsException();
             }
-            Attempt attempt = locks.withLocks(List.of(new ResourceKey("USER", known.userId())),
-                    () -> authenticate(known.userId(), password));
-            return toLoginResult(attempt);
+            return locks.withLocks(List.of(new ResourceKey("USER", known.userId())),
+                    () -> toLoginResult(authenticate(known.userId(), password)));
         } finally {
             Arrays.fill(password, '\0');
         }
@@ -88,12 +87,14 @@ final class AuthenticationService {
         char[] newPassword = command.newPassword();
         try {
             PasswordPolicy.validate(newPassword);
-            boolean changed = locks.withLocks(List.of(new ResourceKey("USER", identity.userId())),
-                    () -> updatePassword(identity.userId(), oldPassword, newPassword));
+            boolean changed = locks.withLocks(List.of(new ResourceKey("USER", identity.userId())), () -> {
+                if (!updatePassword(identity.userId(), oldPassword, newPassword)) return false;
+                sessions.revokeAllForUser(identity.userId());
+                return true;
+            });
             if (!changed) {
                 throw new InvalidCredentialsException();
             }
-            sessions.revokeAllForUser(identity.userId());
         } finally {
             Arrays.fill(oldPassword, '\0');
             Arrays.fill(newPassword, '\0');
@@ -124,8 +125,7 @@ final class AuthenticationService {
             if (account.lockedUntil() != null && account.lockedUntil().isAfter(time(now))) {
                 return Attempt.LOCKED;
             }
-            UserAccount updated = authenticationUpdate(account, account.failedLoginCount(), null,
-                    time(now), now);
+            UserAccount updated = authenticationUpdate(account, 0, null, time(now), now);
             users.updateWithVersion(connection, updated, account.rowVersion());
             audits.record(connection, account.userId(), "USER_LOGIN", "SUCCESS");
             return new Attempt(updated, null);
