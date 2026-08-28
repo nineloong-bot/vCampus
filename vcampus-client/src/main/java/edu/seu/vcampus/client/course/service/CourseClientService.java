@@ -1,16 +1,90 @@
 package edu.seu.vcampus.client.course.service;
-import edu.seu.vcampus.client.core.network.ClientConnection; import edu.seu.vcampus.common.course.*; import edu.seu.vcampus.common.paging.PageResult; import edu.seu.vcampus.common.protocol.*;
-import java.io.Serializable; import java.time.Duration; import java.util.*; import java.util.concurrent.CompletableFuture;
-/** Typed, non-blocking client facade for every published course command. */
+
+import edu.seu.vcampus.client.core.network.ClientConnection;
+import edu.seu.vcampus.common.course.*;
+import edu.seu.vcampus.common.paging.PageResult;
+import edu.seu.vcampus.common.protocol.EmptyRequest;
+import edu.seu.vcampus.common.protocol.EmptyResponse;
+import edu.seu.vcampus.common.protocol.EntityIdRequest;
+
+import java.io.Serializable;
+import java.time.Duration;
+import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+
+/** Typed, non-blocking client facade for the complete course command surface. */
 public final class CourseClientService {
- private static final Duration READ=Duration.ofSeconds(10),WRITE=Duration.ofSeconds(15); private final CourseTransport transport;
- public CourseClientService(ClientConnection connection){this(connection::send);} public CourseClientService(CourseTransport transport){this.transport=Objects.requireNonNull(transport);}
- public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery q){return call("COURSE_SEARCH_OFFERINGS",q,READ);}
- public CompletableFuture<EnrollmentView> enroll(EnrollCommand c){return call("COURSE_ENROLL",c,WRITE);} public CompletableFuture<EnrollmentView> addDuringAdjustment(LateAddCommand c){return call("COURSE_ADJUSTMENT_ADD",c,WRITE);}
- public CompletableFuture<EmptyResponse> dropDuringAdjustment(DropCommand c){return call("COURSE_ADJUSTMENT_DROP",c,WRITE);} public CompletableFuture<EnrollmentView> changeDuringAdjustment(ChangeOfferingCommand c){return call("COURSE_ADJUSTMENT_CHANGE",c,WRITE);}
- public CompletableFuture<RetakeEligibility> checkRetakeEligibility(String id){return call("COURSE_RETAKE_CHECK",new EntityIdRequest(id),READ);} public CompletableFuture<EnrollmentView> enrollRetake(RetakeCommand c){return call("COURSE_RETAKE_ENROLL",c,WRITE);}
- public CompletableFuture<List<ScheduleItem>> getCurrentSchedule(){return this.<ArrayList<ScheduleItem>>call("COURSE_GET_MY_SCHEDULE",EmptyRequest.INSTANCE,READ).thenApply(List::copyOf);}
- public CompletableFuture<List<EnrollmentView>> getCurrentEnrollments(){return this.<ArrayList<EnrollmentView>>call("COURSE_GET_MY_ENROLLMENTS",EmptyRequest.INSTANCE,READ).thenApply(List::copyOf);}
- public CompletableFuture<EmptyResponse> importOutcomes(ImportCourseOutcomesCommand c){return call("COURSE_IMPORT_OUTCOMES",c,WRITE);} public CompletableFuture<CourseView> createCourse(CreateCourseCommand c){return call("COURSE_CREATE",c,WRITE);} public CompletableFuture<CourseView> updateCourse(UpdateCourseCommand c){return call("COURSE_UPDATE",c,WRITE);} public CompletableFuture<OfferingView> createOffering(CreateOfferingCommand c){return call("COURSE_CREATE_OFFERING",c,WRITE);} public CompletableFuture<OfferingView> updateOffering(UpdateOfferingCommand c){return call("COURSE_UPDATE_OFFERING",c,WRITE);}
- private <T extends Serializable> CompletableFuture<T> call(String command,Serializable body,Duration timeout){return transport.<T>send(command,body,timeout).thenApply(response->{if(response.success())return response.data();var error=response.error();throw new CourseClientException(response.code(),response.message(),error==null?null:error.traceId(),error!=null&&error.retryable());});}
+    private static final Duration READ = Duration.ofSeconds(10);
+    private static final Duration WRITE = Duration.ofSeconds(15);
+    private final CourseTransport transport;
+
+    public CourseClientService(ClientConnection connection) { this(connection::send); }
+    public CourseClientService(CourseTransport transport) { this.transport = Objects.requireNonNull(transport); }
+
+    public CompletableFuture<List<TermView>> listTerms() { return callList("COURSE_TERM_LIST", EmptyRequest.INSTANCE, READ, TermView.class); }
+    public CompletableFuture<TermView> createTerm(CreateTermCommand c) { return call("COURSE_TERM_CREATE", c, WRITE, TermView.class); }
+    public CompletableFuture<TermView> updateTerm(UpdateTermCommand c) { return call("COURSE_TERM_UPDATE", c, WRITE, TermView.class); }
+    public CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery q) { return callPage("COURSE_CATALOG_SEARCH", q, READ, CourseView.class); }
+    public CompletableFuture<PageResult<AdjustmentAuditView>> searchAdjustmentAudits(AdjustmentAuditQuery q) { return callPage("COURSE_ADJUSTMENT_AUDIT_SEARCH", q, READ, AdjustmentAuditView.class); }
+    public CompletableFuture<TermPhaseView> getTermPhase(String id) { return call("COURSE_GET_TERM_PHASE", new EntityIdRequest(id), READ, TermPhaseView.class); }
+    public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery q) { return callPage("COURSE_SEARCH_OFFERINGS", q, READ, OfferingSummary.class); }
+    public CompletableFuture<EnrollmentView> enroll(EnrollCommand c) { return call("COURSE_ENROLL", c, WRITE, EnrollmentView.class); }
+    public CompletableFuture<EnrollmentView> addDuringAdjustment(LateAddCommand c) { return call("COURSE_ADJUSTMENT_ADD", c, WRITE, EnrollmentView.class); }
+    public CompletableFuture<EmptyResponse> dropDuringAdjustment(DropCommand c) { return call("COURSE_ADJUSTMENT_DROP", c, WRITE, EmptyResponse.class); }
+    public CompletableFuture<EnrollmentView> changeDuringAdjustment(ChangeOfferingCommand c) { return call("COURSE_ADJUSTMENT_CHANGE", c, WRITE, EnrollmentView.class); }
+    public CompletableFuture<RetakeEligibility> checkRetakeEligibility(String id) { return call("COURSE_RETAKE_CHECK", new EntityIdRequest(id), READ, RetakeEligibility.class); }
+    public CompletableFuture<EnrollmentView> enrollRetake(RetakeCommand c) { return call("COURSE_RETAKE_ENROLL", c, WRITE, EnrollmentView.class); }
+    public CompletableFuture<List<ScheduleItem>> getCurrentSchedule() { return callList("COURSE_GET_MY_SCHEDULE", EmptyRequest.INSTANCE, READ, ScheduleItem.class); }
+    public CompletableFuture<List<EnrollmentView>> getCurrentEnrollments() { return callList("COURSE_GET_MY_ENROLLMENTS", EmptyRequest.INSTANCE, READ, EnrollmentView.class); }
+    public CompletableFuture<EmptyResponse> importOutcomes(ImportCourseOutcomesCommand c) { return call("COURSE_IMPORT_OUTCOMES", c, WRITE, EmptyResponse.class); }
+    public CompletableFuture<CourseView> createCourse(CreateCourseCommand c) { return call("COURSE_CREATE", c, WRITE, CourseView.class); }
+    public CompletableFuture<CourseView> updateCourse(UpdateCourseCommand c) { return call("COURSE_UPDATE", c, WRITE, CourseView.class); }
+    public CompletableFuture<OfferingView> createOffering(CreateOfferingCommand c) { return call("COURSE_CREATE_OFFERING", c, WRITE, OfferingView.class); }
+    public CompletableFuture<OfferingView> updateOffering(UpdateOfferingCommand c) { return call("COURSE_UPDATE_OFFERING", c, WRITE, OfferingView.class); }
+
+    private <T extends Serializable> CompletableFuture<T> call(String command, Serializable body, Duration timeout, Class<T> type) {
+        return raw(command, body, timeout).thenApply(data -> requireType(data, type));
+    }
+
+    private <T extends Serializable> CompletableFuture<List<T>> callList(String command, Serializable body, Duration timeout, Class<T> itemType) {
+        return raw(command, body, timeout).thenApply(data -> {
+            if (!(data instanceof List<?> values)) throw malformed();
+            return values.stream().map(value -> requireType(value, itemType)).toList();
+        });
+    }
+
+    private <T extends Serializable> CompletableFuture<PageResult<T>> callPage(String command, Serializable body, Duration timeout, Class<T> itemType) {
+        return raw(command, body, timeout).thenApply(data -> {
+            if (!(data instanceof PageResult<?> page)) throw malformed();
+            List<T> items = page.items().stream().map(value -> requireType(value, itemType)).toList();
+            return new PageResult<>(items, page.page(), page.pageSize(), page.total());
+        });
+    }
+
+    private CompletableFuture<Serializable> raw(String command, Serializable body, Duration timeout) {
+        CompletableFuture<? extends edu.seu.vcampus.common.protocol.ResponseBody<? extends Serializable>> sent;
+        try { sent = transport.<Serializable>send(command, body, timeout); }
+        catch (RuntimeException failure) { return CompletableFuture.failedFuture(network()); }
+        if (sent == null) return CompletableFuture.failedFuture(malformed());
+        return sent.handle((response, failure) -> {
+            if (failure != null) throw network();
+            if (response == null) throw malformed();
+            if (response.success()) {
+                if (response.data() == null || !"SUCCESS".equals(response.code())) throw malformed();
+                return response.data();
+            }
+            if (response.code() == null || response.code().isBlank() || response.message() == null || response.message().isBlank()) throw malformed();
+            var error = response.error();
+            throw new CourseClientException(response.code(), response.message(), error == null ? null : error.traceId(), error != null && error.retryable());
+        });
+    }
+
+    private static <T> T requireType(Object value, Class<T> type) {
+        if (!type.isInstance(value)) throw malformed();
+        return type.cast(value);
+    }
+
+    private static CourseClientException network() { return new CourseClientException("COMMON_NETWORK_ERROR", "网络连接异常，请检查连接后重试", null, true); }
+    private static CourseClientException malformed() { return new CourseClientException("COMMON_PROTOCOL_ERROR", "服务器响应无效，请稍后重试", null, true); }
 }

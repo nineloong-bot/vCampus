@@ -1,0 +1,2 @@
+package edu.seu.vcampus.common.course; import java.io.*; import java.time.*;
+/** Complete term configuration and phase windows. */ public record TermView(String termId,String termCode,String termName,LocalDate startDate,LocalDate endDate,Instant enrollmentStartAt,Instant enrollmentEndAt,Instant adjustmentStartAt,Instant adjustmentEndAt,String termStatus,long rowVersion,Instant createdAt,Instant updatedAt)implements Serializable{@Serial private static final long serialVersionUID=1L;}

@@ -77,6 +77,7 @@ public interface CourseRepository {
 
     /** Lists a student's adjustment audit rows, newest first. */
     List<EnrollmentAdjustment> findAdjustmentsByStudent(Connection connection, String studentId);
+    List<EnrollmentAdjustment> findAdjustments(Connection connection);
 
     /** Inserts an imported outcome unless its source reference was already processed. */
     boolean insertAttemptIfAbsent(Connection connection, CourseAttempt attempt);

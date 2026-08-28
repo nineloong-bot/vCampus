@@ -14,6 +14,12 @@ import java.util.List;
 
 /** Application operations owned by the course module. */
 public interface CourseService {
+    java.util.List<TermView> listTerms();
+    TermView createTerm(CreateTermCommand command);
+    TermView updateTerm(UpdateTermCommand command);
+    PageResult<CourseView> searchCatalog(CourseCatalogQuery query);
+    PageResult<AdjustmentAuditView> searchAdjustmentAudits(AdjustmentAuditQuery query);
+    TermPhaseView getTermPhase(String termId);
     CourseView createCourse(CreateCourseCommand command);
     CourseView updateCourse(UpdateCourseCommand command);
     OfferingView createOffering(CreateOfferingCommand command);

@@ -66,6 +66,7 @@ public final class AccessCourseRepository implements CourseRepository {
     @Override public List<EnrollmentAdjustment> findAdjustmentsByStudent(Connection c, String studentId) {
         return audits.findAdjustmentsByStudent(c, studentId);
     }
+    @Override public List<EnrollmentAdjustment> findAdjustments(Connection c){return audits.findAdjustments(c);}
     @Override public boolean insertAttemptIfAbsent(Connection c, CourseAttempt value) {
         return audits.insertAttemptIfAbsent(c, value);
     }

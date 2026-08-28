@@ -28,6 +28,7 @@ final class AccessAuditRepository {
             return values;
         } catch (SQLException error) { throw CourseJdbc.failure("list adjustments", error); }
     }
+    List<EnrollmentAdjustment> findAdjustments(Connection c){List<EnrollmentAdjustment> v=new ArrayList<>();try(PreparedStatement s=c.prepareStatement("SELECT * FROM tblEnrollmentAdjustment ORDER BY operatedAt DESC");ResultSet r=s.executeQuery()){while(r.next())v.add(adjustment(r));return v;}catch(SQLException e){throw CourseJdbc.failure("list adjustments",e);}}
 
     boolean insertAttemptIfAbsent(Connection c, CourseAttempt value) {
         if (attemptExists(c, value.sourceReference())) return false;

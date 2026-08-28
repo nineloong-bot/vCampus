@@ -1,0 +1,2 @@
+package edu.seu.vcampus.common.course; import java.io.*; import java.time.Instant;
+/** Safe immutable enrollment-adjustment audit row. */ public record AdjustmentAuditView(String adjustmentId,String studentId,String adjustmentType,String sourceOfferingId,String targetOfferingId,String operationResult,String failureCode,Instant operatedAt)implements Serializable{@Serial private static final long serialVersionUID=1L;}

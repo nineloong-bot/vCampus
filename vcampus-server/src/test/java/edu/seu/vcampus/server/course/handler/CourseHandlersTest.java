@@ -98,6 +98,10 @@ class CourseHandlersTest {
 
     private static final class StubService implements CourseService {
         RuntimeException enrollFailure;
+        public List<TermView> listTerms(){return List.of();} public TermView createTerm(CreateTermCommand c){return null;} public TermView updateTerm(UpdateTermCommand c){return null;}
+        public edu.seu.vcampus.common.paging.PageResult<CourseView> searchCatalog(CourseCatalogQuery q){return new edu.seu.vcampus.common.paging.PageResult<>(List.of(),0,20,0);}
+        public edu.seu.vcampus.common.paging.PageResult<AdjustmentAuditView> searchAdjustmentAudits(AdjustmentAuditQuery q){return new edu.seu.vcampus.common.paging.PageResult<>(List.of(),0,20,0);}
+        public TermPhaseView getTermPhase(String id){return null;}
         public CourseView createCourse(CreateCourseCommand c){return null;} public CourseView updateCourse(UpdateCourseCommand c){return null;}
         public OfferingView createOffering(CreateOfferingCommand c){return null;} public OfferingView updateOffering(UpdateOfferingCommand c){return null;}
         public edu.seu.vcampus.common.paging.PageResult<OfferingSummary> searchOfferings(OfferingSearchQuery q){return new edu.seu.vcampus.common.paging.PageResult<>(List.of(),0,20,0);}
