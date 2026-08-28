@@ -4,3 +4,4 @@
 vcampus-distribution/lib/*.jar
 vcampus-distribution/docs/
 vcampus-distribution/logs/
+**/docs/uml/
