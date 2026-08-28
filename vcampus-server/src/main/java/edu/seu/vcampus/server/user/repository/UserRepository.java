@@ -25,4 +25,7 @@ public interface UserRepository {
 
     /** Searches accounts using filters and zero-based paging. */
     PageResult<UserAccount> search(Connection connection, UserSearchQuery query);
+
+    /** Counts accounts that are both administrators and active. */
+    long countActiveAdministrators(Connection connection);
 }

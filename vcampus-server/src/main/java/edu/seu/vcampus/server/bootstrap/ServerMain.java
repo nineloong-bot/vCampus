@@ -9,7 +9,9 @@ import edu.seu.vcampus.server.network.SocketServer;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import edu.seu.vcampus.server.persistence.TransactionManager;
 import edu.seu.vcampus.server.routing.MessageRouter;
-import edu.seu.vcampus.server.user.handler.UserLoginHandler;
+import edu.seu.vcampus.server.security.AuthorizationService;
+import edu.seu.vcampus.server.session.SessionRegistry;
+import edu.seu.vcampus.server.user.handler.UserHandlers;
 import edu.seu.vcampus.server.user.repository.AccessAuditRepository;
 import edu.seu.vcampus.server.user.repository.AccessUserRepository;
 import edu.seu.vcampus.server.user.service.PasswordHasher;
@@ -55,7 +57,8 @@ public final class ServerMain {
     private static void run(ServerConfig config) throws Exception {
         MessageRouter router = new MessageRouter(Map.of(
                 "PING", (request, context) -> ResponseBody.success(EmptyResponse.INSTANCE)));
-        router.register("USER_LOGIN", new UserLoginHandler(createUserService(config)));
+        UserRuntime users = createUserRuntime(config);
+        new UserHandlers(router, users.service(), users.authorization());
         SocketServer server = new SocketServer(config.port(), config.workerThreads(),
                 config.maxConnections(), router);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> shutdown(server), "vcampus-shutdown"));
@@ -63,13 +66,15 @@ public final class ServerMain {
         server.serve();
     }
 
-    private static UserService createUserService(ServerConfig config) {
+    private static UserRuntime createUserRuntime(ServerConfig config) {
         String databaseUrl = "jdbc:ucanaccess://" + config.databasePath()
                 + ";immediatelyReleaseResources=true";
         ConnectionProvider connections = () -> DriverManager.getConnection(databaseUrl);
-        return new UserServiceImpl(new TransactionManager(connections),
+        SessionRegistry sessions = new SessionRegistry();
+        UserService service = new UserServiceImpl(new TransactionManager(connections),
                 new StripedResourceLockManager(), new AccessUserRepository(),
-                new AccessAuditRepository(), new PasswordHasher());
+                new AccessAuditRepository(), new PasswordHasher(), sessions, java.time.Clock.systemUTC());
+        return new UserRuntime(service, new AuthorizationService(sessions));
     }
 
     private static void shutdown(SocketServer server) {
@@ -82,5 +87,8 @@ public final class ServerMain {
         } catch (Exception error) {
             LOGGER.warn("服务端停机清理未完全成功", error);
         }
+    }
+
+    private record UserRuntime(UserService service, AuthorizationService authorization) {
     }
 }

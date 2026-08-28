@@ -70,6 +70,21 @@ class AccessAuditRepositoryTest {
         }
     }
 
+    @Test
+    void recordsAnExplicitTargetWithoutPersistingRequestPayload() throws Exception {
+        transactions.inTransaction(connection -> {
+            repository.record(connection, null, "USER_CHANGE_STATUS", "USER", "target", "SUCCESS");
+            return null;
+        });
+
+        try (var connection = provider.open(); var statement = connection.createStatement();
+             var result = statement.executeQuery("SELECT targetType, targetId FROM tblAuditLog")) {
+            assertThat(result.next()).isTrue();
+            assertThat(result.getString(1)).isEqualTo("USER");
+            assertThat(result.getString(2)).isEqualTo("target");
+        }
+    }
+
     private static Path projectFile(String folder, String name) {
         Path fromModule = Path.of("..", "vcampus-database", folder, name);
         return Files.exists(fromModule) ? fromModule

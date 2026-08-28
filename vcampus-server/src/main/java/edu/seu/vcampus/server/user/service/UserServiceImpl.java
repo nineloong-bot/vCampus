@@ -1,11 +1,16 @@
 package edu.seu.vcampus.server.user.service;
 
 import edu.seu.vcampus.common.user.ChangePasswordCommand;
+import edu.seu.vcampus.common.user.ChangeUserStatusCommand;
 import edu.seu.vcampus.common.user.LoginCommand;
 import edu.seu.vcampus.common.user.LoginResult;
 import edu.seu.vcampus.common.user.TeacherAccountApplicationCommand;
+import edu.seu.vcampus.common.user.UpdateUserRoleCommand;
+import edu.seu.vcampus.common.user.UserSearchQuery;
+import edu.seu.vcampus.common.user.UserSummary;
 import edu.seu.vcampus.common.user.UserRole;
 import edu.seu.vcampus.common.user.UserView;
+import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.server.concurrency.ResourceLockManager;
 import edu.seu.vcampus.server.persistence.TransactionManager;
 import edu.seu.vcampus.server.routing.ClientContext;
@@ -29,6 +34,7 @@ public final class UserServiceImpl implements UserService, UserQueryPort {
     private final UserRepository users;
     private final TeacherAccountApplicationService applications;
     private final AuthenticationService authentication;
+    private final AdminUserService administration;
 
     /** Creates the service with production clock and session defaults. */
     public UserServiceImpl(TransactionManager transactions, ResourceLockManager locks,
@@ -44,6 +50,8 @@ public final class UserServiceImpl implements UserService, UserQueryPort {
         this.users = Objects.requireNonNull(users, "users");
         applications = new TeacherAccountApplicationService(transactions, locks, users, audits, hasher);
         authentication = new AuthenticationService(transactions, locks, users, audits, hasher, sessions, clock);
+        administration = new AdminUserService(transactions, locks, users, audits,
+                authentication::revokeSessionsForUser);
     }
 
     /** Creates a pending teacher account application. */
@@ -66,6 +74,15 @@ public final class UserServiceImpl implements UserService, UserQueryPort {
     @Override public void changePassword(String sessionToken, ChangePasswordCommand command) {
         authentication.changePassword(sessionToken, command);
     }
+
+    /** Searches safe account summaries. */
+    @Override public PageResult<UserSummary> searchUsers(UserSearchQuery query) { return administration.search(query); }
+
+    /** Changes an account role. */
+    @Override public UserView updateRole(UpdateUserRoleCommand command) { return administration.updateRole(command); }
+
+    /** Changes an account lifecycle status. */
+    @Override public UserView changeStatus(ChangeUserStatusCommand command) { return administration.changeStatus(command); }
 
     /** Revokes all sessions belonging to an account. */
     @Override public void revokeSessionsForUser(String userId) {

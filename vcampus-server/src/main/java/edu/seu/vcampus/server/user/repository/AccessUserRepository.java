@@ -122,6 +122,19 @@ public final class AccessUserRepository implements UserRepository {
         }
     }
 
+    @Override
+    public long countActiveAdministrators(Connection connection) {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT COUNT(*) FROM tblUser WHERE roleCode='ADMIN' AND accountStatus='ACTIVE'")) {
+            try (ResultSet result = statement.executeQuery()) {
+                result.next();
+                return result.getLong(1);
+            }
+        } catch (SQLException error) {
+            throw failure("Could not count active administrators", error);
+        }
+    }
+
     private Optional<UserAccount> findOne(Connection connection, String field, String value) {
         String sql = "SELECT " + COLUMNS + " FROM tblUser WHERE " + field + "=?";
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
