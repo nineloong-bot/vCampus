@@ -40,7 +40,7 @@ public final class CourseUiScreenshotGenerator {
         Path output = Path.of("docs/ui-review/course");
         Files.createDirectories(output);
         UiThemeInstaller.install();
-        JComponent[] pages = new JComponent[14];
+        JComponent[] pages = new JComponent[16];
         CourseEditorDialog[] dialogs = new CourseEditorDialog[1];
         OfferingDetailDialog[] offeringDialogs = new OfferingDetailDialog[1];
         TermEditorDialog[] termDialogs = new TermEditorDialog[1];
@@ -54,7 +54,7 @@ public final class CourseUiScreenshotGenerator {
             pages[4] = shell(new OfferingSearchPanel(gateway(CompletableFuture.failedFuture(
                     new IllegalStateException("internal details")))));
             pages[5] = shell(new OfferingSearchPanel(gateway(CompletableFuture.failedFuture(
-                    new CourseClientException("COMMON_NETWORK_ERROR", "socket details", null, true)))));
+                    new CourseClientException("COMMON_NETWORK_ERROR", "socket details", null, true)))), false);
             pages[6] = shell(new AdjustmentPanel(CourseUiGateway.preview()));
             pages[7] = shell(new RetakePanel(CourseUiGateway.preview()));
             pages[8] = shell(new TermManagementPanel(CourseUiGateway.preview()));
@@ -63,6 +63,9 @@ public final class CourseUiScreenshotGenerator {
             pages[11] = shell(new OutcomeImportPanel(CourseUiGateway.preview()));
             pages[12] = shell(new AdjustmentAuditPanel(CourseUiGateway.preview()));
             pages[13] = shell(new MyEnrollmentPanel(CourseUiGateway.preview()));
+            pages[14] = shell(new MySchedulePanel(scheduleGateway(CompletableFuture.completedFuture(List.of()))));
+            pages[15] = shell(new MySchedulePanel(scheduleGateway(CompletableFuture.failedFuture(
+                    new CourseClientException("COMMON_NETWORK_ERROR", "socket details", null, true)))), false);
             dialogs[0] = new CourseEditorDialog(null, CourseUiGateway.preview(), null, () -> { });
             List<OfferingSummary> previewOfferings = CourseUiGateway.preview()
                     .searchOfferings(new OfferingSearchQuery("2026-autumn", "", null, true, 0, 20)).join().items();
@@ -91,6 +94,8 @@ public final class CourseUiScreenshotGenerator {
                 capture(pages[11], output.resolve("c10-outcome-import--normal.png"));
                 capture(pages[12], output.resolve("c11-adjustment-audit--normal.png"));
                 capture(pages[13], output.resolve("c03-my-enrollment--normal.png"));
+                capture(pages[14], output.resolve("c04-my-schedule--empty.png"));
+                capture(pages[15], output.resolve("c04-my-schedule--disconnected.png"));
                 capture((JComponent) dialogs[0].getContentPane(), output.resolve("c08-course-editor--create.png"), 560, 620);
                 dialogs[0].dispose();
                 capture((JComponent) offeringDialogs[0].getContentPane(), output.resolve("c02-offering-change--confirm.png"), 720, 460);
@@ -121,7 +126,25 @@ public final class CourseUiScreenshotGenerator {
         };
     }
 
+    private static CourseUiGateway scheduleGateway(CompletableFuture<List<ScheduleItem>> schedule) {
+        CourseUiGateway base = CourseUiGateway.preview();
+        return new CourseUiGateway() {
+            public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) {
+                return base.searchOfferings(query);
+            }
+            public CompletableFuture<List<EnrollmentView>> currentEnrollments() {
+                return base.currentEnrollments();
+            }
+            public CompletableFuture<List<ScheduleItem>> currentSchedule() { return schedule; }
+            public CompletableFuture<EnrollmentView> enroll(EnrollCommand command) { return base.enroll(command); }
+        };
+    }
+
     private static JPanel shell(JComponent page) {
+        return shell(page, true);
+    }
+
+    private static JPanel shell(JComponent page, boolean connected) {
         JPanel shell = new JPanel(new BorderLayout());
         shell.setBackground(UiColors.BACKGROUND_PAGE);
         JPanel header = new JPanel(new BorderLayout());
@@ -129,7 +152,7 @@ public final class CourseUiScreenshotGenerator {
         header.setBorder(BorderFactory.createEmptyBorder(0, UiSpacing.XL, 0, UiSpacing.XL));
         header.setPreferredSize(new Dimension(0, UiDimensions.HEADER_HEIGHT));
         JLabel product = new JLabel("vCampus · 虚拟校园"); product.setFont(UiTypography.DISPLAY); product.setForeground(UiColors.TEXT_ON_PRIMARY);
-        JLabel identity = new JLabel("20260001 · 学生    连接正常"); identity.setFont(UiTypography.BODY); identity.setForeground(UiColors.TEXT_ON_PRIMARY);
+        JLabel identity = new JLabel("20260001 · 学生    " + (connected ? "连接正常" : "连接断开")); identity.setFont(UiTypography.BODY); identity.setForeground(UiColors.TEXT_ON_PRIMARY);
         header.add(product, BorderLayout.WEST); header.add(identity, BorderLayout.EAST);
         shell.add(header, BorderLayout.NORTH);
 

@@ -22,7 +22,13 @@ class CourseDemoServerMainTest {
 
         var enrollment = runtime.service().enroll("student-demo-1", new EnrollCommand(offerings.getFirst().offeringId()));
 
-        assertThat(offerings).hasSize(2);
+        assertThat(offerings).extracting(offering -> offering.courseCode())
+                .containsExactlyInAnyOrder("MATH101", "CS201", "DEMO-RACE");
+        assertThat(offerings).filteredOn(offering -> "DEMO-RACE".equals(offering.courseCode()))
+                .singleElement().satisfies(offering -> {
+                    assertThat(offering.className()).isEqualTo("抢课测试班");
+                    assertThat(offering.capacity()).isEqualTo(1);
+                });
         assertThat(enrollment.studentId()).isEqualTo("student-demo-1");
         assertThat(runtime.service().getCurrentSchedule("student-demo-1")).hasSize(1);
         assertThat(Files.isRegularFile(directory.resolve("course-demo.accdb"))).isTrue();

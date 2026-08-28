@@ -92,9 +92,11 @@ public final class CourseCatalogPanel extends AbstractCoursePanel {
     }
 
     private void search() {
+        long request = beginAsyncRequest();
         showState(ViewState.LOADING, "正在查询课程目录，请稍候");
         CourseCatalogQuery query = new CourseCatalogQuery(keyword.getText().trim(), activeOnly.isSelected() ? Boolean.TRUE : null, 0, 50);
         gateway.searchCatalog(query).whenComplete((page, error) -> SwingUtilities.invokeLater(() -> {
+            if (!acceptsAsyncResult(request)) return;
             model.setRowCount(0);
             courses.clear();
             if (error != null) { showState(ViewState.DISCONNECTED, "无法读取课程目录，请检查连接后重试"); return; }

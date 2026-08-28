@@ -51,8 +51,10 @@ public final class TermManagementPanel extends AbstractCoursePanel {
     }
 
     private void load() {
+        long request = beginAsyncRequest();
         showState(ViewState.LOADING, "正在加载学期配置，请稍候");
         gateway.listTerms().whenComplete((terms, error) -> SwingUtilities.invokeLater(() -> {
+            if (!acceptsAsyncResult(request)) return;
             model.setRowCount(0);
             this.terms.clear();
             if (error != null) { showState(ViewState.DISCONNECTED, "无法加载学期配置，请检查连接后重试"); return; }

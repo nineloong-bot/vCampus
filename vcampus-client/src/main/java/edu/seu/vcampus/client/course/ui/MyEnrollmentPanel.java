@@ -16,7 +16,6 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.concurrent.atomic.AtomicLong;
 
 /** Query-list page backed by COURSE_GET_MY_ENROLLMENTS. */
 public final class MyEnrollmentPanel extends AbstractCoursePanel {
@@ -28,7 +27,6 @@ public final class MyEnrollmentPanel extends AbstractCoursePanel {
             new Object[]{"教学班编号", "选课类型", "状态", "选课时间", "记录版本"}, 0) {
         public boolean isCellEditable(int row, int column) { return false; }
     };
-    private final AtomicLong requestSequence = new AtomicLong();
 
     public MyEnrollmentPanel(CourseUiGateway gateway) {
         super("我的选课", "查看当前学期已选教学班、选课类型和记录状态。");
@@ -59,10 +57,10 @@ public final class MyEnrollmentPanel extends AbstractCoursePanel {
     }
 
     public void refresh() {
-        long request = requestSequence.incrementAndGet();
+        long request = beginAsyncRequest();
         showState(ViewState.LOADING, "正在加载我的选课，请稍候");
         gateway.currentEnrollments().whenComplete((enrollments, error) -> SwingUtilities.invokeLater(() -> {
-            if (request != requestSequence.get()) return;
+            if (!acceptsAsyncResult(request)) return;
             model.setRowCount(0);
             if (error != null) {
                 showState(ViewState.DISCONNECTED, "无法加载我的选课，请检查连接后重试");

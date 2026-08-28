@@ -144,9 +144,14 @@ public final class CourseDemoServerMain {
             service.createCourse(new CreateCourseCommand("CS201", "数据结构", new BigDecimal("4.0"),
                     64, "计算机专业基础课程", true));
         }
+        if (catalog.stream().noneMatch(course -> "DEMO-RACE".equals(course.courseCode()))) {
+            service.createCourse(new CreateCourseCommand("DEMO-RACE", "并发测试课程", new BigDecimal("1.0"),
+                    16, "供两台客户端同时竞争最后一个名额", true));
+        }
         catalog = service.searchCatalog(new CourseCatalogQuery("", null, 0, 100)).items();
         var math = catalog.stream().filter(course -> "MATH101".equals(course.courseCode())).findFirst().orElseThrow();
         var data = catalog.stream().filter(course -> "CS201".equals(course.courseCode())).findFirst().orElseThrow();
+        var race = catalog.stream().filter(course -> "DEMO-RACE".equals(course.courseCode())).findFirst().orElseThrow();
         var offerings = service.searchOfferings(
                 new OfferingSearchQuery(term.termId(), "", null, false, 0, 100)).items();
         if (offerings.stream().noneMatch(offering -> math.courseId().equals(offering.courseId()))) {
@@ -158,6 +163,11 @@ public final class CourseDemoServerMain {
             service.createOffering(new CreateOfferingCommand(term.termId(), data.courseId(), "teacher-user",
                     "02班", 40, "OPEN", List.of(new CreateOfferingCommand.ScheduleInput(
                     "WEDNESDAY", 3, 4, 1, 16, "计算中心-305"))));
+        }
+        if (offerings.stream().noneMatch(offering -> race.courseId().equals(offering.courseId()))) {
+            service.createOffering(new CreateOfferingCommand(term.termId(), race.courseId(), "teacher-user",
+                    "抢课测试班", 1, "OPEN", List.of(new CreateOfferingCommand.ScheduleInput(
+                    "FRIDAY", 5, 6, 1, 16, "网络实验室-101"))));
         }
     }
 

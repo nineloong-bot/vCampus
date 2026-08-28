@@ -14,13 +14,16 @@ the dedicated UI design-system implementation plan.
 - Shared source: theme tokens copied byte-for-byte from teammate branch `origin/as811`;
   the course module does not modify `MainFrame` or the shared shell.
 - Reviewed locally at 1280 × 800: C-01 normal/loading/empty/error/disconnected,
-  C-03 through C-11 normal student/management surfaces. The 720/680/640 px dialog review set
+  C-03 through C-11 normal student/management surfaces, plus C-04 empty/disconnected states.
+  The 720/680/640 px dialog review set
   includes C-02 atomic-change confirmation, C-07 term create, C-08 course create, and
   C-09 offering edit (`course/c02-*`, `course/c07-term-editor-*`,
   `course/c08-course-editor-*`, `course/c09-offering-editor-*`).
 - Automated coverage: shared palette/dimensions, query-list structure, table rules,
   weekly-grid structure, stable navigation IDs, loading/empty/disconnected states,
-  complete term windows, optimistic versions, and aggregate offering schedules.
+  complete term windows, optimistic versions, aggregate offering schedules, latest-request
+  ordering, and disposal-safe page/dialog callbacks. The real-socket suite also exercises two
+  independent students competing for the one-seat Demo offering.
 - External UI review: pending a non-course teammate, as required by the UI specification.
 - Shared-component dependency: no fetched teammate branch currently contains the
   specification-named shared buttons, paged table, state panels, or confirm dialog;

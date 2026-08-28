@@ -31,7 +31,7 @@ public final class CourseDemoClientMain {
             Runtime.getRuntime().addShutdownHook(new Thread(connection::close, "course-demo-client-close"));
             CourseClientGateway gateway = new CourseClientGateway(new CourseClientService(connection));
             UiThemeInstaller.install();
-            SwingUtilities.invokeLater(() -> new CourseDemoFrame(gateway, token, role).setVisible(true));
+            SwingUtilities.invokeLater(() -> new CourseDemoFrame(gateway, token, role, connection).setVisible(true));
         } catch (Exception failure) {
             System.err.println("课程 Demo 客户端启动失败：" + failure.getMessage());
             System.exit(2);

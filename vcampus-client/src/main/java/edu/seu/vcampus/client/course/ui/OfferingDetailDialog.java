@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 
 /** Standard 720 px offering detail/change-preview dialog. */
 public final class OfferingDetailDialog extends JDialog {
+    private final UiAsyncGuard asyncGuard = new UiAsyncGuard();
     public OfferingDetailDialog(Window owner, String courseName, String sourceClass, String targetClass) {
         super(owner, "教学班详情", Dialog.ModalityType.APPLICATION_MODAL);
         JPanel root = new JPanel(new BorderLayout(0, UiSpacing.XL));
@@ -107,7 +108,9 @@ public final class OfferingDetailDialog extends JDialog {
         } catch (RuntimeException failure) {
             pending = CompletableFuture.failedFuture(failure);
         }
+        long asyncRequest = asyncGuard.begin();
         pending.whenComplete((ignored, failure) -> SwingUtilities.invokeLater(() -> {
+            if (!asyncGuard.accepts(asyncRequest)) return;
             confirm.setEnabled(true);
             cancel.setEnabled(true);
             confirm.setText("确认改选");
@@ -118,6 +121,11 @@ public final class OfferingDetailDialog extends JDialog {
             onSuccess.run();
             dispose();
         }));
+    }
+
+    @Override public void dispose() {
+        asyncGuard.deactivate();
+        super.dispose();
     }
 
     private static String changeError(Throwable failure) {

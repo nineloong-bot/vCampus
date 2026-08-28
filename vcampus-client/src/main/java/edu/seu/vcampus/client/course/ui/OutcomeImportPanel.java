@@ -68,11 +68,13 @@ public final class OutcomeImportPanel extends AbstractCoursePanel {
             showState(ViewState.ERROR, invalid.getMessage());
             return;
         }
+        long request = beginAsyncRequest();
         submit.setEnabled(false);
         submit.setText("正在导入…");
         showState(ViewState.SUBMITTING, "正在导入课程结果，请勿重复提交");
         gateway.importOutcomes(new ImportCourseOutcomesCommand(entries)).whenComplete((ignored, error) ->
                 SwingUtilities.invokeLater(() -> {
+                    if (!acceptsAsyncResult(request)) return;
                     submit.setEnabled(true);
                     submit.setText("导入课程结果");
                     if (error != null) { showState(ViewState.ERROR, "导入失败，请检查内容或连接后重试"); return; }

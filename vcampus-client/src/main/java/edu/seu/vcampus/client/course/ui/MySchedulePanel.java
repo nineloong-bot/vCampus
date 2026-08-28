@@ -39,7 +39,18 @@ public final class MySchedulePanel extends AbstractCoursePanel {
     }
 
     private void refresh() {
-        gateway.currentSchedule().whenComplete((items, error) -> SwingUtilities.invokeLater(() -> render(error == null ? items : java.util.List.of())));
+        long request = beginAsyncRequest();
+        showState(ViewState.LOADING, "正在加载课表，请稍候");
+        gateway.currentSchedule().whenComplete((items, error) -> SwingUtilities.invokeLater(() -> {
+            if (!acceptsAsyncResult(request)) return;
+            if (error != null) {
+                showState(ViewState.DISCONNECTED, "无法加载课表，请检查连接后重试");
+                return;
+            }
+            render(items);
+            showState(items.isEmpty() ? ViewState.EMPTY : ViewState.NORMAL,
+                    items.isEmpty() ? "本学期还没有课程安排" : "");
+        }));
     }
 
     private void render(java.util.List<ScheduleItem> items) {

@@ -24,7 +24,6 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -39,7 +38,6 @@ public final class OfferingSearchPanel extends AbstractCoursePanel {
     };
     private final JTable results = table(new Object[0][0], new Object[0]);
     private final List<OfferingSummary> visibleOfferings = new ArrayList<>();
-    private final AtomicLong requestSequence = new AtomicLong();
 
     public OfferingSearchPanel(CourseUiGateway gateway) {
         super("教学班查询", "按学期、课程或上课时间筛选教学班，查看余量后完成选课。");
@@ -104,12 +102,12 @@ public final class OfferingSearchPanel extends AbstractCoursePanel {
     }
 
     public void refresh() {
-        long request = requestSequence.incrementAndGet();
+        long request = beginAsyncRequest();
         showState(ViewState.LOADING, "正在加载教学班，请稍候");
         gateway.currentTermId().thenCompose(term -> gateway.searchOfferings(new OfferingSearchQuery(
                         term, keyword.getText(), selectedDay(), true, 0, 20)))
                 .whenComplete((page, error) -> SwingUtilities.invokeLater(() -> {
-                    if (request != requestSequence.get()) return;
+                    if (!acceptsAsyncResult(request)) return;
                     model.setRowCount(0);
                     visibleOfferings.clear();
                     if (error != null) {
@@ -154,11 +152,13 @@ public final class OfferingSearchPanel extends AbstractCoursePanel {
             return;
         }
         OfferingSummary offering = visibleOfferings.get(results.convertRowIndexToModel(selected));
+        long request = beginAsyncRequest();
         button.setEnabled(false);
         button.setText("正在选课…");
         showState(ViewState.SUBMITTING, "正在提交选课，请勿重复操作");
         gateway.enroll(new EnrollCommand(offering.offeringId())).whenComplete((enrollment, error) ->
                 SwingUtilities.invokeLater(() -> {
+                    if (!acceptsAsyncResult(request)) return;
                     button.setEnabled(true);
                     button.setText("选择教学班");
                     if (error == null) {

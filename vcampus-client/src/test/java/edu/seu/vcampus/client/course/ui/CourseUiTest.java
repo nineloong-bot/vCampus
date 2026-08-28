@@ -112,8 +112,34 @@ class CourseUiTest {
         SwingUtilities.invokeAndWait(() -> { });
 
         assertThat(labels(panel)).contains("我的课表", "星期一", "星期二", "星期三", "星期四", "星期五");
+        assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.NORMAL);
         assertThat(descendants(panel).stream().filter(JPanel.class::isInstance)
                 .map(JPanel.class::cast).anyMatch(p -> p.getLayout() instanceof java.awt.GridBagLayout)).isTrue();
+    }
+
+    @Test
+    void scheduleShowsLoadingThenEmptyInsteadOfAnUnexplainedBlankGrid() throws Exception {
+        CompletableFuture<List<ScheduleItem>> request = new CompletableFuture<>();
+        MySchedulePanel panel = onEdt(() -> new MySchedulePanel(scheduleGateway(request)));
+
+        assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.LOADING);
+        request.complete(List.of());
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.EMPTY);
+        assertThat(labels(panel)).anyMatch(text -> text.contains("本学期还没有课程安排"));
+    }
+
+    @Test
+    void scheduleShowsDisconnectedStateWhenLoadingFails() throws Exception {
+        CompletableFuture<List<ScheduleItem>> failed = CompletableFuture.failedFuture(
+                new CourseClientException("COMMON_NETWORK_ERROR", "socket details", null, true));
+        MySchedulePanel panel = onEdt(() -> new MySchedulePanel(scheduleGateway(failed)));
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.DISCONNECTED);
+        assertThat(labels(panel)).anyMatch(text -> text.contains("无法加载课表") && text.contains("检查连接"));
+        assertThat(labels(panel)).noneMatch(text -> text.contains("socket details"));
     }
 
     @Test
@@ -207,6 +233,26 @@ class CourseUiTest {
     }
 
     @Test
+    void removedEnrollmentPageIgnoresLateAsyncResults() throws Exception {
+        CompletableFuture<List<EnrollmentView>> request = new CompletableFuture<>();
+        CourseUiGateway base = CourseUiGateway.preview();
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(base) {
+            @Override public CompletableFuture<List<EnrollmentView>> currentEnrollments() { return request; }
+        };
+        MyEnrollmentPanel panel = onEdt(() -> new MyEnrollmentPanel(gateway));
+        JTable table = descendants(panel).stream().filter(JTable.class::isInstance)
+                .map(JTable.class::cast).findFirst().orElseThrow();
+        SwingUtilities.invokeAndWait(panel::removeNotify);
+
+        request.complete(List.of(new EnrollmentView(
+                "late", "offering-late", "student-late", "NORMAL", "ACTIVE",
+                Instant.parse("2026-08-28T08:00:00Z"), null, 0)));
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(table.getRowCount()).isZero();
+    }
+
+    @Test
     void adjustmentChangeUsesSelectedEnrollmentTargetAndExpectedVersion() throws Exception {
         AtomicReference<ChangeOfferingCommand> submitted = new AtomicReference<>();
         CourseUiGateway base = CourseUiGateway.preview();
@@ -260,6 +306,31 @@ class CourseUiTest {
 
         assertThat(submitted.get()).isEqualTo(new ChangeOfferingCommand("enrollment-source", "o2", 7));
         assertThat(labels(panel)).anyMatch(text -> text.contains("改选成功"));
+    }
+
+    @Test
+    void adjustmentShowsAnActionableEmptyStateWhenNothingCanBeAdjusted() throws Exception {
+        CourseUiGateway base = CourseUiGateway.preview();
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(base) {
+            @Override public CompletableFuture<String> currentTermId() { return base.currentTermId(); }
+            @Override public CompletableFuture<TermPhaseView> getTermPhase(String termId) {
+                return base.getTermPhase(termId);
+            }
+            @Override public CompletableFuture<List<EnrollmentView>> currentEnrollments() {
+                return CompletableFuture.completedFuture(List.of());
+            }
+            @Override public CompletableFuture<List<ScheduleItem>> currentSchedule() {
+                return CompletableFuture.completedFuture(List.of());
+            }
+            @Override public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) {
+                return CompletableFuture.completedFuture(new PageResult<>(List.of(), 0, 100, 0));
+            }
+        };
+        AdjustmentPanel panel = onEdt(() -> new AdjustmentPanel(gateway));
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.EMPTY);
+        assertThat(labels(panel)).anyMatch(text -> text.contains("没有可调整的选课或教学班"));
     }
 
     @Test
@@ -356,6 +427,34 @@ class CourseUiTest {
         assertThat(table.getValueAt(0, 4)).isEqualTo("启用");
         assertThat(buttons(panel)).contains("新建课程", "编辑所选");
         assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.NORMAL);
+    }
+
+    @Test
+    void courseCatalogKeepsTheLatestQueryWhenAnOlderResponseArrivesLate() throws Exception {
+        CompletableFuture<PageResult<CourseView>> older = new CompletableFuture<>();
+        CourseView newestCourse = courseView("new", "NEW101", "新查询课程");
+        CourseView olderCourse = courseView("old", "OLD101", "旧查询课程");
+        java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+        CourseUiGateway base = CourseUiGateway.preview();
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(base) {
+            @Override public CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery query) {
+                if (calls.getAndIncrement() == 0) return older;
+                return CompletableFuture.completedFuture(new PageResult<>(List.of(newestCourse), 0, 50, 1));
+            }
+        };
+        CourseCatalogPanel panel = onEdt(() -> new CourseCatalogPanel(gateway));
+        JTable table = descendants(panel).stream().filter(JTable.class::isInstance)
+                .map(JTable.class::cast).findFirst().orElseThrow();
+        SwingUtilities.invokeAndWait(() -> descendants(panel).stream().filter(JButton.class::isInstance)
+                .map(JButton.class::cast).filter(button -> "查询课程".equals(button.getText()))
+                .findFirst().orElseThrow().doClick());
+        SwingUtilities.invokeAndWait(() -> { });
+        assertThat(table.getValueAt(0, 0)).isEqualTo("NEW101");
+
+        older.complete(new PageResult<>(List.of(olderCourse), 0, 50, 1));
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(table.getValueAt(0, 0)).isEqualTo("NEW101");
     }
 
     @Test
@@ -492,6 +591,33 @@ class CourseUiTest {
                 "SE101", "软件工程导论", new BigDecimal("4.5"), 72, "软件工程基础课程", true));
         assertThat(saved.get()).isTrue();
         SwingUtilities.invokeAndWait(dialog::dispose);
+    }
+
+    @Test
+    void disposedCourseEditorIgnoresALateSaveResult() throws Exception {
+        CompletableFuture<CourseView> pending = new CompletableFuture<>();
+        AtomicReference<Boolean> saved = new AtomicReference<>(false);
+        CourseUiGateway base = CourseUiGateway.preview();
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(base) {
+            @Override public CompletableFuture<CourseView> createCourse(CreateCourseCommand command) {
+                return pending;
+            }
+        };
+        CourseEditorDialog dialog = onEdt(() -> new CourseEditorDialog(null, gateway, null, () -> saved.set(true)));
+        SwingUtilities.invokeAndWait(() -> {
+            textField(dialog, "课程代码").setText("LATE101");
+            textField(dialog, "课程名称").setText("迟到响应测试");
+            textField(dialog, "学分").setText("2.0");
+            textField(dialog, "总学时").setText("32");
+            descendants(dialog).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
+                    .filter(button -> "创建课程".equals(button.getText())).findFirst().orElseThrow().doClick();
+            dialog.dispose();
+        });
+
+        pending.complete(courseView("late", "LATE101", "迟到响应测试"));
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(saved.get()).isFalse();
     }
 
     @Test
@@ -679,6 +805,18 @@ class CourseUiTest {
             public CompletableFuture<List<ScheduleItem>> currentSchedule() { return CompletableFuture.completedFuture(List.of()); }
             public CompletableFuture<EnrollmentView> enroll(EnrollCommand command) { return CompletableFuture.failedFuture(new UnsupportedOperationException()); }
         };
+    }
+
+    private static CourseUiGateway scheduleGateway(CompletableFuture<List<ScheduleItem>> schedule) {
+        CourseUiGateway base = CourseUiGateway.preview();
+        return new DelegatingCourseUiGateway(base) {
+            @Override public CompletableFuture<List<ScheduleItem>> currentSchedule() { return schedule; }
+        };
+    }
+
+    private static CourseView courseView(String id, String code, String name) {
+        return new CourseView(id, code, name, new BigDecimal("2.0"), 32, "测试课程", true, 0,
+                Instant.parse("2026-08-20T00:00:00Z"), Instant.parse("2026-08-28T00:00:00Z"));
     }
 
     private static List<Component> descendants(Container root) {

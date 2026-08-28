@@ -87,8 +87,10 @@ public final class OfferingManagementPanel extends AbstractCoursePanel {
     }
 
     private void initializeTerm() {
+        long request = beginAsyncRequest();
         showState(ViewState.LOADING, "正在读取当前学期，请稍候");
         gateway.currentTermId().whenComplete((term, error) -> SwingUtilities.invokeLater(() -> {
+            if (!acceptsAsyncResult(request)) return;
             if (error != null) { showState(ViewState.ERROR, "尚未配置可用学期，请先在学期管理中创建学期"); return; }
             termId.setText(term);
             search();
@@ -98,9 +100,11 @@ public final class OfferingManagementPanel extends AbstractCoursePanel {
     private void search() {
         String term = termId.getText().trim();
         if (term.isEmpty()) { showState(ViewState.ERROR, "请输入学期编号后再查询"); return; }
+        long request = beginAsyncRequest();
         showState(ViewState.LOADING, "正在加载教学班，请稍候");
         gateway.searchOfferings(new OfferingSearchQuery(term, keyword.getText().trim(), null, false, 0, 50))
                 .whenComplete((page, error) -> SwingUtilities.invokeLater(() -> {
+                    if (!acceptsAsyncResult(request)) return;
                     model.setRowCount(0);
                     offerings.clear();
                     if (error != null) { showState(ViewState.DISCONNECTED, "无法加载教学班，请检查连接后重试"); return; }

@@ -86,11 +86,13 @@ public final class AdjustmentAuditPanel extends AbstractCoursePanel {
     }
 
     private void search() {
+        long request = beginAsyncRequest();
         showState(ViewState.LOADING, "正在查询审计记录，请稍候");
         AdjustmentAuditQuery query = new AdjustmentAuditQuery(blankToNull(student.getText()), blankToNull(term.getText()),
                 selected(type, new String[]{null, "ADD", "DROP", "CHANGE"}),
                 selected(result, new String[]{null, "SUCCEEDED", "FAILED"}), 0, 50);
         gateway.searchAdjustmentAudits(query).whenComplete((page, error) -> SwingUtilities.invokeLater(() -> {
+            if (!acceptsAsyncResult(request)) return;
             model.setRowCount(0);
             if (error != null) {
                 showState(ViewState.DISCONNECTED, "无法读取审计记录，请检查连接后重试");

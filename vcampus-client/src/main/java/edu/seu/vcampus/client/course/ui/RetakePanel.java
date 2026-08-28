@@ -72,10 +72,12 @@ public final class RetakePanel extends AbstractCoursePanel {
     }
 
     private void loadOfferings() {
+        long request = beginAsyncRequest();
         showState(ViewState.LOADING, "正在加载重修教学班，请稍候");
         gateway.currentTermId().thenCompose(term -> gateway.searchOfferings(
                         new OfferingSearchQuery(term, "", null, true, 0, 100)))
                 .whenComplete((page, error) -> SwingUtilities.invokeLater(() -> {
+                    if (!acceptsAsyncResult(request)) return;
                     model.setRowCount(0);
                     offerings.clear();
                     if (error != null) { showState(ViewState.DISCONNECTED, "无法加载重修教学班，请检查连接后重试"); return; }
@@ -95,8 +97,10 @@ public final class RetakePanel extends AbstractCoursePanel {
         OfferingSummary selected = offerings.get(table.convertRowIndexToModel(row));
         check.setEnabled(false);
         check.setText("正在检查…");
+        long request = beginAsyncRequest();
         showState(ViewState.LOADING, "正在检查重修资格，请稍候");
         gateway.checkRetake(selected.courseId()).whenComplete((eligibility, error) -> SwingUtilities.invokeLater(() -> {
+            if (!acceptsAsyncResult(request)) return;
             check.setEnabled(true);
             check.setText("检查重修资格");
             if (error != null) { showState(ViewState.ERROR, "资格检查失败，请稍后重试"); return; }
@@ -120,9 +124,11 @@ public final class RetakePanel extends AbstractCoursePanel {
         OfferingSummary selected = offerings.get(table.convertRowIndexToModel(row));
         enroll.setEnabled(false);
         enroll.setText("正在重修选课…");
+        long request = beginAsyncRequest();
         showState(ViewState.SUBMITTING, "正在提交重修选课，请勿重复操作");
         gateway.enrollRetake(new RetakeCommand(selected.offeringId())).whenComplete((result, error) ->
                 SwingUtilities.invokeLater(() -> {
+                    if (!acceptsAsyncResult(request)) return;
                     enroll.setText("确认重修");
                     if (error != null) { enroll.setEnabled(true); showState(ViewState.ERROR, "重修选课失败，请刷新后重试"); return; }
                     model.setValueAt("已重修选课", row, 5);

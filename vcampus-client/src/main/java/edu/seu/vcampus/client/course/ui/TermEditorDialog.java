@@ -31,6 +31,7 @@ import java.util.concurrent.CompletableFuture;
 
 /** Modal create/edit form for a complete server-authoritative academic term. */
 final class TermEditorDialog extends JDialog {
+    private final UiAsyncGuard asyncGuard = new UiAsyncGuard();
     private static final ZoneId CAMPUS_ZONE = ZoneId.of("Asia/Shanghai");
     private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
     private final CourseUiGateway gateway;
@@ -168,13 +169,20 @@ final class TermEditorDialog extends JDialog {
         String idle = save.getText();
         save.setEnabled(false);
         save.setText(existing == null ? "正在创建…" : "正在保存…");
+        long asyncRequest = asyncGuard.begin();
         request.whenComplete((saved, failure) -> SwingUtilities.invokeLater(() -> {
+            if (!asyncGuard.accepts(asyncRequest)) return;
             save.setEnabled(true);
             save.setText(idle);
             if (failure != null) { error.setText("保存失败，记录可能已被修改，请刷新后重试"); return; }
             onSaved.run();
             dispose();
         }));
+    }
+
+    @Override public void dispose() {
+        asyncGuard.deactivate();
+        super.dispose();
     }
 
     private void fill(TermView value) {

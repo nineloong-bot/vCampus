@@ -28,6 +28,7 @@ import java.util.concurrent.CompletableFuture;
 
 /** Modal create/edit form for one catalog course. */
 final class CourseEditorDialog extends JDialog {
+    private final UiAsyncGuard asyncGuard = new UiAsyncGuard();
     private final CourseUiGateway gateway;
     private final CourseView existing;
     private final Runnable onSaved;
@@ -151,7 +152,9 @@ final class CourseEditorDialog extends JDialog {
         String idle = save.getText();
         save.setEnabled(false);
         save.setText(existing == null ? "正在创建…" : "正在保存…");
+        long asyncRequest = asyncGuard.begin();
         request.whenComplete((saved, failure) -> SwingUtilities.invokeLater(() -> {
+            if (!asyncGuard.accepts(asyncRequest)) return;
             save.setEnabled(true);
             save.setText(idle);
             if (failure != null) {
@@ -161,6 +164,11 @@ final class CourseEditorDialog extends JDialog {
             onSaved.run();
             dispose();
         }));
+    }
+
+    @Override public void dispose() {
+        asyncGuard.deactivate();
+        super.dispose();
     }
 
     private void fill(CourseView value) {

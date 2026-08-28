@@ -112,6 +112,7 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
     }
 
     private void refresh() {
+        long request = beginAsyncRequest();
         showState(ViewState.LOADING, "正在加载调整数据，请稍候");
         var enrollmentRequest = gateway.currentEnrollments();
         var termRequest = gateway.currentTermId();
@@ -124,6 +125,7 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
                 .thenCombine(scheduleRequest, (partial, schedule) -> new Data(
                         partial.enrollments(), partial.offerings(), partial.phase(), schedule)).whenComplete((data, error) ->
                 SwingUtilities.invokeLater(() -> {
+                    if (!acceptsAsyncResult(request)) return;
                     enrollmentModel.setRowCount(0);
                     offeringModel.setRowCount(0);
                     enrollments.clear();
@@ -148,7 +150,9 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
                     for (OfferingSummary row : offerings) offeringModel.addRow(new Object[]{
                             row.courseCode(), row.courseName(), row.className(),
                             Math.max(0, row.capacity() - row.enrolledCount()) + " / " + row.capacity(), "可调整"});
-                    showState(ViewState.NORMAL, "");
+                    boolean empty = enrollments.isEmpty() && offerings.isEmpty();
+                    showState(empty ? ViewState.EMPTY : ViewState.NORMAL,
+                            empty ? "当前没有可调整的选课或教学班，请稍后刷新" : "");
                 }));
     }
 
@@ -231,11 +235,13 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
     }
 
     private void submit(JButton button, String busyText, java.util.concurrent.CompletableFuture<?> request, String success) {
+        long asyncRequest = beginAsyncRequest();
         String idleText = button.getText();
         button.setEnabled(false);
         button.setText(busyText);
         showState(ViewState.SUBMITTING, busyText + " 请勿重复操作");
         request.whenComplete((ignored, error) -> SwingUtilities.invokeLater(() -> {
+            if (!acceptsAsyncResult(asyncRequest)) return;
             button.setEnabled(true);
             button.setText(idleText);
             if (error == null) { showState(ViewState.NORMAL, success); return; }

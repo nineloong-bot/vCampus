@@ -1,5 +1,7 @@
 package edu.seu.vcampus.client.course.demo;
 
+import edu.seu.vcampus.client.core.network.ClientConnection;
+import edu.seu.vcampus.client.core.network.ConnectionState;
 import edu.seu.vcampus.client.core.ui.theme.UiColors;
 import edu.seu.vcampus.client.core.ui.theme.UiDimensions;
 import edu.seu.vcampus.client.core.ui.theme.UiSpacing;
@@ -23,6 +25,7 @@ import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.util.LinkedHashMap;
@@ -33,12 +36,17 @@ import java.util.function.Supplier;
 public final class CourseDemoFrame extends JFrame {
     private final JPanel content = new JPanel(new BorderLayout());
     private final Map<JButton, Supplier<JPanel>> pages = new LinkedHashMap<>();
+    private final JLabel identity = new JLabel();
 
     public CourseDemoFrame(CourseUiGateway gateway, String token, String role) {
+        this(gateway, token, role, null);
+    }
+
+    public CourseDemoFrame(CourseUiGateway gateway, String token, String role, ClientConnection connection) {
         super("vCampus · 课程模块 Demo");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
-        add(header(token, role), BorderLayout.NORTH);
+        add(header(token, role, connection), BorderLayout.NORTH);
         add(navigation(gateway, role), BorderLayout.WEST);
         content.setBackground(UiColors.BACKGROUND_PAGE);
         add(content, BorderLayout.CENTER);
@@ -49,7 +57,7 @@ public final class CourseDemoFrame extends JFrame {
         pages.entrySet().stream().findFirst().ifPresent(entry -> show(entry.getKey(), entry.getValue()));
     }
 
-    private JPanel header(String token, String role) {
+    private JPanel header(String token, String role, ClientConnection connection) {
         JPanel header = new JPanel(new BorderLayout());
         header.setBackground(UiColors.PRIMARY);
         header.setPreferredSize(new Dimension(0, UiDimensions.HEADER_HEIGHT));
@@ -57,12 +65,25 @@ public final class CourseDemoFrame extends JFrame {
         JLabel product = new JLabel("vCampus · 虚拟校园");
         product.setFont(UiTypography.DISPLAY);
         product.setForeground(UiColors.TEXT_ON_PRIMARY);
-        JLabel identity = new JLabel(token + " · " + roleName(role) + "    连接正常");
+        updateIdentity(token, role, connection == null ? null : connection.state());
         identity.setFont(UiTypography.BODY);
         identity.setForeground(UiColors.TEXT_ON_PRIMARY);
+        if (connection != null) {
+            connection.addStateListener(state -> SwingUtilities.invokeLater(() -> updateIdentity(token, role, state)));
+        }
         header.add(product, BorderLayout.WEST);
         header.add(identity, BorderLayout.EAST);
         return header;
+    }
+
+    private void updateIdentity(String token, String role, ConnectionState state) {
+        String connection = state == null ? "连接状态未知" : switch (state) {
+            case CONNECTING -> "正在连接";
+            case CONNECTED -> "连接正常";
+            case FAILED -> "连接异常";
+            case DISCONNECTED -> "连接断开";
+        };
+        identity.setText(token + " · " + roleName(role) + "    " + connection);
     }
 
     private JPanel navigation(CourseUiGateway gateway, String role) {

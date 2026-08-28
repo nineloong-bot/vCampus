@@ -27,6 +27,7 @@ abstract class AbstractCoursePanel extends JPanel {
     protected final JPanel body = new JPanel(new BorderLayout(0, UiSpacing.LG));
     private final JLabel stateNotice = label("", UiTypography.BODY, UiColors.TEXT_PRIMARY);
     private volatile ViewState viewState = ViewState.INITIAL;
+    private final UiAsyncGuard asyncGuard = new UiAsyncGuard();
 
     protected AbstractCoursePanel(String title, String description) {
         super(new BorderLayout(0, UiSpacing.XL));
@@ -47,6 +48,24 @@ abstract class AbstractCoursePanel extends JPanel {
 
     final ViewState viewState() {
         return viewState;
+    }
+
+    protected final long beginAsyncRequest() {
+        return asyncGuard.begin();
+    }
+
+    protected final boolean acceptsAsyncResult(long request) {
+        return asyncGuard.accepts(request);
+    }
+
+    @Override public void addNotify() {
+        super.addNotify();
+        asyncGuard.activate();
+    }
+
+    @Override public void removeNotify() {
+        asyncGuard.deactivate();
+        super.removeNotify();
     }
 
     protected final void showState(ViewState state, String message) {
