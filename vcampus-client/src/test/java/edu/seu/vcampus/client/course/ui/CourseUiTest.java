@@ -15,6 +15,13 @@ import edu.seu.vcampus.common.protocol.EmptyResponse;
 import edu.seu.vcampus.common.course.OfferingSearchQuery;
 import edu.seu.vcampus.common.course.OfferingSummary;
 import edu.seu.vcampus.common.course.ScheduleItem;
+import edu.seu.vcampus.common.course.AdjustmentAuditQuery;
+import edu.seu.vcampus.common.course.AdjustmentAuditView;
+import edu.seu.vcampus.common.course.CourseCatalogQuery;
+import edu.seu.vcampus.common.course.CourseView;
+import edu.seu.vcampus.common.course.TermView;
+import edu.seu.vcampus.common.course.ImportCourseOutcomesCommand;
+import edu.seu.vcampus.common.course.CourseOutcome;
 import edu.seu.vcampus.common.paging.PageResult;
 import org.junit.jupiter.api.Test;
 
@@ -23,6 +30,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
+import javax.swing.JTextArea;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.Component;
@@ -30,6 +38,8 @@ import java.awt.Container;
 import java.util.ArrayList;
 import java.util.List;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.math.BigDecimal;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -237,6 +247,159 @@ class CourseUiTest {
 
         assertThat(submitted.get()).isEqualTo(new RetakeCommand("o1"));
         assertThat(labels(panel)).anyMatch(text -> text.contains("重修选课成功"));
+    }
+
+    @Test
+    void adjustmentAuditLoadsLiveRowsAndUsesAdministrativeQuery() throws Exception {
+        AtomicReference<AdjustmentAuditQuery> captured = new AtomicReference<>();
+        CourseUiGateway gateway = new CourseUiGateway() {
+            public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) { return CourseUiGateway.preview().searchOfferings(query); }
+            public CompletableFuture<List<EnrollmentView>> currentEnrollments() { return CompletableFuture.completedFuture(List.of()); }
+            public CompletableFuture<List<ScheduleItem>> currentSchedule() { return CompletableFuture.completedFuture(List.of()); }
+            public CompletableFuture<EnrollmentView> enroll(EnrollCommand command) { return CompletableFuture.failedFuture(new UnsupportedOperationException()); }
+            @Override public CompletableFuture<PageResult<AdjustmentAuditView>> searchAdjustmentAudits(AdjustmentAuditQuery query) {
+                captured.set(query);
+                return CompletableFuture.completedFuture(new PageResult<>(List.of(new AdjustmentAuditView(
+                        "a1", "20260001", "CHANGE", "math-01", "math-02", "SUCCEEDED", null,
+                        Instant.parse("2026-08-28T08:30:00Z"))), 0, 50, 1));
+            }
+        };
+
+        AdjustmentAuditPanel panel = onEdt(() -> new AdjustmentAuditPanel(gateway));
+        SwingUtilities.invokeAndWait(() -> { });
+        JTable table = descendants(panel).stream().filter(JTable.class::isInstance).map(JTable.class::cast).findFirst().orElseThrow();
+
+        assertThat(captured.get()).isEqualTo(new AdjustmentAuditQuery(null, null, null, null, 0, 50));
+        assertThat(table.getRowCount()).isEqualTo(1);
+        assertThat(table.getValueAt(0, 1)).isEqualTo("20260001");
+        assertThat(table.getValueAt(0, 2)).isEqualTo("改选");
+        assertThat(table.getValueAt(0, 5)).isEqualTo("成功");
+        assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.NORMAL);
+    }
+
+    @Test
+    void courseCatalogLoadsLiveRowsWithCatalogQuery() throws Exception {
+        AtomicReference<CourseCatalogQuery> captured = new AtomicReference<>();
+        CourseUiGateway gateway = new CourseUiGateway() {
+            public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) { return CourseUiGateway.preview().searchOfferings(query); }
+            public CompletableFuture<List<EnrollmentView>> currentEnrollments() { return CompletableFuture.completedFuture(List.of()); }
+            public CompletableFuture<List<ScheduleItem>> currentSchedule() { return CompletableFuture.completedFuture(List.of()); }
+            public CompletableFuture<EnrollmentView> enroll(EnrollCommand command) { return CompletableFuture.failedFuture(new UnsupportedOperationException()); }
+            @Override public CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery query) {
+                captured.set(query);
+                return CompletableFuture.completedFuture(new PageResult<>(List.of(new CourseView(
+                        "c1", "MATH101", "高等数学", new BigDecimal("5.0"), 80, "理工科基础课程", true, 3,
+                        Instant.parse("2026-08-20T00:00:00Z"), Instant.parse("2026-08-28T00:00:00Z"))), 0, 50, 1));
+            }
+        };
+
+        CourseCatalogPanel panel = onEdt(() -> new CourseCatalogPanel(gateway));
+        SwingUtilities.invokeAndWait(() -> { });
+        JTable table = descendants(panel).stream().filter(JTable.class::isInstance).map(JTable.class::cast).findFirst().orElseThrow();
+
+        assertThat(captured.get()).isEqualTo(new CourseCatalogQuery("", null, 0, 50));
+        assertThat(table.getRowCount()).isEqualTo(1);
+        assertThat(table.getValueAt(0, 0)).isEqualTo("MATH101");
+        assertThat(table.getValueAt(0, 4)).isEqualTo("启用");
+        assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.NORMAL);
+    }
+
+    @Test
+    void termManagementLoadsLiveWindowsAndChineseStatus() throws Exception {
+        AtomicReference<Boolean> requested = new AtomicReference<>(false);
+        CourseUiGateway gateway = new CourseUiGateway() {
+            public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) { return CourseUiGateway.preview().searchOfferings(query); }
+            public CompletableFuture<List<EnrollmentView>> currentEnrollments() { return CompletableFuture.completedFuture(List.of()); }
+            public CompletableFuture<List<ScheduleItem>> currentSchedule() { return CompletableFuture.completedFuture(List.of()); }
+            public CompletableFuture<EnrollmentView> enroll(EnrollCommand command) { return CompletableFuture.failedFuture(new UnsupportedOperationException()); }
+            @Override public CompletableFuture<List<TermView>> listTerms() {
+                requested.set(true);
+                return CompletableFuture.completedFuture(List.of(new TermView(
+                        "t1", "2026-2027-1", "2026—2027学年秋季学期", LocalDate.parse("2026-09-01"), LocalDate.parse("2027-01-15"),
+                        Instant.parse("2026-08-20T00:00:00Z"), Instant.parse("2026-08-31T16:00:00Z"),
+                        Instant.parse("2026-09-01T00:00:00Z"), Instant.parse("2026-09-08T16:00:00Z"), "ACTIVE", 4,
+                        Instant.parse("2026-08-01T00:00:00Z"), Instant.parse("2026-08-28T00:00:00Z"))));
+            }
+        };
+
+        TermManagementPanel panel = onEdt(() -> new TermManagementPanel(gateway));
+        SwingUtilities.invokeAndWait(() -> { });
+        JTable table = descendants(panel).stream().filter(JTable.class::isInstance).map(JTable.class::cast).findFirst().orElseThrow();
+
+        assertThat(requested.get()).isTrue();
+        assertThat(table.getRowCount()).isEqualTo(1);
+        assertThat(table.getValueAt(0, 0)).isEqualTo("2026-2027-1");
+        assertThat(table.getValueAt(0, 4)).isEqualTo("进行中");
+        assertThat(table.getValueAt(0, 5)).isEqualTo("v4");
+        assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.NORMAL);
+    }
+
+    @Test
+    void offeringManagementLoadsLiveOfferingRows() throws Exception {
+        AtomicReference<OfferingSearchQuery> captured = new AtomicReference<>();
+        CourseUiGateway base = CourseUiGateway.preview();
+        CourseUiGateway gateway = new CourseUiGateway() {
+            public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) {
+                captured.set(query);
+                return base.searchOfferings(query);
+            }
+            public CompletableFuture<List<EnrollmentView>> currentEnrollments() { return CompletableFuture.completedFuture(List.of()); }
+            public CompletableFuture<List<ScheduleItem>> currentSchedule() { return CompletableFuture.completedFuture(List.of()); }
+            public CompletableFuture<EnrollmentView> enroll(EnrollCommand command) { return CompletableFuture.failedFuture(new UnsupportedOperationException()); }
+        };
+
+        OfferingManagementPanel panel = onEdt(() -> new OfferingManagementPanel(gateway));
+        SwingUtilities.invokeAndWait(() -> { });
+        JTable table = descendants(panel).stream().filter(JTable.class::isInstance).map(JTable.class::cast).findFirst().orElseThrow();
+
+        assertThat(captured.get()).isEqualTo(new OfferingSearchQuery("2026-autumn", "", null, false, 0, 50));
+        assertThat(table.getRowCount()).isEqualTo(3);
+        assertThat(table.getValueAt(0, 0)).isEqualTo("MATH101");
+        assertThat(table.getValueAt(0, 6)).isEqualTo("开放");
+        assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.NORMAL);
+    }
+
+    @Test
+    void outcomeImportParsesPassFailRowsAndSubmitsTypedCommand() throws Exception {
+        AtomicReference<ImportCourseOutcomesCommand> submitted = new AtomicReference<>();
+        CourseUiGateway gateway = new CourseUiGateway() {
+            public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) { return CourseUiGateway.preview().searchOfferings(query); }
+            public CompletableFuture<List<EnrollmentView>> currentEnrollments() { return CompletableFuture.completedFuture(List.of()); }
+            public CompletableFuture<List<ScheduleItem>> currentSchedule() { return CompletableFuture.completedFuture(List.of()); }
+            public CompletableFuture<EnrollmentView> enroll(EnrollCommand command) { return CompletableFuture.failedFuture(new UnsupportedOperationException()); }
+            @Override public CompletableFuture<EmptyResponse> importOutcomes(ImportCourseOutcomesCommand command) {
+                submitted.set(command);
+                return CompletableFuture.completedFuture(EmptyResponse.INSTANCE);
+            }
+        };
+        OutcomeImportPanel panel = onEdt(() -> new OutcomeImportPanel(gateway));
+        JTextArea input = descendants(panel).stream().filter(JTextArea.class::isInstance).map(JTextArea.class::cast).findFirst().orElseThrow();
+        JButton submit = descendants(panel).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
+                .filter(button -> "导入课程结果".equals(button.getText())).findFirst().orElseThrow();
+
+        SwingUtilities.invokeAndWait(() -> {
+            input.setText("student-1,course-1,term-1,FAILED,registrar-2026-001");
+            submit.doClick();
+        });
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(submitted.get()).isEqualTo(new ImportCourseOutcomesCommand(List.of(
+                new ImportCourseOutcomesCommand.OutcomeEntry("student-1", "course-1", "term-1", CourseOutcome.FAILED, "registrar-2026-001"))));
+        assertThat(labels(panel)).anyMatch(text -> text.contains("已导入 1 条"));
+        assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.NORMAL);
+    }
+
+    @Test
+    void administrativeFilterFieldsHaveVisibleChineseLabels() throws Exception {
+        CourseUiGateway gateway = CourseUiGateway.preview();
+        CourseCatalogPanel catalog = onEdt(() -> new CourseCatalogPanel(gateway));
+        OfferingManagementPanel offerings = onEdt(() -> new OfferingManagementPanel(gateway));
+        AdjustmentAuditPanel audits = onEdt(() -> new AdjustmentAuditPanel(gateway));
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(labels(catalog)).contains("课程关键字");
+        assertThat(labels(offerings)).contains("学期编号", "课程或教学班");
+        assertThat(labels(audits)).contains("学生编号", "学期编号", "操作类型", "操作结果");
     }
 
     private static CourseUiGateway gateway(CompletableFuture<PageResult<OfferingSummary>> offerings) {

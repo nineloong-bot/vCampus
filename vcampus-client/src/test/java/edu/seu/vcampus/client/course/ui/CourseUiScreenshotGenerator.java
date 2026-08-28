@@ -40,7 +40,7 @@ public final class CourseUiScreenshotGenerator {
         Path output = Path.of("docs/ui-review/course");
         Files.createDirectories(output);
         UiThemeInstaller.install();
-        JComponent[] pages = new JComponent[8];
+        JComponent[] pages = new JComponent[13];
         SwingUtilities.invokeAndWait(() -> {
             pages[0] = shell(new OfferingSearchPanel(CourseUiGateway.preview()));
             pages[1] = shell(new MySchedulePanel(CourseUiGateway.preview()));
@@ -53,6 +53,11 @@ public final class CourseUiScreenshotGenerator {
                     new CourseClientException("COMMON_NETWORK_ERROR", "socket details", null, true)))));
             pages[6] = shell(new AdjustmentPanel(CourseUiGateway.preview()));
             pages[7] = shell(new RetakePanel(CourseUiGateway.preview()));
+            pages[8] = shell(new TermManagementPanel(CourseUiGateway.preview()));
+            pages[9] = shell(new CourseCatalogPanel(CourseUiGateway.preview()));
+            pages[10] = shell(new OfferingManagementPanel(CourseUiGateway.preview()));
+            pages[11] = shell(new OutcomeImportPanel(CourseUiGateway.preview()));
+            pages[12] = shell(new AdjustmentAuditPanel(CourseUiGateway.preview()));
         });
         // A second EDT turn lets completed asynchronous preview futures render.
         SwingUtilities.invokeAndWait(() -> { });
@@ -66,6 +71,11 @@ public final class CourseUiScreenshotGenerator {
                 capture(pages[5], output.resolve("c01-offering-search--disconnected.png"));
                 capture(pages[6], output.resolve("c05-adjustment--normal.png"));
                 capture(pages[7], output.resolve("c06-retake--normal.png"));
+                capture(pages[8], output.resolve("c07-term-management--normal.png"));
+                capture(pages[9], output.resolve("c08-course-catalog--normal.png"));
+                capture(pages[10], output.resolve("c09-offering-management--normal.png"));
+                capture(pages[11], output.resolve("c10-outcome-import--normal.png"));
+                capture(pages[12], output.resolve("c11-adjustment-audit--normal.png"));
             } catch (Exception error) {
                 throw new RuntimeException(error);
             }

@@ -1,4 +1,64 @@
 package edu.seu.vcampus.client.course.ui;
-public final class TermManagementPanel extends SimpleCourseTablePanel {
- public TermManagementPanel(CourseUiGateway gateway){super("学期管理","维护选课窗口、调整窗口与学期状态。","新建学期",new Object[]{"学期","选课窗口","调整窗口","状态","版本"},new Object[][]{{"2026–2027 秋季","08-20 至 09-01","09-02 至 09-08","开放","v3"}});}
+
+import edu.seu.vcampus.client.core.ui.theme.UiColors;
+import edu.seu.vcampus.client.core.ui.theme.UiSpacing;
+import edu.seu.vcampus.common.course.TermView;
+
+import javax.swing.BorderFactory;
+import javax.swing.JButton;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTable;
+import javax.swing.SwingUtilities;
+import javax.swing.table.DefaultTableModel;
+import java.awt.BorderLayout;
+import java.awt.FlowLayout;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+
+/** Administrator term list showing the authoritative server-side phase windows. */
+public final class TermManagementPanel extends AbstractCoursePanel {
+    private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("MM-dd HH:mm").withZone(ZoneId.systemDefault());
+    private final CourseUiGateway gateway;
+    private final DefaultTableModel model = readOnlyModel("学期代码", "学期名称", "正常选课窗口", "退改补窗口", "状态", "版本");
+
+    public TermManagementPanel(CourseUiGateway gateway) {
+        super("学期管理", "维护正常选课窗口、退改补窗口与学期状态；全部写操作以服务器时间为准。");
+        this.gateway = gateway;
+        JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT, UiSpacing.SM, 0));
+        toolbar.setOpaque(false);
+        JButton refresh = secondary("刷新学期");
+        refresh.addActionListener(event -> load());
+        toolbar.add(refresh);
+        body.add(toolbar, BorderLayout.NORTH);
+        JTable table = table(new Object[0][0], new Object[0]);
+        table.setModel(model);
+        table.getTableHeader().setBackground(UiColors.BACKGROUND_SUBTLE);
+        table.getAccessibleContext().setAccessibleName("学期配置列表");
+        JScrollPane scroll = new JScrollPane(table);
+        scroll.setBorder(BorderFactory.createLineBorder(UiColors.BORDER_DEFAULT));
+        body.add(scroll, BorderLayout.CENTER);
+        load();
+    }
+
+    private void load() {
+        showState(ViewState.LOADING, "正在加载学期配置，请稍候");
+        gateway.listTerms().whenComplete((terms, error) -> SwingUtilities.invokeLater(() -> {
+            model.setRowCount(0);
+            if (error != null) { showState(ViewState.DISCONNECTED, "无法加载学期配置，请检查连接后重试"); return; }
+            for (TermView term : terms) model.addRow(new Object[]{
+                    term.termCode(), term.termName(), window(term.enrollmentStartAt(), term.enrollmentEndAt()),
+                    window(term.adjustmentStartAt(), term.adjustmentEndAt()), status(term.termStatus()), "v" + term.rowVersion()});
+            showState(terms.isEmpty() ? ViewState.EMPTY : ViewState.NORMAL,
+                    terms.isEmpty() ? "当前尚未配置学期，请新建学期后继续" : "");
+        }));
+    }
+
+    private static String window(java.time.Instant start, java.time.Instant end) { return TIME.format(start) + " 至 " + TIME.format(end); }
+    private static String status(String value) {
+        return switch (value) { case "PLANNED" -> "未开始"; case "ACTIVE" -> "进行中"; case "CLOSED" -> "已关闭"; default -> "未知"; };
+    }
+    private static DefaultTableModel readOnlyModel(Object... columns) {
+        return new DefaultTableModel(columns, 0) { public boolean isCellEditable(int row, int column) { return false; } };
+    }
 }

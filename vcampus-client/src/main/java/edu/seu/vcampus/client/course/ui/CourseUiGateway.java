@@ -7,6 +7,12 @@ import edu.seu.vcampus.common.course.DropCommand;
 import edu.seu.vcampus.common.course.ChangeOfferingCommand;
 import edu.seu.vcampus.common.course.RetakeCommand;
 import edu.seu.vcampus.common.course.RetakeEligibility;
+import edu.seu.vcampus.common.course.AdjustmentAuditQuery;
+import edu.seu.vcampus.common.course.AdjustmentAuditView;
+import edu.seu.vcampus.common.course.CourseCatalogQuery;
+import edu.seu.vcampus.common.course.CourseView;
+import edu.seu.vcampus.common.course.TermView;
+import edu.seu.vcampus.common.course.ImportCourseOutcomesCommand;
 import edu.seu.vcampus.common.protocol.EmptyResponse;
 import edu.seu.vcampus.common.course.OfferingSearchQuery;
 import edu.seu.vcampus.common.course.OfferingSummary;
@@ -27,6 +33,10 @@ public interface CourseUiGateway {
     default CompletableFuture<EnrollmentView> change(ChangeOfferingCommand command) { return unsupported(); }
     default CompletableFuture<RetakeEligibility> checkRetake(String courseId) { return unsupported(); }
     default CompletableFuture<EnrollmentView> enrollRetake(RetakeCommand command) { return unsupported(); }
+    default CompletableFuture<PageResult<AdjustmentAuditView>> searchAdjustmentAudits(AdjustmentAuditQuery query) { return unsupported(); }
+    default CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery query) { return unsupported(); }
+    default CompletableFuture<List<TermView>> listTerms() { return unsupported(); }
+    default CompletableFuture<EmptyResponse> importOutcomes(ImportCourseOutcomesCommand command) { return unsupported(); }
 
     private static <T> CompletableFuture<T> unsupported() {
         return CompletableFuture.failedFuture(new UnsupportedOperationException("Course operation is not connected"));
@@ -75,6 +85,30 @@ public interface CourseUiGateway {
                 return CompletableFuture.completedFuture(new EnrollmentView(
                         "preview-retake", command.offeringId(), "preview-student", "RETAKE", "ACTIVE",
                         java.time.Instant.now(), null, 0));
+            }
+            public CompletableFuture<PageResult<AdjustmentAuditView>> searchAdjustmentAudits(AdjustmentAuditQuery query) {
+                return CompletableFuture.completedFuture(new PageResult<>(List.of(new AdjustmentAuditView(
+                        "preview-adjustment", "20260001", "CHANGE", "o1", "o2", "SUCCEEDED", null,
+                        java.time.Instant.parse("2026-08-27T06:32:00Z"))), 0, query.pageSize(), 1));
+            }
+            public CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery query) {
+                List<CourseView> courses = List.of(
+                        new CourseView("c1", "MATH101", "高等数学", new java.math.BigDecimal("5.0"), 80,
+                                "理工科基础课程", true, 2, java.time.Instant.parse("2026-08-20T00:00:00Z"), java.time.Instant.parse("2026-08-27T00:00:00Z")),
+                        new CourseView("c2", "CS201", "数据结构", new java.math.BigDecimal("4.0"), 64,
+                                "计算机专业基础课程", true, 1, java.time.Instant.parse("2026-08-20T00:00:00Z"), java.time.Instant.parse("2026-08-27T00:00:00Z")));
+                return CompletableFuture.completedFuture(new PageResult<>(courses, 0, query.pageSize(), courses.size()));
+            }
+            public CompletableFuture<List<TermView>> listTerms() {
+                return CompletableFuture.completedFuture(List.of(new TermView(
+                        "2026-autumn", "2026-2027-1", "2026—2027学年秋季学期",
+                        java.time.LocalDate.parse("2026-09-01"), java.time.LocalDate.parse("2027-01-15"),
+                        java.time.Instant.parse("2026-08-20T00:00:00Z"), java.time.Instant.parse("2026-08-31T16:00:00Z"),
+                        java.time.Instant.parse("2026-09-01T00:00:00Z"), java.time.Instant.parse("2026-09-08T16:00:00Z"),
+                        "ACTIVE", 3, java.time.Instant.parse("2026-08-01T00:00:00Z"), java.time.Instant.parse("2026-08-27T00:00:00Z"))));
+            }
+            public CompletableFuture<EmptyResponse> importOutcomes(ImportCourseOutcomesCommand command) {
+                return CompletableFuture.completedFuture(EmptyResponse.INSTANCE);
             }
         };
     }
