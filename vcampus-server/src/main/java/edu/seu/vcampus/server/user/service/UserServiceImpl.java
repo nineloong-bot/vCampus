@@ -1,10 +1,13 @@
 package edu.seu.vcampus.server.user.service;
 
+import edu.seu.vcampus.common.user.LoginCommand;
+import edu.seu.vcampus.common.user.LoginResult;
 import edu.seu.vcampus.common.user.TeacherAccountApplicationCommand;
 import edu.seu.vcampus.common.user.UserView;
 import edu.seu.vcampus.server.concurrency.ResourceKey;
 import edu.seu.vcampus.server.concurrency.ResourceLockManager;
 import edu.seu.vcampus.server.persistence.TransactionManager;
+import edu.seu.vcampus.server.routing.ClientContext;
 import edu.seu.vcampus.server.user.domain.UserAccount;
 import edu.seu.vcampus.server.user.repository.AuditRepository;
 import edu.seu.vcampus.server.user.repository.DuplicateLoginIdException;
@@ -15,8 +18,10 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
+import static edu.seu.vcampus.common.user.AccountStatus.ACTIVE;
 import static edu.seu.vcampus.common.user.AccountStatus.PENDING;
 import static edu.seu.vcampus.common.user.UserRole.TEACHER;
 
@@ -24,6 +29,7 @@ import static edu.seu.vcampus.common.user.UserRole.TEACHER;
 public final class UserServiceImpl implements UserService {
     private static final String PASSWORD_POLICY_ERROR = "AUTH_PASSWORD_POLICY_VIOLATION";
     private static final String LOGIN_EXISTS_ERROR = "USER_LOGIN_ID_EXISTS";
+    private static final String INVALID_CREDENTIALS_ERROR = "AUTH_INVALID_CREDENTIALS";
     private final TransactionManager transactions;
     private final ResourceLockManager locks;
     private final UserRepository users;
@@ -63,6 +69,32 @@ public final class UserServiceImpl implements UserService {
             if (password != null) {
                 Arrays.fill(password, '\0');
             }
+        }
+    }
+
+    /**
+     * Authenticates one active account and clears the password copy obtained
+     * from the command whether authentication succeeds or fails.
+     */
+    @Override
+    public LoginResult login(LoginCommand command, ClientContext context) {
+        Objects.requireNonNull(command, "command");
+        Objects.requireNonNull(context, "context");
+        char[] password = command.password();
+        try {
+            String loginId = normalizeLoginForAuthentication(command.loginId());
+            UserAccount account = transactions.inTransaction(connection ->
+                    users.findByNormalizedLoginId(connection, loginId).orElse(null));
+            if (account == null || account.accountStatus() != ACTIVE
+                    || !hasher.verify(password, account.passwordHash(),
+                    account.passwordSalt(), account.passwordIterations())) {
+                throw invalidCredentials();
+            }
+            UserView view = toView(account);
+            return new LoginResult(UUID.randomUUID().toString(), view, Set.of(),
+                    account.mustChangePassword());
+        } finally {
+            Arrays.fill(password, '\0');
         }
     }
 
@@ -110,8 +142,17 @@ public final class UserServiceImpl implements UserService {
         return normalized;
     }
 
+    private static String normalizeLoginForAuthentication(String loginId) {
+        return Objects.requireNonNull(loginId, "loginId")
+                .strip().toUpperCase(Locale.ROOT);
+    }
+
     private static IllegalStateException loginExists(Throwable cause) {
         return new IllegalStateException(LOGIN_EXISTS_ERROR, cause);
+    }
+
+    private static IllegalArgumentException invalidCredentials() {
+        return new IllegalArgumentException(INVALID_CREDENTIALS_ERROR);
     }
 
     private static UserView toView(UserAccount account) {
