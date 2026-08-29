@@ -33,7 +33,7 @@
 - Focused verification: `mvn -pl vcampus-client -am '-Dtest=ShopNavigatorTest' '-Dsurefire.failIfNoSpecifiedTests=false' test` — 6 tests passed.
 - Complete reactor verification: `mvn -pl vcampus-client -am '-Dsurefire.failIfNoSpecifiedTests=false' test` — common 1, server 45, client 14; 60 tests passed.
 - `git diff --check` passed with no output before the fix round commit.
-- Fix round commit: recorded after verification.
+- Fix round commit: `f2e50459eb5e01658abaa72d847b94a7eca67e7c`.
 
 ## Deviations and risks
 
