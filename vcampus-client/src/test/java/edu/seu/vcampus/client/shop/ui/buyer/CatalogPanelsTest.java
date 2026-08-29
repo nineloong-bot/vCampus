@@ -318,6 +318,42 @@ class CatalogPanelsTest {
         assertThat(panel.visibleProductNames()).isEmpty();
     }
 
+    @Test
+    void storefrontLateSecondStageAndDisposedSecondStageCannotOverwritePublishedStore() throws Exception {
+        ShopClientPort client = mock(ShopClientPort.class);
+        CompletableFuture<PageResult<ProductSummary>> oldProducts = new CompletableFuture<>();
+        CompletableFuture<PageResult<ProductSummary>> newProducts = CompletableFuture.completedFuture(
+                page(summary("new-product", "新店商品", "8.00")));
+        CompletableFuture<PageResult<ProductSummary>> disposedProducts = new CompletableFuture<>();
+        when(client.getShop("old")).thenReturn(CompletableFuture.completedFuture(new ShopDetail(
+                "old", "旧店", "", "文具", "", ShopStatus.ACTIVE)));
+        when(client.getShop("new")).thenReturn(CompletableFuture.completedFuture(new ShopDetail(
+                "new", "新店", "", "文具", "", ShopStatus.ACTIVE)));
+        when(client.getShop("disposed")).thenReturn(CompletableFuture.completedFuture(new ShopDetail(
+                "disposed", "不应显示", "", "文具", "", ShopStatus.ACTIVE)));
+        when(client.getShopProducts(any())).thenReturn(oldProducts, newProducts, disposedProducts);
+        BuyerShopPanel panel = onEdt(() -> new BuyerShopPanel(client,
+                new ShopNavigator(route -> { }), new DefaultShopUiKit(), () -> { }));
+
+        onEdt(() -> panel.load("old"));
+        flushEdt();
+        onEdt(() -> panel.load("new"));
+        flushEdt();
+        flushEdt();
+        completeOffEdt(oldProducts, page(summary("old-product", "旧店商品", "2.00")));
+        flushEdt();
+        assertThat(component(panel, "shop-name", JLabel.class).getText()).isEqualTo("新店");
+        assertThat(panel.visibleProductNames()).containsExactly("新店商品");
+
+        onEdt(() -> panel.load("disposed"));
+        flushEdt();
+        onEdt(panel::dispose);
+        completeOffEdt(disposedProducts, page(summary("disposed-product", "不应显示", "1.00")));
+        flushEdt();
+        assertThat(component(panel, "shop-name", JLabel.class).getText()).isEmpty();
+        assertThat(panel.visibleProductNames()).isEmpty();
+    }
+
     private static ProductSearchQuery query(String keyword) {
         return new ProductSearchQuery(keyword, null, null, null,
                 ProductSortMode.SALES_DESC, 0, 20);

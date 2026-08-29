@@ -25,6 +25,8 @@ import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JComboBox;
+import java.awt.Component;
+import java.awt.Container;
 import java.awt.FlowLayout;
 import java.awt.LayoutManager;
 import java.math.BigDecimal;
@@ -174,11 +176,90 @@ class ShopUiKitTest {
                 .isEqualTo("暂无商品");
     }
 
+    @Test
+    void detailAndStorefrontStateFactoriesReturnMountedEdtComponentsForEveryRealPath() throws Exception {
+        ShopClientPort client = mock(ShopClientPort.class);
+        CompletableFuture<ProductDetail> normalDetail = new CompletableFuture<>();
+        CompletableFuture<ProductDetail> expiredDetail = new CompletableFuture<>();
+        CompletableFuture<edu.seu.vcampus.common.shop.CartView> failedAdd = new CompletableFuture<>();
+        when(client.getProduct("normal-detail")).thenReturn(normalDetail);
+        when(client.getProduct("expired-detail")).thenReturn(expiredDetail);
+        when(client.addToCart(any())).thenReturn(failedAdd);
+        when(client.getShop("normal-store")).thenReturn(CompletableFuture.completedFuture(new ShopDetail(
+                "normal-store", "正常店", "", "文具", "", ShopStatus.ACTIVE)));
+        when(client.getShop("empty-store")).thenReturn(CompletableFuture.completedFuture(new ShopDetail(
+                "empty-store", "空店", "", "文具", "", ShopStatus.ACTIVE)));
+        when(client.getShop("error-store")).thenReturn(CompletableFuture.completedFuture(new ShopDetail(
+                "error-store", "错误店", "", "文具", "", ShopStatus.ACTIVE)));
+        when(client.getShop("expired-store")).thenReturn(CompletableFuture.failedFuture(
+                new IllegalStateException("AUTH_SESSION_EXPIRED")));
+        when(client.getShopProducts(any())).thenReturn(
+                CompletableFuture.completedFuture(new PageResult<>(List.of(new ProductSummary(
+                        "normal-product", "normal-store", "正常店", "正常商品", "文具",
+                        new BigDecimal("3.00"), 0, Instant.EPOCH)), 0, 20, 1)),
+                CompletableFuture.completedFuture(new PageResult<>(List.of(), 0, 20, 0)),
+                CompletableFuture.failedFuture(new IllegalStateException("SHOP_UNAVAILABLE")));
+        RecordingKit kit = new RecordingKit();
+        ProductDetailPanel detailPanel = onEdt(() -> new ProductDetailPanel(client,
+                new ShopNavigator(route -> { }), kit, () -> { }));
+        BuyerShopPanel storePanel = onEdt(() -> new BuyerShopPanel(client,
+                new ShopNavigator(route -> { }), kit, () -> { }));
+
+        assertMounted(detailPanel, kit, "detail.state", ShopPageState.INITIAL);
+        onEdt(() -> detailPanel.load("normal-detail"));
+        assertMounted(detailPanel, kit, "detail.state", ShopPageState.LOADING);
+        normalDetail.complete(new ProductDetail("normal-detail", "详情", "文具", "",
+                ProductStatus.ACTIVE, 0, new ShopSummary("shop", "店"), List.of(new ProductSkuView(
+                "sku", "规格", new BigDecimal("3.00"), 2, true, 0)), Instant.EPOCH));
+        flushEdt();
+        assertMounted(detailPanel, kit, "detail.state", ShopPageState.NORMAL);
+        onEdt(() -> component(detailPanel, "add-to-cart", JButton.class).doClick());
+        assertMounted(detailPanel, kit, "detail.state", ShopPageState.SUBMITTING);
+        failedAdd.completeExceptionally(new IllegalStateException("SHOP_UNAVAILABLE"));
+        flushEdt();
+        assertMounted(detailPanel, kit, "detail.state", ShopPageState.ERROR);
+        onEdt(() -> detailPanel.load("expired-detail"));
+        expiredDetail.completeExceptionally(new IllegalStateException("AUTH_SESSION_EXPIRED"));
+        flushEdt();
+        assertMounted(detailPanel, kit, "detail.state", ShopPageState.DISCONNECTED);
+
+        assertMounted(storePanel, kit, "storefront.state", ShopPageState.INITIAL);
+        onEdt(() -> storePanel.load("normal-store"));
+        flushEdt(); flushEdt();
+        assertMounted(storePanel, kit, "storefront.state", ShopPageState.NORMAL);
+        onEdt(() -> storePanel.load("empty-store"));
+        flushEdt(); flushEdt();
+        assertMounted(storePanel, kit, "storefront.state", ShopPageState.EMPTY);
+        onEdt(() -> storePanel.load("error-store"));
+        flushEdt(); flushEdt();
+        assertMounted(storePanel, kit, "storefront.state", ShopPageState.ERROR);
+        onEdt(() -> storePanel.load("expired-store"));
+        flushEdt();
+        assertMounted(storePanel, kit, "storefront.state", ShopPageState.DISCONNECTED);
+    }
+
+    private static void assertMounted(Container page, RecordingKit kit, String name,
+            ShopPageState state) {
+        StateViewCall call = kit.stateViews.stream()
+                .filter(candidate -> candidate.name().equals(name) && candidate.state() == state)
+                .reduce((first, second) -> second).orElseThrow();
+        assertThat(call.onEdt()).isTrue();
+        assertThat(isDescendant(page, call.component())).isTrue();
+    }
+
+    private static boolean isDescendant(Container root, Component child) {
+        for (Component current = child; current != null; current = current.getParent()) {
+            if (current == root) return true;
+        }
+        return false;
+    }
+
     private static final class RecordingKit implements ShopUiKit {
         private final List<String> primaryButtons = new ArrayList<>();
         private final List<String> productCards = new ArrayList<>();
         private final EnumSet<ShopPageState> states = EnumSet.noneOf(ShopPageState.class);
         private final List<Boolean> uiThreadCalls = new ArrayList<>();
+        private final List<StateViewCall> stateViews = new ArrayList<>();
 
         @Override
         public JButton primaryButton(String name, String text) {
@@ -206,9 +287,12 @@ class ShopUiKitTest {
         @Override
         public JComponent stateView(String name, ShopPageState state, String message,
                 Runnable retry) {
-            uiThreadCalls.add(javax.swing.SwingUtilities.isEventDispatchThread());
+            boolean onEdt = javax.swing.SwingUtilities.isEventDispatchThread();
+            uiThreadCalls.add(onEdt);
             states.add(state);
-            return named(new JLabel(message), name);
+            JComponent component = named(new JLabel(message), name);
+            stateViews.add(new StateViewCall(name, state, component, onEdt));
+            return component;
         }
 
         private static <T extends JComponent> T named(T component, String name) {
@@ -216,4 +300,7 @@ class ShopUiKitTest {
             return component;
         }
     }
+
+    private record StateViewCall(String name, ShopPageState state, JComponent component,
+            boolean onEdt) { }
 }
