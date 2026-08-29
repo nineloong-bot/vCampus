@@ -348,6 +348,57 @@ class PurchasePanelsTest {
     }
 
     @Test
+    void cartWriteExpiryRejectsAlreadyInFlightLoadCompletion() throws Exception {
+        ShopClientPort client = mock(ShopClientPort.class);
+        CartView initial = ShopClientFixtures.cartView();
+        CartView lateLoadResult = twoItemCart();
+        CompletableFuture<CartView> pendingLoad = new CompletableFuture<>();
+        CompletableFuture<CartView> pendingWrite = new CompletableFuture<>();
+        AtomicInteger sessionExpired = new AtomicInteger();
+        RecordingKit kit = new RecordingKit();
+        when(client.getCart()).thenReturn(CompletableFuture.completedFuture(initial), pendingLoad);
+        when(client.updateCartItem(any())).thenReturn(pendingWrite);
+        CartPanel panel = onEdt(() -> new CartPanel(client, new ShopNavigator(route -> { }),
+                kit, sessionExpired::incrementAndGet));
+
+        onEdt(panel::load);
+        flushEdt();
+        onEdt(panel::load);
+        verify(client, times(2)).getCart();
+        assertThat(pendingLoad).isNotDone();
+
+        onEdt(() -> panel.updateQuantity("cart-item-1", 3));
+        verify(client).updateCartItem(new UpdateCartItemCommand("cart-item-1", 3, 0));
+        pendingWrite.completeExceptionally(new ShopClientException("AUTH_SESSION_EXPIRED"));
+        flushEdt();
+
+        assertThat(sessionExpired).hasValue(1);
+        assertStateMounted(panel, kit, "cart.state", ShopPageState.DISCONNECTED);
+        StateCall disconnectedState = kit.stateCalls.getLast();
+        int disconnectedStateCount = kit.stateCalls.size();
+
+        pendingLoad.complete(lateLoadResult);
+        flushEdt();
+
+        assertThat(panel.visibleItems()).containsExactlyElementsOf(initial.items());
+        assertThat(kit.stateCalls).hasSize(disconnectedStateCount);
+        assertThat(kit.stateCalls.getLast()).isSameAs(disconnectedState);
+        assertStateMounted(panel, kit, "cart.state", ShopPageState.DISCONNECTED);
+        assertThat(onEdt(() -> containsNamedComponent(panel, "cart.update-cart-item-1"))).isFalse();
+        onEdt(() -> {
+            panel.load();
+            panel.updateQuantity("cart-item-1", 4);
+            panel.remove("cart-item-1");
+        });
+
+        verify(client, times(2)).getCart();
+        verify(client, times(1)).updateCartItem(any());
+        verify(client, never()).removeCartItem(any());
+        assertThat(sessionExpired).hasValue(1);
+        assertThat(kit.stateCalls).hasSize(disconnectedStateCount);
+    }
+
+    @Test
     void cartLoadWriteFenceAndSessionExpiry() throws Exception {
         ShopClientPort fencedClient = mock(ShopClientPort.class);
         CartView initial = twoItemCart();
@@ -925,6 +976,14 @@ class PurchasePanelsTest {
                 .isSameAs(call.component());
         assertThat(onEdt(() -> javax.swing.SwingUtilities.isDescendingFrom(call.component(), root)))
                 .isTrue();
+    }
+
+    private static boolean containsNamedComponent(Container root, String name) {
+        for (Component child : root.getComponents()) {
+            if (name.equals(child.getName())) return true;
+            if (child instanceof Container nested && containsNamedComponent(nested, name)) return true;
+        }
+        return false;
     }
 
     private static PaymentView payment(PaymentStatus status, PaymentChannel channel) {

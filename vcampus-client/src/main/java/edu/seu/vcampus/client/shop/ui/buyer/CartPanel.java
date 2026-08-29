@@ -86,7 +86,7 @@ public final class CartPanel extends JPanel {
     }
     private void finishLoad(long request, CartView result, Throwable failure) {
         SwingUtilities.invokeLater(() -> {
-            if (disposed || !loads.accepts(request)) return;
+            if (disposed || disconnected || !loads.accepts(request)) return;
             if (active != null || !queued.isEmpty()) { reloadAfterWrites = true; return; }
             if (failure != null) { showFailure(failure); return; }
             cart = result; renderCart(ShopPageState.NORMAL, "");
@@ -118,7 +118,7 @@ public final class CartPanel extends JPanel {
     }
     private void disconnect(String code) {
         if (disconnected) return;
-        disconnected = true; queued.clear(); queuedKeys.clear(); reloadAfterWrites = false;
+        disconnected = true; loads.dispose(); queued.clear(); queuedKeys.clear(); reloadAfterWrites = false;
         showState(ShopPageState.DISCONNECTED, code, null); sessionExpired.run();
     }
     private void renderCart(ShopPageState state, String message) {
