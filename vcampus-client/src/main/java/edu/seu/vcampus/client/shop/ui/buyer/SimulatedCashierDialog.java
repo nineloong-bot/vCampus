@@ -41,6 +41,7 @@ public final class SimulatedCashierDialog extends JDialog implements CheckoutPan
     private final EnumMap<PaymentAttemptStatus, JButton> attemptButtons = new EnumMap<>(PaymentAttemptStatus.class);
     private PaymentAttemptStatus initiatingAttempt;
     private boolean busy;
+    private boolean disconnected;
     private boolean disposed;
 
     public SimulatedCashierDialog(Window owner, ShopClientPort client, ShopNavigator navigator,
@@ -62,7 +63,7 @@ public final class SimulatedCashierDialog extends JDialog implements CheckoutPan
     }
 
     public void submit(PaymentChannel channel, PaymentAttemptStatus result) {
-        if (busy || disposed) return;
+        if (busy || disconnected || disposed) return;
         long request = submissions.begin();
         busy = true;
         initiatingAttempt = result;
@@ -71,7 +72,7 @@ public final class SimulatedCashierDialog extends JDialog implements CheckoutPan
                 .whenComplete((payment, failure) -> finish(request, payment, failure));
     }
 
-    public boolean retryEnabled() { return !busy && !disposed; }
+    public boolean retryEnabled() { return !busy && !disconnected && !disposed; }
     public void disposePage() { dispose(); }
     @Override public boolean isClosed() { return disposed; }
     @Override public void open() { if (!disposed) setVisible(true); }
@@ -92,7 +93,7 @@ public final class SimulatedCashierDialog extends JDialog implements CheckoutPan
             initiatingAttempt = null;
             if (failure != null) {
                 String code = ShopUiErrors.code(failure);
-                if (ShopUiErrors.sessionExpired(code)) { showCashier(ShopPageState.DISCONNECTED, code); sessionExpired.run(); }
+                if (ShopUiErrors.sessionExpired(code)) disconnect(code);
                 else showCashier(ShopPageState.ERROR, code);
                 return;
             }
@@ -120,8 +121,20 @@ public final class SimulatedCashierDialog extends JDialog implements CheckoutPan
         succeeded.addActionListener(event -> submit((PaymentChannel) channels.getSelectedItem(), PaymentAttemptStatus.SUCCEEDED));
         failed.addActionListener(event -> submit((PaymentChannel) channels.getSelectedItem(), PaymentAttemptStatus.FAILED));
         cancelled.addActionListener(event -> submit((PaymentChannel) channels.getSelectedItem(), PaymentAttemptStatus.CANCELLED));
-        if (busy && attemptButtons.containsKey(initiatingAttempt)) attemptButtons.get(initiatingAttempt).setEnabled(false);
+        if (disconnected) {
+            channels.setEnabled(false);
+            attemptButtons.values().forEach(button -> button.setEnabled(false));
+        } else {
+            channels.setEnabled(true);
+            if (busy && attemptButtons.containsKey(initiatingAttempt)) attemptButtons.get(initiatingAttempt).setEnabled(false);
+        }
         form.add(succeeded); form.add(failed); form.add(cancelled);
         content.add(form, BorderLayout.CENTER); content.revalidate(); content.repaint(); pack();
+    }
+
+    private void disconnect(String code) {
+        if (disconnected) return;
+        disconnected = true; submissions.dispose();
+        showCashier(ShopPageState.DISCONNECTED, code); sessionExpired.run();
     }
 }

@@ -38,6 +38,7 @@ public final class CheckoutPanel extends JPanel {
     private CheckoutResult checkout;
     private long activeLoad;
     private boolean disposed;
+    private boolean disconnected;
     private boolean checkoutInFlight;
     private ActiveCashier cashier;
 
@@ -60,7 +61,7 @@ public final class CheckoutPanel extends JPanel {
     }
 
     public void load() {
-        if (disposed) return;
+        if (disposed || disconnected) return;
         long request = loads.begin();
         activeLoad = request;
         submissions.begin();
@@ -85,7 +86,7 @@ public final class CheckoutPanel extends JPanel {
     public void dispose() { disposePage(); }
 
     private void submit(CartView snapshot, long loadAtSubmit, boolean acceptLatestPrice) {
-        if (disposed || snapshot == null || snapshot.items().isEmpty() || checkoutInFlight
+        if (disposed || disconnected || snapshot == null || snapshot.items().isEmpty() || checkoutInFlight
                 || activeLoad != loadAtSubmit || cart != snapshot || activeCashier()) return;
         long request = submissions.begin();
         checkoutInFlight = true;
@@ -122,8 +123,7 @@ public final class CheckoutPanel extends JPanel {
             }
             String code = ShopUiErrors.code(failure);
             if (ShopUiErrors.sessionExpired(code)) {
-                showState(ShopPageState.DISCONNECTED, code, this::load);
-                sessionExpired.run();
+                disconnect(code);
             } else if ("SHOP_PRICE_CHANGED".equals(code)) {
                 showCheckout(ShopPageState.ERROR, code);
                 dialogs.confirm(code, () -> submit(snapshot, loadAtSubmit, true));
@@ -165,8 +165,14 @@ public final class CheckoutPanel extends JPanel {
 
     private void showFailure(Throwable failure, Runnable retry) {
         String code = ShopUiErrors.code(failure);
-        if (ShopUiErrors.sessionExpired(code)) { showState(ShopPageState.DISCONNECTED, code, retry); sessionExpired.run(); }
+        if (ShopUiErrors.sessionExpired(code)) disconnect(code);
         else showState(ShopPageState.ERROR, code, retry);
+    }
+    private void disconnect(String code) {
+        if (disconnected) return;
+        disconnected = true; checkoutInFlight = false;
+        loads.dispose(); submissions.dispose();
+        showState(ShopPageState.DISCONNECTED, code, null); sessionExpired.run();
     }
     private void showState(ShopPageState state, String message, Runnable retry) {
         content.removeAll(); content.add(uiKit.stateView("checkout.state", state, message, retry), BorderLayout.CENTER); refresh();

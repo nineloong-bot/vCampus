@@ -98,21 +98,28 @@ public final class CartPanel extends JPanel {
             active = null; queuedKeys.remove(write.key());
             boolean current = write.generation() == routeGeneration;
             if (failure == null && result != null && current) cart = result;
-            if (failure != null && showWriteFailure(failure)) return;
-            if (current) renderCart(ShopPageState.NORMAL, "");
+            if (failure != null) {
+                if (showWriteFailure(failure, current)) return;
+            } else if (current) renderCart(ShopPageState.NORMAL, "");
             if (!queued.isEmpty()) processNext();
             else if (reloadAfterWrites || !current) { reloadAfterWrites = false; load(); }
         });
     }
-    private boolean showWriteFailure(Throwable failure) {
+    private boolean showWriteFailure(Throwable failure, boolean current) {
         String code = ShopUiErrors.code(failure);
-        if (ShopUiErrors.sessionExpired(code)) { disconnected = true; queued.clear(); queuedKeys.clear(); reloadAfterWrites = false; showState(ShopPageState.DISCONNECTED, code, null); sessionExpired.run(); return true; }
-        renderCart(ShopPageState.ERROR, code); return false;
+        if (ShopUiErrors.sessionExpired(code)) { disconnect(code); return true; }
+        if (current) renderCart(ShopPageState.ERROR, code);
+        return false;
     }
     private void showFailure(Throwable failure) {
         String code = ShopUiErrors.code(failure);
-        if (ShopUiErrors.sessionExpired(code)) { showState(ShopPageState.DISCONNECTED, code, this::load); sessionExpired.run(); }
+        if (ShopUiErrors.sessionExpired(code)) disconnect(code);
         else showState(ShopPageState.ERROR, code, this::load);
+    }
+    private void disconnect(String code) {
+        if (disconnected) return;
+        disconnected = true; queued.clear(); queuedKeys.clear(); reloadAfterWrites = false;
+        showState(ShopPageState.DISCONNECTED, code, null); sessionExpired.run();
     }
     private void renderCart(ShopPageState state, String message) {
         if (cart == null || cart.items().isEmpty()) { showState(ShopPageState.EMPTY, "购物车为空", this::load); return; }
