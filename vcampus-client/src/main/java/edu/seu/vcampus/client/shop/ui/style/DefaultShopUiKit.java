@@ -10,6 +10,9 @@ import java.awt.LayoutManager;
 /** Default UIManager-respecting Shop component factory. */
 public final class DefaultShopUiKit implements ShopUiKit {
     @Override
+    public JButton navigationButton(String name, String text) { return named(new JButton(text), name); }
+
+    @Override
     public JButton primaryButton(String name, String text) { return named(new JButton(text), name); }
 
     @Override

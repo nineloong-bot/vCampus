@@ -51,6 +51,15 @@ import static org.mockito.Mockito.when;
 
 class ShopUiKitTest {
     @Test
+    void defaultKitCreatesNamedNavigationButtons() throws Exception {
+        JButton button = onEdt(() -> new DefaultShopUiKit().navigationButton(
+                "shop.navigation", "校园商城"));
+
+        assertThat(button.getName()).isEqualTo("shop.navigation");
+        assertThat(button.getText()).isEqualTo("校园商城");
+    }
+
+    @Test
     void buyerSourcesDoNotOwnThemeStyling() throws Exception {
         String buyerSources;
         try (Stream<Path> files = Files.walk(Path.of(
@@ -261,6 +270,11 @@ class ShopUiKitTest {
         private final EnumSet<ShopPageState> states = EnumSet.noneOf(ShopPageState.class);
         private final List<Boolean> uiThreadCalls = new ArrayList<>();
         private final List<StateViewCall> stateViews = new ArrayList<>();
+
+        @Override
+        public JButton navigationButton(String name, String text) {
+            return named(new JButton(text), name);
+        }
 
         @Override
         public JButton primaryButton(String name, String text) {

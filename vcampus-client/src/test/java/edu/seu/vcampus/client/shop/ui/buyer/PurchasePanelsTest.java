@@ -1023,6 +1023,7 @@ class PurchasePanelsTest {
         private final List<Boolean> uiThreadCalls = new ArrayList<>();
         private final List<StateCall> stateCalls = new ArrayList<>();
 
+        @Override public JButton navigationButton(String name, String text) { return named(new JButton(text), name); }
         @Override public JButton primaryButton(String name, String text) { return named(new JButton(text), name); }
         @Override public JButton secondaryButton(String name, String text) { return named(new JButton(text), name); }
         @Override public JPanel filterPanel(String name, LayoutManager layout) { return named(new JPanel(layout), name); }

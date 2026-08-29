@@ -7,6 +7,7 @@ import java.awt.LayoutManager;
 
 /** Semantic construction boundary for buyer Shop pages. */
 public interface ShopUiKit {
+    JButton navigationButton(String name, String text);
     JButton primaryButton(String name, String text);
     JButton secondaryButton(String name, String text);
     JPanel filterPanel(String name, LayoutManager layout);
