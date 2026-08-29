@@ -10,8 +10,11 @@ import edu.seu.vcampus.common.shop.*;
 import edu.seu.vcampus.common.paging.PageResult;
 import org.junit.jupiter.api.Test;
 
+import javax.swing.SwingUtilities;
 import java.time.Duration;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -34,6 +37,27 @@ class ShopClientServiceTest {
 
         assertThat(service.addToCart(new AddCartItemCommand("sku-1", 2)).join())
                 .isEqualTo(expected);
+    }
+
+    @Test
+    void dispatchesSocketSendOffEdtAndPreservesTypedResponse() throws Exception {
+        ClientConnection connection = mock(ClientConnection.class);
+        ShopClientService service = new ShopClientService(connection, TIMEOUT);
+        CartView expected = ShopClientFixtures.cartView();
+        AtomicBoolean sendRanOnEdt = new AtomicBoolean();
+        when(connection.<CartView>send(eq("SHOP_CART_ADD"),
+                eq(new AddCartItemCommand("sku-1", 2)), eq(TIMEOUT)))
+                .thenAnswer(invocation -> {
+                    sendRanOnEdt.set(SwingUtilities.isEventDispatchThread());
+                    return CompletableFuture.completedFuture(ResponseBody.success(expected));
+                });
+
+        CompletableFuture<CartView> response = edu.seu.vcampus.client.shop.ShopSwingTestSupport
+                .onEdt((Callable<CompletableFuture<CartView>>) () ->
+                        service.addToCart(new AddCartItemCommand("sku-1", 2)));
+
+        assertThat(response.join()).isEqualTo(expected);
+        assertThat(sendRanOnEdt).isFalse();
     }
 
     @Test

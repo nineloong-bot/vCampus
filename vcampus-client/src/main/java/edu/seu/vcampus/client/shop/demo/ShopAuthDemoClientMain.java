@@ -10,8 +10,16 @@ import edu.seu.vcampus.client.user.ui.LoginFrame;
 import edu.seu.vcampus.common.user.LoginResult;
 
 import javax.swing.SwingUtilities;
+import java.awt.event.WindowEvent;
+import java.awt.event.WindowListener;
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Starts the authenticated buyer Shop demo against the local composed server. */
 public final class ShopAuthDemoClientMain {
@@ -29,8 +37,11 @@ public final class ShopAuthDemoClientMain {
             connection.connect(TIMEOUT);
             Runtime.getRuntime().addShutdownHook(
                     new Thread(connection::close, "shop-auth-demo-client-close"));
-            UserClientService users = new UserClientService(
-                    connection, UUID.randomUUID().toString(), TIMEOUT);
+            UserClientService users = asynchronousUsers(
+                    connection,
+                    UUID.randomUUID().toString(),
+                    TIMEOUT,
+                    ForkJoinPool.commonPool());
             ShopClientService shop = new ShopClientService(connection, TIMEOUT);
             SwingUtilities.invokeLater(() -> showLogin(users, shop, connection));
         } catch (Exception error) {
@@ -38,6 +49,14 @@ public final class ShopAuthDemoClientMain {
             System.err.println("Shop Demo 客户端启动失败：" + error.getMessage());
             System.exit(2);
         }
+    }
+
+    static UserClientService asynchronousUsers(
+            ClientConnection connection,
+            String clientInstanceId,
+            Duration timeout,
+            Executor executor) {
+        return new AsyncUserClientService(connection, clientInstanceId, timeout, executor);
     }
 
     private static void showLogin(
@@ -57,17 +76,82 @@ public final class ShopAuthDemoClientMain {
             ClientConnection connection) {
         requireEdt();
         MainFrame main = new MainFrame(result.user());
-        ShopUiInstaller.install(main, shop, new DefaultShopUiKit(), () -> {
-            main.dispose();
-            connection.setSessionToken(null);
-            showLogin(users, shop, connection);
-        });
+        Runnable sessionTransition = oneShotSessionTransition(
+                () -> fireWindowClosing(main),
+                main::dispose,
+                () -> connection.setSessionToken(null),
+                () -> showLogin(users, shop, connection));
+        ShopUiInstaller.install(main, shop, new DefaultShopUiKit(), sessionTransition);
         main.setVisible(true);
+    }
+
+    static Runnable oneShotSessionTransition(
+            Runnable shopCleanup,
+            Runnable dispose,
+            Runnable clearToken,
+            Runnable showLogin) {
+        Objects.requireNonNull(shopCleanup, "shopCleanup");
+        Objects.requireNonNull(dispose, "dispose");
+        Objects.requireNonNull(clearToken, "clearToken");
+        Objects.requireNonNull(showLogin, "showLogin");
+        AtomicBoolean started = new AtomicBoolean();
+        return () -> {
+            if (!started.compareAndSet(false, true)) {
+                return;
+            }
+            Runnable transition = () -> {
+                shopCleanup.run();
+                dispose.run();
+                clearToken.run();
+                showLogin.run();
+            };
+            if (SwingUtilities.isEventDispatchThread()) {
+                transition.run();
+            } else {
+                SwingUtilities.invokeLater(transition);
+            }
+        };
+    }
+
+    private static void fireWindowClosing(MainFrame main) {
+        WindowEvent event = new WindowEvent(main, WindowEvent.WINDOW_CLOSING);
+        for (WindowListener listener : main.getWindowListeners()) {
+            listener.windowClosing(event);
+        }
     }
 
     private static void requireEdt() {
         if (!SwingUtilities.isEventDispatchThread()) {
             throw new IllegalStateException("Shop Demo UI must run on the EDT");
+        }
+    }
+
+    private static final class AsyncUserClientService extends UserClientService {
+        private final Executor executor;
+
+        private AsyncUserClientService(
+                ClientConnection connection,
+                String clientInstanceId,
+                Duration timeout,
+                Executor executor) {
+            super(connection, clientInstanceId, timeout);
+            this.executor = Objects.requireNonNull(executor, "executor");
+        }
+
+        @Override
+        public CompletableFuture<LoginResult> login(String loginId, char[] password) {
+            Objects.requireNonNull(password, "password");
+            char[] deferredPassword = password.clone();
+            Arrays.fill(password, '\0');
+            try {
+                return CompletableFuture
+                        .supplyAsync(() -> super.login(loginId, deferredPassword), executor)
+                        .thenCompose(response -> response)
+                        .whenComplete((ignored, error) -> Arrays.fill(deferredPassword, '\0'));
+            } catch (RuntimeException error) {
+                Arrays.fill(deferredPassword, '\0');
+                return CompletableFuture.failedFuture(error);
+            }
         }
     }
 }

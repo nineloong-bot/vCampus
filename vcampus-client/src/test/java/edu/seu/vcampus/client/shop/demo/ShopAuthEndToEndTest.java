@@ -17,6 +17,8 @@ import edu.seu.vcampus.common.shop.PaymentStatus;
 import edu.seu.vcampus.common.shop.PaymentView;
 import edu.seu.vcampus.common.shop.SimulatePaymentCommand;
 import edu.seu.vcampus.common.user.LoginResult;
+import edu.seu.vcampus.common.user.LoginCommand;
+import edu.seu.vcampus.common.user.UserView;
 import edu.seu.vcampus.server.shop.demo.ShopAuthDemoDatabase;
 import edu.seu.vcampus.server.shop.demo.ShopAuthDemoRuntime;
 import org.junit.jupiter.api.Test;
@@ -30,8 +32,22 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class ShopAuthEndToEndTest {
     private static final Duration TIMEOUT = Duration.ofSeconds(5);
@@ -39,6 +55,61 @@ class ShopAuthEndToEndTest {
 
     @TempDir
     Path temp;
+
+    @Test
+    void sessionExpirationRunsShopCleanupOnceBeforeOpeningLogin() throws Exception {
+        List<String> events = new ArrayList<>();
+        AtomicBoolean transitionRanOnEdt = new AtomicBoolean();
+        Runnable transition = ShopAuthDemoClientMain.oneShotSessionTransition(
+                () -> {
+                    transitionRanOnEdt.set(javax.swing.SwingUtilities.isEventDispatchThread());
+                    events.add("shop-cleanup");
+                },
+                () -> events.add("dispose"),
+                () -> events.add("clear-token"),
+                () -> events.add("show-login"));
+
+        transition.run();
+        transition.run();
+        edu.seu.vcampus.client.shop.ShopSwingTestSupport.flushEdt();
+
+        assertThat(transitionRanOnEdt).isTrue();
+        assertThat(events).containsExactly(
+                "shop-cleanup", "dispose", "clear-token", "show-login");
+    }
+
+    @Test
+    void demoLoginCopiesPasswordBeforeDispatchAndSendsOffEdt() throws Exception {
+        ClientConnection connection = mock(ClientConnection.class);
+        AtomicReference<Runnable> scheduled = new AtomicReference<>();
+        Executor deferred = task -> assertThat(scheduled.compareAndSet(null, task)).isTrue();
+        UserClientService users = ShopAuthDemoClientMain.asynchronousUsers(
+                connection, "demo-client", TIMEOUT, deferred);
+        LoginResult expected = loginResult();
+        AtomicBoolean sendRanOnEdt = new AtomicBoolean();
+        when(connection.<LoginResult>send(eq("USER_LOGIN"), any(LoginCommand.class), eq(TIMEOUT)))
+                .thenAnswer(invocation -> {
+                    sendRanOnEdt.set(javax.swing.SwingUtilities.isEventDispatchThread());
+                    LoginCommand command = invocation.getArgument(1);
+                    assertThat(command.password()).containsExactly(
+                            'D', 'e', 'm', 'o', 'P', 'a', 's', 's', 'w', 'o', 'r', 'd', '7');
+                    return CompletableFuture.completedFuture(ResponseBody.success(expected));
+                });
+        char[] password = "DemoPassword7".toCharArray();
+
+        CompletableFuture<LoginResult> response =
+                edu.seu.vcampus.client.shop.ShopSwingTestSupport.onEdt(
+                        (Callable<CompletableFuture<LoginResult>>) () ->
+                                users.login("DEMO_BUYER", password));
+
+        assertThat(password).containsOnly('\0');
+        assertThat(response).isNotDone();
+        assertThat(scheduled.get()).isNotNull();
+        scheduled.get().run();
+        assertThat(response.join()).isEqualTo(expected);
+        assertThat(sendRanOnEdt).isFalse();
+        verify(connection).setSessionToken("opaque-session");
+    }
 
     @Test
     void loginCartCheckoutAndPaymentPersistExactlyOnce() throws Exception {
@@ -204,6 +275,16 @@ class ShopAuthEndToEndTest {
         } catch (ClassNotFoundException error) {
             return false;
         }
+    }
+
+    private static LoginResult loginResult() {
+        LocalDateTime now = LocalDateTime.of(2026, 8, 30, 0, 0);
+        UserView user = new UserView(
+                "demo-buyer", "DEMO_BUYER",
+                edu.seu.vcampus.common.user.UserRole.STUDENT,
+                edu.seu.vcampus.common.user.AccountStatus.ACTIVE,
+                false, now, 0, now, now);
+        return new LoginResult("opaque-session", user, Set.of(), false);
     }
 
     private static Path schemaDir() {

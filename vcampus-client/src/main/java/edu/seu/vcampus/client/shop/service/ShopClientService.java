@@ -77,7 +77,10 @@ public final class ShopClientService implements ShopClientPort {
     }
 
     private <T extends Serializable> CompletableFuture<T> send(String command, Serializable body) {
-        return connection.<T>send(command, body, timeout).thenApply(this::requireData);
+        return CompletableFuture
+                .supplyAsync(() -> connection.<T>send(command, body, timeout))
+                .thenCompose(response -> response)
+                .thenApply(this::requireData);
     }
 
     private <T extends Serializable> T requireData(ResponseBody<T> response) {

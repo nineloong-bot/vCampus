@@ -44,6 +44,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Arrays;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -217,7 +218,7 @@ class ShopUiTest {
         assumeFalse(GraphicsEnvironment.isHeadless());
         RecordingClient client = new RecordingClient();
         NavigationCountingKit uiKit = new NavigationCountingKit();
-        MainFrame frame = onEdt(MainFrame::new);
+        MainFrame frame = onEdt((Callable<MainFrame>) MainFrame::new);
 
         onEdt(() -> ShopUiInstaller.install(frame, client, uiKit, () -> { }));
         JButton shop = component(frame.navigation(), "shop.navigation", JButton.class);
@@ -235,7 +236,7 @@ class ShopUiTest {
     @Test
     void installerWindowClosingDisposesTheSameCoordinatorOnce() throws Exception {
         assumeFalse(GraphicsEnvironment.isHeadless());
-        MainFrame frame = onEdt(MainFrame::new);
+        MainFrame frame = onEdt((Callable<MainFrame>) MainFrame::new);
         RecordingInstalledCoordinator coordinator = new RecordingInstalledCoordinator();
         onEdt(() -> frame.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE));
 
