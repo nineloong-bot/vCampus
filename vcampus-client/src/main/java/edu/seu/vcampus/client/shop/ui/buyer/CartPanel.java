@@ -44,6 +44,7 @@ public final class CartPanel extends JPanel {
     private boolean disposed;
     private Write active;
     private boolean reloadAfterWrites;
+    private boolean disconnected;
 
     public CartPanel(ShopClientPort client, ShopNavigator navigator, ShopUiKit uiKit, Runnable sessionExpired) {
         super(new BorderLayout(8, 8));
@@ -55,6 +56,7 @@ public final class CartPanel extends JPanel {
         if (disposed) return;
         long request = loads.begin(); routeGeneration = request;
         showState(ShopPageState.LOADING, "加载中…", null);
+        if (active != null || !queued.isEmpty()) { reloadAfterWrites = true; return; }
         client.getCart().whenComplete((result, failure) -> finishLoad(request, result, failure));
     }
     public List<CartItemView> visibleItems() { return cart == null ? List.of() : cart.items(); }
@@ -64,9 +66,12 @@ public final class CartPanel extends JPanel {
     public void dispose() { disposePage(); }
 
     private void enqueue(Write write) {
-        if (disposed || item(write.id()) == null || write.update() && write.quantity() < 1 || queuedKeys.contains(write.key())) return;
+        if (disposed || disconnected || item(write.id()) == null || write.update() && write.quantity() < 1 || queuedKeys.contains(write.key())) return;
         Write captured = new Write(write.update(), write.id(), write.quantity(), routeGeneration);
-        queued.addLast(captured); queuedKeys.add(captured.key()); processNext();
+        queued.addLast(captured); queuedKeys.add(captured.key());
+        JButton initiating = write.update() ? updateButtons.get(write.id()) : removeButtons.get(write.id());
+        if (initiating != null) initiating.setEnabled(false);
+        processNext();
     }
     private void processNext() {
         if (disposed || active != null || queued.isEmpty()) return;
@@ -88,17 +93,18 @@ public final class CartPanel extends JPanel {
     }
     private void finishWrite(Write write, CartView result, Throwable failure) {
         SwingUtilities.invokeLater(() -> {
-            if (disposed || active != write) return;
+            if (disposed || disconnected || active != write) return;
             active = null; queuedKeys.remove(write.key());
-            if (failure == null && result != null && write.generation() == routeGeneration) cart = result;
-            if (failure != null) showWriteFailure(failure); else renderCart(ShopPageState.NORMAL, "");
+            boolean current = write.generation() == routeGeneration;
+            if (failure == null && result != null && current) cart = result;
+            if (failure != null) showWriteFailure(failure); else if (current) renderCart(ShopPageState.NORMAL, "");
             if (!queued.isEmpty()) processNext();
-            else if (reloadAfterWrites) { reloadAfterWrites = false; load(); }
+            else if (reloadAfterWrites || !current) { reloadAfterWrites = false; load(); }
         });
     }
     private void showWriteFailure(Throwable failure) {
         String code = ShopUiErrors.code(failure);
-        if (ShopUiErrors.sessionExpired(code)) { showState(ShopPageState.DISCONNECTED, code, this::load); sessionExpired.run(); }
+        if (ShopUiErrors.sessionExpired(code)) { disconnected = true; queued.clear(); queuedKeys.clear(); reloadAfterWrites = false; showState(ShopPageState.DISCONNECTED, code, null); sessionExpired.run(); }
         else renderCart(ShopPageState.ERROR, code);
     }
     private void showFailure(Throwable failure) {
@@ -119,7 +125,8 @@ public final class CartPanel extends JPanel {
             JButton update = uiKit.secondaryButton("cart.update-" + item.cartItemId(), "更新");
             JButton remove = uiKit.secondaryButton("cart.remove-" + item.cartItemId(), "删除");
             update.addActionListener(e -> updateQuantity(item.cartItemId(), (Integer) quantity.getValue())); remove.addActionListener(e -> remove(item.cartItemId()));
-            if (active != null && active.id().equals(item.cartItemId())) (active.update() ? update : remove).setEnabled(false);
+            if (queuedKeys.contains("U:" + item.cartItemId())) update.setEnabled(false);
+            if (queuedKeys.contains("R:" + item.cartItemId())) remove.setEnabled(false);
             updateButtons.put(item.cartItemId(), update); removeButtons.put(item.cartItemId(), remove);
             row.add(quantity); row.add(update); row.add(remove); rows.add(row);
         }

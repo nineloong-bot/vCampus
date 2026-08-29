@@ -24,6 +24,7 @@ import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.awt.Window;
 import java.util.Objects;
+import java.util.EnumMap;
 
 /** Non-blocking simulated payment dialog with retry-safe terminal transitions. */
 public final class SimulatedCashierDialog extends JDialog implements CheckoutPanel.ActiveCashier {
@@ -37,6 +38,8 @@ public final class SimulatedCashierDialog extends JDialog implements CheckoutPan
     private final JPanel content = new JPanel(new BorderLayout());
     private final JComboBox<PaymentChannel> channels = new JComboBox<>(PaymentChannel.values());
     private JButton succeeded;
+    private final EnumMap<PaymentAttemptStatus, JButton> attemptButtons = new EnumMap<>(PaymentAttemptStatus.class);
+    private PaymentAttemptStatus initiatingAttempt;
     private boolean busy;
     private boolean disposed;
 
@@ -62,6 +65,7 @@ public final class SimulatedCashierDialog extends JDialog implements CheckoutPan
         if (busy || disposed) return;
         long request = submissions.begin();
         busy = true;
+        initiatingAttempt = result;
         showCashier(ShopPageState.SUBMITTING, "正在支付…");
         client.simulatePayment(new SimulatePaymentCommand(checkout.paymentId(), channel, result))
                 .whenComplete((payment, failure) -> finish(request, payment, failure));
@@ -85,6 +89,7 @@ public final class SimulatedCashierDialog extends JDialog implements CheckoutPan
         SwingUtilities.invokeLater(() -> {
             if (!submissions.accepts(request)) return;
             busy = false;
+            initiatingAttempt = null;
             if (failure != null) {
                 String code = ShopUiErrors.code(failure);
                 if (ShopUiErrors.sessionExpired(code)) { showCashier(ShopPageState.DISCONNECTED, code); sessionExpired.run(); }
@@ -108,10 +113,14 @@ public final class SimulatedCashierDialog extends JDialog implements CheckoutPan
         succeeded = uiKit.primaryButton("cashier.success", "成功");
         JButton failed = uiKit.secondaryButton("cashier.failed", "失败");
         JButton cancelled = uiKit.secondaryButton("cashier.cancel", "取消");
+        attemptButtons.clear();
+        attemptButtons.put(PaymentAttemptStatus.SUCCEEDED, succeeded);
+        attemptButtons.put(PaymentAttemptStatus.FAILED, failed);
+        attemptButtons.put(PaymentAttemptStatus.CANCELLED, cancelled);
         succeeded.addActionListener(event -> submit((PaymentChannel) channels.getSelectedItem(), PaymentAttemptStatus.SUCCEEDED));
         failed.addActionListener(event -> submit((PaymentChannel) channels.getSelectedItem(), PaymentAttemptStatus.FAILED));
         cancelled.addActionListener(event -> submit((PaymentChannel) channels.getSelectedItem(), PaymentAttemptStatus.CANCELLED));
-        if (busy) { succeeded.setEnabled(false); }
+        if (busy && attemptButtons.containsKey(initiatingAttempt)) attemptButtons.get(initiatingAttempt).setEnabled(false);
         form.add(succeeded); form.add(failed); form.add(cancelled);
         content.add(form, BorderLayout.CENTER); content.revalidate(); content.repaint(); pack();
     }

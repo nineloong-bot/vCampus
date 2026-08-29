@@ -323,9 +323,35 @@ class PurchasePanelsTest {
         verify(client, org.mockito.Mockito.times(2)).checkout(any());
     }
 
+    @Test
+    void queuedCartWritesDisableBothInitiatorsAndRunInOrder() throws Exception {
+        ShopClientPort client = mock(ShopClientPort.class);
+        CartView cart = twoItemCart();
+        CompletableFuture<CartView> first = new CompletableFuture<>();
+        CompletableFuture<CartView> second = new CompletableFuture<>();
+        when(client.getCart()).thenReturn(CompletableFuture.completedFuture(cart));
+        when(client.updateCartItem(any())).thenReturn(first, second);
+        CartPanel panel = onEdt(() -> new CartPanel(client, new ShopNavigator(route -> { }), new RecordingKit(), () -> { }));
+        onEdt(panel::load); flushEdt();
+        onEdt(() -> { panel.updateQuantity("cart-item-1", 3); panel.updateQuantity("cart-item-2", 4); });
+        assertThat(component(panel, "cart.update-cart-item-1", JButton.class).isEnabled()).isFalse();
+        assertThat(component(panel, "cart.update-cart-item-2", JButton.class).isEnabled()).isFalse();
+        verify(client, org.mockito.Mockito.times(1)).updateCartItem(any());
+        first.complete(cart); flushEdt();
+        verify(client).updateCartItem(new UpdateCartItemCommand("cart-item-2", 4, 0));
+        second.complete(cart); flushEdt();
+    }
+
     private static PaymentView payment(PaymentStatus status, PaymentChannel channel) {
         return new PaymentView("payment-1", "group-1", "P0001", new BigDecimal("6.00"), status,
                 channel, Instant.parse("2026-08-29T00:15:00Z"), null, 0);
+    }
+
+    private static CartView twoItemCart() {
+        CartView first = ShopClientFixtures.cartView();
+        return new CartView(first.cartId(), List.of(first.items().getFirst(), new edu.seu.vcampus.common.shop.CartItemView(
+                "cart-item-2", "product-2", "笔记本", "sku-2", "A5", "shop-1", "校园文具店",
+                new BigDecimal("5.00"), 1, 0)), new BigDecimal("11.00"));
     }
 
     private static final class RecordingDialogs implements ShopDialogs {

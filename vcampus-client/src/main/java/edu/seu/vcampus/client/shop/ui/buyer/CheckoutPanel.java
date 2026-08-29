@@ -139,11 +139,12 @@ public final class CheckoutPanel extends JPanel {
         if (disposed || activeCashier()) return;
         ActiveCashier[] holder = new ActiveCashier[1];
         Runnable closed = () -> {
-            if (cashier == holder[0]) cashier = null;
+            if (cashier == holder[0]) { cashier = null; if (!disposed && cart != null) showCheckout(ShopPageState.NORMAL, ""); }
         };
         holder[0] = cashierFactory.create(SwingUtilities.getWindowAncestor(this), client, navigator,
                 uiKit, result, sessionExpired, closed);
         cashier = holder[0];
+        showCheckout(ShopPageState.NORMAL, "");
         if (isShowing()) cashier.open();
     }
 
