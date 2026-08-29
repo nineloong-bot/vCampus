@@ -53,7 +53,7 @@ public final class CartPanel extends JPanel {
         add(content, BorderLayout.CENTER); showState(ShopPageState.INITIAL, "", null);
     }
     public void load() {
-        if (disposed) return;
+        if (disposed || disconnected) return;
         long request = loads.begin(); routeGeneration = request;
         showState(ShopPageState.LOADING, "加载中…", null);
         if (active != null || !queued.isEmpty()) { reloadAfterWrites = true; return; }
@@ -78,6 +78,7 @@ public final class CartPanel extends JPanel {
         active = queued.removeFirst();
         CartItemView item = item(active.id());
         if (item == null) { finishWrite(active, null, null); return; }
+        if (active.generation() != routeGeneration) { finishWrite(active, null, null); return; }
         renderCart(ShopPageState.SUBMITTING, active.update() ? "正在更新购物车…" : "正在移除商品…");
         if (active.update()) client.updateCartItem(new UpdateCartItemCommand(item.cartItemId(), active.quantity(), item.rowVersion()))
                 .whenComplete((result, failure) -> finishWrite(active, result, failure));
@@ -97,15 +98,16 @@ public final class CartPanel extends JPanel {
             active = null; queuedKeys.remove(write.key());
             boolean current = write.generation() == routeGeneration;
             if (failure == null && result != null && current) cart = result;
-            if (failure != null) showWriteFailure(failure); else if (current) renderCart(ShopPageState.NORMAL, "");
+            if (failure != null && showWriteFailure(failure)) return;
+            if (current) renderCart(ShopPageState.NORMAL, "");
             if (!queued.isEmpty()) processNext();
             else if (reloadAfterWrites || !current) { reloadAfterWrites = false; load(); }
         });
     }
-    private void showWriteFailure(Throwable failure) {
+    private boolean showWriteFailure(Throwable failure) {
         String code = ShopUiErrors.code(failure);
-        if (ShopUiErrors.sessionExpired(code)) { disconnected = true; queued.clear(); queuedKeys.clear(); reloadAfterWrites = false; showState(ShopPageState.DISCONNECTED, code, null); sessionExpired.run(); }
-        else renderCart(ShopPageState.ERROR, code);
+        if (ShopUiErrors.sessionExpired(code)) { disconnected = true; queued.clear(); queuedKeys.clear(); reloadAfterWrites = false; showState(ShopPageState.DISCONNECTED, code, null); sessionExpired.run(); return true; }
+        renderCart(ShopPageState.ERROR, code); return false;
     }
     private void showFailure(Throwable failure) {
         String code = ShopUiErrors.code(failure);
