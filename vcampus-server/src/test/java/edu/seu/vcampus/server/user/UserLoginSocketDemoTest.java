@@ -53,6 +53,7 @@ class UserLoginSocketDemoTest {
     private ExecutorService serverThread;
     private Future<?> serving;
     private char[] demoPassword;
+    private TransactionManager transactions;
 
     @BeforeEach
     void startSocketServerWithIsolatedAccessDatabase() throws Exception {
@@ -61,7 +62,7 @@ class UserLoginSocketDemoTest {
         String url = "jdbc:ucanaccess://" + testData.resolve(UUID.randomUUID() + ".accdb")
                 + ";newDatabaseVersion=V2010;immediatelyReleaseResources=true";
         ConnectionProvider provider = () -> DriverManager.getConnection(url);
-        TransactionManager transactions = new TransactionManager(provider);
+        transactions = new TransactionManager(provider);
         try (Connection connection = provider.open()) {
             executeScript(connection, projectFile("schema", "010_user.sql"));
             executeScript(connection, projectFile("seed", "010_roles_permissions.sql"));
@@ -146,6 +147,7 @@ class UserLoginSocketDemoTest {
                 ResponseBody<?> failure = (ResponseBody<?>) malformedResponse.body();
                 assertThat(failure).extracting(body -> body.success(), body -> body.code())
                         .containsExactly(false, "COMMON_VALIDATION_FAILED");
+                assertMalformedLoginAudit();
 
                 output.writeObject(request(new LoginCommand(LOGIN_ID, demoPassword.clone(),
                         "demo-client")));
@@ -155,6 +157,23 @@ class UserLoginSocketDemoTest {
                 assertThat(((ResponseBody<?>) validResponse.body()).success()).isTrue();
             }
         }
+    }
+
+    private void assertMalformedLoginAudit() {
+        transactions.inTransaction(connection -> {
+            try (var statement = connection.prepareStatement(
+                    "SELECT userId,targetId,resultCode FROM tblAuditLog "
+                            + "WHERE actionCode='USER_LOGIN' AND resultCode='COMMON_VALIDATION_FAILED'")) {
+                try (var rows = statement.executeQuery()) {
+                    assertThat(rows.next()).isTrue();
+                    assertThat(rows.getString(1)).isNull();
+                    assertThat(rows.getString(2)).isNull();
+                    assertThat(rows.getString(3)).isEqualTo("COMMON_VALIDATION_FAILED");
+                    assertThat(rows.next()).isFalse();
+                }
+            }
+            return null;
+        });
     }
 
     private Message exchange(LoginCommand command) throws Exception {

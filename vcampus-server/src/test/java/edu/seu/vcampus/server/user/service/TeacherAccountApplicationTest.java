@@ -6,6 +6,7 @@ import edu.seu.vcampus.server.concurrency.ResourceLockManager;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import edu.seu.vcampus.server.persistence.TransactionManager;
+import edu.seu.vcampus.server.routing.ClientContext;
 import edu.seu.vcampus.server.user.domain.UserAccount;
 import edu.seu.vcampus.server.user.repository.AccessAuditRepository;
 import edu.seu.vcampus.server.user.repository.AccessUserRepository;
@@ -13,6 +14,7 @@ import edu.seu.vcampus.server.user.repository.AuditRepository;
 import edu.seu.vcampus.server.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -78,6 +80,7 @@ class TeacherAccountApplicationTest {
     }
 
     @Test
+    @Timeout(30)
     void onlyOneConcurrentTeacherApplicationWins() throws Exception {
         List<char[]> submittedPasswords = Collections.synchronizedList(new ArrayList<>());
         List<Outcome<UserView>> results = concurrently(20, () -> {
@@ -119,6 +122,43 @@ class TeacherAccountApplicationTest {
             }
         });
         assertThat(auditCount).isEqualTo(1);
+        transactions.inTransaction(connection -> {
+            try (var statement = connection.prepareStatement(
+                    "SELECT userId, targetId FROM tblAuditLog "
+                            + "WHERE actionCode='USER_REGISTER' AND resultCode='SUCCESS'")) {
+                try (var result = statement.executeQuery()) {
+                    assertThat(result.next()).isTrue();
+                    assertThat(result.getString(1)).isNull();
+                    assertThat(result.getString(2)).isEqualTo(view.userId());
+                }
+            }
+            return null;
+        });
+    }
+
+    @Test
+    void failedApplicationIsAuditedAfterBusinessRollback() {
+        var command = new TeacherAccountApplicationCommand(
+                "bad login", "Password1".toCharArray());
+
+        assertThatThrownBy(() -> service.applyForTeacherAccount(command,
+                new ClientContext("connection", "10.0.0.8")))
+                .hasMessage("COMMON_VALIDATION_FAILED");
+
+        transactions.inTransaction(connection -> {
+            try (var statement = connection.prepareStatement(
+                    "SELECT userId, targetId, resultCode, clientAddress FROM tblAuditLog "
+                            + "WHERE actionCode='USER_REGISTER'")) {
+                try (var result = statement.executeQuery()) {
+                    assertThat(result.next()).isTrue();
+                    assertThat(result.getString(1)).isNull();
+                    assertThat(result.getString(2)).isNull();
+                    assertThat(result.getString(3)).isEqualTo("COMMON_VALIDATION_FAILED");
+                    assertThat(result.getString(4)).isEqualTo("10.0.0.8");
+                }
+            }
+            return null;
+        });
     }
 
     private static <T> List<Outcome<T>> concurrently(

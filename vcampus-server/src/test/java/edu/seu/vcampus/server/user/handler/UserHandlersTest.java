@@ -201,6 +201,21 @@ class UserHandlersTest {
         assertThat(response.error().traceId()).isNotBlank().isNotEqualTo("request");
     }
 
+    @Test
+    void handlersClearPasswordMaterialRetainedInsideRequestDtos() {
+        TeacherAccountApplicationCommand registration =
+                new TeacherAccountApplicationCommand("TEACHER", "Password1".toCharArray());
+        ChangePasswordCommand change = new ChangePasswordCommand(
+                "OldPass123".toCharArray(), "NewPass123".toCharArray());
+
+        route("USER_REGISTER", registration);
+        route("USER_CHANGE_PASSWORD", change);
+
+        assertThat(registration.password()).containsOnly('\0');
+        assertThat(change.oldPassword()).containsOnly('\0');
+        assertThat(change.newPassword()).containsOnly('\0');
+    }
+
     private ResponseBody<?> route(String command, Serializable body) {
         return route(router, command, "token", body);
     }
@@ -223,7 +238,7 @@ class UserHandlersTest {
     }
 
     private static UserIdentity identity(boolean restricted) {
-        return new UserIdentity("user", "USER", UserRole.ADMIN, Set.of("USER_READ_ALL"), restricted);
+        return new UserIdentity("user", "USER", UserRole.ADMIN, AccountStatus.ACTIVE);
     }
 
     private static class StubUsers implements UserService {

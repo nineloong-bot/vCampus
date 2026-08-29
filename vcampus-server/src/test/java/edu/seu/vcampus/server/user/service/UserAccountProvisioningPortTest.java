@@ -30,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class UserAccountProvisioningPortTest {
+    private static final String ADMIN_ID = "00000000-0000-0000-0000-000000000001";
     private TransactionManager transactions;
     private UserRepository users;
     private UserAccountProvisioningPort port;
@@ -58,7 +59,8 @@ class UserAccountProvisioningPortTest {
 
         ProvisionedUserAccount result = transactions.inTransaction(connection ->
                 port.createStudentAccount(
-                        new TransactionContext(rejectLifecycleOperations(connection)),
+                        new TransactionContext(rejectLifecycleOperations(connection),
+                                ADMIN_ID, "admission-client"),
                         "213242478", password));
 
         assertThat(result.loginId()).isEqualTo("213242478");
@@ -72,6 +74,8 @@ class UserAccountProvisioningPortTest {
         assertThat(saved.accountStatus()).isEqualTo(ACTIVE);
         assertThat(saved.mustChangePassword()).isTrue();
         assertThat(auditCount("STUDENT_ACCOUNT_PROVISIONED")).isEqualTo(1);
+        assertThat(auditActorAndTarget("STUDENT_ACCOUNT_PROVISIONED"))
+                .containsExactly(ADMIN_ID, result.userId());
     }
 
     @Test
@@ -141,6 +145,19 @@ class UserAccountProvisioningPortTest {
 
     private long auditCount(String actionCode) {
         return count("SELECT COUNT(*) FROM tblAuditLog WHERE actionCode=?", actionCode);
+    }
+
+    private java.util.List<String> auditActorAndTarget(String actionCode) {
+        return transactions.inTransaction(connection -> {
+            try (var statement = connection.prepareStatement(
+                    "SELECT userId, targetId FROM tblAuditLog WHERE actionCode=?")) {
+                statement.setString(1, actionCode);
+                try (var result = statement.executeQuery()) {
+                    result.next();
+                    return java.util.List.of(result.getString(1), result.getString(2));
+                }
+            }
+        });
     }
 
     private long count(String sql, String value) {

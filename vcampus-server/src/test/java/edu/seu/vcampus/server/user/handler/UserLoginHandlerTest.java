@@ -68,6 +68,39 @@ class UserLoginHandlerTest {
         assertThat(response.error().traceId()).isNotBlank();
     }
 
+    @Test
+    void loginHandlerClearsPasswordRetainedInsideCommand() {
+        LoginCommand command = new LoginCommand(
+                "DEMO_ADMIN", "DemoPass123".toCharArray(), "client");
+        UserLoginHandler handler = new UserLoginHandler(new SuccessfulLoginService());
+        Message message = new Message("request", MessageType.REQUEST, "USER_LOGIN", null,
+                command, 0);
+
+        assertThat(handler.handle(message, CONTEXT).success()).isTrue();
+        assertThat(command.password()).containsOnly('\0');
+    }
+
+    @Test
+    void rejectionAuditFailureDoesNotReplaceSafeLoginResponse() {
+        UserService unavailableAudit = new ThrowingLoginService(new RuntimeException()) {
+            @Override public void auditRejectedRequest(
+                    String actorUserId, String actionCode, String targetId,
+                    RuntimeException failure, ClientContext context) {
+                throw new RuntimeException("database path and token must stay private");
+            }
+        };
+        UserLoginHandler handler = new UserLoginHandler(unavailableAudit);
+        Message message = new Message("request", MessageType.REQUEST, "USER_LOGIN", null,
+                "invalid password=Secret123", 0);
+
+        ResponseBody<LoginResult> response = handler.handle(message, CONTEXT);
+
+        assertThat(response).extracting(body -> body.success(), body -> body.code())
+                .containsExactly(false, "COMMON_VALIDATION_FAILED");
+        assertThat(response.toString()).doesNotContain(
+                "database path", "token", "Secret123");
+    }
+
     private static ResponseBody<LoginResult> handle(RuntimeException failure) {
         return handle("request-123", failure);
     }
@@ -79,7 +112,7 @@ class UserLoginHandlerTest {
         return handler.handle(message, CONTEXT);
     }
 
-    private static final class ThrowingLoginService implements UserService {
+    private static class ThrowingLoginService implements UserService {
         private final RuntimeException failure;
 
         private ThrowingLoginService(RuntimeException failure) {
@@ -129,6 +162,22 @@ class UserLoginHandlerTest {
         @Override
         public void revokeSessionsForUser(String userId) {
             throw new UnsupportedOperationException();
+        }
+    }
+
+    private static final class SuccessfulLoginService extends ThrowingLoginService {
+        private SuccessfulLoginService() {
+            super(new UnsupportedOperationException());
+        }
+
+        @Override
+        public LoginResult login(LoginCommand command, ClientContext context) {
+            UserView view = new UserView("admin", "DEMO_ADMIN",
+                    edu.seu.vcampus.common.user.UserRole.ADMIN,
+                    edu.seu.vcampus.common.user.AccountStatus.ACTIVE,
+                    false, null, 0, java.time.LocalDateTime.MIN,
+                    java.time.LocalDateTime.MIN);
+            return new LoginResult("opaque", view, java.util.Set.of(), false);
         }
     }
 }

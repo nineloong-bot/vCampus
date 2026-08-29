@@ -45,6 +45,12 @@ class LoginDemoTest {
         try (Connection connection = provider.open()) {
             executeScript(connection, projectFile("schema", "010_user.sql"));
             executeScript(connection, projectFile("seed", "010_roles_permissions.sql"));
+            try (var statement = connection.createStatement()) {
+                statement.execute("INSERT INTO tblPermission (permissionCode, permissionName) "
+                        + "VALUES ('TEST_DATABASE_PERMISSION', '测试数据库权限')");
+                statement.execute("INSERT INTO tblRolePermission (roleCode, permissionCode) "
+                        + "VALUES ('ADMIN', 'TEST_DATABASE_PERMISSION')");
+            }
         }
         users = new AccessUserRepository();
         PasswordHasher hasher = new PasswordHasher();
@@ -92,7 +98,9 @@ class LoginDemoTest {
         assertThat(result.user().accountStatus()).isEqualTo(ACTIVE);
         assertThat(result.user().mustChangePassword()).isFalse();
         assertThat(result.mustChangePassword()).isFalse();
+        assertThat(result.permissions()).contains("TEST_DATABASE_PERMISSION");
         assertThat(submitted).containsOnly('\0');
+        assertAudit("SUCCESS", result.user().userId(), result.user().userId());
     }
 
     @Test
@@ -107,6 +115,7 @@ class LoginDemoTest {
                 .hasMessage("AUTH_INVALID_CREDENTIALS");
 
         assertThat(submitted).containsOnly('\0');
+        assertAudit("AUTH_INVALID_CREDENTIALS", null, findUser(LOGIN_ID).userId());
     }
 
     @Test
@@ -120,6 +129,23 @@ class LoginDemoTest {
                 .hasMessage("AUTH_INVALID_CREDENTIALS");
 
         assertThat(submitted).containsOnly('\0');
+        assertAudit("AUTH_INVALID_CREDENTIALS", null, null);
+    }
+
+    private void assertAudit(String resultCode, String actorUserId, String targetId) {
+        transactions.inTransaction(connection -> {
+            try (var statement = connection.prepareStatement(
+                    "SELECT userId, targetId FROM tblAuditLog "
+                            + "WHERE actionCode='USER_LOGIN' AND resultCode=?")) {
+                statement.setString(1, resultCode);
+                try (var result = statement.executeQuery()) {
+                    assertThat(result.next()).isTrue();
+                    assertThat(result.getString(1)).isEqualTo(actorUserId);
+                    assertThat(result.getString(2)).isEqualTo(targetId);
+                }
+            }
+            return null;
+        });
     }
 
     private UserAccount findUser(String loginId) {
