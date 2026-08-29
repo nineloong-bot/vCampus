@@ -31,6 +31,7 @@ import java.util.stream.Stream;
 
 import static edu.seu.vcampus.client.shop.ShopSwingTestSupport.flushEdt;
 import static edu.seu.vcampus.client.shop.ShopSwingTestSupport.onEdt;
+import static edu.seu.vcampus.client.shop.ShopSwingTestSupport.component;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
@@ -67,6 +68,7 @@ class ShopUiKitTest {
         assertThat(kit.primaryButtons).contains("home.search");
         assertThat(kit.productCards).contains("product-product-1");
         assertThat(kit.states).contains(ShopPageState.LOADING, ShopPageState.NORMAL);
+        assertThat(component(panel, "home.state", JLabel.class).getText()).isEmpty();
     }
 
     @Test
@@ -96,6 +98,8 @@ class ShopUiKitTest {
         assertThat(kit.states).contains(ShopPageState.LOADING, ShopPageState.EMPTY,
                 ShopPageState.ERROR, ShopPageState.DISCONNECTED);
         assertThat(expiredSignals).containsExactly("expired");
+        assertThat(component(panel, "search.state", JLabel.class).getText())
+                .isEqualTo("AUTH_SESSION_EXPIRED");
     }
 
     private static final class RecordingKit implements ShopUiKit {

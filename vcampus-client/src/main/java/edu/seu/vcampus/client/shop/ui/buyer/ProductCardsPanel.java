@@ -48,7 +48,7 @@ public final class ProductCardsPanel extends JPanel {
     private JPanel card(ProductSummary product) {
         String name = "product-" + product.productId();
         JPanel card = uiKit.productCard(name, new FlowLayout(FlowLayout.LEFT));
-        JButton action = new JButton("%s | %s | %s | 销量 %d | %s".formatted(
+        JButton action = uiKit.secondaryButton(name + ".open", "%s | %s | %s | 销量 %d | %s".formatted(
                 product.productName(), product.shopName(), product.category(), product.salesCount(),
                 formatPrice(product.minimumPrice())));
         action.setName(name);

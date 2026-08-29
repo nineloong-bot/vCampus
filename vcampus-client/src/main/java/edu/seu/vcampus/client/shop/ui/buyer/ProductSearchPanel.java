@@ -83,9 +83,13 @@ public final class ProductSearchPanel extends JPanel {
             if (failure != null) showFailure(failure, () -> search(query));
             else if (result.items().isEmpty()) showState(ShopPageState.EMPTY, "暂无商品", () -> search(query));
             else {
-                uiKit.stateView("search.state", ShopPageState.NORMAL, "", null);
                 cards.showProducts(result.items());
-                content.removeAll(); content.add(cards, BorderLayout.CENTER); refresh();
+                content.removeAll();
+                JPanel normal = uiKit.filterPanel("search.normal", new BorderLayout());
+                normal.add(uiKit.stateView("search.state", ShopPageState.NORMAL, "", null), BorderLayout.NORTH);
+                normal.add(cards, BorderLayout.CENTER);
+                content.add(normal, BorderLayout.CENTER);
+                refresh();
             }
         });
     }

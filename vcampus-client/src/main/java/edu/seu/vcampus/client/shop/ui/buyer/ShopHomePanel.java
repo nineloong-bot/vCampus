@@ -16,6 +16,7 @@ import javax.swing.JButton;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
+import java.util.List;
 import java.util.Objects;
 
 /** Buyer catalog landing page. */
@@ -54,6 +55,7 @@ public final class ShopHomePanel extends JPanel {
     }
 
     public void dispose() { latest.dispose(); }
+    public List<String> visibleProductNames() { return cards.visibleProductNames(); }
 
     private void finish(long request, HomeProductQuery query, PageResult<ProductSummary> result,
             Throwable failure) {
@@ -62,10 +64,12 @@ public final class ShopHomePanel extends JPanel {
             if (failure != null) showFailure(failure, () -> load(query));
             else if (result.items().isEmpty()) showState(ShopPageState.EMPTY, "暂无商品", () -> load(query));
             else {
-                uiKit.stateView("home.state", ShopPageState.NORMAL, "", null);
                 cards.showProducts(result.items());
                 content.removeAll();
-                content.add(cards, BorderLayout.CENTER);
+                JPanel normal = uiKit.filterPanel("home.normal", new BorderLayout());
+                normal.add(uiKit.stateView("home.state", ShopPageState.NORMAL, "", null), BorderLayout.NORTH);
+                normal.add(cards, BorderLayout.CENTER);
+                content.add(normal, BorderLayout.CENTER);
                 refresh();
             }
         });

@@ -3,6 +3,7 @@ package edu.seu.vcampus.client.shop.ui.buyer;
 import edu.seu.vcampus.client.shop.service.ShopClientPort;
 import edu.seu.vcampus.client.shop.ui.async.LatestRequest;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator;
+import edu.seu.vcampus.client.shop.ui.style.ShopPageState;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
 import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.shop.ProductSortMode;
@@ -14,85 +15,79 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
+import java.util.List;
 import java.util.Objects;
 
-/** Storefront page showing shop information and its catalog. */
+/** Storefront page atomically publishing a shop header and its product catalog. */
 public final class BuyerShopPanel extends JPanel {
     private final ShopClientPort client;
-    private final Runnable sessionExpired;
     private final ShopUiKit uiKit;
+    private final Runnable sessionExpired;
     private final LatestRequest latest = new LatestRequest();
-    private final JLabel shopName = new JLabel();
-    private final JLabel error = new JLabel();
+    private final JLabel shopName = named(new JLabel(), "shop-name");
     private final ProductCardsPanel cards;
+    private final JPanel content = new JPanel(new BorderLayout());
+    private String currentShopId;
 
     public BuyerShopPanel(ShopClientPort client, ShopNavigator navigator, ShopUiKit uiKit,
             Runnable sessionExpired) {
         super(new BorderLayout(8, 8));
         this.client = Objects.requireNonNull(client, "client");
-        this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
         this.uiKit = Objects.requireNonNull(uiKit, "uiKit");
-        this.cards = new ProductCardsPanel(Objects.requireNonNull(navigator, "navigator"), uiKit);
-        shopName.setName("shop-name");
-        error.setName("error");
-        add(shopName, BorderLayout.NORTH);
-        add(cards, BorderLayout.CENTER);
-        add(error, BorderLayout.SOUTH);
+        this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
+        cards = new ProductCardsPanel(Objects.requireNonNull(navigator, "navigator"), uiKit);
+        add(shopName, BorderLayout.NORTH); add(content, BorderLayout.CENTER);
+        showState(ShopPageState.INITIAL, "", null);
     }
 
     public void load(String shopId) {
         long request = latest.begin();
-        client.getShop(Objects.requireNonNull(shopId, "shopId"))
-                .whenComplete((shop, failure) -> afterShop(request, shopId, shop, failure));
+        currentShopId = Objects.requireNonNull(shopId, "shopId");
+        shopName.setText(""); cards.showProducts(List.of());
+        showState(ShopPageState.LOADING, "加载中…", null);
+        client.getShop(shopId).whenComplete((shop, failure) -> afterShop(request, shopId, shop, failure));
     }
 
-    public void dispose() {
-        latest.dispose();
-    }
+    public List<String> visibleProductNames() { return cards.visibleProductNames(); }
+    public void dispose() { latest.dispose(); }
 
     private void afterShop(long request, String shopId, ShopDetail shop, Throwable failure) {
         SwingUtilities.invokeLater(() -> {
-            if (!latest.accepts(request)) {
-                return;
-            }
-            if (failure != null) {
-                showFailure(failure);
-                return;
-            }
-            shopName.setText(shop.shopName());
+            if (!latest.accepts(request)) return;
+            if (failure != null) { showFailure(failure, () -> load(shopId)); return; }
             client.getShopProducts(new ShopProductQuery(shopId, null, null, null, null,
                     ProductSortMode.SALES_DESC, 0, 20))
-                    .whenComplete((products, productFailure) -> finish(request, products, productFailure));
+                    .whenComplete((products, productFailure) -> finish(request, shopId, shop, products, productFailure));
         });
     }
 
-    private void finish(long request, PageResult<ProductSummary> products, Throwable failure) {
+    private void finish(long request, String shopId, ShopDetail shop, PageResult<ProductSummary> products,
+            Throwable failure) {
         SwingUtilities.invokeLater(() -> {
-            if (!latest.accepts(request)) {
-                return;
-            }
-            if (failure != null) {
-                showFailure(failure);
-                return;
-            }
+            if (!latest.accepts(request)) return;
+            if (failure != null) { showFailure(failure, () -> load(shopId)); return; }
+            if (products.items().isEmpty()) { showState(ShopPageState.EMPTY, "暂无商品", () -> load(shopId)); return; }
+            shopName.setText(shop.shopName());
             cards.showProducts(products.items());
+            content.removeAll();
+            JPanel normal = uiKit.filterPanel("storefront.normal", new BorderLayout());
+            normal.add(uiKit.stateView("storefront.state", ShopPageState.NORMAL, "", null), BorderLayout.NORTH);
+            normal.add(cards, BorderLayout.CENTER);
+            content.add(normal, BorderLayout.CENTER); refresh();
         });
     }
 
-    private void showFailure(Throwable failure) {
+    private void showFailure(Throwable failure, Runnable retry) {
         String code = failureCode(failure);
-        if ("AUTH_SESSION_EXPIRED".equals(code)) {
-            sessionExpired.run();
-        } else {
-            error.setText(code);
-        }
+        if ("AUTH_SESSION_EXPIRED".equals(code)) { showState(ShopPageState.DISCONNECTED, code, retry); sessionExpired.run(); }
+        else showState(ShopPageState.ERROR, code, retry);
     }
 
-    private static String failureCode(Throwable failure) {
-        Throwable cause = failure;
-        while (cause.getCause() != null) {
-            cause = cause.getCause();
-        }
-        return cause.getMessage() == null ? "COMMON_INTERNAL_ERROR" : cause.getMessage();
+    private void showState(ShopPageState state, String message, Runnable retry) {
+        content.removeAll(); content.add(uiKit.stateView("storefront.state", state, message, retry), BorderLayout.CENTER); refresh();
     }
+
+    private void refresh() { content.revalidate(); content.repaint(); }
+    private static String failureCode(Throwable failure) { Throwable cause = failure; while (cause.getCause() != null) cause = cause.getCause(); return cause.getMessage() == null ? "COMMON_INTERNAL_ERROR" : cause.getMessage(); }
+    private static <T extends java.awt.Component> T named(T component, String name) { component.setName(name); return component; }
 }
