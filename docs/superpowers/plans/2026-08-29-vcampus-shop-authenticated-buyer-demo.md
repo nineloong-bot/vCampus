@@ -19,6 +19,7 @@
 - 金额只使用 `BigDecimal`；写命令使用协议 `requestId` 作为幂等键。
 - 日志使用 `vcampus.business`，并排除凭据、完整会话令牌、支付账号、卡号、验证码、请求体和完整 DTO。
 - 首批页面为商城首页、搜索、商品详情、店铺主页、购物车、结算、模拟收银台和支付结果。
+- Shop 页面遵循 `docs/superpowers/specs/2026-08-26-vcampus-ui-design-system.md`，只通过注入的 `ShopUiKit` 表达语义样式；业务页面禁止声明私有颜色、字体和边框。公共 UI 未进入当前基线时，`DefaultShopUiKit` 只使用标准 Swing 控件和 `UIManager` 默认值。
 - Task 6 订单履约、店主页面和管理员页面在本计划验收后继续开发。
 
 ---
@@ -446,17 +447,21 @@ git commit -m "feat(shop): add bounded buyer navigation"
 
 **Files:**
 - Create: `vcampus-client/src/main/java/edu/seu/vcampus/client/shop/ui/async/LatestRequest.java`
+- Create: `vcampus-client/src/main/java/edu/seu/vcampus/client/shop/ui/style/ShopPageState.java`
+- Create: `vcampus-client/src/main/java/edu/seu/vcampus/client/shop/ui/style/ShopUiKit.java`
+- Create: `vcampus-client/src/main/java/edu/seu/vcampus/client/shop/ui/style/DefaultShopUiKit.java`
 - Create: `vcampus-client/src/main/java/edu/seu/vcampus/client/shop/ui/buyer/ProductCardsPanel.java`
 - Create: `vcampus-client/src/main/java/edu/seu/vcampus/client/shop/ui/buyer/ShopHomePanel.java`
 - Create: `vcampus-client/src/main/java/edu/seu/vcampus/client/shop/ui/buyer/ProductSearchPanel.java`
 - Create: `vcampus-client/src/main/java/edu/seu/vcampus/client/shop/ui/buyer/ProductDetailPanel.java`
 - Create: `vcampus-client/src/main/java/edu/seu/vcampus/client/shop/ui/buyer/BuyerShopPanel.java`
 - Create: `vcampus-client/src/test/java/edu/seu/vcampus/client/shop/ShopSwingTestSupport.java`
+- Test: `vcampus-client/src/test/java/edu/seu/vcampus/client/shop/ui/style/ShopUiKitTest.java`
 - Test: `vcampus-client/src/test/java/edu/seu/vcampus/client/shop/ui/buyer/CatalogPanelsTest.java`
 
 **Interfaces:**
 - Consumes: `ShopClientPort`、`ShopNavigator`、Task 4 路由和商品 DTO。
-- Produces: `load(...)` 方法、商品/店铺导航事件和 SKU 选择状态，供购物车页面与 UI 安装器使用。
+- Produces: `ShopUiKit`、`DefaultShopUiKit`、`load(...)` 方法、商品/店铺导航事件和 SKU 选择状态，供购物车页面与 UI 安装器使用。
 
 - [ ] **Step 1: 写异步加载、价格显示和过时响应测试**
 
@@ -467,7 +472,7 @@ void rendersMinimumPriceAndIgnoresOlderSearchCompletion() throws Exception {
     CompletableFuture<PageResult<ProductSummary>> second = new CompletableFuture<>();
     when(client.search(any())).thenReturn(first, second);
     ProductSearchPanel panel = onEdt(() ->
-            new ProductSearchPanel(client, navigator, sessionExpired));
+            new ProductSearchPanel(client, navigator, uiKit, sessionExpired));
     ProductSearchQuery oldQuery = new ProductSearchQuery("旧", null, null, null,
             ProductSortMode.SALES_DESC, 0, 20);
     ProductSearchQuery newQuery = new ProductSearchQuery("新", null, null, null,
@@ -482,6 +487,20 @@ void rendersMinimumPriceAndIgnoresOlderSearchCompletion() throws Exception {
     assertThat(panel.visibleProductNames()).containsExactly("new");
     assertThat(panel.visiblePrices()).containsExactly("¥8.00 起");
 }
+```
+
+另写 `ShopUiKitTest`，读取 `src/main/java/edu/seu/vcampus/client/shop/ui/buyer` 下的 Java 源文件，断言不存在 `java.awt.Color`、`new Font` 或 `BorderFactory`；用记录型 `ShopUiKit` 断言首页搜索按钮调用 `primaryButton`、商品结果调用 `productCard`，加载、空结果、错误和断线调用带对应 `ShopPageState` 的 `stateView`。
+
+```java
+String buyerSources;
+try (Stream<Path> files = Files.walk(Path.of(
+        "src/main/java/edu/seu/vcampus/client/shop/ui/buyer"))) {
+    buyerSources = files.filter(path -> path.toString().endsWith(".java"))
+            .map(path -> assertDoesNotThrow(() -> Files.readString(path)))
+            .collect(Collectors.joining("\n"));
+}
+assertThat(buyerSources).doesNotContain(
+        "java.awt.Color", "new Font", "BorderFactory");
 ```
 
 测试使用以下 EDT 工具，`component` 递归遍历 `Container.getComponents()` 并按 `Component.getName()` 查找：
@@ -548,11 +567,64 @@ public final class LatestRequest {
 }
 ```
 
-每个 `load/search` 保存 `long request = latest.begin()`，Future 完成后通过 `SwingUtilities.invokeLater` 更新 UI，并先检查 `latest.accepts(request)`。`ProductCardsPanel` 显示商品名、店铺名、分类、销量和 `¥<minimumPrice> 起`，点击卡片打开 `new ShopRoute.Product(productId)`。
+定义语义 UI 边界：
+
+```java
+public enum ShopPageState {
+    INITIAL, LOADING, NORMAL, EMPTY, ERROR, DISCONNECTED, SUBMITTING, CONFLICT
+}
+
+public interface ShopUiKit {
+    JButton primaryButton(String name, String text);
+    JButton secondaryButton(String name, String text);
+    JPanel filterPanel(String name, LayoutManager layout);
+    JPanel productCard(String name, LayoutManager layout);
+    JComponent stateView(String name, ShopPageState state,
+            String message, Runnable retry);
+}
+```
+
+`DefaultShopUiKit` 只构造标准 `JButton`、`JPanel` 和带可选重试按钮的状态 `JPanel`，设置组件名称并保留 `UIManager` 当前外观：
+
+```java
+public final class DefaultShopUiKit implements ShopUiKit {
+    public JButton primaryButton(String name, String text) {
+        return named(new JButton(text), name);
+    }
+    public JButton secondaryButton(String name, String text) {
+        return named(new JButton(text), name);
+    }
+    public JPanel filterPanel(String name, LayoutManager layout) {
+        return named(new JPanel(layout), name);
+    }
+    public JPanel productCard(String name, LayoutManager layout) {
+        return named(new JPanel(layout), name);
+    }
+    public JComponent stateView(String name, ShopPageState state,
+            String message, Runnable retry) {
+        JPanel panel = named(new JPanel(new FlowLayout()), name);
+        panel.add(new JLabel(message));
+        if (retry != null) {
+            JButton button = secondaryButton(name + ".retry", "重试");
+            button.addActionListener(event -> retry.run());
+            panel.add(button);
+        }
+        return panel;
+    }
+    private static <T extends JComponent> T named(T component, String name) {
+        component.setName(name);
+        return component;
+    }
+}
+```
+
+该类不得调用 `setForeground`、`setBackground`、`setFont`、`setBorder`，不得保存颜色、字体、边距或边框常量。所有目录页面通过构造器接收同一个非空 `ShopUiKit`。
+
+每个 `load/search` 保存 `long request = latest.begin()`，Future 完成后通过 `SwingUtilities.invokeLater` 更新 UI，并先检查 `latest.accepts(request)`。`ProductCardsPanel` 通过 `uiKit.productCard(...)` 创建卡片，显示商品名、店铺名、分类、销量和 `¥<minimumPrice> 起`，点击卡片打开 `new ShopRoute.Product(productId)`。
 
 - [ ] **Step 4: 实现目录页面的准确查询和导航**
 
-`ShopHomePanel` 使用 `HomeProductQuery(null, null, SALES_DESC, 0, 20)`；`ProductSearchPanel` 读取关键字、分类、最低价、最高价和排序；`ProductDetailPanel` 显示 `ProductDetail.skus()` 并将选择限制为 `active && availableQuantity > 0`；店铺按钮打开 `Storefront(shopId)`；`BuyerShopPanel` 先调用 `getShop(shopId)`，再调用带同一 `shopId` 的 `getShopProducts(...)`。
+`ShopHomePanel` 使用 `HomeProductQuery(null, null, SALES_DESC, 0, 20)`；`ProductSearchPanel` 读取关键字、分类、最低价、最高价和排序；`ProductDetailPanel` 显示 `ProductDetail.skus()` 并将选择限制为 `active && availableQuantity > 0`，调用 `addToCart(new AddCartItemCommand(selectedSkuId, quantity))`，显示返回购物车的商品总数量并提供 `new ShopRoute.Cart()` 导航；店铺按钮打开 `Storefront(shopId)`；`BuyerShopPanel` 先调用 `getShop(shopId)`，再调用带同一 `shopId` 的 `getShopProducts(...)`。
 
 ```java
 private void finish(long request, PageResult<ProductSummary> result, Throwable failure) {
@@ -570,14 +642,14 @@ private void finish(long request, PageResult<ProductSummary> result, Throwable f
 
 - [ ] **Step 5: 运行目录 UI 测试**
 
-Run: `mvn -pl vcampus-client -am -Dtest=CatalogPanelsTest,ShopNavigatorTest test`
+Run: `mvn -pl vcampus-client -am -Dtest=CatalogPanelsTest,ShopUiKitTest,ShopNavigatorTest -Dsurefire.failIfNoSpecifiedTests=false test`
 
 Expected: PASS，筛选、排序、路由参数、EDT 更新和过时响应保护均通过。
 
 - [ ] **Step 6: 提交目录页面**
 
 ```bash
-git add vcampus-client/src/main/java/edu/seu/vcampus/client/shop/ui/async vcampus-client/src/main/java/edu/seu/vcampus/client/shop/ui/buyer vcampus-client/src/test/java/edu/seu/vcampus/client/shop/ShopSwingTestSupport.java vcampus-client/src/test/java/edu/seu/vcampus/client/shop/ui/buyer/CatalogPanelsTest.java
+git add vcampus-client/src/main/java/edu/seu/vcampus/client/shop/ui/async vcampus-client/src/main/java/edu/seu/vcampus/client/shop/ui/style vcampus-client/src/main/java/edu/seu/vcampus/client/shop/ui/buyer vcampus-client/src/test/java/edu/seu/vcampus/client/shop/ShopSwingTestSupport.java vcampus-client/src/test/java/edu/seu/vcampus/client/shop/ui/style/ShopUiKitTest.java vcampus-client/src/test/java/edu/seu/vcampus/client/shop/ui/buyer/CatalogPanelsTest.java
 git commit -m "feat(shop): add buyer catalog pages"
 ```
 
@@ -593,7 +665,7 @@ git commit -m "feat(shop): add buyer catalog pages"
 - Test: `vcampus-client/src/test/java/edu/seu/vcampus/client/shop/ui/buyer/PurchasePanelsTest.java`
 
 **Interfaces:**
-- Consumes: `ShopClientPort` 的购物车、结算和支付方法，以及 `ShopNavigator`。
+- Consumes: `ShopClientPort` 的购物车、结算和支付方法、`ShopNavigator` 和 Task 5 `ShopUiKit`。
 - Produces: 可完成 `Cart -> Checkout -> PaymentResult` 的异步页面链路。
 
 - [ ] **Step 1: 写购物车保留、价格确认和支付重试测试**
@@ -608,7 +680,7 @@ void priceChangeKeepsCartAndRetriesOnlyAfterConfirmation() throws Exception {
                     new ShopClientException("SHOP_PRICE_CHANGED")))
             .thenReturn(CompletableFuture.completedFuture(checkoutResult()));
     CheckoutPanel panel = onEdt(() ->
-            new CheckoutPanel(client, navigator, dialogs, sessionExpired));
+            new CheckoutPanel(client, navigator, uiKit, dialogs, sessionExpired));
     onEdt(panel::load);
     flushEdt();
     onEdt(panel::submit);
@@ -625,7 +697,7 @@ void failedPaymentRemainsRetryableAndSuccessNavigatesToResult() throws Exception
             .thenReturn(completedFuture(pendingPayment()))
             .thenReturn(completedFuture(successfulPayment()));
     SimulatedCashierDialog cashier = onEdt(() -> new SimulatedCashierDialog(
-            null, client, navigator, checkoutResult(), sessionExpired));
+            null, client, navigator, uiKit, checkoutResult(), sessionExpired));
     onEdt(() -> cashier.submit(PaymentChannel.ALIPAY, PaymentAttemptStatus.FAILED));
     flushEdt();
     assertThat(cashier.retryEnabled()).isTrue();
@@ -655,7 +727,7 @@ Expected: FAIL，购买页面不存在。
 
 - [ ] **Step 3: 实现购物车和结算命令构造**
 
-`CartPanel` 对每行使用 `UpdateCartItemCommand(cartItemId, quantity, rowVersion)`，删除使用 `removeCartItem(cartItemId)`；每次成功用返回的 `CartView` 整体重绘。`CheckoutPanel` 从当前购物车构造：
+四个购买页面通过构造器接收 Task 5 的同一个 `ShopUiKit`，按钮、筛选/摘要区和页面状态只通过该接口创建。发起写操作时显示 `SUBMITTING` 并禁用对应按钮；完成后恢复 `NORMAL` 或稳定错误状态。`CONFLICT` 由 UI 边界支持，但当前买家协议未暴露稳定并发冲突错误码，因此本计划不把任意错误伪装成冲突。`CartPanel` 对每行使用 `UpdateCartItemCommand(cartItemId, quantity, rowVersion)`，删除使用 `removeCartItem(cartItemId)`；每次成功用返回的 `CartView` 整体重绘。`CheckoutPanel` 从当前购物车构造：
 
 ```java
 private CheckoutCommand command(boolean acceptLatestPrice) {
@@ -699,8 +771,8 @@ git commit -m "feat(shop): add buyer purchase pages"
 - Test: `vcampus-client/src/test/java/edu/seu/vcampus/client/shop/ui/ShopUiTest.java`
 
 **Interfaces:**
-- Consumes: `MainFrame.navigation()`、`MainFrame.pageNavigator()`、Task 3–6 客户端与页面。
-- Produces: `ShopUiInstaller.install(MainFrame, ShopClientPort, Runnable sessionExpired)`，供 Demo 客户端入口调用。
+- Consumes: `MainFrame.navigation()`、`MainFrame.pageNavigator()`、Task 3–6 客户端与页面，以及 Task 5 `ShopUiKit`。
+- Produces: `ShopUiInstaller.install(MainFrame, ShopClientPort, ShopUiKit, Runnable sessionExpired)`，供 Demo 客户端入口调用。
 
 - [ ] **Step 1: 写固定页面注册和商城入口测试**
 
@@ -710,7 +782,8 @@ void installsOneShopEntryAndRendersHomeWithoutChangingMainFrame() throws Excepti
     assumeFalse(GraphicsEnvironment.isHeadless());
     MainFrame frame = onEdt(MainFrame::new);
     when(client.home(any())).thenReturn(completedFuture(page(productSummary())));
-    onEdt(() -> ShopUiInstaller.install(frame, client, sessionExpired));
+    onEdt(() -> ShopUiInstaller.install(
+            frame, client, new DefaultShopUiKit(), sessionExpired));
     JButton shop = component(frame.navigation(), "shop.navigation", JButton.class);
     onEdt(shop::doClick);
     flushEdt();
@@ -727,7 +800,7 @@ Expected: FAIL，安装器与页面协调器不存在。
 
 - [ ] **Step 3: 实现固定 CardLayout 页面协调器**
 
-`ShopPageCoordinator` 在构造时只注册以下稳定页面 ID：
+`ShopPageCoordinator` 在构造时把同一个非空 `ShopUiKit` 注入所有 Shop 页面，并且只注册以下稳定页面 ID：
 
 ```text
 shop.home
@@ -739,7 +812,7 @@ shop.checkout
 shop.payment-result
 ```
 
-其 `render(ShopRoute route)` 使用模式匹配调用目标页面的 `load(...)`，然后调用共享 `PageNavigator.show(pageId)`。`ShopUiInstaller` 添加一个命名为 `shop.navigation` 的“校园商城”按钮，并将点击事件映射到默认 `HomeProductQuery(null, null, SALES_DESC, 0, 20)`。
+其 `render(ShopRoute route)` 使用模式匹配调用目标页面的 `load(...)`，然后调用共享 `PageNavigator.show(pageId)`。`ShopUiInstaller` 通过 `uiKit.primaryButton("shop.navigation", "校园商城")` 创建商城入口，并将点击事件映射到默认 `HomeProductQuery(null, null, SALES_DESC, 0, 20)`。安装器不得创建或修改公共视觉令牌。
 
 - [ ] **Step 4: 运行 Shop 功能分支完整验证**
 
@@ -985,7 +1058,7 @@ private static void showLogin(UserClientService users, ShopClientService shop,
 private static void showMain(LoginResult result, UserClientService users,
         ShopClientService shop, ClientConnection connection) {
     MainFrame main = new MainFrame(result.user());
-    ShopUiInstaller.install(main, shop, () -> {
+    ShopUiInstaller.install(main, shop, new DefaultShopUiKit(), () -> {
         main.dispose();
         connection.setSessionToken(null);
         showLogin(users, shop, connection);
