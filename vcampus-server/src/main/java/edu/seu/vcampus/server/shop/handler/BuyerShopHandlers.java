@@ -107,8 +107,11 @@ public final class BuyerShopHandlers {
 
     private <T extends Serializable, R extends Serializable> ResponseBody<R> execute(
             Message message, Class<T> type, BiFunction<String, T, R> operation,
-            String token, String userId) {
+        String token, String userId) {
         try {
+            if (message.body() == null) {
+                throw new IllegalArgumentException("request body is required");
+            }
             T body = type.cast(message.body());
             return ResponseBody.success(operation.apply(token, body));
         } catch (ShopException error) {

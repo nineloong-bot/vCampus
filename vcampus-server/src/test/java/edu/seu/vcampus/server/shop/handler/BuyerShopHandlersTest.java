@@ -38,6 +38,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -127,6 +128,19 @@ class BuyerShopHandlersTest {
     }
 
     @Test
+    void rejectsNullBodyAsValidationFailure() {
+        new BuyerShopHandlers(router, users, deduplicator, shop, cart,
+                checkout, payment, businessLog);
+        when(users.requireUser("buyer-token"))
+                .thenReturn(new ShopUser("buyer-1", ShopUserKind.STUDENT, true));
+        Message request = new Message("null-cart", MessageType.REQUEST,
+                "SHOP_GET_CART", "buyer-token", null, 1L);
+        assertThat(router.route(request, context()).code())
+                .isEqualTo("COMMON_VALIDATION_FAILED");
+        verify(cart, never()).getCart(any());
+    }
+
+    @Test
     void logsBusinessEventInsideFirstCheckoutExecutionAndCompletionAfterReplay() {
         new BuyerShopHandlers(router, users, deduplicator, shop, cart,
                 checkout, payment, businessLog);
@@ -144,6 +158,54 @@ class BuyerShopHandlersTest {
         order.verify(checkout).checkout("buyer-token", command);
         order.verify(businessLog).checkoutSucceeded(request, "buyer-1", command, result);
         order.verify(businessLog).commandCompleted(eq(request), eq("buyer-1"), eq("SUCCESS"), anyLong());
+    }
+
+    @Test
+    void replaysCheckoutByRequestIdWithoutRepeatingBusinessEvent() {
+        new BuyerShopHandlers(router, users, deduplicator, shop, cart,
+                checkout, payment, businessLog);
+        when(users.requireUser("buyer-token"))
+                .thenReturn(new ShopUser("buyer-1", ShopUserKind.STUDENT, true));
+        CheckoutCommand command = new CheckoutCommand(List.of(), false);
+        CheckoutResult result = mock(CheckoutResult.class);
+        when(checkout.checkout("buyer-token", command)).thenReturn(result);
+        Map<String, ResponseBody<?>> cache = new ConcurrentHashMap<>();
+        when(deduplicator.executeOnce(any(), any(), any(), any())).thenAnswer(invocation -> {
+            Message request = invocation.getArgument(0);
+            @SuppressWarnings("unchecked") Supplier<ResponseBody<?>> action = invocation.getArgument(3);
+            return cache.computeIfAbsent(request.requestId(), ignored -> action.get());
+        });
+        Message request = request("checkout-replay", "SHOP_CHECKOUT", command);
+        assertThat(router.route(request, context()).code()).isEqualTo("SUCCESS");
+        assertThat(router.route(request, context()).code()).isEqualTo("SUCCESS");
+        verify(checkout, times(1)).checkout("buyer-token", command);
+        verify(businessLog, times(1)).checkoutSucceeded(request, "buyer-1", command, result);
+        verify(businessLog, times(2)).commandCompleted(eq(request), eq("buyer-1"), eq("SUCCESS"), anyLong());
+    }
+
+    @Test
+    void replaysPaymentByRequestIdWithoutRepeatingBusinessEvent() {
+        new BuyerShopHandlers(router, users, deduplicator, shop, cart,
+                checkout, payment, businessLog);
+        when(users.requireUser("buyer-token"))
+                .thenReturn(new ShopUser("buyer-1", ShopUserKind.STUDENT, true));
+        SimulatePaymentCommand command = new SimulatePaymentCommand("payment-1",
+                edu.seu.vcampus.common.shop.PaymentChannel.ALIPAY,
+                edu.seu.vcampus.common.shop.PaymentAttemptStatus.SUCCEEDED);
+        PaymentView result = mock(PaymentView.class);
+        when(payment.simulatePayment("buyer-token", command)).thenReturn(result);
+        Map<String, ResponseBody<?>> cache = new ConcurrentHashMap<>();
+        when(deduplicator.executeOnce(any(), any(), any(), any())).thenAnswer(invocation -> {
+            Message request = invocation.getArgument(0);
+            @SuppressWarnings("unchecked") Supplier<ResponseBody<?>> action = invocation.getArgument(3);
+            return cache.computeIfAbsent(request.requestId(), ignored -> action.get());
+        });
+        Message request = request("payment-replay", "SHOP_SIMULATE_PAYMENT", command);
+        assertThat(router.route(request, context()).code()).isEqualTo("SUCCESS");
+        assertThat(router.route(request, context()).code()).isEqualTo("SUCCESS");
+        verify(payment, times(1)).simulatePayment("buyer-token", command);
+        verify(businessLog, times(1)).paymentCompleted(request, "buyer-1", result);
+        verify(businessLog, times(2)).commandCompleted(eq(request), eq("buyer-1"), eq("SUCCESS"), anyLong());
     }
 
     private static Message request(String requestId, String command, java.io.Serializable body) {

@@ -67,3 +67,27 @@ Commit is created as `feat(shop): add buyer socket handlers`.
 No production files outside the two allowed Shop-scoped paths were changed.
 Maven emitted the existing Mockito inline-mock-maker/JDK dynamic-agent warning;
 it did not affect test outcomes.
+
+## Review round 1 fixes
+
+Added explicit null-body validation before `Class.cast`, plus real two-route
+replay tests for checkout and payment. The replay fixtures cache the first
+`ResponseBody` by request ID and return it on the second route, verifying each
+business service runs once, each business event logs once, and
+`commandCompleted` logs twice.
+
+Focused rerun:
+
+```text
+mvn -pl vcampus-server -am '-Dtest=BuyerShopHandlersTest,ShopBusinessLoggerTest' '-Dsurefire.failIfNoSpecifiedTests=false' test
+```
+
+Result: BUILD SUCCESS; 8 tests run, 0 failures, 0 errors.
+
+Complete server reactor rerun:
+
+```text
+mvn -pl vcampus-server -am test
+```
+
+Result: BUILD SUCCESS; 45 tests run, 0 failures, 0 errors.
