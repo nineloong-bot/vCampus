@@ -575,6 +575,7 @@ public enum ShopPageState {
 }
 
 public interface ShopUiKit {
+    JButton navigationButton(String name, String text);
     JButton primaryButton(String name, String text);
     JButton secondaryButton(String name, String text);
     JPanel filterPanel(String name, LayoutManager layout);
@@ -588,6 +589,9 @@ public interface ShopUiKit {
 
 ```java
 public final class DefaultShopUiKit implements ShopUiKit {
+    public JButton navigationButton(String name, String text) {
+        return named(new JButton(text), name);
+    }
     public JButton primaryButton(String name, String text) {
         return named(new JButton(text), name);
     }
@@ -766,8 +770,11 @@ git commit -m "feat(shop): add buyer purchase pages"
 ### Task 7: Shop UI 安装器与功能分支验收
 
 **Files:**
+- Modify: `vcampus-client/src/main/java/edu/seu/vcampus/client/shop/ui/style/ShopUiKit.java`
+- Modify: `vcampus-client/src/main/java/edu/seu/vcampus/client/shop/ui/style/DefaultShopUiKit.java`
 - Create: `vcampus-client/src/main/java/edu/seu/vcampus/client/shop/ui/ShopUiInstaller.java`
 - Create: `vcampus-client/src/main/java/edu/seu/vcampus/client/shop/ui/ShopPageCoordinator.java`
+- Modify: `vcampus-client/src/test/java/edu/seu/vcampus/client/shop/ui/style/ShopUiKitTest.java`
 - Test: `vcampus-client/src/test/java/edu/seu/vcampus/client/shop/ui/ShopUiTest.java`
 
 **Interfaces:**
@@ -812,7 +819,7 @@ shop.checkout
 shop.payment-result
 ```
 
-其 `render(ShopRoute route)` 使用模式匹配调用目标页面的 `load(...)`，然后调用共享 `PageNavigator.show(pageId)`。`ShopUiInstaller` 通过 `uiKit.primaryButton("shop.navigation", "校园商城")` 创建商城入口，并将点击事件映射到默认 `HomeProductQuery(null, null, SALES_DESC, 0, 20)`。安装器不得创建或修改公共视觉令牌。
+其 `render(ShopRoute route)` 使用模式匹配调用目标页面的 `load(...)`，然后调用共享 `PageNavigator.show(pageId)`。`ShopUiInstaller` 通过 `uiKit.navigationButton("shop.navigation", "校园商城")` 创建商城入口，并将点击事件映射到默认 `HomeProductQuery(null, null, SALES_DESC, 0, 20)`。安装器不得创建或修改公共视觉令牌。
 
 - [ ] **Step 4: 运行 Shop 功能分支完整验证**
 
@@ -827,7 +834,7 @@ Expected: 无输出。
 - [ ] **Step 5: 提交 UI 组合层**
 
 ```bash
-git add vcampus-client/src/main/java/edu/seu/vcampus/client/shop/ui/ShopUiInstaller.java vcampus-client/src/main/java/edu/seu/vcampus/client/shop/ui/ShopPageCoordinator.java vcampus-client/src/test/java/edu/seu/vcampus/client/shop/ui/ShopUiTest.java
+git add vcampus-client/src/main/java/edu/seu/vcampus/client/shop/ui/style/ShopUiKit.java vcampus-client/src/main/java/edu/seu/vcampus/client/shop/ui/style/DefaultShopUiKit.java vcampus-client/src/main/java/edu/seu/vcampus/client/shop/ui/ShopUiInstaller.java vcampus-client/src/main/java/edu/seu/vcampus/client/shop/ui/ShopPageCoordinator.java vcampus-client/src/test/java/edu/seu/vcampus/client/shop/ui/style/ShopUiKitTest.java vcampus-client/src/test/java/edu/seu/vcampus/client/shop/ui/ShopUiTest.java
 git commit -m "feat(shop): assemble authenticated buyer UI"
 ```
 
