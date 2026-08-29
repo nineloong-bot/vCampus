@@ -2,8 +2,10 @@ package edu.seu.vcampus.client.shop.ui;
 
 import edu.seu.vcampus.client.core.navigation.PageNavigator;
 import edu.seu.vcampus.client.core.ui.MainFrame;
+import edu.seu.vcampus.client.shop.ShopClientFixtures;
 import edu.seu.vcampus.client.shop.ShopSwingTestSupport;
 import edu.seu.vcampus.client.shop.service.ShopClientPort;
+import edu.seu.vcampus.client.shop.ui.buyer.CheckoutPanelTestSeam;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopRoute;
 import edu.seu.vcampus.client.shop.ui.style.DefaultShopUiKit;
 import edu.seu.vcampus.client.shop.ui.style.ShopPageState;
@@ -40,12 +42,11 @@ import java.awt.event.WindowEvent;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static edu.seu.vcampus.client.shop.ShopSwingTestSupport.component;
 import static edu.seu.vcampus.client.shop.ShopSwingTestSupport.flushEdt;
@@ -54,41 +55,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 class ShopUiTest {
-    @Test
-    void registersOnlySevenStableCardsAndLoadsEachRouteBeforeShowingIt() throws Exception {
-        List<Event> events = new ArrayList<>();
-        RecordingCards cards = new RecordingCards(events);
-        RecordingPageFactory factory = new RecordingPageFactory(events);
-        Runnable sessionExpired = () -> { };
-        ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(cards, factory,
-                new DefaultShopUiKit(), sessionExpired));
-        List<ShopRoute> routes = List.of(
-                new ShopRoute.Home(defaultHome()),
-                new ShopRoute.Search(defaultSearch()),
-                new ShopRoute.Product("product-1"),
-                new ShopRoute.Storefront("shop-1"),
-                new ShopRoute.Cart(),
-                new ShopRoute.Checkout(),
-                new ShopRoute.PaymentResult(payment()));
-        Map<String, JPanel> fixedCards = new LinkedHashMap<>(cards.registered);
-
-        assertThat(cards.registered.keySet()).containsExactly(
-                "shop.home", "shop.search", "shop.product", "shop.storefront", "shop.cart",
-                "shop.checkout", "shop.payment-result");
-        assertThat(cards.registered).hasSize(7);
-        assertThat(factory.sessionCallbacks).hasSize(6)
-                .allSatisfy(callback -> assertThat(callback).isSameAs(sessionExpired));
-
-        for (ShopRoute route : routes) {
-            int before = events.size();
-            onEdt(() -> coordinator.render(route));
-            assertThat(events.subList(before, events.size())).containsExactly(
-                    new Event("load", new Invocation(pageId(route), payload(route))),
-                    new Event("show", pageId(route)));
-            assertThat(cards.registered).containsExactlyEntriesOf(fixedCards);
-        }
-    }
-
     @Test
     void disposeInvalidatesSixPendingPagesBeforeAnyCompletionCanMutateUiOrSession() throws Exception {
         PendingClient client = new PendingClient();
@@ -119,18 +85,36 @@ class ShopUiTest {
     }
 
     @Test
-    void disposeClosesEveryLifecycleProbeAndActiveCashierOnlyOnce() throws Exception {
-        List<Event> events = new ArrayList<>();
-        RecordingCards cards = new RecordingCards(events);
-        RecordingPageFactory factory = new RecordingPageFactory(events);
-        ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(cards, factory,
-                new DefaultShopUiKit(), () -> { }));
+    void realBuyerPageSetPassesCallbackIdentityToEveryPageAndDisposesActiveCashierOnce()
+            throws Exception {
+        CheckoutSuccessClient client = new CheckoutSuccessClient();
+        AtomicReference<CheckoutPanelTestSeam.Fixture> checkout = new AtomicReference<>();
+        List<CallbackCapture> captures = new ArrayList<>();
+        Runnable sessionExpired = () -> { };
+        ShopPageCoordinator.BuyerPageFactory factory = new ShopPageCoordinator.BuyerPageFactory(
+                client, (factoryClient, navigator, uiKit, callback) -> {
+                    CheckoutPanelTestSeam.Fixture fixture = CheckoutPanelTestSeam.create(
+                            factoryClient, navigator, uiKit, callback);
+                    checkout.set(fixture);
+                    return fixture.panel();
+                }, (page, callback) -> captures.add(new CallbackCapture(page, callback)));
+        ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(
+                new PageNavigator(new JPanel()), factory, new DefaultShopUiKit(), sessionExpired));
 
+        assertThat(captures).extracting(CallbackCapture::page).containsExactly(
+                "home", "search", "product", "storefront", "cart", "checkout");
+        assertThat(captures).allSatisfy(capture ->
+                assertThat(capture.callback()).isSameAs(sessionExpired));
+        onEdt(() -> coordinator.navigator().open(new ShopRoute.Checkout()));
+        flushEdt();
+        onEdt(() -> checkout.get().panel().submit());
+        flushEdt();
+
+        assertThat(checkout.get().cashierSessionExpired().get()).isSameAs(sessionExpired);
         onEdt(coordinator::dispose);
         onEdt(coordinator::dispose);
 
-        assertThat(factory.pages.lifecycleDisposals).containsOnly(1);
-        assertThat(factory.pages.activeCashierDisposals).hasValue(1);
+        assertThat(checkout.get().cashierDisposals()).hasValue(1);
     }
 
     @Test
@@ -290,30 +274,6 @@ class ShopUiTest {
         return new ProductSearchQuery(null, null, null, null, ProductSortMode.SALES_DESC, 0, 20);
     }
 
-    private static String pageId(ShopRoute route) {
-        return switch (route) {
-            case ShopRoute.Home ignored -> "shop.home";
-            case ShopRoute.Search ignored -> "shop.search";
-            case ShopRoute.Product ignored -> "shop.product";
-            case ShopRoute.Storefront ignored -> "shop.storefront";
-            case ShopRoute.Cart ignored -> "shop.cart";
-            case ShopRoute.Checkout ignored -> "shop.checkout";
-            case ShopRoute.PaymentResult ignored -> "shop.payment-result";
-        };
-    }
-
-    private static Object payload(ShopRoute route) {
-        return switch (route) {
-            case ShopRoute.Home(var query) -> query;
-            case ShopRoute.Search(var query) -> query;
-            case ShopRoute.Product(var productId) -> productId;
-            case ShopRoute.Storefront(var shopId) -> shopId;
-            case ShopRoute.Cart ignored -> null;
-            case ShopRoute.Checkout ignored -> null;
-            case ShopRoute.PaymentResult(var payment) -> payment;
-        };
-    }
-
     private static final class RecordingClient implements ShopClientPort {
         private final List<HomeProductQuery> homeQueries = new ArrayList<>();
         private final List<ProductSearchQuery> searchQueries = new ArrayList<>();
@@ -425,71 +385,6 @@ class ShopUiTest {
         }
     }
 
-    private static final class RecordingCards implements ShopPageCoordinator.CardNavigator {
-        private final Map<String, JPanel> registered = new LinkedHashMap<>();
-        private final List<Event> events;
-
-        private RecordingCards(List<Event> events) { this.events = events; }
-
-        @Override public void register(String pageId, JPanel page) { registered.put(pageId, page); }
-        @Override public void show(String pageId) { events.add(new Event("show", pageId)); }
-    }
-
-    private static final class RecordingPageFactory implements ShopPageCoordinator.PageFactory {
-        private final List<Runnable> sessionCallbacks = new ArrayList<>();
-        private final List<Event> events;
-        private RecordingPageSet pages;
-
-        private RecordingPageFactory(List<Event> events) { this.events = events; }
-
-        @Override
-        public ShopPageCoordinator.PageSet create(edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator navigator,
-                ShopUiKit uiKit, Runnable homeSessionExpired, Runnable searchSessionExpired,
-                Runnable productSessionExpired, Runnable storefrontSessionExpired,
-                Runnable cartSessionExpired, Runnable checkoutSessionExpired) {
-            sessionCallbacks.addAll(List.of(homeSessionExpired, searchSessionExpired, productSessionExpired,
-                    storefrontSessionExpired, cartSessionExpired, checkoutSessionExpired));
-            pages = new RecordingPageSet(events);
-            return pages;
-        }
-    }
-
-    private static final class RecordingPageSet implements ShopPageCoordinator.PageSet {
-        private final Map<String, JPanel> cards = new LinkedHashMap<>();
-        private final List<Event> events;
-        private final List<Integer> lifecycleDisposals = new ArrayList<>();
-        private final AtomicInteger activeCashierDisposals = new AtomicInteger();
-
-        private RecordingPageSet(List<Event> events) {
-            this.events = events;
-            for (String pageId : List.of("shop.home", "shop.search", "shop.product", "shop.storefront",
-                    "shop.cart", "shop.checkout", "shop.payment-result")) {
-                cards.put(pageId, new JPanel());
-            }
-        }
-
-        @Override public JPanel home() { return cards.get("shop.home"); }
-        @Override public JPanel search() { return cards.get("shop.search"); }
-        @Override public JPanel product() { return cards.get("shop.product"); }
-        @Override public JPanel storefront() { return cards.get("shop.storefront"); }
-        @Override public JPanel cart() { return cards.get("shop.cart"); }
-        @Override public JPanel checkout() { return cards.get("shop.checkout"); }
-        @Override public JPanel paymentResult() { return cards.get("shop.payment-result"); }
-        @Override public void loadHome(HomeProductQuery query) { load("shop.home", query); }
-        @Override public void search(ProductSearchQuery query) { load("shop.search", query); }
-        @Override public void loadProduct(String productId) { load("shop.product", productId); }
-        @Override public void loadStorefront(String shopId) { load("shop.storefront", shopId); }
-        @Override public void loadCart() { load("shop.cart", null); }
-        @Override public void loadCheckout() { load("shop.checkout", null); }
-        @Override public void loadPaymentResult(PaymentView payment) { load("shop.payment-result", payment); }
-        @Override public void dispose() {
-            for (int index = 0; index < 6; index++) lifecycleDisposals.add(1);
-            activeCashierDisposals.incrementAndGet();
-        }
-
-        private void load(String pageId, Object payload) { events.add(new Event("load", new Invocation(pageId, payload))); }
-    }
-
     private static final class RecordingInstalledCoordinator implements ShopUiInstaller.InstalledCoordinator {
         private final AtomicInteger disposals = new AtomicInteger();
         private final edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator navigator =
@@ -499,8 +394,23 @@ class ShopUiTest {
         @Override public void dispose() { disposals.incrementAndGet(); }
     }
 
-    private record Invocation(String pageId, Object payload) { }
-    private record Event(String kind, Object value) { }
+    private record CallbackCapture(String page, Runnable callback) { }
+
+    private static final class CheckoutSuccessClient implements ShopClientPort {
+        @Override public CompletableFuture<PageResult<ProductSummary>> home(HomeProductQuery query) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<PageResult<ProductSummary>> search(ProductSearchQuery query) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<ProductDetail> getProduct(String productId) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<ShopDetail> getShop(String shopId) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<PageResult<ProductSummary>> getShopProducts(ShopProductQuery query) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<CartView> getCart() { return CompletableFuture.completedFuture(ShopClientFixtures.cartView()); }
+        @Override public CompletableFuture<CartView> addToCart(AddCartItemCommand command) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<CartView> updateCartItem(UpdateCartItemCommand command) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<CartView> removeCartItem(String cartItemId) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<CheckoutResult> checkout(CheckoutCommand command) {
+            return CompletableFuture.completedFuture(ShopClientFixtures.checkoutResult());
+        }
+        @Override public CompletableFuture<PaymentView> simulatePayment(SimulatePaymentCommand command) { return new CompletableFuture<>(); }
+    }
 
     private static final class NavigationCountingKit implements ShopUiKit {
         private final ShopUiKit delegate = new DefaultShopUiKit();

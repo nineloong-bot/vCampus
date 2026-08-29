@@ -42,6 +42,11 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         this(new PageNavigatorCards(pages), new BuyerPageFactory(client), uiKit, sessionExpired);
     }
 
+    ShopPageCoordinator(PageNavigator pages, PageFactory factory, ShopUiKit uiKit,
+            Runnable sessionExpired) {
+        this(new PageNavigatorCards(pages), factory, uiKit, sessionExpired);
+    }
+
     ShopPageCoordinator(CardNavigator cards, PageFactory factory, ShopUiKit uiKit,
             Runnable sessionExpired) {
         requireEdt();
@@ -163,11 +168,21 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         @Override public void show(String pageId) { pages.show(pageId); }
     }
 
-    private static final class BuyerPageFactory implements PageFactory {
+    static final class BuyerPageFactory implements PageFactory {
         private final ShopClientPort client;
+        private final CheckoutPageFactory checkoutFactory;
+        private final CallbackObserver callbackObserver;
 
-        private BuyerPageFactory(ShopClientPort client) {
+        BuyerPageFactory(ShopClientPort client) {
+            this(client, (checkoutClient, navigator, uiKit, sessionExpired) -> new CheckoutPanel(
+                    checkoutClient, navigator, uiKit, dialogs(), sessionExpired), (page, callback) -> { });
+        }
+
+        BuyerPageFactory(ShopClientPort client, CheckoutPageFactory checkoutFactory,
+                CallbackObserver callbackObserver) {
             this.client = Objects.requireNonNull(client, "client");
+            this.checkoutFactory = Objects.requireNonNull(checkoutFactory, "checkoutFactory");
+            this.callbackObserver = Objects.requireNonNull(callbackObserver, "callbackObserver");
         }
 
         @Override
@@ -177,11 +192,22 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
                 Runnable checkoutSessionExpired) {
             return new BuyerPageSet(client, navigator, uiKit, homeSessionExpired, searchSessionExpired,
                     productSessionExpired, storefrontSessionExpired, cartSessionExpired,
-                    checkoutSessionExpired);
+                    checkoutSessionExpired, checkoutFactory, callbackObserver);
         }
     }
 
-    private static final class BuyerPageSet implements PageSet {
+    @FunctionalInterface
+    interface CheckoutPageFactory {
+        CheckoutPanel create(ShopClientPort client, ShopNavigator navigator, ShopUiKit uiKit,
+                Runnable sessionExpired);
+    }
+
+    @FunctionalInterface
+    interface CallbackObserver {
+        void passedTo(String page, Runnable callback);
+    }
+
+    static final class BuyerPageSet implements PageSet {
         private final ShopHomePanel home;
         private final ProductSearchPanel search;
         private final ProductDetailPanel product;
@@ -193,13 +219,20 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         private BuyerPageSet(ShopClientPort client, ShopNavigator navigator, ShopUiKit uiKit,
                 Runnable homeSessionExpired, Runnable searchSessionExpired,
                 Runnable productSessionExpired, Runnable storefrontSessionExpired,
-                Runnable cartSessionExpired, Runnable checkoutSessionExpired) {
+                Runnable cartSessionExpired, Runnable checkoutSessionExpired,
+                CheckoutPageFactory checkoutFactory, CallbackObserver callbackObserver) {
+            callbackObserver.passedTo("home", homeSessionExpired);
             home = new ShopHomePanel(client, navigator, uiKit, homeSessionExpired);
+            callbackObserver.passedTo("search", searchSessionExpired);
             search = new ProductSearchPanel(client, navigator, uiKit, searchSessionExpired);
+            callbackObserver.passedTo("product", productSessionExpired);
             product = new ProductDetailPanel(client, navigator, uiKit, productSessionExpired);
+            callbackObserver.passedTo("storefront", storefrontSessionExpired);
             storefront = new BuyerShopPanel(client, navigator, uiKit, storefrontSessionExpired);
+            callbackObserver.passedTo("cart", cartSessionExpired);
             cart = new CartPanel(client, navigator, uiKit, cartSessionExpired);
-            checkout = new CheckoutPanel(client, navigator, uiKit, dialogs(), checkoutSessionExpired);
+            callbackObserver.passedTo("checkout", checkoutSessionExpired);
+            checkout = checkoutFactory.create(client, navigator, uiKit, checkoutSessionExpired);
             paymentResult = new PaymentResultHost(navigator, uiKit);
         }
 
