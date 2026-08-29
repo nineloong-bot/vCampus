@@ -66,8 +66,8 @@ public final class BuyerShopPanel extends JPanel {
         SwingUtilities.invokeLater(() -> {
             if (!latest.accepts(request)) return;
             if (failure != null) { showFailure(failure, () -> load(shopId)); return; }
-            if (products.items().isEmpty()) { showState(ShopPageState.EMPTY, "暂无商品", () -> load(shopId)); return; }
             shopName.setText(shop.shopName());
+            if (products.items().isEmpty()) { showState(ShopPageState.EMPTY, "暂无商品", () -> load(shopId)); return; }
             cards.showProducts(products.items());
             content.removeAll();
             JPanel normal = uiKit.filterPanel("storefront.normal", new BorderLayout());

@@ -228,7 +228,8 @@ class CatalogPanelsTest {
 
         onEdt(() -> panel.load("empty"));
         flushEdt();
-        assertThat(component(panel, "shop-name", JLabel.class).getText()).isEmpty();
+        flushEdt();
+        assertThat(component(panel, "shop-name", JLabel.class).getText()).isEqualTo("店empty");
         onEdt(() -> panel.load("c"));
         flushEdt();
         flushEdt();
@@ -284,6 +285,37 @@ class CatalogPanelsTest {
         onEdt(() -> component(panel, "store", JButton.class).doClick());
 
         assertThat(routes).containsExactly(new ShopRoute.Storefront("shop-loaded"));
+    }
+
+    @Test
+    void storefrontLateFirstStageAndDisposedCompletionCannotReplaceNewestStore() throws Exception {
+        ShopClientPort client = mock(ShopClientPort.class);
+        CompletableFuture<ShopDetail> oldShop = new CompletableFuture<>();
+        CompletableFuture<ShopDetail> newShop = CompletableFuture.completedFuture(new ShopDetail(
+                "new", "新店", "", "文具", "", ShopStatus.ACTIVE));
+        CompletableFuture<PageResult<ProductSummary>> newProducts = CompletableFuture.completedFuture(
+                page(summary("new-product", "新品", "6.00")));
+        CompletableFuture<ShopDetail> disposedShop = new CompletableFuture<>();
+        when(client.getShop("old")).thenReturn(oldShop);
+        when(client.getShop("new")).thenReturn(newShop);
+        when(client.getShop("disposed")).thenReturn(disposedShop);
+        when(client.getShopProducts(any())).thenReturn(newProducts);
+        BuyerShopPanel panel = onEdt(() -> new BuyerShopPanel(client,
+                new ShopNavigator(route -> { }), new DefaultShopUiKit(), () -> { }));
+
+        onEdt(() -> { panel.load("old"); panel.load("new"); });
+        flushEdt();
+        flushEdt();
+        completeOffEdt(oldShop, new ShopDetail("old", "旧店", "", "文具", "", ShopStatus.ACTIVE));
+        flushEdt();
+        assertThat(component(panel, "shop-name", JLabel.class).getText()).isEqualTo("新店");
+        assertThat(panel.visibleProductNames()).containsExactly("新品");
+
+        onEdt(() -> { panel.load("disposed"); panel.dispose(); });
+        completeOffEdt(disposedShop, new ShopDetail("disposed", "不应显示", "", "文具", "", ShopStatus.ACTIVE));
+        flushEdt();
+        assertThat(component(panel, "shop-name", JLabel.class).getText()).isEmpty();
+        assertThat(panel.visibleProductNames()).isEmpty();
     }
 
     private static ProductSearchQuery query(String keyword) {
