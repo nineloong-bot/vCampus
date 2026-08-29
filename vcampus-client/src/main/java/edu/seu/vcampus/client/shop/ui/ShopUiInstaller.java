@@ -20,13 +20,18 @@ public final class ShopUiInstaller {
     /** Installs one semantic Shop sidebar entry and the corresponding fixed page coordinator. */
     public static void install(MainFrame frame, ShopClientPort client, ShopUiKit uiKit,
             Runnable sessionExpired) {
+        install(frame, client, uiKit, sessionExpired, ShopPageCoordinator::new);
+    }
+
+    static void install(MainFrame frame, ShopClientPort client, ShopUiKit uiKit,
+            Runnable sessionExpired, CoordinatorFactory factory) {
         requireEdt();
         Objects.requireNonNull(frame, "frame");
         Objects.requireNonNull(client, "client");
         Objects.requireNonNull(uiKit, "uiKit");
         Objects.requireNonNull(sessionExpired, "sessionExpired");
-        ShopPageCoordinator coordinator = new ShopPageCoordinator(frame.pageNavigator(), client,
-                uiKit, sessionExpired);
+        InstalledCoordinator coordinator = Objects.requireNonNull(factory, "factory")
+                .create(frame.pageNavigator(), client, uiKit, sessionExpired);
         JButton entry = uiKit.navigationButton("shop.navigation", "校园商城");
         entry.addActionListener(event -> coordinator.navigator().open(new ShopRoute.Home(
                 new HomeProductQuery(null, null, ProductSortMode.SALES_DESC, 0, 20))));
@@ -37,6 +42,17 @@ public final class ShopUiInstaller {
                 coordinator.dispose();
             }
         });
+    }
+
+    @FunctionalInterface
+    interface CoordinatorFactory {
+        InstalledCoordinator create(edu.seu.vcampus.client.core.navigation.PageNavigator pages,
+                ShopClientPort client, ShopUiKit uiKit, Runnable sessionExpired);
+    }
+
+    interface InstalledCoordinator {
+        edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator navigator();
+        void dispose();
     }
 
     private static void requireEdt() {
