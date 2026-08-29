@@ -275,6 +275,54 @@ class PurchasePanelsTest {
         assertThat(component(panel, "payment-number", JLabel.class).getText()).isEqualTo("P0001");
     }
 
+    @Test
+    void stalePriceConfirmationCannotSubmitAReplacementCart() throws Exception {
+        ShopClientPort client = mock(ShopClientPort.class);
+        RecordingDialogs dialogs = new RecordingDialogs();
+        CartView firstCart = ShopClientFixtures.cartView();
+        CartView replacementCart = new CartView("cart-2", List.of(), BigDecimal.ZERO);
+        when(client.getCart()).thenReturn(CompletableFuture.completedFuture(firstCart),
+                CompletableFuture.completedFuture(replacementCart));
+        when(client.checkout(any())).thenReturn(CompletableFuture.failedFuture(
+                new ShopClientException("SHOP_PRICE_CHANGED")));
+        CheckoutPanel panel = onEdt(() -> new CheckoutPanel(client, new ShopNavigator(route -> { }),
+                new RecordingKit(), dialogs, () -> { }, RecordingCashier::new));
+
+        onEdt(panel::load);
+        flushEdt();
+        onEdt(panel::submit);
+        flushEdt();
+        onEdt(panel::load);
+        flushEdt();
+        onEdt(dialogs::acceptLatest);
+
+        verify(client, org.mockito.Mockito.times(1)).checkout(any());
+    }
+
+    @Test
+    void activeCashierBlocksCheckoutUntilItsCloseCallbackUnbindsIt() throws Exception {
+        ShopClientPort client = mock(ShopClientPort.class);
+        RecordingCashierFactory factory = new RecordingCashierFactory();
+        when(client.getCart()).thenReturn(CompletableFuture.completedFuture(ShopClientFixtures.cartView()));
+        when(client.checkout(any())).thenReturn(CompletableFuture.completedFuture(ShopClientFixtures.checkoutResult()),
+                CompletableFuture.completedFuture(ShopClientFixtures.checkoutResult()));
+        CheckoutPanel panel = onEdt(() -> new CheckoutPanel(client, new ShopNavigator(route -> { }),
+                new RecordingKit(), new RecordingDialogs(), () -> { }, factory));
+
+        onEdt(panel::load);
+        flushEdt();
+        onEdt(panel::submit);
+        flushEdt();
+        onEdt(panel::submit);
+        verify(client, org.mockito.Mockito.times(1)).checkout(any());
+        assertThat(factory.created).hasSize(1);
+        onEdt(factory.created.getFirst()::close);
+        onEdt(panel::submit);
+        flushEdt();
+
+        verify(client, org.mockito.Mockito.times(2)).checkout(any());
+    }
+
     private static PaymentView payment(PaymentStatus status, PaymentChannel channel) {
         return new PaymentView("payment-1", "group-1", "P0001", new BigDecimal("6.00"), status,
                 channel, Instant.parse("2026-08-29T00:15:00Z"), null, 0);
@@ -309,5 +357,33 @@ class PurchasePanelsTest {
         private static <T extends JComponent> T named(T component, String name) {
             component.setName(name); return component;
         }
+    }
+
+    private static final class RecordingCashierFactory implements CheckoutPanel.CashierFactory {
+        private final List<RecordingCashier> created = new ArrayList<>();
+
+        @Override
+        public CheckoutPanel.ActiveCashier create(java.awt.Window owner, ShopClientPort client,
+                ShopNavigator navigator, ShopUiKit uiKit, CheckoutResult checkout,
+                Runnable sessionExpired, Runnable closed) {
+            RecordingCashier cashier = new RecordingCashier(owner, client, navigator, uiKit, checkout,
+                    sessionExpired, closed);
+            created.add(cashier);
+            return cashier;
+        }
+    }
+
+    private static final class RecordingCashier implements CheckoutPanel.ActiveCashier {
+        private final Runnable closed;
+        private boolean closedState;
+
+        private RecordingCashier(java.awt.Window owner, ShopClientPort client, ShopNavigator navigator,
+                ShopUiKit uiKit, CheckoutResult checkout, Runnable sessionExpired, Runnable closed) {
+            this.closed = closed;
+        }
+        @Override public void open() { }
+        @Override public void disposePage() { close(); }
+        @Override public boolean isClosed() { return closedState; }
+        void close() { if (!closedState) { closedState = true; closed.run(); } }
     }
 }

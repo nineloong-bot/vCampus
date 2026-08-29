@@ -26,12 +26,13 @@ import java.awt.Window;
 import java.util.Objects;
 
 /** Non-blocking simulated payment dialog with retry-safe terminal transitions. */
-public final class SimulatedCashierDialog extends JDialog {
+public final class SimulatedCashierDialog extends JDialog implements CheckoutPanel.ActiveCashier {
     private final ShopClientPort client;
     private final ShopNavigator navigator;
     private final ShopUiKit uiKit;
     private final CheckoutResult checkout;
     private final Runnable sessionExpired;
+    private final Runnable closed;
     private final LatestRequest submissions = new LatestRequest();
     private final JPanel content = new JPanel(new BorderLayout());
     private final JComboBox<PaymentChannel> channels = new JComboBox<>(PaymentChannel.values());
@@ -41,12 +42,18 @@ public final class SimulatedCashierDialog extends JDialog {
 
     public SimulatedCashierDialog(Window owner, ShopClientPort client, ShopNavigator navigator,
             ShopUiKit uiKit, CheckoutResult checkout, Runnable sessionExpired) {
+        this(owner, client, navigator, uiKit, checkout, sessionExpired, () -> { });
+    }
+
+    SimulatedCashierDialog(Window owner, ShopClientPort client, ShopNavigator navigator,
+            ShopUiKit uiKit, CheckoutResult checkout, Runnable sessionExpired, Runnable closed) {
         super(owner, "模拟收银台", ModalityType.MODELESS);
         this.client = Objects.requireNonNull(client, "client");
         this.navigator = Objects.requireNonNull(navigator, "navigator");
         this.uiKit = Objects.requireNonNull(uiKit, "uiKit");
         this.checkout = Objects.requireNonNull(checkout, "checkout");
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
+        this.closed = Objects.requireNonNull(closed, "closed");
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         add(content); showCashier(ShopPageState.INITIAL, ""); pack();
     }
@@ -62,6 +69,8 @@ public final class SimulatedCashierDialog extends JDialog {
 
     public boolean retryEnabled() { return !busy && !disposed; }
     public void disposePage() { dispose(); }
+    @Override public boolean isClosed() { return disposed; }
+    @Override public void open() { if (!disposed) setVisible(true); }
 
     @Override
     public void dispose() {
@@ -69,6 +78,7 @@ public final class SimulatedCashierDialog extends JDialog {
         disposed = true;
         submissions.dispose();
         super.dispose();
+        closed.run();
     }
 
     private void finish(long request, PaymentView payment, Throwable failure) {
