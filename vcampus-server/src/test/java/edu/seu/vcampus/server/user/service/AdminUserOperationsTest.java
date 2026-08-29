@@ -12,6 +12,7 @@ import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import edu.seu.vcampus.server.persistence.TransactionManager;
 import edu.seu.vcampus.server.routing.ClientContext;
 import edu.seu.vcampus.server.security.SessionExpiredException;
+import edu.seu.vcampus.server.session.SessionRegistry;
 import edu.seu.vcampus.server.user.domain.UserAccount;
 import edu.seu.vcampus.server.user.repository.AccessAuditRepository;
 import edu.seu.vcampus.server.user.repository.AccessUserRepository;
@@ -33,6 +34,7 @@ class AdminUserOperationsTest {
     private UserRepository repository;
     private UserService service;
     private ConnectionProvider connections;
+    private SessionRegistry sessions;
 
     @BeforeEach
     void createService() throws Exception {
@@ -46,8 +48,10 @@ class AdminUserOperationsTest {
             execute(connection, projectFile("seed", "010_roles_permissions.sql"));
         }
         repository = new AccessUserRepository();
+        sessions = new SessionRegistry();
         service = new UserServiceImpl(transactions, new StripedResourceLockManager(), repository,
-                new AccessAuditRepository(), new PasswordHasher());
+                new AccessAuditRepository(), new PasswordHasher(), sessions,
+                java.time.Clock.systemUTC());
     }
 
     @Test
@@ -92,6 +96,19 @@ class AdminUserOperationsTest {
                 assertThat(result.getString(1)).isEqualTo("SUCCESS");
             }
         }
+    }
+
+    @Test
+    void demotingAdministratorRevokesTheTargetsExistingSession() {
+        UserAccount target = account("SECOND_ADMIN", UserRole.ADMIN);
+        insert(target);
+        String token = service.login(new LoginCommand(target.loginId(), "Pass1234".toCharArray(),
+                "client"), new ClientContext("connection", "127.0.0.1")).sessionToken();
+
+        service.updateRole(new UpdateUserRoleCommand(target.userId(), UserRole.TEACHER, 1));
+
+        assertThatThrownBy(() -> sessions.requireSession(token))
+                .isInstanceOf(SessionExpiredException.class);
     }
 
     private void insert(UserAccount account) { transactions.inTransaction(connection -> { repository.insert(connection, account); return null; }); }

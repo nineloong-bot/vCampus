@@ -47,17 +47,21 @@ final class AdminUserService {
 
     UserView updateRole(UpdateUserRoleCommand command) {
         Objects.requireNonNull(command, "command");
-        return withAccountLocks(command.userId(), () -> transactions.inTransaction(connection -> {
-            UserAccount account = account(connection, command.userId());
-            if (command.newRole() == UserRole.STUDENT && account.role() != UserRole.STUDENT) {
-                throw new IllegalStateException("USER_ROLE_CONFLICT");
-            }
-            protectOnlyAdministrator(connection, account, command.newRole() != UserRole.ADMIN);
-            UserAccount updated = account.withRole(command.newRole());
-            users.updateWithVersion(connection, updated, command.expectedVersion());
-            audits.record(connection, account.userId(), "USER_UPDATE_ROLE", "SUCCESS");
-            return view(updated, command.expectedVersion() + 1);
-        }));
+        return withAccountLocks(command.userId(), () -> {
+            UserView result = transactions.inTransaction(connection -> {
+                UserAccount account = account(connection, command.userId());
+                if (command.newRole() == UserRole.STUDENT && account.role() != UserRole.STUDENT) {
+                    throw new IllegalStateException("USER_ROLE_CONFLICT");
+                }
+                protectOnlyAdministrator(connection, account, command.newRole() != UserRole.ADMIN);
+                UserAccount updated = account.withRole(command.newRole());
+                users.updateWithVersion(connection, updated, command.expectedVersion());
+                audits.record(connection, account.userId(), "USER_UPDATE_ROLE", "SUCCESS");
+                return view(updated, command.expectedVersion() + 1);
+            });
+            sessionRevoker.accept(command.userId());
+            return result;
+        });
     }
 
     UserView changeStatus(ChangeUserStatusCommand command) {

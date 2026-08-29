@@ -70,10 +70,12 @@ public final class ServerMain {
         String databaseUrl = "jdbc:ucanaccess://" + config.databasePath()
                 + ";immediatelyReleaseResources=true";
         ConnectionProvider connections = () -> DriverManager.getConnection(databaseUrl);
-        SessionRegistry sessions = new SessionRegistry();
+        java.time.Clock clock = java.time.Clock.systemUTC();
+        SessionRegistry sessions = new SessionRegistry(clock,
+                Duration.ofMinutes(config.sessionTimeoutMinutes()));
         UserService service = new UserServiceImpl(new TransactionManager(connections),
                 new StripedResourceLockManager(), new AccessUserRepository(),
-                new AccessAuditRepository(), new PasswordHasher(), sessions, java.time.Clock.systemUTC());
+                new AccessAuditRepository(), new PasswordHasher(), sessions, clock);
         return new UserRuntime(service, new AuthorizationService(sessions));
     }
 

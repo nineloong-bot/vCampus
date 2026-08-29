@@ -3,6 +3,7 @@ package edu.seu.vcampus.server.user;
 import edu.seu.vcampus.common.protocol.Message;
 import edu.seu.vcampus.common.protocol.MessageType;
 import edu.seu.vcampus.common.protocol.ResponseBody;
+import edu.seu.vcampus.common.protocol.EmptyRequest;
 import edu.seu.vcampus.common.user.LoginCommand;
 import edu.seu.vcampus.common.user.LoginResult;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
@@ -130,6 +131,32 @@ class UserLoginSocketDemoTest {
         assertThat(body.code()).isEqualTo("AUTH_INVALID_CREDENTIALS");
     }
 
+    @Test
+    void malformedLoginBodyReturnsFailureAndKeepsTheSocketUsable() throws Exception {
+        try (Socket socket = new Socket("127.0.0.1", server.localPort())) {
+            socket.setSoTimeout(3_000);
+            ObjectOutputStream output = new ObjectOutputStream(socket.getOutputStream());
+            output.flush();
+            try (output; ObjectInputStream input = new ObjectInputStream(socket.getInputStream())) {
+                output.writeObject(request(EmptyRequest.INSTANCE));
+                output.flush();
+
+                Message malformedResponse = (Message) input.readObject();
+                assertThat(malformedResponse.body()).isInstanceOf(ResponseBody.class);
+                ResponseBody<?> failure = (ResponseBody<?>) malformedResponse.body();
+                assertThat(failure).extracting(body -> body.success(), body -> body.code())
+                        .containsExactly(false, "COMMON_VALIDATION_FAILED");
+
+                output.writeObject(request(new LoginCommand(LOGIN_ID, demoPassword.clone(),
+                        "demo-client")));
+                output.flush();
+
+                Message validResponse = (Message) input.readObject();
+                assertThat(((ResponseBody<?>) validResponse.body()).success()).isTrue();
+            }
+        }
+    }
+
     private Message exchange(LoginCommand command) throws Exception {
         try (Socket socket = new Socket("127.0.0.1", server.localPort())) {
             ObjectOutputStream output = new ObjectOutputStream(socket.getOutputStream());
@@ -143,6 +170,11 @@ class UserLoginSocketDemoTest {
                 return (Message) input.readObject();
             }
         }
+    }
+
+    private static Message request(java.io.Serializable body) {
+        return new Message(UUID.randomUUID().toString(), MessageType.REQUEST,
+                "USER_LOGIN", null, body, System.currentTimeMillis());
     }
 
     private void insertDemoAdministrator(

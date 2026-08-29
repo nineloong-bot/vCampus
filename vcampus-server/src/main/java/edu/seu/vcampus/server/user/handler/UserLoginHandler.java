@@ -26,17 +26,25 @@ public final class UserLoginHandler implements MessageHandler {
     /** Authenticates a login command and maps invalid credentials to a safe response. */
     @Override
     public ResponseBody<LoginResult> handle(Message message, ClientContext context) {
-        LoginCommand command = (LoginCommand) message.body();
         try {
+            if (!(message.body() instanceof LoginCommand command)) {
+                throw new IllegalArgumentException("COMMON_VALIDATION_FAILED");
+            }
             return ResponseBody.success(users.login(command, context));
-        } catch (InvalidCredentialsException error) {
-            return failure(error.getMessage(), "登录标识或密码错误");
-        } catch (AccountPendingException | AccountDisabledException | AccountLockedException error) {
-            return failure(error.getMessage(), "账户当前无法登录");
+        } catch (RuntimeException error) {
+            return UserHandlerErrorMapper.failure(error, safeMessage(error));
         }
     }
 
-    private static ResponseBody<LoginResult> failure(String code, String message) {
-        return ResponseBody.failure(code, message, null);
+    private static String safeMessage(RuntimeException error) {
+        if (error instanceof InvalidCredentialsException) {
+            return "登录标识或密码错误";
+        }
+        if (error instanceof AccountPendingException
+                || error instanceof AccountDisabledException
+                || error instanceof AccountLockedException) {
+            return "账户当前无法登录";
+        }
+        return "登录请求未能完成";
     }
 }
