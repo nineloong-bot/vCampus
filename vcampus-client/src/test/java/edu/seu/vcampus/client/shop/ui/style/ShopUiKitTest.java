@@ -225,6 +225,7 @@ class ShopUiKitTest {
 
         assertMounted(storePanel, kit, "storefront.state", ShopPageState.INITIAL);
         onEdt(() -> storePanel.load("normal-store"));
+        assertMounted(storePanel, kit, "storefront.state", ShopPageState.LOADING);
         flushEdt(); flushEdt();
         assertMounted(storePanel, kit, "storefront.state", ShopPageState.NORMAL);
         onEdt(() -> storePanel.load("empty-store"));
