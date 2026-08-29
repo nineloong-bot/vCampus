@@ -50,6 +50,19 @@ class ShopClientServiceTest {
     }
 
     @Test
+    void rejectsSuccessfulResponseWithNullDataAndPreservesStableCode() {
+        ClientConnection connection = mock(ClientConnection.class);
+        ShopClientService service = new ShopClientService(connection, TIMEOUT);
+        when(connection.<CartView>send(eq("SHOP_GET_CART"), eq(EmptyRequest.INSTANCE), eq(TIMEOUT)))
+                .thenReturn(CompletableFuture.completedFuture(
+                        new ResponseBody<>(true, "SHOP_CART_EMPTY", "成功", null, null)));
+
+        assertThatThrownBy(() -> service.getCart().join())
+                .hasRootCauseInstanceOf(ShopClientException.class)
+                .hasRootCauseMessage("SHOP_CART_EMPTY");
+    }
+
+    @Test
     void sendsEveryBuyerCommandWithItsTypedBody() {
         ClientConnection connection = mock(ClientConnection.class);
         ShopClientService service = new ShopClientService(connection, TIMEOUT);
