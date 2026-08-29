@@ -56,6 +56,33 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 class ShopUiTest {
     @Test
+    void rendersEachRouteByLoadingItsExactPayloadBeforeShowingItsCard() throws Exception {
+        List<SequenceEvent> events = new ArrayList<>();
+        SequencePageSet pages = onEdt(() -> new SequencePageSet(events));
+        SequenceCards cards = new SequenceCards(events);
+        ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(cards,
+                (navigator, uiKit, homeExpired, searchExpired, productExpired, storefrontExpired,
+                        cartExpired, checkoutExpired) -> pages,
+                new DefaultShopUiKit(), () -> { }));
+        List<ShopRoute> routes = List.of(
+                new ShopRoute.Home(defaultHome()),
+                new ShopRoute.Search(defaultSearch()),
+                new ShopRoute.Product("product-order"),
+                new ShopRoute.Storefront("shop-order"),
+                new ShopRoute.Cart(),
+                new ShopRoute.Checkout(),
+                new ShopRoute.PaymentResult(payment()));
+
+        for (ShopRoute route : routes) {
+            events.clear();
+            onEdt(() -> coordinator.render(route));
+            assertThat(events).containsExactly(
+                    new SequenceEvent(operation(route), new RouteInvocation(pageId(route), payload(route))),
+                    new SequenceEvent("show", pageId(route)));
+        }
+    }
+
+    @Test
     void disposeInvalidatesSixPendingPagesBeforeAnyCompletionCanMutateUiOrSession() throws Exception {
         PendingClient client = new PendingClient();
         StateCountingKit uiKit = new StateCountingKit();
@@ -274,6 +301,34 @@ class ShopUiTest {
         return new ProductSearchQuery(null, null, null, null, ProductSortMode.SALES_DESC, 0, 20);
     }
 
+    private static String pageId(ShopRoute route) {
+        return switch (route) {
+            case ShopRoute.Home ignored -> "shop.home";
+            case ShopRoute.Search ignored -> "shop.search";
+            case ShopRoute.Product ignored -> "shop.product";
+            case ShopRoute.Storefront ignored -> "shop.storefront";
+            case ShopRoute.Cart ignored -> "shop.cart";
+            case ShopRoute.Checkout ignored -> "shop.checkout";
+            case ShopRoute.PaymentResult ignored -> "shop.payment-result";
+        };
+    }
+
+    private static String operation(ShopRoute route) {
+        return route instanceof ShopRoute.Search ? "search" : "load";
+    }
+
+    private static Object payload(ShopRoute route) {
+        return switch (route) {
+            case ShopRoute.Home(var query) -> query;
+            case ShopRoute.Search(var query) -> query;
+            case ShopRoute.Product(var productId) -> productId;
+            case ShopRoute.Storefront(var shopId) -> shopId;
+            case ShopRoute.Cart ignored -> null;
+            case ShopRoute.Checkout ignored -> null;
+            case ShopRoute.PaymentResult(var payment) -> payment;
+        };
+    }
+
     private static final class RecordingClient implements ShopClientPort {
         private final List<HomeProductQuery> homeQueries = new ArrayList<>();
         private final List<ProductSearchQuery> searchQueries = new ArrayList<>();
@@ -395,6 +450,50 @@ class ShopUiTest {
     }
 
     private record CallbackCapture(String page, Runnable callback) { }
+    private record RouteInvocation(String pageId, Object payload) { }
+    private record SequenceEvent(String operation, Object value) { }
+
+    private static final class SequenceCards implements ShopPageCoordinator.CardNavigator {
+        private final List<SequenceEvent> events;
+
+        private SequenceCards(List<SequenceEvent> events) { this.events = events; }
+        @Override public void register(String pageId, JPanel page) { }
+        @Override public void show(String pageId) { events.add(new SequenceEvent("show", pageId)); }
+    }
+
+    private static final class SequencePageSet implements ShopPageCoordinator.PageSet {
+        private final List<SequenceEvent> events;
+        private final JPanel home = new JPanel();
+        private final JPanel search = new JPanel();
+        private final JPanel product = new JPanel();
+        private final JPanel storefront = new JPanel();
+        private final JPanel cart = new JPanel();
+        private final JPanel checkout = new JPanel();
+        private final JPanel paymentResult = new JPanel();
+
+        private SequencePageSet(List<SequenceEvent> events) { this.events = events; }
+        @Override public JPanel home() { return home; }
+        @Override public JPanel search() { return search; }
+        @Override public JPanel product() { return product; }
+        @Override public JPanel storefront() { return storefront; }
+        @Override public JPanel cart() { return cart; }
+        @Override public JPanel checkout() { return checkout; }
+        @Override public JPanel paymentResult() { return paymentResult; }
+        @Override public void loadHome(HomeProductQuery query) { load("shop.home", query); }
+        @Override public void search(ProductSearchQuery query) {
+            events.add(new SequenceEvent("search", new RouteInvocation("shop.search", query)));
+        }
+        @Override public void loadProduct(String productId) { load("shop.product", productId); }
+        @Override public void loadStorefront(String shopId) { load("shop.storefront", shopId); }
+        @Override public void loadCart() { load("shop.cart", null); }
+        @Override public void loadCheckout() { load("shop.checkout", null); }
+        @Override public void loadPaymentResult(PaymentView payment) { load("shop.payment-result", payment); }
+        @Override public void dispose() { }
+
+        private void load(String pageId, Object payload) {
+            events.add(new SequenceEvent("load", new RouteInvocation(pageId, payload)));
+        }
+    }
 
     private static final class CheckoutSuccessClient implements ShopClientPort {
         @Override public CompletableFuture<PageResult<ProductSummary>> home(HomeProductQuery query) { return new CompletableFuture<>(); }
