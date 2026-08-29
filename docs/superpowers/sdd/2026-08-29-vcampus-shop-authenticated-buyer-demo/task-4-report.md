@@ -19,7 +19,21 @@
 
 ## Commit
 
-Recorded by the implementation commit.
+- Implementation commit: `3937b79ae2cc159eed9ba09e88008127c4b9c719`
+
+## Fix round 1
+
+- Added exact capacity-bound assertions: history is precisely `product-3` through
+  `product-22` before overflow recovery, and `back()` restores `product-22`.
+- Added complete `ProductSearchQuery` restoration and host-observation assertions
+  proving current/history state is updated before `render` is called.
+- These new tests initially ran RED because the prior duplicate-render assertion
+  incorrectly included the intentional `back()` render. After narrowing that
+  assertion to the open sequence, focused navigation tests passed 6/6.
+- Focused verification: `mvn -pl vcampus-client -am '-Dtest=ShopNavigatorTest' '-Dsurefire.failIfNoSpecifiedTests=false' test` — 6 tests passed.
+- Complete reactor verification: `mvn -pl vcampus-client -am '-Dsurefire.failIfNoSpecifiedTests=false' test` — common 1, server 45, client 14; 60 tests passed.
+- `git diff --check` passed with no output before the fix round commit.
+- Fix round commit: recorded after verification.
 
 ## Deviations and risks
 

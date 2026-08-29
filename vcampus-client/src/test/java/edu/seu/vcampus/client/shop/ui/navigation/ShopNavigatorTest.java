@@ -43,8 +43,17 @@ class ShopNavigatorTest {
                 navigator.open(new ShopRoute.Product("product-" + i)));
 
         assertThat(navigator.history()).hasSize(20);
-        assertThat(navigator.history()).doesNotContain(home);
+        assertThat(navigator.history()).containsExactlyElementsOf(
+                IntStream.rangeClosed(3, 22)
+                        .mapToObj(i -> new ShopRoute.Product("product-" + i))
+                        .toList());
         assertThat(rendered).doesNotHaveDuplicates();
+        navigator.back();
+        assertThat(navigator.current()).contains(new ShopRoute.Product("product-22"));
+        assertThat(navigator.history()).containsExactlyElementsOf(
+                IntStream.rangeClosed(3, 21)
+                        .mapToObj(i -> new ShopRoute.Product("product-" + i))
+                        .toList());
     }
 
     @Test
@@ -83,5 +92,43 @@ class ShopNavigatorTest {
         assertThat(((ShopRoute.Home) navigator.current().orElseThrow()).query())
                 .isSameAs(query);
         assertThat(rendered).containsExactly(route);
+    }
+
+    @Test
+    void restoresTheCompleteSearchQueryWhenGoingBack() {
+        ProductSearchQuery query = new ProductSearchQuery("笔", "文具", null,
+                null, ProductSortMode.PRICE_DESC, 2, 10);
+        ShopRoute search = new ShopRoute.Search(query);
+        ShopNavigator navigator = new ShopNavigator(route -> { });
+
+        navigator.open(search);
+        navigator.open(new ShopRoute.Product("product-1"));
+        navigator.back();
+
+        assertThat(navigator.current()).contains(search);
+        assertThat(((ShopRoute.Search) navigator.current().orElseThrow()).query())
+                .isSameAs(query);
+    }
+
+    @Test
+    void updatesStateBeforeCallingHostRender() {
+        ShopNavigator[] holder = new ShopNavigator[1];
+        List<ShopRoute> observedCurrent = new ArrayList<>();
+        List<List<ShopRoute>> observedHistory = new ArrayList<>();
+        ShopNavigator navigator = new ShopNavigator(route -> {
+            observedCurrent.add(holder[0].current().orElseThrow());
+            observedHistory.add(holder[0].history());
+        });
+        holder[0] = navigator;
+        ShopRoute home = new ShopRoute.Home(new HomeProductQuery(
+                null, null, ProductSortMode.SALES_DESC, 0, 20));
+        ShopRoute product = new ShopRoute.Product("product-1");
+
+        navigator.open(home);
+        navigator.open(product);
+        navigator.back();
+
+        assertThat(observedCurrent).containsExactly(home, product, home);
+        assertThat(observedHistory).containsExactly(List.of(), List.of(home), List.of());
     }
 }
