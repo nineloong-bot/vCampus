@@ -143,6 +143,10 @@ public final class CourseUiScreenshotGenerator {
             public CompletableFuture<List<EnrollmentView>> currentEnrollments() {
                 return base.currentEnrollments();
             }
+            public CompletableFuture<String> currentTermId() { return base.currentTermId(); }
+            public CompletableFuture<List<edu.seu.vcampus.common.course.TermView>> listTerms() {
+                return base.listTerms();
+            }
             public CompletableFuture<List<ScheduleItem>> currentSchedule() { return schedule; }
             public CompletableFuture<EnrollmentView> enroll(EnrollCommand command) { return base.enroll(command); }
         };

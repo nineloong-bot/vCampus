@@ -67,7 +67,7 @@ public final class CourseDemoServerMain {
     public static DemoRuntime prepare(Path databasePath, Path schemaPath, String phase) throws Exception {
         Files.createDirectories(databasePath.toAbsolutePath().normalize().getParent());
         String url = "jdbc:ucanaccess://" + databasePath.toAbsolutePath().normalize()
-                + ";newDatabaseVersion=V2010;immediatelyReleaseResources=true";
+                + ";newDatabaseVersion=V2010";
         ConnectionProvider connections = () -> DriverManager.getConnection(url);
         installCommonSchema(connections, schemaPath.resolveSibling("001_common.sql"));
         new CourseSchemaInitializer(schemaPath).initialize(connections);
@@ -84,12 +84,11 @@ public final class CourseDemoServerMain {
                 }
             }
         };
-        CourseStudentGateway students = userId -> switch (userId) {
-            case "student-user-1" -> new StudentEnrollmentEligibility("student-demo-1", "ACTIVE");
-            case "student-user-2" -> new StudentEnrollmentEligibility("student-demo-2", "ACTIVE");
-            case "admin-user" -> new StudentEnrollmentEligibility("student-demo-admin", "ACTIVE");
-            default -> null;
-        };
+        CourseStudentGateway students = CourseStudentGateway.of(userId -> switch (userId) {
+                    case "student-user-1" -> new StudentEnrollmentEligibility("student-demo-1", "ACTIVE");
+                    case "student-user-2" -> new StudentEnrollmentEligibility("student-demo-2", "ACTIVE");
+                    default -> null;
+                }, studentId -> "student-demo-1".equals(studentId) || "student-demo-2".equals(studentId));
         MessageRouter router = new MessageRouter(Map.of());
         CourseComposition courses = CourseComposition.create(connections, authorization, students,
                 Clock.systemUTC(), new StripedResourceLockManager());

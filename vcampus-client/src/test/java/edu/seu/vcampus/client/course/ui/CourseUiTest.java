@@ -32,6 +32,8 @@ import edu.seu.vcampus.common.course.OfferingView;
 import edu.seu.vcampus.common.course.TermPhaseView;
 import edu.seu.vcampus.common.paging.PageResult;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import javax.swing.JButton;
 import javax.swing.JComponent;
@@ -45,6 +47,7 @@ import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
+import java.awt.CardLayout;
 import java.awt.Component;
 import java.awt.Container;
 import java.util.ArrayList;
@@ -54,6 +57,7 @@ import java.time.LocalDate;
 import java.math.BigDecimal;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -121,6 +125,201 @@ class CourseUiTest {
         assertThat(submitted.get().dayOfWeek()).isEqualTo("TUESDAY");
     }
 
+    @ParameterizedTest
+    @CsvSource({"星期六,SATURDAY", "星期日,SUNDAY"})
+    void offeringSearchSupportsWeekendFilters(String selectedLabel, String expectedDay) throws Exception {
+        AtomicReference<OfferingSearchQuery> submitted = new AtomicReference<>();
+        CourseUiGateway base = CourseUiGateway.preview();
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(base) {
+            @Override public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) {
+                submitted.set(query);
+                return CompletableFuture.completedFuture(new PageResult<>(List.of(), 0, 20, 0));
+            }
+        };
+        OfferingSearchPanel panel = onEdt(() -> new OfferingSearchPanel(gateway));
+        SwingUtilities.invokeAndWait(() -> { });
+
+        SwingUtilities.invokeAndWait(() -> {
+            descendants(panel).stream().filter(JComboBox.class::isInstance).map(JComboBox.class::cast)
+                    .filter(combo -> "上课日期".equals(combo.getAccessibleContext().getAccessibleName()))
+                    .findFirst().orElseThrow().setSelectedItem(selectedLabel);
+            descendants(panel).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
+                    .filter(button -> "查询教学班".equals(button.getText())).findFirst().orElseThrow().doClick();
+        });
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(submitted.get().dayOfWeek()).isEqualTo(expectedDay);
+    }
+
+    @Test
+    void offeringSearchNavigatesRealServerPagesAndDisablesTheLastNextButton() throws Exception {
+        List<OfferingSearchQuery> queries = new ArrayList<>();
+        OfferingSummary item = CourseUiGateway.preview()
+                .searchOfferings(new OfferingSearchQuery("2026-autumn", "", null, true, 0, 20))
+                .join().items().getFirst();
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(CourseUiGateway.preview()) {
+            @Override public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) {
+                queries.add(query);
+                return CompletableFuture.completedFuture(new PageResult<>(List.of(item), query.page(), 20, 25));
+            }
+        };
+        OfferingSearchPanel panel = onEdt(() -> new OfferingSearchPanel(gateway));
+        SwingUtilities.invokeAndWait(() -> { });
+
+        SwingUtilities.invokeAndWait(() -> descendants(panel).stream().filter(JButton.class::isInstance)
+                .map(JButton.class::cast).filter(button -> "下一页".equals(button.getText()))
+                .findFirst().orElseThrow().doClick());
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(queries).extracting(OfferingSearchQuery::page).containsExactly(0, 1);
+        assertThat(labels(panel)).contains("第 2 / 2 页");
+        JButton next = descendants(panel).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
+                .filter(button -> "下一页".equals(button.getText())).findFirst().orElseThrow();
+        assertThat(next.isEnabled()).isFalse();
+    }
+
+    @Test
+    void failedOfferingRefreshKeepsPreviouslyLoadedRows() throws Exception {
+        AtomicInteger calls = new AtomicInteger();
+        CourseUiGateway base = CourseUiGateway.preview();
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(base) {
+            @Override public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) {
+                if (calls.incrementAndGet() == 1) return base.searchOfferings(query);
+                return CompletableFuture.failedFuture(
+                        new CourseClientException("COMMON_NETWORK_ERROR", "network", null, true));
+            }
+        };
+        OfferingSearchPanel panel = onEdt(() -> new OfferingSearchPanel(gateway));
+        SwingUtilities.invokeAndWait(() -> { });
+        JTable table = descendants(panel).stream().filter(JTable.class::isInstance)
+                .map(JTable.class::cast).findFirst().orElseThrow();
+        assertThat(table.getRowCount()).isEqualTo(3);
+
+        SwingUtilities.invokeAndWait(() -> descendants(panel).stream().filter(JButton.class::isInstance)
+                .map(JButton.class::cast).filter(button -> "查询教学班".equals(button.getText()))
+                .findFirst().orElseThrow().doClick());
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(table.getRowCount()).isEqualTo(3);
+        assertThat(labels(panel)).contains("共 3 条");
+        assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.DISCONNECTED);
+    }
+
+    @Test
+    void failedEnrollmentRefreshKeepsPreviouslyLoadedRows() throws Exception {
+        AtomicInteger calls = new AtomicInteger();
+        CourseUiGateway base = CourseUiGateway.preview();
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(base) {
+            @Override public CompletableFuture<List<EnrollmentView>> currentEnrollments() {
+                if (calls.incrementAndGet() == 1) return base.currentEnrollments();
+                return CompletableFuture.failedFuture(new CourseClientException(
+                        "COMMON_NETWORK_ERROR", "network", null, true));
+            }
+        };
+        MyEnrollmentPanel panel = onEdt(() -> new MyEnrollmentPanel(gateway));
+        SwingUtilities.invokeAndWait(() -> { });
+        JTable table = descendants(panel).stream().filter(JTable.class::isInstance)
+                .map(JTable.class::cast).findFirst().orElseThrow();
+
+        SwingUtilities.invokeAndWait(() -> descendants(panel).stream().filter(JButton.class::isInstance)
+                .map(JButton.class::cast).filter(button -> "刷新选课".equals(button.getText()))
+                .findFirst().orElseThrow().doClick());
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(table.getRowCount()).isEqualTo(1);
+        assertThat(labels(panel)).contains("共 1 条");
+        assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.DISCONNECTED);
+    }
+
+    @Test
+    void failedRetakeRefreshKeepsPreviouslyLoadedRows() throws Exception {
+        AtomicInteger calls = new AtomicInteger();
+        CourseUiGateway base = CourseUiGateway.preview();
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(base) {
+            @Override public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) {
+                if (calls.incrementAndGet() == 1) return base.searchOfferings(query);
+                return CompletableFuture.failedFuture(new CourseClientException(
+                        "COMMON_NETWORK_ERROR", "network", null, true));
+            }
+        };
+        RetakePanel panel = onEdt(() -> new RetakePanel(gateway));
+        SwingUtilities.invokeAndWait(() -> { });
+        JTable table = descendants(panel).stream().filter(JTable.class::isInstance)
+                .map(JTable.class::cast).findFirst().orElseThrow();
+
+        SwingUtilities.invokeAndWait(() -> descendants(panel).stream().filter(JButton.class::isInstance)
+                .map(JButton.class::cast).filter(button -> "刷新教学班".equals(button.getText()))
+                .findFirst().orElseThrow().doClick());
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(table.getRowCount()).isEqualTo(3);
+        assertThat(labels(panel)).contains("共 3 个可选教学班");
+        assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.DISCONNECTED);
+    }
+
+    @Test
+    void failedTermRefreshKeepsPreviouslyLoadedRows() throws Exception {
+        AtomicInteger calls = new AtomicInteger();
+        CourseUiGateway base = CourseUiGateway.preview();
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(base) {
+            @Override public CompletableFuture<List<TermView>> listTerms() {
+                if (calls.incrementAndGet() == 1) return base.listTerms();
+                return CompletableFuture.failedFuture(new CourseClientException(
+                        "COMMON_NETWORK_ERROR", "network", null, true));
+            }
+        };
+        TermManagementPanel panel = onEdt(() -> new TermManagementPanel(gateway));
+        SwingUtilities.invokeAndWait(() -> { });
+        JTable table = descendants(panel).stream().filter(JTable.class::isInstance)
+                .map(JTable.class::cast).findFirst().orElseThrow();
+
+        SwingUtilities.invokeAndWait(() -> descendants(panel).stream().filter(JButton.class::isInstance)
+                .map(JButton.class::cast).filter(button -> "刷新学期".equals(button.getText()))
+                .findFirst().orElseThrow().doClick());
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(table.getRowCount()).isEqualTo(1);
+        assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.DISCONNECTED);
+    }
+
+    @Test
+    void everyPagedAdministrationListCanReachItsSecondServerPage() throws Exception {
+        List<CourseCatalogQuery> catalogQueries = new ArrayList<>();
+        List<AdjustmentAuditQuery> auditQueries = new ArrayList<>();
+        List<OfferingSearchQuery> offeringQueries = new ArrayList<>();
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(CourseUiGateway.preview()) {
+            @Override public CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery query) {
+                catalogQueries.add(query);
+                return CompletableFuture.completedFuture(new PageResult<>(List.of(), query.page(), 50, 101));
+            }
+            @Override public CompletableFuture<PageResult<AdjustmentAuditView>> searchAdjustmentAudits(
+                    AdjustmentAuditQuery query) {
+                auditQueries.add(query);
+                return CompletableFuture.completedFuture(new PageResult<>(List.of(), query.page(), 50, 101));
+            }
+            @Override public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) {
+                offeringQueries.add(query);
+                return CompletableFuture.completedFuture(new PageResult<>(List.of(), query.page(), 50, 101));
+            }
+        };
+        CourseCatalogPanel catalog = onEdt(() -> new CourseCatalogPanel(gateway));
+        AdjustmentAuditPanel audits = onEdt(() -> new AdjustmentAuditPanel(gateway));
+        OfferingManagementPanel offerings = onEdt(() -> new OfferingManagementPanel(gateway));
+        SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> { });
+
+        for (Container page : List.of(catalog, audits, offerings)) {
+            SwingUtilities.invokeAndWait(() -> descendants(page).stream().filter(JButton.class::isInstance)
+                    .map(JButton.class::cast).filter(button -> "下一页".equals(button.getText()))
+                    .findFirst().orElseThrow().doClick());
+        }
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(catalogQueries).extracting(CourseCatalogQuery::page).containsExactly(0, 1);
+        assertThat(auditQueries).extracting(AdjustmentAuditQuery::page).containsExactly(0, 1);
+        assertThat(offeringQueries).extracting(OfferingSearchQuery::page).containsExactly(0, 1);
+    }
+
     @Test
     void scheduleUsesAWeeklyGridInsteadOfAPlainEnrollmentTable() throws Exception {
         MySchedulePanel panel = onEdt(() -> new MySchedulePanel(CourseUiGateway.preview()));
@@ -130,6 +329,49 @@ class CourseUiTest {
         assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.NORMAL);
         assertThat(descendants(panel).stream().filter(JPanel.class::isInstance)
                 .map(JPanel.class::cast).anyMatch(p -> p.getLayout() instanceof java.awt.GridBagLayout)).isTrue();
+    }
+
+    @Test
+    void scheduleGridIncludesWeekendAndActualHighPeriods() throws Exception {
+        ScheduleItem saturday = new ScheduleItem("s-weekend", "o-weekend", "ART901", "周末艺术",
+                "周末班", "teacher-1", "SATURDAY", 9, 10, 2, 18, "艺术楼-9");
+        MySchedulePanel panel = onEdt(() -> new MySchedulePanel(
+                scheduleGateway(CompletableFuture.completedFuture(List.of(saturday)))));
+        SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(labels(panel)).contains("星期六", "星期日", "第 9 节", "第 10 节");
+        assertThat(labels(panel)).anyMatch(text -> text.contains("周末艺术") && text.contains("第2–18周"));
+        assertThat(labels(panel)).anyMatch(text -> text.contains("周末艺术（续）"));
+    }
+
+    @Test
+    void scheduleGridKeepsCoursesSharingATimeSlotInDifferentWeeks() throws Exception {
+        List<ScheduleItem> splitWeeks = List.of(
+                new ScheduleItem("s-first", "o-first", "CS301", "编译原理", "01班", "teacher-1",
+                        "TUESDAY", 3, 4, 1, 8, "教一-101"),
+                new ScheduleItem("s-second", "o-second", "CS302", "操作系统", "02班", "teacher-2",
+                        "TUESDAY", 3, 4, 9, 16, "教一-102"));
+        MySchedulePanel panel = onEdt(() -> new MySchedulePanel(
+                scheduleGateway(CompletableFuture.completedFuture(splitWeeks))));
+        SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(labels(panel)).anyMatch(text -> text.contains("编译原理") && text.contains("第1–8周")
+                && text.contains("操作系统") && text.contains("第9–16周"));
+    }
+
+    @Test
+    void scheduleSummaryUsesTheResolvedCurrentTermInsteadOfAHardcodedSemester() throws Exception {
+        ScheduleItem item = new ScheduleItem("s1", "o1", "CS301", "编译原理", "01班", "teacher-1",
+                "MONDAY", 1, 2, 2, 18, "教一-101");
+        MySchedulePanel panel = onEdt(() -> new MySchedulePanel(
+                scheduleGateway(CompletableFuture.completedFuture(List.of(item)))));
+        SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(labels(panel)).contains("2026—2027学年秋季学期 · 第 2–18 周");
+        assertThat(labels(panel)).noneMatch(text -> text.contains("2026–2027 学年秋季学期"));
     }
 
     @Test
@@ -288,6 +530,67 @@ class CourseUiTest {
     }
 
     @Test
+    void cardLayoutPageIgnoresAsyncResultsAfterNavigationHidesIt() throws Exception {
+        CompletableFuture<List<EnrollmentView>> request = new CompletableFuture<>();
+        CourseUiGateway base = CourseUiGateway.preview();
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(base) {
+            @Override public CompletableFuture<List<EnrollmentView>> currentEnrollments() { return request; }
+        };
+        MyEnrollmentPanel panel = onEdt(() -> new MyEnrollmentPanel(gateway));
+        JTable table = descendants(panel).stream().filter(JTable.class::isInstance)
+                .map(JTable.class::cast).findFirst().orElseThrow();
+        JPanel cards = onEdt(() -> {
+            JPanel host = new JPanel(new CardLayout());
+            host.add(panel, "course");
+            host.add(new JPanel(), "other");
+            ((CardLayout) host.getLayout()).show(host, "course");
+            ((CardLayout) host.getLayout()).show(host, "other");
+            return host;
+        });
+
+        request.complete(List.of(new EnrollmentView(
+                "late", "offering-late", "student-late", "NORMAL", "ACTIVE",
+                Instant.parse("2026-08-28T08:00:00Z"), null, 0)));
+        SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(cards.isAncestorOf(panel)).isTrue();
+        assertThat(panel.isVisible()).isFalse();
+        assertThat(table.getRowCount()).isZero();
+    }
+
+    @Test
+    void cardLayoutPageReloadsAutomaticallyAfterItIsShownAgain() throws Exception {
+        CompletableFuture<List<EnrollmentView>> first = new CompletableFuture<>();
+        AtomicInteger calls = new AtomicInteger();
+        CourseUiGateway base = CourseUiGateway.preview();
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(base) {
+            @Override public CompletableFuture<List<EnrollmentView>> currentEnrollments() {
+                return calls.incrementAndGet() == 1 ? first : base.currentEnrollments();
+            }
+        };
+        MyEnrollmentPanel panel = onEdt(() -> new MyEnrollmentPanel(gateway));
+        JTable table = descendants(panel).stream().filter(JTable.class::isInstance)
+                .map(JTable.class::cast).findFirst().orElseThrow();
+        JPanel cards = onEdt(() -> {
+            JPanel host = new JPanel(new CardLayout());
+            host.add(panel, "course");
+            host.add(new JPanel(), "other");
+            CardLayout layout = (CardLayout) host.getLayout();
+            layout.show(host, "other");
+            layout.show(host, "course");
+            return host;
+        });
+        SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(cards.isAncestorOf(panel)).isTrue();
+        assertThat(panel.isVisible()).isTrue();
+        assertThat(calls).hasValue(2);
+        assertThat(table.getRowCount()).isEqualTo(1);
+    }
+
+    @Test
     void adjustmentChangeUsesSelectedEnrollmentTargetAndExpectedVersion() throws Exception {
         AtomicReference<ChangeOfferingCommand> submitted = new AtomicReference<>();
         CourseUiGateway base = CourseUiGateway.preview();
@@ -366,6 +669,153 @@ class CourseUiTest {
 
         assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.EMPTY);
         assertThat(labels(panel)).anyMatch(text -> text.contains("没有可调整的选课或教学班"));
+    }
+
+    @Test
+    void adjustmentActionsStayDisabledOutsideTheAdjustmentPhase() throws Exception {
+        CourseUiGateway base = CourseUiGateway.preview();
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(base) {
+            @Override public CompletableFuture<TermPhaseView> getTermPhase(String termId) {
+                return CompletableFuture.completedFuture(new TermPhaseView(termId, "ACTIVE", "ENROLLMENT",
+                        Instant.parse("2026-08-25T00:00:00Z"), Instant.parse("2026-08-20T00:00:00Z"),
+                        Instant.parse("2026-08-31T16:00:00Z"), Instant.parse("2026-09-01T00:00:00Z"),
+                        Instant.parse("2026-09-08T16:00:00Z")));
+            }
+        };
+        AdjustmentPanel panel = onEdt(() -> new AdjustmentPanel(gateway));
+        SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> { });
+
+        for (String text : List.of("补选所选", "退选所选", "确认改选")) {
+            JButton action = descendants(panel).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
+                    .filter(button -> text.equals(button.getText())).findFirst().orElseThrow();
+            assertThat(action.isEnabled()).as(text).isFalse();
+        }
+        assertThat(labels(panel)).anyMatch(text -> text.contains("服务端阶段：正常选课开放"));
+    }
+
+    @Test
+    void adjustmentPageProvidesAnExplicitRefreshAction() throws Exception {
+        AdjustmentPanel panel = onEdt(() -> new AdjustmentPanel(CourseUiGateway.preview()));
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(buttons(panel)).contains("刷新调整数据");
+    }
+
+    @Test
+    void failedAdjustmentRefreshKeepsPreviouslyLoadedRows() throws Exception {
+        AtomicInteger enrollmentCalls = new AtomicInteger();
+        CourseUiGateway base = CourseUiGateway.preview();
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(base) {
+            @Override public CompletableFuture<List<EnrollmentView>> currentEnrollments() {
+                if (enrollmentCalls.incrementAndGet() == 1) return base.currentEnrollments();
+                return CompletableFuture.failedFuture(new CourseClientException(
+                        "COMMON_NETWORK_ERROR", "network", null, true));
+            }
+            @Override public CompletableFuture<TermPhaseView> getTermPhase(String termId) {
+                return base.getTermPhase(termId);
+            }
+        };
+        AdjustmentPanel panel = onEdt(() -> new AdjustmentPanel(gateway));
+        SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> { });
+        JTable enrollments = descendants(panel).stream().filter(JTable.class::isInstance).map(JTable.class::cast)
+                .filter(table -> "当前选课记录".equals(table.getAccessibleContext().getAccessibleName()))
+                .findFirst().orElseThrow();
+        JTable offerings = descendants(panel).stream().filter(JTable.class::isInstance).map(JTable.class::cast)
+                .filter(table -> "可调整教学班".equals(table.getAccessibleContext().getAccessibleName()))
+                .findFirst().orElseThrow();
+
+        SwingUtilities.invokeAndWait(() -> descendants(panel).stream().filter(JButton.class::isInstance)
+                .map(JButton.class::cast).filter(button -> "刷新调整数据".equals(button.getText()))
+                .findFirst().orElseThrow().doClick());
+        SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(enrollments.getRowCount()).isEqualTo(1);
+        assertThat(offerings.getRowCount()).isEqualTo(3);
+        assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.DISCONNECTED);
+    }
+
+    @Test
+    void successfulLateAddRefreshesAuthoritativeAdjustmentData() throws Exception {
+        AtomicInteger enrollmentLoads = new AtomicInteger();
+        AtomicInteger offeringLoads = new AtomicInteger();
+        CourseUiGateway base = CourseUiGateway.preview();
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(base) {
+            @Override public CompletableFuture<List<EnrollmentView>> currentEnrollments() {
+                enrollmentLoads.incrementAndGet();
+                return base.currentEnrollments();
+            }
+            @Override public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) {
+                offeringLoads.incrementAndGet();
+                return base.searchOfferings(query);
+            }
+            @Override public CompletableFuture<TermPhaseView> getTermPhase(String termId) {
+                return base.getTermPhase(termId);
+            }
+            @Override public CompletableFuture<EnrollmentView> lateAdd(LateAddCommand command) {
+                return base.lateAdd(command);
+            }
+        };
+        AdjustmentPanel panel = onEdt(() -> new AdjustmentPanel(gateway));
+        SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> { });
+        JTable offerings = descendants(panel).stream().filter(JTable.class::isInstance).map(JTable.class::cast)
+                .filter(table -> "可调整教学班".equals(table.getAccessibleContext().getAccessibleName()))
+                .findFirst().orElseThrow();
+        JButton add = descendants(panel).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
+                .filter(button -> "补选所选".equals(button.getText())).findFirst().orElseThrow();
+
+        SwingUtilities.invokeAndWait(() -> { offerings.setRowSelectionInterval(1, 1); add.doClick(); });
+        SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(enrollmentLoads.get()).isEqualTo(2);
+        assertThat(offeringLoads.get()).isEqualTo(2);
+    }
+
+    @Test
+    void successfulAtomicChangeRefreshesAuthoritativeAdjustmentData() throws Exception {
+        AtomicInteger enrollmentLoads = new AtomicInteger();
+        CourseUiGateway base = CourseUiGateway.preview();
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(base) {
+            @Override public CompletableFuture<List<EnrollmentView>> currentEnrollments() {
+                enrollmentLoads.incrementAndGet();
+                return base.currentEnrollments();
+            }
+            @Override public CompletableFuture<TermPhaseView> getTermPhase(String termId) {
+                return base.getTermPhase(termId);
+            }
+            @Override public CompletableFuture<EnrollmentView> change(ChangeOfferingCommand command) {
+                return base.change(command);
+            }
+        };
+        AdjustmentPanel panel = onEdt(() -> new AdjustmentPanel(gateway,
+                (owner, source, target, conflict, request, onSuccess) -> {
+                    request.get().join();
+                    onSuccess.run();
+                }));
+        SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> { });
+        JTable enrollments = descendants(panel).stream().filter(JTable.class::isInstance).map(JTable.class::cast)
+                .filter(table -> "当前选课记录".equals(table.getAccessibleContext().getAccessibleName()))
+                .findFirst().orElseThrow();
+        JTable offerings = descendants(panel).stream().filter(JTable.class::isInstance).map(JTable.class::cast)
+                .filter(table -> "可调整教学班".equals(table.getAccessibleContext().getAccessibleName()))
+                .findFirst().orElseThrow();
+        JButton change = descendants(panel).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
+                .filter(button -> "确认改选".equals(button.getText())).findFirst().orElseThrow();
+
+        SwingUtilities.invokeAndWait(() -> {
+            enrollments.setRowSelectionInterval(0, 0);
+            offerings.setRowSelectionInterval(1, 1);
+            change.doClick();
+        });
+        SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(enrollmentLoads.get()).isEqualTo(2);
     }
 
     @Test
@@ -588,6 +1038,28 @@ class CourseUiTest {
         assertThat(labels(catalog)).contains("课程关键字");
         assertThat(labels(offerings)).contains("学期编号", "课程或教学班");
         assertThat(labels(audits)).contains("学生编号", "学期编号", "操作类型", "操作结果");
+    }
+
+    @Test
+    void overlongAdministrativeIdsShowValidationInsteadOfThrowingOnEdt() throws Exception {
+        AdjustmentAuditPanel audits = onEdt(() -> new AdjustmentAuditPanel(CourseUiGateway.preview()));
+        OfferingManagementPanel offerings = onEdt(() -> new OfferingManagementPanel(CourseUiGateway.preview()));
+        SwingUtilities.invokeAndWait(() -> { });
+        String overlong = "x".repeat(37);
+
+        SwingUtilities.invokeAndWait(() -> {
+            textField(audits, "学生编号").setText(overlong);
+            descendants(audits).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
+                    .filter(button -> "查询审计记录".equals(button.getText())).findFirst().orElseThrow().doClick();
+            textField(offerings, "学期编号").setText(overlong);
+            descendants(offerings).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
+                    .filter(button -> "查询教学班".equals(button.getText())).findFirst().orElseThrow().doClick();
+        });
+
+        assertThat(audits.viewState()).isEqualTo(AbstractCoursePanel.ViewState.ERROR);
+        assertThat(offerings.viewState()).isEqualTo(AbstractCoursePanel.ViewState.ERROR);
+        assertThat(labels(audits)).anyMatch(text -> text.contains("超过 36"));
+        assertThat(labels(offerings)).anyMatch(text -> text.contains("超过 36"));
     }
 
     @Test
@@ -896,6 +1368,8 @@ class CourseUiTest {
         public CompletableFuture<List<EnrollmentView>> currentEnrollments() { return delegate.currentEnrollments(); }
         public CompletableFuture<List<ScheduleItem>> currentSchedule() { return delegate.currentSchedule(); }
         public CompletableFuture<EnrollmentView> enroll(EnrollCommand command) { return delegate.enroll(command); }
+        @Override public CompletableFuture<String> currentTermId() { return delegate.currentTermId(); }
+        @Override public CompletableFuture<List<TermView>> listTerms() { return delegate.listTerms(); }
     }
 
     private static <T> T onEdt(java.util.concurrent.Callable<T> supplier) throws Exception {

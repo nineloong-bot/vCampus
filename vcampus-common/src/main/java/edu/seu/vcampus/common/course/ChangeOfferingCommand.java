@@ -12,9 +12,8 @@ public record ChangeOfferingCommand(String sourceEnrollmentId, String targetOffe
     public ChangeOfferingCommand {
         Objects.requireNonNull(sourceEnrollmentId, "sourceEnrollmentId");
         Objects.requireNonNull(targetOfferingId, "targetOfferingId");
-        if (sourceEnrollmentId.isBlank() || targetOfferingId.isBlank()) {
-            throw new IllegalArgumentException("offering and enrollment identifiers must not be blank");
-        }
+        CourseValidation.text("sourceEnrollmentId", sourceEnrollmentId, 36);
+        CourseValidation.text("targetOfferingId", targetOfferingId, 36);
         if (expectedVersion < 0) throw new IllegalArgumentException("expectedVersion must not be negative");
     }
 }

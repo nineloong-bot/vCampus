@@ -21,6 +21,18 @@ final class AccessEnrollmentRepository {
         } catch (SQLException error) { throw CourseJdbc.failure("read enrollment", error); }
     }
 
+    boolean existsEnrollmentForOffering(Connection c, String offeringId) {
+        try (PreparedStatement statement = c.prepareStatement(
+                "SELECT COUNT(*) FROM tblEnrollment WHERE offeringId=?")) {
+            statement.setString(1, offeringId);
+            try (ResultSet result = statement.executeQuery()) {
+                return result.next() && result.getLong(1) > 0;
+            }
+        } catch (SQLException error) {
+            throw CourseJdbc.failure("check offering enrollment history", error);
+        }
+    }
+
     Enrollment requireEnrollment(Connection c, String enrollmentId) {
         try (PreparedStatement s = c.prepareStatement("SELECT * FROM tblEnrollment WHERE enrollmentId=?")) {
             s.setString(1, enrollmentId); try (ResultSet r = s.executeQuery()) { if (r.next()) return enrollment(r); }

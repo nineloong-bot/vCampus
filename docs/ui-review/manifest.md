@@ -10,7 +10,8 @@ the dedicated UI design-system implementation plan.
 
 ## Course module visual baseline
 
-- Branch baseline: `course`; screenshots are regenerated from the current tested branch state.
+- Branch baseline: `course`; screenshots were regenerated from the current tested branch state
+  on 2026-08-29.
 - Shared source: theme tokens copied byte-for-byte from teammate branch `origin/as811`;
   the course module does not modify `MainFrame` or the shared shell.
 - Reviewed locally at 1280 × 800: C-01 normal/loading/empty/error/disconnected,
@@ -23,9 +24,11 @@ the dedicated UI design-system implementation plan.
   C-09 offering edit (`course/c02-*`, `course/c07-term-editor-*`,
   `course/c08-course-editor-*`, `course/c09-offering-editor-*`).
 - Automated coverage: shared palette/dimensions, query-list structure, table rules,
-  weekly-grid structure, stable navigation IDs, loading/empty/disconnected states,
+  dynamic seven-day/late-period weekly-grid structure with split-week entries, stable navigation
+  IDs, loading/empty/disconnected states,
   complete term windows, optimistic versions, aggregate offering schedules, latest-request
-  ordering, disposal-safe page/dialog callbacks, keyboard focus/accessibility names on every
+  ordering, CardLayout hide/show lifecycle guards, successful adjustment refreshes, real list
+  pagination, failed-refresh data preservation, keyboard focus/accessibility names on every
   business control, and full-text tooltips for width-constrained table cells. The real-socket
   suite also exercises two independent students competing for the one-seat Demo offering.
 - External UI review: pending a non-course teammate, as required by the UI specification.

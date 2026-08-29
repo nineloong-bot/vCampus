@@ -12,8 +12,6 @@ public record EnrollCommand(String offeringId) implements Serializable {
     /** Rejects an absent or blank offering identifier at the message boundary. */
     public EnrollCommand {
         Objects.requireNonNull(offeringId, "offeringId");
-        if (offeringId.isBlank()) {
-            throw new IllegalArgumentException("offeringId must not be blank");
-        }
+        CourseValidation.text("offeringId", offeringId, 36);
     }
 }

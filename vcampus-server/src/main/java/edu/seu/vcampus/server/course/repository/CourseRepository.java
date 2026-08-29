@@ -52,6 +52,9 @@ public interface CourseRepository {
     /** Finds an enrollment by its natural student/offering key. */
     Optional<Enrollment> findEnrollment(Connection connection, String studentId, String offeringId);
 
+    /** Returns whether any retained active or dropped enrollment references an offering. */
+    boolean existsEnrollmentForOffering(Connection connection, String offeringId);
+
     /** Returns an enrollment by its stable identifier or signals that it no longer exists. */
     Enrollment requireEnrollment(Connection connection, String enrollmentId);
 

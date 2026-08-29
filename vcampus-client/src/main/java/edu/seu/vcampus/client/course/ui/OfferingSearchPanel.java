@@ -10,8 +10,6 @@ import edu.seu.vcampus.common.course.EnrollCommand;
 import edu.seu.vcampus.client.course.service.CourseClientException;
 
 import javax.swing.BorderFactory;
-import javax.swing.Box;
-import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
@@ -31,17 +29,19 @@ import java.util.List;
 public final class OfferingSearchPanel extends AbstractCoursePanel {
     private final CourseUiGateway gateway;
     private final JTextField keyword = new JTextField(18);
-    private final JComboBox<String> weekday = new JComboBox<>(new String[]{"全部星期", "星期一", "星期二", "星期三", "星期四", "星期五"});
+    private final JComboBox<String> weekday = new JComboBox<>(new String[]{"全部星期", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"});
     private final JLabel summary = label("共 0 条", UiTypography.BODY, UiColors.TEXT_SECONDARY);
     private final DefaultTableModel model = new DefaultTableModel(new Object[]{"课程代码", "课程名称", "教学班", "授课教师", "上课安排", "余量", "状态"}, 0) {
         public boolean isCellEditable(int row, int column) { return false; }
     };
     private final JTable results = table(new Object[0][0], new Object[0]);
     private final List<OfferingSummary> visibleOfferings = new ArrayList<>();
+    private final CoursePager pager;
 
     public OfferingSearchPanel(CourseUiGateway gateway) {
         super("教学班查询", "按学期、课程或上课时间筛选教学班，查看余量后完成选课。");
         this.gateway = gateway;
+        this.pager = new CoursePager(20, this::loadPage);
         results.setModel(model);
         results.setRowHeight(UiDimensions.TABLE_ROW_HEIGHT);
         results.setShowVerticalLines(false);
@@ -61,7 +61,7 @@ public final class OfferingSearchPanel extends AbstractCoursePanel {
         JScrollPane scroll = new JScrollPane(results);
         scroll.setBorder(BorderFactory.createLineBorder(UiColors.BORDER_DEFAULT));
         listing.add(scroll, BorderLayout.CENTER);
-        listing.add(pager(), BorderLayout.SOUTH);
+        listing.add(pager, BorderLayout.SOUTH);
         body.add(listing, BorderLayout.CENTER);
         refresh();
     }
@@ -87,35 +87,24 @@ public final class OfferingSearchPanel extends AbstractCoursePanel {
         return panel;
     }
 
-    private JPanel pager() {
-        JPanel panel = new JPanel();
-        panel.setOpaque(false);
-        panel.setLayout(new BoxLayout(panel, BoxLayout.X_AXIS));
-        panel.add(label("每页 20 条", UiTypography.CAPTION, UiColors.TEXT_SECONDARY));
-        panel.add(Box.createHorizontalGlue());
-        panel.add(secondary("上一页"));
-        panel.add(Box.createHorizontalStrut(UiSpacing.SM));
-        panel.add(label("第 1 / 1 页", UiTypography.BODY, UiColors.TEXT_PRIMARY));
-        panel.add(Box.createHorizontalStrut(UiSpacing.SM));
-        panel.add(secondary("下一页"));
-        return panel;
+    public void refresh() {
+        loadPage(0);
     }
 
-    public void refresh() {
+    @Override protected void refreshAfterNavigation() { refresh(); }
+
+    private void loadPage(int pageNumber) {
         long request = beginAsyncRequest();
         showState(ViewState.LOADING, "正在加载教学班，请稍候");
         gateway.currentTermId().thenCompose(term -> gateway.searchOfferings(new OfferingSearchQuery(
-                        term, keyword.getText(), selectedDay(), true, 0, 20)))
+                        term, keyword.getText(), selectedDay(), true, pageNumber, 20)))
                 .whenComplete((page, error) -> SwingUtilities.invokeLater(() -> {
                     if (!acceptsAsyncResult(request)) return;
-                    model.setRowCount(0);
-                    visibleOfferings.clear();
                     if (error != null) {
                         Throwable cause = error;
                         while (cause instanceof java.util.concurrent.CompletionException && cause.getCause() != null) cause = cause.getCause();
                         if (cause instanceof CourseClientException failure
                                 && ("COMMON_NETWORK_ERROR".equals(failure.code()) || "COMMON_TIMEOUT".equals(failure.code()))) {
-                            summary.setText("共 0 条");
                             showState(ViewState.DISCONNECTED, "连接已断开，请检查网络后重试；已加载内容将继续保留");
                         } else if (cause instanceof CourseClientException failure
                                 && "COMMON_CONCURRENT_MODIFICATION".equals(failure.code())) {
@@ -125,6 +114,8 @@ public final class OfferingSearchPanel extends AbstractCoursePanel {
                         }
                         return;
                     }
+                    model.setRowCount(0);
+                    visibleOfferings.clear();
                     for (OfferingSummary row : page.items()) {
                         visibleOfferings.add(row);
                         String time = row.schedules().isEmpty() ? "待安排" : dayName(row.schedules().getFirst().dayOfWeek())
@@ -133,6 +124,7 @@ public final class OfferingSearchPanel extends AbstractCoursePanel {
                                 (row.capacity() - row.enrolledCount()) + " / " + row.capacity(), "可选"});
                     }
                     summary.setText("共 " + page.total() + " 条");
+                    pager.showPage(page.page(), page.total());
                     showState(page.items().isEmpty() ? ViewState.EMPTY : ViewState.NORMAL,
                             page.items().isEmpty() ? "未找到教学班，请调整筛选条件或重置查询" : "");
                 }));
@@ -141,7 +133,8 @@ public final class OfferingSearchPanel extends AbstractCoursePanel {
     private String selectedDay() {
         return switch (weekday.getSelectedIndex()) {
             case 1 -> "MONDAY"; case 2 -> "TUESDAY"; case 3 -> "WEDNESDAY";
-            case 4 -> "THURSDAY"; case 5 -> "FRIDAY"; default -> null;
+            case 4 -> "THURSDAY"; case 5 -> "FRIDAY"; case 6 -> "SATURDAY";
+            case 7 -> "SUNDAY"; default -> null;
         };
     }
 

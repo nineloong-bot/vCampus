@@ -20,6 +20,8 @@ import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Insets;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 
 /** Shared course-page composition that consumes the teammate-owned UI tokens. */
 abstract class AbstractCoursePanel extends JPanel {
@@ -29,6 +31,7 @@ abstract class AbstractCoursePanel extends JPanel {
     private final JLabel stateNotice = label("", UiTypography.BODY, UiColors.TEXT_PRIMARY);
     private volatile ViewState viewState = ViewState.INITIAL;
     private final UiAsyncGuard asyncGuard = new UiAsyncGuard();
+    private boolean reloadWhenShown;
 
     protected AbstractCoursePanel(String title, String description) {
         super(new BorderLayout(0, UiSpacing.XL));
@@ -45,7 +48,24 @@ abstract class AbstractCoursePanel extends JPanel {
                 BorderFactory.createEmptyBorder(UiSpacing.MD, UiSpacing.LG, UiSpacing.MD, UiSpacing.LG)));
         stateNotice.setVisible(false);
         add(stateNotice, BorderLayout.SOUTH);
+        addComponentListener(new ComponentAdapter() {
+            @Override public void componentHidden(ComponentEvent event) {
+                asyncGuard.deactivate();
+                reloadWhenShown = true;
+            }
+
+            @Override public void componentShown(ComponentEvent event) {
+                asyncGuard.activate();
+                if (reloadWhenShown) {
+                    reloadWhenShown = false;
+                    refreshAfterNavigation();
+                }
+            }
+        });
     }
+
+    /** Reloads authoritative data after CardLayout navigation makes this page visible again. */
+    protected void refreshAfterNavigation() { }
 
     final ViewState viewState() {
         return viewState;

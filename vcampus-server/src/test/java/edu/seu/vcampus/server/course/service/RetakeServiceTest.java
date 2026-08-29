@@ -119,6 +119,18 @@ class RetakeServiceTest {
     }
 
     @Test
+    void rejectsOutcomeImportForUnknownStudentWithoutWritingAttempts() {
+        var command = new ImportCourseOutcomesCommand(List.of(
+                new ImportCourseOutcomesCommand.OutcomeEntry(
+                        "missing-student", "course-1", "term-1", CourseOutcome.FAILED, "unknown-source")));
+
+        assertThatThrownBy(() -> service.importCourseOutcomes(command))
+                .isInstanceOf(OutcomeImportInvalidException.class)
+                .extracting("code").isEqualTo("COURSE_OUTCOME_IMPORT_INVALID");
+        assertThat(attemptCount()).isZero();
+    }
+
+    @Test
     void enrollsEligibleFailedCourseThroughThePipelineAsRetake() {
         importOutcome(CourseOutcome.FAILED, "failed-source");
         seedOffering("offering-1", "course-1", 2, 0, "OPEN");
@@ -483,7 +495,12 @@ class RetakeServiceTest {
     private CourseService createService(CourseAuthorizationGateway authorization,
                                         CourseStudentGateway students,
                                         StripedResourceLockManager locks) {
-        return new CourseServiceImpl(authorization, students, repository, locks,
+        CourseStudentGateway checkedStudents = CourseStudentGateway.of(
+                students::getEnrollmentEligibility,
+                studentId -> studentRecords.values().stream()
+                        .anyMatch(record -> record.studentId().equals(studentId)
+                                && "ACTIVE".equals(record.status())));
+        return new CourseServiceImpl(authorization, checkedStudents, repository, locks,
                 new TransactionManager(connections), new TermWindowPolicy(),
                 new ScheduleConflictPolicy(), Clock.fixed(NOW, ZoneOffset.UTC));
     }

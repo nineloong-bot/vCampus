@@ -26,6 +26,7 @@ public final class CourseClientService {
     public CourseClientService(CourseTransport transport) { this.transport = Objects.requireNonNull(transport); }
 
     public CompletableFuture<List<TermView>> listTerms() { return callList("COURSE_TERM_LIST", EmptyRequest.INSTANCE, READ, TermView.class); }
+    public CompletableFuture<TermView> getCurrentTerm() { return call("COURSE_GET_CURRENT_TERM", EmptyRequest.INSTANCE, READ, TermView.class); }
     public CompletableFuture<TermView> createTerm(CreateTermCommand c) { return call("COURSE_TERM_CREATE", c, WRITE, TermView.class); }
     public CompletableFuture<TermView> updateTerm(UpdateTermCommand c) { return call("COURSE_TERM_UPDATE", c, WRITE, TermView.class); }
     public CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery q) { return callPage("COURSE_CATALOG_SEARCH", q, READ, CourseView.class); }

@@ -31,17 +31,23 @@ public final class OfferingManagementPanel extends AbstractCoursePanel {
             "课程代码", "课程名称", "教学班", "授课教师", "容量", "已选", "状态", "版本");
     private final JTable table = table(new Object[0][0], new Object[0]);
     private final List<OfferingSummary> offerings = new ArrayList<>();
+    private final CoursePager pager;
 
     public OfferingManagementPanel(CourseUiGateway gateway) {
         super("教学班管理", "维护教学班容量、教师、上课时间地点与开放状态。");
         this.gateway = gateway;
+        this.pager = new CoursePager(50, this::search);
         body.add(filters(), BorderLayout.NORTH);
         table.setModel(model);
         table.getTableHeader().setBackground(UiColors.BACKGROUND_SUBTLE);
         table.getAccessibleContext().setAccessibleName("教学班管理列表");
         JScrollPane scroll = new JScrollPane(table);
         scroll.setBorder(BorderFactory.createLineBorder(UiColors.BORDER_DEFAULT));
-        body.add(scroll, BorderLayout.CENTER);
+        JPanel listing = new JPanel(new BorderLayout(0, UiSpacing.MD));
+        listing.setOpaque(false);
+        listing.add(scroll, BorderLayout.CENTER);
+        listing.add(pager, BorderLayout.SOUTH);
+        body.add(listing, BorderLayout.CENTER);
         body.add(actions(), BorderLayout.SOUTH);
         initializeTerm();
     }
@@ -81,7 +87,7 @@ public final class OfferingManagementPanel extends AbstractCoursePanel {
         panel.add(reset);
         panel.add(Box.createHorizontalStrut(UiSpacing.SM));
         JButton search = primary("查询教学班");
-        search.addActionListener(event -> search());
+        search.addActionListener(event -> search(0));
         panel.add(search);
         return panel;
     }
@@ -93,28 +99,36 @@ public final class OfferingManagementPanel extends AbstractCoursePanel {
             if (!acceptsAsyncResult(request)) return;
             if (error != null) { showState(ViewState.ERROR, "尚未配置可用学期，请先在学期管理中创建学期"); return; }
             termId.setText(term);
-            search();
+            search(0);
         }));
     }
 
-    private void search() {
+    private void search(int pageNumber) {
         String term = termId.getText().trim();
         if (term.isEmpty()) { showState(ViewState.ERROR, "请输入学期编号后再查询"); return; }
+        if (term.length() > 36) { showState(ViewState.ERROR, "学期编号不能超过 36 个字符"); return; }
         long request = beginAsyncRequest();
         showState(ViewState.LOADING, "正在加载教学班，请稍候");
-        gateway.searchOfferings(new OfferingSearchQuery(term, keyword.getText().trim(), null, false, 0, 50))
+        gateway.searchOfferings(new OfferingSearchQuery(
+                        term, keyword.getText().trim(), null, false, pageNumber, 50))
                 .whenComplete((page, error) -> SwingUtilities.invokeLater(() -> {
                     if (!acceptsAsyncResult(request)) return;
+                    if (error != null) { showState(ViewState.DISCONNECTED, "无法加载教学班，请检查连接后重试"); return; }
                     model.setRowCount(0);
                     offerings.clear();
-                    if (error != null) { showState(ViewState.DISCONNECTED, "无法加载教学班，请检查连接后重试"); return; }
                     offerings.addAll(page.items());
                     for (OfferingSummary row : page.items()) model.addRow(new Object[]{
                             row.courseCode(), row.courseName(), row.className(), row.teacherUserId(), row.capacity(),
                             row.enrolledCount(), status(row.offeringStatus()), "v" + row.rowVersion()});
+                    pager.showPage(page.page(), page.total());
                     showState(page.items().isEmpty() ? ViewState.EMPTY : ViewState.NORMAL,
                             page.items().isEmpty() ? "当前学期没有符合条件的教学班" : "");
                 }));
+    }
+
+    @Override protected void refreshAfterNavigation() {
+        if (termId.getText().isBlank()) initializeTerm();
+        else search(pager.currentPage());
     }
 
     private void editSelected() {
@@ -124,7 +138,8 @@ public final class OfferingManagementPanel extends AbstractCoursePanel {
     }
 
     private void openEditor(OfferingSummary offering) {
-        new OfferingEditorDialog(SwingUtilities.getWindowAncestor(this), gateway, offering, this::search).setVisible(true);
+        new OfferingEditorDialog(SwingUtilities.getWindowAncestor(this), gateway, offering,
+                () -> search(pager.currentPage())).setVisible(true);
     }
 
     private static JTextField field(String name, String value) {

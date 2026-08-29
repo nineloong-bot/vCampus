@@ -10,6 +10,6 @@ public record LateAddCommand(String offeringId) implements Serializable {
 
     public LateAddCommand {
         Objects.requireNonNull(offeringId, "offeringId");
-        if (offeringId.isBlank()) throw new IllegalArgumentException("offeringId must not be blank");
+        CourseValidation.text("offeringId", offeringId, 36);
     }
 }

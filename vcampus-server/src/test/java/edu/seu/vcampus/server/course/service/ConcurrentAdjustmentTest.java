@@ -50,7 +50,7 @@ class ConcurrentAdjustmentTest {
         Path data = Path.of("target", "test-data");
         Files.createDirectories(data);
         String url = "jdbc:ucanaccess://" + data.resolve(UUID.randomUUID() + ".accdb")
-                + ";newDatabaseVersion=V2010;immediatelyReleaseResources=true";
+                + ";newDatabaseVersion=V2010";
         try (Connection connection = DriverManager.getConnection(url)) {
             for (String statement : Files.readString(schema()).split(";")) {
                 if (!statement.isBlank()) connection.createStatement().execute(statement);

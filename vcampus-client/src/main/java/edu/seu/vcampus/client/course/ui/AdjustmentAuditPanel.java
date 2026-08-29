@@ -33,10 +33,12 @@ public final class AdjustmentAuditPanel extends AbstractCoursePanel {
     private final JComboBox<String> type = combo("操作类型", "全部操作", "补选", "退选", "改选");
     private final JComboBox<String> result = combo("操作结果", "全部结果", "成功", "失败");
     private final DefaultTableModel model = readOnlyModel("操作时间", "学生", "操作", "原教学班", "目标教学班", "结果", "失败原因");
+    private final CoursePager pager;
 
     public AdjustmentAuditPanel(CourseUiGateway gateway) {
         super("选课调整审计", "查询补选、退选、改选及失败原因；记录由服务端生成且不可修改。");
         this.gateway = gateway;
+        this.pager = new CoursePager(50, this::search);
         body.add(filters(), BorderLayout.NORTH);
         JTable table = table(new Object[0][0], new Object[0]);
         table.setModel(model);
@@ -44,8 +46,12 @@ public final class AdjustmentAuditPanel extends AbstractCoursePanel {
         table.getAccessibleContext().setAccessibleName("选课调整审计记录");
         JScrollPane scroll = new JScrollPane(table);
         scroll.setBorder(BorderFactory.createLineBorder(UiColors.BORDER_DEFAULT));
-        body.add(scroll, BorderLayout.CENTER);
-        search();
+        JPanel listing = new JPanel(new BorderLayout(0, UiSpacing.MD));
+        listing.setOpaque(false);
+        listing.add(scroll, BorderLayout.CENTER);
+        listing.add(pager, BorderLayout.SOUTH);
+        body.add(listing, BorderLayout.CENTER);
+        search(0);
     }
 
     private JPanel filters() {
@@ -75,37 +81,48 @@ public final class AdjustmentAuditPanel extends AbstractCoursePanel {
             term.setText("");
             type.setSelectedIndex(0);
             result.setSelectedIndex(0);
-            search();
+            search(0);
         });
         panel.add(reset);
         panel.add(Box.createHorizontalStrut(UiSpacing.SM));
         JButton search = primary("查询审计记录");
-        search.addActionListener(event -> search());
+        search.addActionListener(event -> search(0));
         panel.add(search);
         return panel;
     }
 
-    private void search() {
+    private void search(int pageNumber) {
+        String studentId = blankToNull(student.getText());
+        String termId = blankToNull(term.getText());
+        if (tooLongId(studentId) || tooLongId(termId)) {
+            showState(ViewState.ERROR, "学生编号和学期编号均不能超过 36 个字符");
+            return;
+        }
         long request = beginAsyncRequest();
         showState(ViewState.LOADING, "正在查询审计记录，请稍候");
-        AdjustmentAuditQuery query = new AdjustmentAuditQuery(blankToNull(student.getText()), blankToNull(term.getText()),
+        AdjustmentAuditQuery query = new AdjustmentAuditQuery(studentId, termId,
                 selected(type, new String[]{null, "ADD", "DROP", "CHANGE"}),
-                selected(result, new String[]{null, "SUCCEEDED", "FAILED"}), 0, 50);
+                selected(result, new String[]{null, "SUCCEEDED", "FAILED"}), pageNumber, 50);
         gateway.searchAdjustmentAudits(query).whenComplete((page, error) -> SwingUtilities.invokeLater(() -> {
             if (!acceptsAsyncResult(request)) return;
-            model.setRowCount(0);
             if (error != null) {
                 showState(ViewState.DISCONNECTED, "无法读取审计记录，请检查连接后重试");
                 return;
             }
+            model.setRowCount(0);
             for (AdjustmentAuditView row : page.items()) model.addRow(new Object[]{
                     TIME.format(row.operatedAt()), row.studentId(), adjustmentType(row.adjustmentType()),
                     textOrDash(row.sourceOfferingId()), textOrDash(row.targetOfferingId()),
                     operationResult(row.operationResult()), failureReason(row.failureCode())});
+            pager.showPage(page.page(), page.total());
             showState(page.items().isEmpty() ? ViewState.EMPTY : ViewState.NORMAL,
                     page.items().isEmpty() ? "未找到符合条件的审计记录，请调整筛选条件" : "");
         }));
     }
+
+    @Override protected void refreshAfterNavigation() { search(pager.currentPage()); }
+
+    private static boolean tooLongId(String value) { return value != null && value.length() > 36; }
 
     private static JTextField field(String name) {
         JTextField field = new JTextField();

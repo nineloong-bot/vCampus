@@ -209,7 +209,7 @@ final class EnrollmentAdjustmentService {
 
     private CourseSessionIdentity requireStudentSessionInstance(String token) {
         CourseSessionIdentity identity = authorization.requireSession(token);
-        if (identity == null || !("STUDENT".equals(identity.role()) || "ADMIN".equals(identity.role()))) throw new CourseForbiddenException();
+        if (identity == null || !"STUDENT".equals(identity.role())) throw new CourseForbiddenException();
         return identity;
     }
 

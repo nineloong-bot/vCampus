@@ -31,19 +31,25 @@ public final class CourseCatalogPanel extends AbstractCoursePanel {
     private final DefaultTableModel model = readOnlyModel("课程代码", "课程名称", "学分", "总学时", "状态", "版本");
     private final JTable table = table(new Object[0][0], new Object[0]);
     private final List<CourseView> courses = new ArrayList<>();
+    private final CoursePager pager;
 
     public CourseCatalogPanel(CourseUiGateway gateway) {
         super("课程目录管理", "维护课程代码、名称、学分与启用状态；修改使用服务端乐观锁版本。");
         this.gateway = gateway;
+        this.pager = new CoursePager(50, this::search);
         body.add(filters(), BorderLayout.NORTH);
         table.setModel(model);
         table.getTableHeader().setBackground(UiColors.BACKGROUND_SUBTLE);
         table.getAccessibleContext().setAccessibleName("课程目录列表");
         JScrollPane scroll = new JScrollPane(table);
         scroll.setBorder(BorderFactory.createLineBorder(UiColors.BORDER_DEFAULT));
-        body.add(scroll, BorderLayout.CENTER);
+        JPanel listing = new JPanel(new BorderLayout(0, UiSpacing.MD));
+        listing.setOpaque(false);
+        listing.add(scroll, BorderLayout.CENTER);
+        listing.add(pager, BorderLayout.SOUTH);
+        body.add(listing, BorderLayout.CENTER);
         body.add(actions(), BorderLayout.SOUTH);
-        search();
+        search(0);
     }
 
     private JPanel filters() {
@@ -65,11 +71,11 @@ public final class CourseCatalogPanel extends AbstractCoursePanel {
         panel.add(activeOnly);
         panel.add(Box.createHorizontalGlue());
         JButton reset = secondary("重置条件");
-        reset.addActionListener(event -> { keyword.setText(""); activeOnly.setSelected(false); search(); });
+        reset.addActionListener(event -> { keyword.setText(""); activeOnly.setSelected(false); search(0); });
         panel.add(reset);
         panel.add(Box.createHorizontalStrut(UiSpacing.SM));
         JButton search = secondary("查询课程");
-        search.addActionListener(event -> search());
+        search.addActionListener(event -> search(0));
         panel.add(search);
         return panel;
     }
@@ -91,23 +97,27 @@ public final class CourseCatalogPanel extends AbstractCoursePanel {
         return panel;
     }
 
-    private void search() {
+    private void search(int pageNumber) {
         long request = beginAsyncRequest();
         showState(ViewState.LOADING, "正在查询课程目录，请稍候");
-        CourseCatalogQuery query = new CourseCatalogQuery(keyword.getText().trim(), activeOnly.isSelected() ? Boolean.TRUE : null, 0, 50);
+        CourseCatalogQuery query = new CourseCatalogQuery(keyword.getText().trim(),
+                activeOnly.isSelected() ? Boolean.TRUE : null, pageNumber, 50);
         gateway.searchCatalog(query).whenComplete((page, error) -> SwingUtilities.invokeLater(() -> {
             if (!acceptsAsyncResult(request)) return;
+            if (error != null) { showState(ViewState.DISCONNECTED, "无法读取课程目录，请检查连接后重试"); return; }
             model.setRowCount(0);
             courses.clear();
-            if (error != null) { showState(ViewState.DISCONNECTED, "无法读取课程目录，请检查连接后重试"); return; }
             courses.addAll(page.items());
             for (CourseView row : page.items()) model.addRow(new Object[]{
                     row.courseCode(), row.courseName(), row.credit().stripTrailingZeros().toPlainString(), row.totalHours(),
                     row.active() ? "启用" : "已停用", "v" + row.rowVersion()});
+            pager.showPage(page.page(), page.total());
             showState(page.items().isEmpty() ? ViewState.EMPTY : ViewState.NORMAL,
                     page.items().isEmpty() ? "未找到符合条件的课程，请调整查询条件" : "");
         }));
     }
+
+    @Override protected void refreshAfterNavigation() { search(pager.currentPage()); }
 
     private void editSelected() {
         int selected = table.getSelectedRow();
@@ -116,7 +126,8 @@ public final class CourseCatalogPanel extends AbstractCoursePanel {
     }
 
     private void openEditor(CourseView course) {
-        CourseEditorDialog dialog = new CourseEditorDialog(SwingUtilities.getWindowAncestor(this), gateway, course, this::search);
+        CourseEditorDialog dialog = new CourseEditorDialog(SwingUtilities.getWindowAncestor(this), gateway, course,
+                () -> search(pager.currentPage()));
         dialog.setVisible(true);
     }
 

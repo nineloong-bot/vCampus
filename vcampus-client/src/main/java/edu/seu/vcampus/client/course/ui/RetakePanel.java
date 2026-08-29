@@ -62,6 +62,10 @@ public final class RetakePanel extends AbstractCoursePanel {
         panel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, UiColors.BORDER_DEFAULT));
         panel.add(label("只有历史结果为“未通过”的课程可以重修", UiTypography.CAPTION, UiColors.TEXT_SECONDARY));
         panel.add(Box.createHorizontalGlue());
+        JButton refresh = secondary("刷新教学班");
+        refresh.addActionListener(event -> loadOfferings());
+        panel.add(refresh);
+        panel.add(Box.createHorizontalStrut(UiSpacing.SM));
         check.addActionListener(event -> checkEligibility());
         panel.add(check);
         panel.add(Box.createHorizontalStrut(UiSpacing.SM));
@@ -78,9 +82,11 @@ public final class RetakePanel extends AbstractCoursePanel {
                         new OfferingSearchQuery(term, "", null, true, 0, 100)))
                 .whenComplete((page, error) -> SwingUtilities.invokeLater(() -> {
                     if (!acceptsAsyncResult(request)) return;
+                    if (error != null) { showState(ViewState.DISCONNECTED, "无法加载重修教学班，请检查连接后重试"); return; }
                     model.setRowCount(0);
                     offerings.clear();
-                    if (error != null) { showState(ViewState.DISCONNECTED, "无法加载重修教学班，请检查连接后重试"); return; }
+                    eligibleRow = -1;
+                    enroll.setEnabled(false);
                     offerings.addAll(page.items());
                     for (OfferingSummary row : offerings) model.addRow(new Object[]{
                             row.courseCode(), row.courseName(), row.className(), row.teacherUserId(),
@@ -90,6 +96,8 @@ public final class RetakePanel extends AbstractCoursePanel {
                             offerings.isEmpty() ? "当前没有可用于重修的教学班" : "");
                 }));
     }
+
+    @Override protected void refreshAfterNavigation() { loadOfferings(); }
 
     private void checkEligibility() {
         int row = table.getSelectedRow();

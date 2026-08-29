@@ -43,6 +43,9 @@ public final class AccessCourseRepository implements CourseRepository {
     @Override public Optional<Enrollment> findEnrollment(Connection c, String studentId, String offeringId) {
         return enrollments.findEnrollment(c, studentId, offeringId);
     }
+    @Override public boolean existsEnrollmentForOffering(Connection c, String offeringId) {
+        return enrollments.existsEnrollmentForOffering(c, offeringId);
+    }
     @Override public Enrollment requireEnrollment(Connection c, String enrollmentId) {
         return enrollments.requireEnrollment(c, enrollmentId);
     }

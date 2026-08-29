@@ -55,9 +55,9 @@ public final class TermManagementPanel extends AbstractCoursePanel {
         showState(ViewState.LOADING, "正在加载学期配置，请稍候");
         gateway.listTerms().whenComplete((terms, error) -> SwingUtilities.invokeLater(() -> {
             if (!acceptsAsyncResult(request)) return;
+            if (error != null) { showState(ViewState.DISCONNECTED, "无法加载学期配置，请检查连接后重试"); return; }
             model.setRowCount(0);
             this.terms.clear();
-            if (error != null) { showState(ViewState.DISCONNECTED, "无法加载学期配置，请检查连接后重试"); return; }
             this.terms.addAll(terms);
             for (TermView term : terms) model.addRow(new Object[]{
                     term.termCode(), term.termName(), window(term.enrollmentStartAt(), term.enrollmentEndAt()),
@@ -66,6 +66,8 @@ public final class TermManagementPanel extends AbstractCoursePanel {
                     terms.isEmpty() ? "当前尚未配置学期，请新建学期后继续" : "");
         }));
     }
+
+    @Override protected void refreshAfterNavigation() { load(); }
 
     private void editSelected() {
         int selected = table.getSelectedRow();

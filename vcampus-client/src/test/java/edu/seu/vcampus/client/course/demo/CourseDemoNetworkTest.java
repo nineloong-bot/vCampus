@@ -80,7 +80,8 @@ class CourseDemoNetworkTest {
                     () -> attempt(second, raceOffering.offeringId()));
             List<RaceResult> results = List.of(firstAttempt.join(), secondAttempt.join());
 
-            assertThat(results).filteredOn(RaceResult::success).hasSize(1);
+            assertThat(results).as("race results: %s", results)
+                    .filteredOn(RaceResult::success).hasSize(1);
             assertThat(results).filteredOn(result -> !result.success())
                     .singleElement().extracting(RaceResult::code).isEqualTo("COURSE_OFFERING_FULL");
         } finally {

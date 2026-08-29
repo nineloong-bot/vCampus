@@ -47,13 +47,16 @@ public final class CourseRuntimeAdapters {
     public static <E> CourseStudentGateway students(
             Function<String, E> getEnrollmentEligibility,
             Function<E, String> studentId,
-            Function<E, String> status) {
+            Function<E, String> status,
+            Predicate<String> activeStudentExists) {
         Objects.requireNonNull(getEnrollmentEligibility);
         Objects.requireNonNull(studentId);
         Objects.requireNonNull(status);
-        return userId -> {
-            E eligibility = Objects.requireNonNull(getEnrollmentEligibility.apply(userId), "student eligibility");
-            return new StudentEnrollmentEligibility(studentId.apply(eligibility), status.apply(eligibility));
-        };
+        Objects.requireNonNull(activeStudentExists);
+        return CourseStudentGateway.of(userId -> {
+                    E eligibility = Objects.requireNonNull(
+                            getEnrollmentEligibility.apply(userId), "student eligibility");
+                    return new StudentEnrollmentEligibility(studentId.apply(eligibility), status.apply(eligibility));
+                }, activeStudentExists);
     }
 }

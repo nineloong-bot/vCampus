@@ -61,11 +61,11 @@ public final class MyEnrollmentPanel extends AbstractCoursePanel {
         showState(ViewState.LOADING, "正在加载我的选课，请稍候");
         gateway.currentEnrollments().whenComplete((enrollments, error) -> SwingUtilities.invokeLater(() -> {
             if (!acceptsAsyncResult(request)) return;
-            model.setRowCount(0);
             if (error != null) {
                 showState(ViewState.DISCONNECTED, "无法加载我的选课，请检查连接后重试");
                 return;
             }
+            model.setRowCount(0);
             for (EnrollmentView enrollment : enrollments) {
                 model.addRow(new Object[]{enrollment.offeringId(), typeName(enrollment.enrollmentType()),
                         statusName(enrollment.enrollmentStatus()), TIME.format(enrollment.enrolledAt()),
@@ -76,6 +76,8 @@ public final class MyEnrollmentPanel extends AbstractCoursePanel {
                     enrollments.isEmpty() ? "当前学期还没有选课，可前往“教学班查询”选择课程" : "");
         }));
     }
+
+    @Override protected void refreshAfterNavigation() { refresh(); }
 
     private static String typeName(String type) {
         return "RETAKE".equals(type) ? "重修" : "NORMAL".equals(type) ? "正常选课" : type;

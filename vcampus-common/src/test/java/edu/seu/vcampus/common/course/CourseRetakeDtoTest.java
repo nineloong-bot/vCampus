@@ -52,6 +52,15 @@ class CourseRetakeDtoTest {
         assertThatThrownBy(() -> new ImportCourseOutcomesCommand.OutcomeEntry(
                 "student-1", "course-1", "term-1", CourseOutcome.FAILED, "x".repeat(129)))
                 .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new ImportCourseOutcomesCommand.OutcomeEntry(
+                "s".repeat(37), "course-1", "term-1", CourseOutcome.FAILED, "source-1"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new ImportCourseOutcomesCommand.OutcomeEntry(
+                "student-1", "c".repeat(37), "term-1", CourseOutcome.FAILED, "source-1"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new ImportCourseOutcomesCommand.OutcomeEntry(
+                "student-1", "course-1", "t".repeat(37), CourseOutcome.FAILED, "source-1"))
+                .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new RetakeCommand(" "))
                 .isInstanceOf(IllegalArgumentException.class);
     }

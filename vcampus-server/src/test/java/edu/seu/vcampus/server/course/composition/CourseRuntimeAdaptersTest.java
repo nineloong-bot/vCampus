@@ -28,9 +28,12 @@ class CourseRuntimeAdaptersTest {
         record ExternalEligibility(String studentId, String status) { }
         var adapter = CourseRuntimeAdapters.students(
                 userId -> new ExternalEligibility("student-for-" + userId, "ACTIVE"),
-                ExternalEligibility::studentId, ExternalEligibility::status);
+                ExternalEligibility::studentId, ExternalEligibility::status,
+                studentId -> "student-for-user-1".equals(studentId));
 
         assertThat(adapter.getEnrollmentEligibility("user-1").studentId()).isEqualTo("student-for-user-1");
         assertThat(adapter.getEnrollmentEligibility("user-1").status()).isEqualTo("ACTIVE");
+        assertThat(adapter.existsActiveStudent("student-for-user-1")).isTrue();
+        assertThat(adapter.existsActiveStudent("missing")).isFalse();
     }
 }

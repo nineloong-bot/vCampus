@@ -10,7 +10,7 @@ public record DropCommand(String enrollmentId, long expectedVersion) implements 
 
     public DropCommand {
         Objects.requireNonNull(enrollmentId, "enrollmentId");
-        if (enrollmentId.isBlank()) throw new IllegalArgumentException("enrollmentId must not be blank");
+        CourseValidation.text("enrollmentId", enrollmentId, 36);
         if (expectedVersion < 0) throw new IllegalArgumentException("expectedVersion must not be negative");
     }
 }

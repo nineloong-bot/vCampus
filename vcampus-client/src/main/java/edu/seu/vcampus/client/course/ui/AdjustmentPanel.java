@@ -49,6 +49,10 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
     private final List<EnrollmentView> enrollments = new ArrayList<>();
     private final List<OfferingSummary> offerings = new ArrayList<>();
     private final List<ScheduleItem> currentSchedule = new ArrayList<>();
+    private final JButton add = secondary("补选所选");
+    private final JButton drop = secondary("退选所选");
+    private final JButton change = primary("确认改选");
+    private boolean adjustmentOpen;
 
     public AdjustmentPanel(CourseUiGateway gateway) {
         this(gateway, (owner, source, target, conflict, request, onSuccess) ->
@@ -69,7 +73,13 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
         phaseSummary.setOpaque(true);
         phaseSummary.setBackground(UiColors.BACKGROUND_SUBTLE);
         phaseSummary.setBorder(BorderFactory.createEmptyBorder(UiSpacing.MD, UiSpacing.LG, UiSpacing.MD, UiSpacing.LG));
-        body.add(phaseSummary, BorderLayout.NORTH);
+        JPanel phaseBar = new JPanel(new BorderLayout(UiSpacing.MD, 0));
+        phaseBar.setBackground(UiColors.BACKGROUND_SUBTLE);
+        phaseBar.add(phaseSummary, BorderLayout.CENTER);
+        JButton refresh = secondary("刷新调整数据");
+        refresh.addActionListener(event -> refresh());
+        phaseBar.add(refresh, BorderLayout.EAST);
+        body.add(phaseBar, BorderLayout.NORTH);
 
         JPanel tables = new JPanel(new GridLayout(2, 1, 0, UiSpacing.LG));
         tables.setOpaque(false);
@@ -87,15 +97,15 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
         panel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, UiColors.BORDER_DEFAULT));
         panel.add(label("改选将同时锁定原教学班和目标教学班", UiTypography.CAPTION, UiColors.TEXT_SECONDARY));
         panel.add(Box.createHorizontalGlue());
-        JButton add = secondary("补选所选");
+        add.setEnabled(false);
         add.addActionListener(event -> lateAdd(add));
         panel.add(add);
         panel.add(Box.createHorizontalStrut(UiSpacing.SM));
-        JButton drop = secondary("退选所选");
+        drop.setEnabled(false);
         drop.addActionListener(event -> drop(drop));
         panel.add(drop);
         panel.add(Box.createHorizontalStrut(UiSpacing.SM));
-        JButton change = primary("确认改选");
+        change.setEnabled(false);
         change.addActionListener(event -> change(change));
         panel.add(change);
         return panel;
@@ -112,7 +122,14 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
     }
 
     private void refresh() {
+        refresh("");
+    }
+
+    @Override protected void refreshAfterNavigation() { refresh(); }
+
+    private void refresh(String successMessage) {
         long request = beginAsyncRequest();
+        setActionButtonsEnabled(false);
         showState(ViewState.LOADING, "正在加载调整数据，请稍候");
         var enrollmentRequest = gateway.currentEnrollments();
         var termRequest = gateway.currentTermId();
@@ -126,19 +143,24 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
                         partial.enrollments(), partial.offerings(), partial.phase(), schedule)).whenComplete((data, error) ->
                 SwingUtilities.invokeLater(() -> {
                     if (!acceptsAsyncResult(request)) return;
+                    if (error != null) {
+                        adjustmentOpen = false;
+                        setActionButtonsEnabled(false);
+                        showState(ViewState.DISCONNECTED, "无法加载调整数据，请检查连接后重试");
+                        return;
+                    }
                     enrollmentModel.setRowCount(0);
                     offeringModel.setRowCount(0);
                     enrollments.clear();
                     offerings.clear();
                     currentSchedule.clear();
-                    if (error != null) {
-                        showState(ViewState.DISCONNECTED, "无法加载调整数据，请检查连接后重试");
-                        return;
-                    }
                     enrollments.addAll(data.enrollments());
                     offerings.addAll(data.offerings().items());
                     currentSchedule.addAll(data.schedule());
                     phaseSummary.setText(phaseText(data.phase()));
+                    adjustmentOpen = "ADJUSTMENT".equals(data.phase().phase())
+                            && !"CLOSED".equals(data.phase().termStatus());
+                    setActionButtonsEnabled(adjustmentOpen);
                     for (EnrollmentView row : enrollments) {
                         OfferingSummary offering = findOffering(row.offeringId());
                         enrollmentModel.addRow(new Object[]{
@@ -152,7 +174,9 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
                             Math.max(0, row.capacity() - row.enrolledCount()) + " / " + row.capacity(), "可调整"});
                     boolean empty = enrollments.isEmpty() && offerings.isEmpty();
                     showState(empty ? ViewState.EMPTY : ViewState.NORMAL,
-                            empty ? "当前没有可调整的选课或教学班，请稍后刷新" : "");
+                            successMessage.isBlank()
+                                    ? (empty ? "当前没有可调整的选课或教学班，请稍后刷新" : "")
+                                    : successMessage);
                 }));
     }
 
@@ -213,7 +237,7 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
         confirmation.show(SwingUtilities.getWindowAncestor(this), sourceOffering, targetOffering, conflict,
                 () -> gateway.change(new ChangeOfferingCommand(
                         selected.enrollmentId(), targetOffering.offeringId(), selected.rowVersion())),
-                () -> showState(ViewState.NORMAL, "改选成功，原选课已安全替换"));
+                () -> refresh("改选成功，已刷新选课与教学班状态"));
     }
 
     private String conflictResult(OfferingSummary source, OfferingSummary target) {
@@ -242,9 +266,12 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
         showState(ViewState.SUBMITTING, busyText + " 请勿重复操作");
         request.whenComplete((ignored, error) -> SwingUtilities.invokeLater(() -> {
             if (!acceptsAsyncResult(asyncRequest)) return;
-            button.setEnabled(true);
+            button.setEnabled(adjustmentOpen);
             button.setText(idleText);
-            if (error == null) { showState(ViewState.NORMAL, success); return; }
+            if (error == null) {
+                refresh(success);
+                return;
+            }
             Throwable cause = error;
             while (cause instanceof java.util.concurrent.CompletionException && cause.getCause() != null) cause = cause.getCause();
             if (cause instanceof edu.seu.vcampus.client.course.service.CourseClientException failure
@@ -254,6 +281,12 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
                 showState(ViewState.ERROR, cause.getMessage() == null ? "调整失败，请刷新后重试" : cause.getMessage());
             }
         }));
+    }
+
+    private void setActionButtonsEnabled(boolean enabled) {
+        add.setEnabled(enabled);
+        drop.setEnabled(enabled);
+        change.setEnabled(enabled);
     }
 
     private static DefaultTableModel readOnlyModel(Object... columns) {

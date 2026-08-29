@@ -9,6 +9,6 @@ public record RetakeCommand(String offeringId) implements Serializable {
     @Serial private static final long serialVersionUID = 1L;
     public RetakeCommand {
         Objects.requireNonNull(offeringId, "offeringId");
-        if (offeringId.isBlank()) throw new IllegalArgumentException("offeringId must not be blank");
+        CourseValidation.text("offeringId", offeringId, 36);
     }
 }

@@ -72,12 +72,5 @@ public final class CourseClientGateway implements CourseUiGateway {
     public CompletableFuture<OfferingView> createOffering(CreateOfferingCommand command) { return client.createOffering(command); }
     public CompletableFuture<OfferingView> updateOffering(UpdateOfferingCommand command) { return client.updateOffering(command); }
     public CompletableFuture<TermPhaseView> getTermPhase(String termId) { return client.getTermPhase(termId); }
-    public CompletableFuture<String> currentTermId() {
-        return client.listTerms().thenApply(terms -> terms.stream()
-                .filter(term -> "ACTIVE".equals(term.termStatus())).findFirst()
-                .or(() -> terms.stream().filter(term -> "PLANNED".equals(term.termStatus())).findFirst())
-                .or(() -> terms.stream().findFirst())
-                .orElseThrow(() -> new IllegalStateException("尚未配置学期"))
-                .termId());
-    }
+    public CompletableFuture<String> currentTermId() { return client.getCurrentTerm().thenApply(TermView::termId); }
 }

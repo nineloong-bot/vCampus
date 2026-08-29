@@ -25,13 +25,10 @@ public record ImportCourseOutcomesCommand(List<OutcomeEntry> outcomes) implement
             Objects.requireNonNull(termId, "termId");
             Objects.requireNonNull(outcome, "outcome");
             Objects.requireNonNull(sourceReference, "sourceReference");
-            if (studentId.isBlank() || courseId.isBlank() || termId.isBlank()
-                    || sourceReference.isBlank()) {
-                throw new IllegalArgumentException("outcome identifiers must not be blank");
-            }
-            if (sourceReference.length() > 128) {
-                throw new IllegalArgumentException("sourceReference must not exceed 128 characters");
-            }
+            CourseValidation.text("studentId", studentId, 36);
+            CourseValidation.text("courseId", courseId, 36);
+            CourseValidation.text("termId", termId, 36);
+            CourseValidation.text("sourceReference", sourceReference, 128);
         }
     }
 }

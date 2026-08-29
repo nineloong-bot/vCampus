@@ -5,6 +5,7 @@ import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.course.domain.ScheduleConflictPolicy;
 import edu.seu.vcampus.server.course.domain.TermWindowPolicy;
 import edu.seu.vcampus.server.course.domain.CourseConcurrentModificationException;
+import edu.seu.vcampus.server.course.domain.CourseRuleException;
 import edu.seu.vcampus.server.course.repository.*;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import edu.seu.vcampus.server.persistence.TransactionManager;
@@ -46,7 +47,13 @@ class CourseManagementServiceTest {
         transactions = new TransactionManager(connections);
         repository = new AccessCourseRepository();
         CourseAuthorizationGateway authorization = new CourseAuthorizationGateway() {
-            @Override public CourseSessionIdentity requireSession(String token) { return new CourseSessionIdentity("admin".equals(token)?"admin-user":"student-user", "admin".equals(token)?"ADMIN":"STUDENT"); }
+            @Override public CourseSessionIdentity requireSession(String token) {
+                return switch (token) {
+                    case "admin" -> new CourseSessionIdentity("admin-user", "ADMIN");
+                    case "teacher-token" -> new CourseSessionIdentity("teacher-1", "TEACHER");
+                    default -> new CourseSessionIdentity("student-user", "STUDENT");
+                };
+            }
             @Override public void requireUserRole(String userId, String role) {
                 if (!"teacher-1".equals(userId) || !"TEACHER".equals(role)) throw new IllegalArgumentException("teacher");
             }
@@ -64,16 +71,12 @@ class CourseManagementServiceTest {
                 new ScheduleConflictPolicy(), Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
-    @Test void scheduleAndEnrollmentsStayBoundToEachSessionStudent() {
+    @Test void scheduleAndEnrollmentsStayBoundToStudentWhileAdminSelfServiceIsRejected() {
         TermView term = service.createTerm(termCommand());
         CourseView studentCourse = service.createCourse(courseCommand("CS101", "程序设计"));
-        CourseView adminCourse = service.createCourse(courseCommand("CS102", "离散数学"));
         OfferingView studentOffering = service.createOffering(new CreateOfferingCommand(term.termId(), studentCourse.courseId(),
                 "teacher-1", "学生班", 30, "OPEN", List.of(new CreateOfferingCommand.ScheduleInput("MONDAY", 1, 2, 1, 16, "教一-101"))));
-        OfferingView adminOffering = service.createOffering(new CreateOfferingCommand(term.termId(), adminCourse.courseId(),
-                "teacher-1", "管理员班", 30, "OPEN", List.of(new CreateOfferingCommand.ScheduleInput("TUESDAY", 3, 4, 1, 16, "教二-202"))));
         EnrollmentView studentEnrollment = service.enroll("student", new EnrollCommand(studentOffering.offeringId()));
-        EnrollmentView adminEnrollment = service.enroll("admin", new EnrollCommand(adminOffering.offeringId()));
         studentGatewayUserIds.clear();
 
         assertThat(service.getCurrentSchedule("student")).singleElement().satisfies(item -> {
@@ -81,18 +84,47 @@ class CourseManagementServiceTest {
             assertThat(item.courseCode()).isEqualTo("CS101");
             assertThat(item.courseName()).isEqualTo("程序设计");
         });
-        assertThat(service.getCurrentSchedule("admin")).singleElement().satisfies(item -> {
-            assertThat(item.offeringId()).isEqualTo(adminOffering.offeringId());
-            assertThat(item.courseCode()).isEqualTo("CS102");
-            assertThat(item.courseName()).isEqualTo("离散数学");
-        });
+        assertThatThrownBy(() -> service.getCurrentSchedule("admin"))
+                .isInstanceOf(edu.seu.vcampus.server.course.domain.CourseForbiddenException.class);
         assertThat(service.getCurrentEnrollments("student")).extracting(EnrollmentView::enrollmentId)
                 .containsExactly(studentEnrollment.enrollmentId());
-        assertThat(service.getCurrentEnrollments("admin")).extracting(EnrollmentView::enrollmentId)
-                .containsExactly(adminEnrollment.enrollmentId());
+        assertThatThrownBy(() -> service.getCurrentEnrollments("admin"))
+                .isInstanceOf(edu.seu.vcampus.server.course.domain.CourseForbiddenException.class);
         assertThat(studentGatewayUserIds).containsExactly(
-                "student-user", "student-user", "admin-user", "admin-user",
-                "student-user", "student-user", "admin-user", "admin-user");
+                "student-user", "student-user", "student-user", "student-user");
+    }
+
+    @Test void currentViewsExcludeClosedTermEnrollmentsAndTeachingAssignments() {
+        TermView current = service.createTerm(termCommand());
+        TermView closed = service.createTerm(new CreateTermCommand(
+                "2025-2", "已结束学期", LocalDate.of(2025, 9, 1), LocalDate.of(2026, 1, 15),
+                NOW.minusSeconds(7200), NOW.minusSeconds(7100), NOW.minusSeconds(7000),
+                NOW.minusSeconds(6900), "CLOSED"));
+        CourseView course = service.createCourse(courseCommand("CS101", "程序设计"));
+        OfferingView currentOffering = service.createOffering(new CreateOfferingCommand(
+                current.termId(), course.courseId(), "teacher-1", "当前班", 30, "OPEN",
+                List.of(new CreateOfferingCommand.ScheduleInput("MONDAY", 1, 2, 1, 16, "当前教室"))));
+        OfferingView historicalOffering = service.createOffering(new CreateOfferingCommand(
+                closed.termId(), course.courseId(), "teacher-1", "历史班", 30, "OPEN",
+                List.of(new CreateOfferingCommand.ScheduleInput("TUESDAY", 3, 4, 1, 16, "历史教室"))));
+        EnrollmentView currentEnrollment = service.enroll("student", new EnrollCommand(currentOffering.offeringId()));
+        transactions.inTransaction(connection -> {
+            repository.insertEnrollment(connection, new Enrollment(null, historicalOffering.offeringId(),
+                    "student-1", "NORMAL", "ACTIVE", NOW.minusSeconds(3600), null, 0, null, null));
+            repository.insertEnrollment(connection, new Enrollment(null, historicalOffering.offeringId(),
+                    "historical-only", "NORMAL", "ACTIVE", NOW.minusSeconds(3600), null, 0, null, null));
+            return null;
+        });
+
+        assertThat(service.getCurrentEnrollments("student")).extracting(EnrollmentView::enrollmentId)
+                .containsExactly(currentEnrollment.enrollmentId());
+        assertThat(service.getCurrentSchedule("student")).extracting(ScheduleItem::offeringId)
+                .containsExactly(currentOffering.offeringId());
+        assertThat(service.getCurrentSchedule("teacher-token")).extracting(ScheduleItem::offeringId)
+                .containsExactly(currentOffering.offeringId());
+        CourseQueryPort queryPort = (CourseQueryPort) service;
+        assertThat(queryPort.hasActiveEnrollment("historical-only")).isFalse();
+        assertThat(queryPort.findCoursesByStudent("historical-only")).isEmpty();
     }
 
     @Test void persistsListsAndOptimisticallyUpdatesTermsAndCatalog() {
@@ -155,6 +187,67 @@ class CourseManagementServiceTest {
         Offering persisted = transactions.inTransaction(c -> repository.requireOffering(c, created.offeringId()));
         assertThat(persisted.className()).isEqualTo("01班");
         assertThat(persisted.rowVersion()).isZero();
+    }
+
+    @Test void enrolledOfferingCannotMoveAcrossTermsCoursesOrSchedules() {
+        TermView originalTerm = service.createTerm(termCommand());
+        TermView otherTerm = service.createTerm(new CreateTermCommand(
+                "2026-2", "春季", LocalDate.of(2027, 2, 20), LocalDate.of(2027, 7, 1),
+                NOW.minusSeconds(60), NOW.plusSeconds(60), NOW.plusSeconds(120),
+                NOW.plusSeconds(240), "PLANNED"));
+        CourseView originalCourse = service.createCourse(courseCommand("CS101", "程序设计"));
+        CourseView otherCourse = service.createCourse(courseCommand("CS102", "离散数学"));
+        var monday = new CreateOfferingCommand.ScheduleInput("MONDAY", 1, 2, 1, 16, "教一-101");
+        var tuesday = new CreateOfferingCommand.ScheduleInput("TUESDAY", 3, 4, 1, 16, "教二-202");
+        OfferingView offering = service.createOffering(new CreateOfferingCommand(
+                originalTerm.termId(), originalCourse.courseId(), "teacher-1", "01班", 30, "OPEN", List.of(monday)));
+        service.enroll("student", new EnrollCommand(offering.offeringId()));
+
+        List<UpdateOfferingCommand> invalidChanges = List.of(
+                new UpdateOfferingCommand(offering.offeringId(), otherTerm.termId(), originalCourse.courseId(),
+                        "teacher-1", "01班", 30, "OPEN", 1, List.of(monday)),
+                new UpdateOfferingCommand(offering.offeringId(), originalTerm.termId(), otherCourse.courseId(),
+                        "teacher-1", "01班", 30, "OPEN", 1, List.of(monday)),
+                new UpdateOfferingCommand(offering.offeringId(), originalTerm.termId(), originalCourse.courseId(),
+                        "teacher-1", "01班", 30, "OPEN", 1, List.of(tuesday)));
+
+        for (UpdateOfferingCommand invalid : invalidChanges) {
+            assertThatThrownBy(() -> service.updateOffering(invalid))
+                    .isInstanceOf(CourseRuleException.class)
+                    .extracting("code").isEqualTo("COURSE_OFFERING_HAS_ENROLLMENTS");
+        }
+        Offering persisted = transactions.inTransaction(c -> repository.requireOffering(c, offering.offeringId()));
+        assertThat(persisted.termId()).isEqualTo(originalTerm.termId());
+        assertThat(persisted.courseId()).isEqualTo(originalCourse.courseId());
+        List<Schedule> persistedSchedules = transactions.inTransaction(
+                c -> repository.findSchedules(c, offering.offeringId()));
+        assertThat(persistedSchedules)
+                .singleElement().satisfies(row -> assertThat(row.dayOfWeek()).isEqualTo(DayOfWeek.MONDAY));
+    }
+
+    @Test void droppedEnrollmentHistoryStillFreezesOfferingMeaning() {
+        TermView term = service.createTerm(termCommand());
+        CourseView course = service.createCourse(courseCommand("CS101", "程序设计"));
+        CourseView otherCourse = service.createCourse(courseCommand("CS102", "离散数学"));
+        var monday = new CreateOfferingCommand.ScheduleInput("MONDAY", 1, 2, 1, 16, "教一-101");
+        OfferingView offering = service.createOffering(new CreateOfferingCommand(
+                term.termId(), course.courseId(), "teacher-1", "01班", 30, "OPEN", List.of(monday)));
+        EnrollmentView enrollment = service.enroll("student", new EnrollCommand(offering.offeringId()));
+        transactions.inTransaction(connection -> {
+            Enrollment stored = repository.requireEnrollment(connection, enrollment.enrollmentId());
+            repository.updateEnrollment(connection, new Enrollment(
+                    stored.enrollmentId(), stored.offeringId(), stored.studentId(), stored.enrollmentType(),
+                    "DROPPED", stored.enrolledAt(), NOW, stored.rowVersion(), stored.createdAt(), stored.updatedAt()),
+                    stored.rowVersion());
+            repository.changeEnrolledCount(connection, offering.offeringId(), -1);
+            return null;
+        });
+
+        assertThatThrownBy(() -> service.updateOffering(new UpdateOfferingCommand(
+                offering.offeringId(), term.termId(), otherCourse.courseId(), "teacher-1", "01班",
+                30, "OPEN", 2, List.of(monday))))
+                .isInstanceOf(CourseRuleException.class)
+                .extracting("code").isEqualTo("COURSE_OFFERING_HAS_ENROLLMENTS");
     }
 
     @Test void exposesServerPhaseAndFilteredPagedAdjustmentAudit() {
