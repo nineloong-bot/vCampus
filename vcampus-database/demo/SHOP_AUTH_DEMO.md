@@ -27,9 +27,11 @@ Demo 服务端监听 `127.0.0.1:19090`。服务端入口会先初始化数据库
 
 ## 文件位置
 
+以下路径均相对于仓库根目录：
+
 - 数据库：`vcampus-database/demo/vcampus-shop-auth-demo.accdb`
-- 服务端日志：`logs/server.log`
-- Shop 业务日志：`logs/business.log`
+- 服务端日志：`target/shop-auth-demo/logs/server.log`
+- Shop 业务日志：`target/shop-auth-demo/logs/business.log`
 
 日志只记录业务命令、结果和非敏感业务标识；不要向日志或问题报告复制会话凭据或任何真实支付资料。支付页只执行本地模拟支付。
 
@@ -41,7 +43,7 @@ Demo 服务端监听 `127.0.0.1:19090`。服务端入口会先初始化数据库
 4. 打开购物车，确认商品、单价、数量和合计正确。
 5. 进入结算，确认订单后选择支付宝模拟成功。
 6. 确认支付结果为 `SUCCEEDED`，没有要求或记录真实支付卡号、账户或验证码。
-7. 检查 `logs/business.log`，应出现 `SHOP_CHECKOUT` 与 `PAYMENT` 事件。
+7. 检查 `target/shop-auth-demo/logs/business.log`，应出现 `SHOP_CHECKOUT` 与 `PAYMENT` 事件。
 8. 关闭服务端后检查数据库：买家购物车项为 `0`；本次支付尝试为 `1`；支付状态为 `SUCCEEDED`；`demo-pen-black` 的预留为 `CONSUMED`；库存由 `10` 降至 `8` 且 `reservedQuantity=0`；`demo-pen` 的 `salesCount` 由 `0` 增至 `2`。
 
 自动化 `ShopAuthEndToEndTest` 还会用同一个显式协议 `requestId` 重放支付，并验证库存、预留、销量和支付尝试次数全部保持 exactly once。
