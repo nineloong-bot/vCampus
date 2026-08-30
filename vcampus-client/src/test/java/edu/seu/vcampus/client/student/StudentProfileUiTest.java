@@ -38,6 +38,7 @@ class StudentProfileUiTest {
         assertThat(fixture.label("student.profile.status").getText()).contains("正在加载");
         var updatedOnEdt = new AtomicBoolean();
         fixture.label("student.profile.email").addPropertyChangeListener("text", e -> updatedOnEdt.set(SwingUtilities.isEventDispatchThread()));
+        fixture.awaitDispatch(1);
         Thread completion = new Thread(() -> response.complete(ResponseBody.success(profile(7, "zhangsan@seu.edu.cn", "13800000000"))));
         completion.start(); completion.join();
         fixture.flushEdt();
@@ -65,6 +66,7 @@ class StudentProfileUiTest {
             var response = new CompletableFuture<ResponseBody<StudentView>>();
             var fixture = new StudentUiFixture(response, ConnectionState.CONNECTED);
             SwingUtilities.invokeAndWait(fixture::showProfile);
+            fixture.awaitDispatch(1);
             response.complete(ResponseBody.success(profile(status))); fixture.flushEdt();
             assertThat(fixture.visibleText()).contains(status == StudentStatus.SUSPENDED ? "休学" : status == StudentStatus.GRADUATED ? "已毕业" : "已退学");
         }
@@ -74,8 +76,9 @@ class StudentProfileUiTest {
         var first = CompletableFuture.completedFuture(ResponseBody.success(profile(1, "old@seu.edu.cn", "1")));
         var second = new CompletableFuture<ResponseBody<StudentView>>();
         var fixture = new StudentUiFixture(first, second, ConnectionState.CONNECTED);
-        SwingUtilities.invokeAndWait(fixture::showProfile); fixture.flushEdt();
+        SwingUtilities.invokeAndWait(fixture::showProfile); fixture.awaitDispatch(1); fixture.flushEdt();
         SwingUtilities.invokeAndWait(() -> fixture.panel.refreshProfile());
+        fixture.awaitDispatch(2);
         assertThat(fixture.visibleText()).contains("old@seu.edu.cn", "正在加载");
         assertThat(fixture.button("student.profile.refresh").isEnabled()).isFalse();
         assertThat(fixture.button("student.profile.edit").isEnabled()).isFalse();
@@ -96,7 +99,7 @@ class StudentProfileUiTest {
     @Test void failedFutureUsesSafeGenericMessage() throws Exception {
         var response = new CompletableFuture<ResponseBody<StudentView>>();
         var fixture = new StudentUiFixture(response, ConnectionState.CONNECTED);
-        SwingUtilities.invokeAndWait(fixture::showProfile); response.completeExceptionally(new IllegalStateException("secret")); fixture.flushEdt();
+        SwingUtilities.invokeAndWait(fixture::showProfile); fixture.awaitDispatch(1); response.completeExceptionally(new IllegalStateException("secret")); fixture.flushEdt();
         assertThat(fixture.visibleText()).contains("档案加载失败，请稍后重试").doesNotContain("secret");
     }
 
@@ -116,7 +119,7 @@ class StudentProfileUiTest {
     @Test void disconnectedStateRetainsLoadedValuesAndDisablesEdit() throws Exception {
         var response = CompletableFuture.completedFuture(ResponseBody.success(profile(1, "x@y", "2")));
         var fixture = new StudentUiFixture(response, ConnectionState.CONNECTED);
-        SwingUtilities.invokeAndWait(fixture::showProfile); fixture.flushEdt();
+        SwingUtilities.invokeAndWait(fixture::showProfile); fixture.awaitDispatch(1); fixture.flushEdt();
         fixture.connection.close(); fixture.flushEdt();
         assertThat(fixture.visibleText()).contains("x@y");
         assertThat(fixture.button("student.profile.edit").isEnabled()).isFalse();
@@ -126,6 +129,7 @@ class StudentProfileUiTest {
         var response = new CompletableFuture<ResponseBody<StudentView>>();
         var fixture = new StudentUiFixture(response, ConnectionState.CONNECTED);
         SwingUtilities.invokeAndWait(fixture::showProfile);
+        fixture.awaitDispatch(1);
         SwingUtilities.invokeAndWait(fixture.panel::removeNotify);
         response.complete(ResponseBody.success(profile(9, "late", "late"))); fixture.flushEdt();
         assertThat(fixture.visibleText()).doesNotContain("late");
