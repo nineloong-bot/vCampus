@@ -9,6 +9,9 @@ import edu.seu.vcampus.common.shop.ProductStatus;
 import edu.seu.vcampus.common.shop.ProductSummary;
 import edu.seu.vcampus.common.shop.CartItemView;
 import edu.seu.vcampus.common.shop.CartView;
+import edu.seu.vcampus.common.shop.OrderStatus;
+import edu.seu.vcampus.common.shop.PaidOrderItemView;
+import edu.seu.vcampus.common.shop.PaidOrderView;
 import edu.seu.vcampus.common.shop.ShopErrorCode;
 import edu.seu.vcampus.common.shop.ShopStatus;
 import edu.seu.vcampus.server.shop.ShopException;
@@ -551,6 +554,61 @@ public final class AccessShopRepository implements ShopRepository {
         }
         return new CartView(cartId.get(), items, total);
     }
+
+    @Override
+    public List<PaidOrderView> findPaidOrders(Connection connection,
+            String buyerUserId) throws Exception {
+        String sql = "SELECT o.orderId, o.orderNumber, o.shopId, s.shopName, "
+                + "o.orderAmount, o.paidAt FROM (tblOrder o INNER JOIN tblOrderGroup g "
+                + "ON o.orderGroupId = g.orderGroupId) INNER JOIN tblShop s "
+                + "ON o.shopId = s.shopId WHERE g.buyerUserId = ? "
+                + "AND g.groupStatus = 'PAID' AND o.orderStatus = 'PAID' "
+                + "AND o.paidAt IS NOT NULL ORDER BY o.paidAt DESC, o.orderId";
+        List<PaidOrderHeader> headers = new ArrayList<>();
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, buyerUserId);
+            try (ResultSet result = statement.executeQuery()) {
+                while (result.next()) {
+                    headers.add(new PaidOrderHeader(result.getString("orderId"),
+                            result.getString("orderNumber"), result.getString("shopId"),
+                            result.getString("shopName"), result.getBigDecimal("orderAmount"),
+                            instant(result, "paidAt")));
+                }
+            }
+        }
+        List<PaidOrderView> orders = new ArrayList<>();
+        for (PaidOrderHeader header : headers) {
+            orders.add(new PaidOrderView(header.orderId(), header.orderNumber(),
+                    header.shopId(), header.shopName(), header.totalAmount(), header.paidAt(),
+                    OrderStatus.PAID, findPaidOrderItems(connection, header.orderId())));
+        }
+        return List.copyOf(orders);
+    }
+
+    private static List<PaidOrderItemView> findPaidOrderItems(Connection connection,
+            String orderId) throws Exception {
+        String sql = "SELECT k.productId, i.productNameSnapshot, i.skuId, "
+                + "i.skuNameSnapshot, i.quantity, i.unitPrice, i.lineAmount "
+                + "FROM tblOrderItem i INNER JOIN tblProductSku k ON i.skuId = k.skuId "
+                + "WHERE i.orderId = ? ORDER BY i.orderItemId";
+        List<PaidOrderItemView> items = new ArrayList<>();
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, orderId);
+            try (ResultSet result = statement.executeQuery()) {
+                while (result.next()) {
+                    items.add(new PaidOrderItemView(result.getString("productId"),
+                            result.getString("productNameSnapshot"), result.getString("skuId"),
+                            result.getString("skuNameSnapshot"),
+                            Math.toIntExact(result.getLong("quantity")),
+                            result.getBigDecimal("unitPrice"), result.getBigDecimal("lineAmount")));
+                }
+            }
+        }
+        return List.copyOf(items);
+    }
+
+    private record PaidOrderHeader(String orderId, String orderNumber, String shopId,
+            String shopName, java.math.BigDecimal totalAmount, Instant paidAt) { }
 
     private static void touchCart(Connection connection, String cartId, Instant updatedAt)
             throws Exception {

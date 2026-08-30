@@ -26,6 +26,7 @@ import edu.seu.vcampus.server.shop.port.ShopAccessException;
 import edu.seu.vcampus.server.shop.port.ShopUser;
 import edu.seu.vcampus.server.shop.port.ShopUserPort;
 import edu.seu.vcampus.server.shop.service.CartService;
+import edu.seu.vcampus.server.shop.service.BuyerOrderService;
 import edu.seu.vcampus.server.shop.service.CheckoutService;
 import edu.seu.vcampus.server.shop.service.ShopService;
 
@@ -40,12 +41,13 @@ public final class BuyerShopHandlers {
     private final ShopService shop;
     private final CartService cart;
     private final CheckoutService checkout;
+    private final BuyerOrderService orders;
     private final SimulatedPaymentService payment;
     private final ShopBusinessLogger businessLog;
 
     public BuyerShopHandlers(MessageRouter router, ShopUserPort users,
             RequestDeduplicator deduplicator, ShopService shop, CartService cart,
-            CheckoutService checkout, SimulatedPaymentService payment,
+            CheckoutService checkout, BuyerOrderService orders, SimulatedPaymentService payment,
             ShopBusinessLogger businessLog) {
         Objects.requireNonNull(router, "router");
         this.users = Objects.requireNonNull(users, "users");
@@ -53,6 +55,7 @@ public final class BuyerShopHandlers {
         this.shop = Objects.requireNonNull(shop, "shop");
         this.cart = Objects.requireNonNull(cart, "cart");
         this.checkout = Objects.requireNonNull(checkout, "checkout");
+        this.orders = Objects.requireNonNull(orders, "orders");
         this.payment = Objects.requireNonNull(payment, "payment");
         this.businessLog = Objects.requireNonNull(businessLog, "businessLog");
 
@@ -62,6 +65,8 @@ public final class BuyerShopHandlers {
         router.register("SHOP_GET_SHOP", read(String.class, (token, body) -> shop.getShop(body)));
         router.register("SHOP_GET_SHOP_PRODUCTS", read(ShopProductQuery.class, (token, body) -> shop.getShopProducts(body)));
         router.register("SHOP_GET_CART", read(EmptyRequest.class, (token, body) -> cart.getCart(token)));
+        router.register("SHOP_GET_PAID_ORDERS", readAsActor(EmptyRequest.class,
+                (buyerId, body) -> orders.getPaidOrders(buyerId)));
         router.register("SHOP_CART_ADD", write(AddCartItemCommand.class, (token, body) -> cart.addToCart(token, body)));
         router.register("SHOP_CART_UPDATE", write(UpdateCartItemCommand.class, (token, body) -> cart.updateCartItem(token, body)));
         router.register("SHOP_CART_REMOVE", write(String.class, (token, body) -> cart.removeCartItem(token, body)));
@@ -75,7 +80,20 @@ public final class BuyerShopHandlers {
             try {
                 ShopUser actor = users.requireUser(message.sessionToken());
                 return finish(message, actor.userId(), () -> execute(message, type, operation,
-                        message.sessionToken(), actor.userId()));
+                        message.sessionToken()));
+            } catch (RuntimeException error) {
+                return failure(message, error);
+            }
+        };
+    }
+
+    private <T extends Serializable, R extends Serializable> edu.seu.vcampus.server.routing.MessageHandler readAsActor(
+            Class<T> type, BiFunction<String, T, R> operation) {
+        return (message, context) -> {
+            try {
+                ShopUser actor = users.requireUser(message.sessionToken());
+                return finish(message, actor.userId(), () -> execute(message, type, operation,
+                        actor.userId()));
             } catch (RuntimeException error) {
                 return failure(message, error);
             }
@@ -90,7 +108,7 @@ public final class BuyerShopHandlers {
                 return finish(message, actor.userId(), () -> deduplicator.executeOnce(message, actor.userId(), context.connectionId(),
                     () -> {
                         ResponseBody<R> response = execute(message, type, operation,
-                                message.sessionToken(), actor.userId());
+                                message.sessionToken());
                         if (response.success() && response.data() instanceof CheckoutResult result) {
                             businessLog.checkoutSucceeded(message, actor.userId(),
                                     (CheckoutCommand) message.body(), result);
@@ -107,13 +125,13 @@ public final class BuyerShopHandlers {
 
     private <T extends Serializable, R extends Serializable> ResponseBody<R> execute(
             Message message, Class<T> type, BiFunction<String, T, R> operation,
-        String token, String userId) {
+            String identity) {
         try {
             if (message.body() == null) {
                 throw new IllegalArgumentException("request body is required");
             }
             T body = type.cast(message.body());
-            return ResponseBody.success(operation.apply(token, body));
+            return ResponseBody.success(operation.apply(identity, body));
         } catch (ShopException error) {
             return ResponseBody.failure(error.code().name(), "Shop request failed", null);
         } catch (ShopAccessException error) {

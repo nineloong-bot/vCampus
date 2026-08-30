@@ -12,6 +12,7 @@ public interface ShopClientPort {
     CompletableFuture<ShopDetail> getShop(String shopId);
     CompletableFuture<PageResult<ProductSummary>> getShopProducts(ShopProductQuery query);
     CompletableFuture<CartView> getCart();
+    CompletableFuture<PaidOrderHistory> getPaidOrders();
     CompletableFuture<CartView> addToCart(AddCartItemCommand command);
     CompletableFuture<CartView> updateCartItem(UpdateCartItemCommand command);
     CompletableFuture<CartView> removeCartItem(String cartItemId);

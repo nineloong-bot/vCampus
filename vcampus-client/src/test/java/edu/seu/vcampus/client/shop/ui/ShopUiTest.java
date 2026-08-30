@@ -29,6 +29,7 @@ import edu.seu.vcampus.common.shop.PaymentAttemptStatus;
 import edu.seu.vcampus.common.shop.PaymentChannel;
 import edu.seu.vcampus.common.shop.PaymentStatus;
 import edu.seu.vcampus.common.shop.PaymentView;
+import edu.seu.vcampus.common.shop.PaidOrderHistory;
 import edu.seu.vcampus.common.shop.ProductDetail;
 import edu.seu.vcampus.common.shop.ProductSearchQuery;
 import edu.seu.vcampus.common.shop.ProductSortMode;
@@ -887,6 +888,7 @@ class ShopUiTest {
                 return new CompletableFuture<>();
             }
             @Override public CompletableFuture<CartView> getCart() { return new CompletableFuture<>(); }
+            @Override public CompletableFuture<PaidOrderHistory> getPaidOrders() { return new CompletableFuture<>(); }
             @Override public CompletableFuture<CartView> addToCart(AddCartItemCommand command) {
                 return new CompletableFuture<>();
             }
@@ -925,6 +927,7 @@ class ShopUiTest {
                 return new CompletableFuture<>();
             }
             @Override public CompletableFuture<CartView> getCart() { return new CompletableFuture<>(); }
+            @Override public CompletableFuture<PaidOrderHistory> getPaidOrders() { return new CompletableFuture<>(); }
             @Override public CompletableFuture<CartView> addToCart(AddCartItemCommand command) {
                 return new CompletableFuture<>();
             }
@@ -998,6 +1001,7 @@ class ShopUiTest {
         @Override public CompletableFuture<CartView> getCart() {
             cartLoads++; return new CompletableFuture<>();
         }
+        @Override public CompletableFuture<PaidOrderHistory> getPaidOrders() { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> addToCart(AddCartItemCommand command) {
             return new CompletableFuture<>();
         }
@@ -1040,6 +1044,7 @@ class ShopUiTest {
             return CompletableFuture.completedFuture(productsPage());
         }
         @Override public CompletableFuture<CartView> getCart() { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<PaidOrderHistory> getPaidOrders() { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> addToCart(AddCartItemCommand command) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> updateCartItem(UpdateCartItemCommand command) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> removeCartItem(String cartItemId) { return new CompletableFuture<>(); }
@@ -1061,6 +1066,7 @@ class ShopUiTest {
         @Override public CompletableFuture<CartView> getCart() {
             return CompletableFuture.completedFuture(cartWithQuantities(2, 3));
         }
+        @Override public CompletableFuture<PaidOrderHistory> getPaidOrders() { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> addToCart(AddCartItemCommand command) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> updateCartItem(UpdateCartItemCommand command) {
             return CompletableFuture.completedFuture(cartWithQuantities(4, 3));
@@ -1089,6 +1095,7 @@ class ShopUiTest {
         @Override public CompletableFuture<ShopDetail> getShop(String shopId) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<PageResult<ProductSummary>> getShopProducts(ShopProductQuery query) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> getCart() { return slowCart; }
+        @Override public CompletableFuture<PaidOrderHistory> getPaidOrders() { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> addToCart(AddCartItemCommand command) { return add; }
         @Override public CompletableFuture<CartView> updateCartItem(UpdateCartItemCommand command) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> removeCartItem(String cartItemId) { return new CompletableFuture<>(); }
@@ -1109,6 +1116,7 @@ class ShopUiTest {
         @Override public CompletableFuture<ShopDetail> getShop(String shopId) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<PageResult<ProductSummary>> getShopProducts(ShopProductQuery query) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> getCart() { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<PaidOrderHistory> getPaidOrders() { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> addToCart(AddCartItemCommand command) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> updateCartItem(UpdateCartItemCommand command) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> removeCartItem(String cartItemId) { return new CompletableFuture<>(); }
@@ -1217,6 +1225,7 @@ class ShopUiTest {
         }
         @Override public CompletableFuture<PageResult<ProductSummary>> getShopProducts(ShopProductQuery query) { return result; }
         @Override public CompletableFuture<CartView> getCart() { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<PaidOrderHistory> getPaidOrders() { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> addToCart(AddCartItemCommand command) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> updateCartItem(UpdateCartItemCommand command) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> removeCartItem(String cartItemId) { return new CompletableFuture<>(); }
@@ -1249,6 +1258,7 @@ class ShopUiTest {
         @Override public CompletableFuture<ShopDetail> getShop(String shopId) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<PageResult<ProductSummary>> getShopProducts(ShopProductQuery query) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> getCart() { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<PaidOrderHistory> getPaidOrders() { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> addToCart(AddCartItemCommand command) {
             return CompletableFuture.completedFuture(ShopClientFixtures.cartView());
         }
@@ -1274,6 +1284,7 @@ class ShopUiTest {
         @Override public CompletableFuture<CartView> getCart() {
             return cart.isDone() ? checkoutCart : cart;
         }
+        @Override public CompletableFuture<PaidOrderHistory> getPaidOrders() { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> addToCart(AddCartItemCommand command) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> updateCartItem(UpdateCartItemCommand command) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> removeCartItem(String cartItemId) { return new CompletableFuture<>(); }
@@ -1296,6 +1307,7 @@ class ShopUiTest {
         @Override public CompletableFuture<ShopDetail> getShop(String shopId) { return storefront; }
         @Override public CompletableFuture<PageResult<ProductSummary>> getShopProducts(ShopProductQuery query) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> getCart() { return carts.get(nextCart++); }
+        @Override public CompletableFuture<PaidOrderHistory> getPaidOrders() { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> addToCart(AddCartItemCommand command) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> updateCartItem(UpdateCartItemCommand command) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> removeCartItem(String cartItemId) { return new CompletableFuture<>(); }
@@ -1394,6 +1406,7 @@ class ShopUiTest {
         @Override public CompletableFuture<ShopDetail> getShop(String shopId) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<PageResult<ProductSummary>> getShopProducts(ShopProductQuery query) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> getCart() { return CompletableFuture.completedFuture(ShopClientFixtures.cartView()); }
+        @Override public CompletableFuture<PaidOrderHistory> getPaidOrders() { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> addToCart(AddCartItemCommand command) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> updateCartItem(UpdateCartItemCommand command) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> removeCartItem(String cartItemId) { return new CompletableFuture<>(); }

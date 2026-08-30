@@ -11,6 +11,7 @@ import edu.seu.vcampus.common.shop.CheckoutCommand;
 import edu.seu.vcampus.common.shop.CheckoutResult;
 import edu.seu.vcampus.common.shop.HomeProductQuery;
 import edu.seu.vcampus.common.shop.PaymentView;
+import edu.seu.vcampus.common.shop.PaidOrderHistory;
 import edu.seu.vcampus.common.shop.ProductDetail;
 import edu.seu.vcampus.common.shop.ProductSearchQuery;
 import edu.seu.vcampus.common.shop.ProductSummary;
@@ -29,6 +30,7 @@ import edu.seu.vcampus.server.shop.port.ShopUserKind;
 import edu.seu.vcampus.server.shop.port.ShopUserPort;
 import edu.seu.vcampus.server.shop.payment.SimulatedPaymentService;
 import edu.seu.vcampus.server.shop.service.CartService;
+import edu.seu.vcampus.server.shop.service.BuyerOrderService;
 import edu.seu.vcampus.server.shop.service.CheckoutService;
 import edu.seu.vcampus.server.shop.service.ShopService;
 import org.junit.jupiter.api.Test;
@@ -52,13 +54,14 @@ class BuyerShopHandlersTest {
     private final ShopService shop = mock(ShopService.class);
     private final CartService cart = mock(CartService.class);
     private final CheckoutService checkout = mock(CheckoutService.class);
+    private final BuyerOrderService orders = mock(BuyerOrderService.class);
     private final SimulatedPaymentService payment = mock(SimulatedPaymentService.class);
     private final ShopBusinessLogger businessLog = mock(ShopBusinessLogger.class);
 
     @Test
     void registersBuyerSurfaceAndReplaysIdenticalCartWrite() {
         new BuyerShopHandlers(router, users, deduplicator, shop, cart,
-                checkout, payment, businessLog);
+                checkout, orders, payment, businessLog);
         Message add = request("request-add", "SHOP_CART_ADD",
                 new AddCartItemCommand("sku-1", 2));
         when(users.requireUser("buyer-token"))
@@ -76,9 +79,9 @@ class BuyerShopHandlersTest {
     }
 
     @Test
-    void registersExactlyElevenBuyerCommands() {
+    void registersExactlyTwelveBuyerCommands() {
         new BuyerShopHandlers(router, users, deduplicator, shop, cart,
-                checkout, payment, businessLog);
+                checkout, orders, payment, businessLog);
         when(users.requireUser("buyer-token"))
                 .thenReturn(new ShopUser("buyer-1", ShopUserKind.STUDENT, true));
         when(shop.getHomeProducts(any())).thenReturn(page());
@@ -87,6 +90,7 @@ class BuyerShopHandlersTest {
         when(shop.getShop(any())).thenReturn(null);
         when(shop.getShopProducts(any())).thenReturn(page());
         when(cart.getCart(any())).thenReturn(cartView());
+        when(orders.getPaidOrders(any())).thenReturn(new PaidOrderHistory(List.of()));
         when(deduplicator.executeOnce(any(), any(), any(), any()))
                 .thenAnswer(invocation -> invocation.<Supplier<ResponseBody<?>>>getArgument(3).get());
         for (Message message : List.of(
@@ -96,6 +100,7 @@ class BuyerShopHandlersTest {
                 request("st", "SHOP_GET_SHOP", "shop-1"),
                 request("sp", "SHOP_GET_SHOP_PRODUCTS", new ShopProductQuery("shop-1", null, null, null, null, null, 0, 20)),
                 request("g", "SHOP_GET_CART", EmptyRequest.INSTANCE),
+                request("o", "SHOP_GET_PAID_ORDERS", EmptyRequest.INSTANCE),
                 request("a", "SHOP_CART_ADD", new AddCartItemCommand("sku-1", 1)),
                 request("u", "SHOP_CART_UPDATE", new UpdateCartItemCommand("item-1", 1, 0)),
                 request("r", "SHOP_CART_REMOVE", "item-1"),
@@ -106,9 +111,32 @@ class BuyerShopHandlersTest {
     }
 
     @Test
+    void paidOrdersUseOnlySessionActorIdAndRequireEmptyRequestBody() {
+        new BuyerShopHandlers(router, users, deduplicator, shop, cart,
+                checkout, orders, payment, businessLog);
+        PaidOrderHistory expected = new PaidOrderHistory(List.of());
+        when(users.requireUser("buyer-token"))
+                .thenReturn(new ShopUser("buyer-from-session", ShopUserKind.STUDENT, true));
+        when(orders.getPaidOrders("buyer-from-session")).thenReturn(expected);
+
+        ResponseBody<?> response = router.route(
+                request("paid-orders", "SHOP_GET_PAID_ORDERS", EmptyRequest.INSTANCE), context());
+
+        assertThat(response.code()).isEqualTo("SUCCESS");
+        assertThat(response.data()).isEqualTo(expected);
+        verify(users).requireUser("buyer-token");
+        verify(orders).getPaidOrders("buyer-from-session");
+
+        ResponseBody<?> forged = router.route(
+                request("forged-paid-orders", "SHOP_GET_PAID_ORDERS", "other-1"), context());
+        assertThat(forged.code()).isEqualTo("COMMON_VALIDATION_FAILED");
+        verify(orders, times(1)).getPaidOrders(any());
+    }
+
+    @Test
     void mapsShopAndAuthenticationFailuresToStableCodes() {
         new BuyerShopHandlers(router, users, deduplicator, shop, cart,
-                checkout, payment, businessLog);
+                checkout, orders, payment, businessLog);
         when(users.requireUser("expired"))
                 .thenThrow(new ShopAccessException("AUTH_SESSION_EXPIRED"));
         Message expired = new Message("request-expired", MessageType.REQUEST,
@@ -130,7 +158,7 @@ class BuyerShopHandlersTest {
     @Test
     void rejectsNullBodyAsValidationFailure() {
         new BuyerShopHandlers(router, users, deduplicator, shop, cart,
-                checkout, payment, businessLog);
+                checkout, orders, payment, businessLog);
         when(users.requireUser("buyer-token"))
                 .thenReturn(new ShopUser("buyer-1", ShopUserKind.STUDENT, true));
         Message request = new Message("null-cart", MessageType.REQUEST,
@@ -143,7 +171,7 @@ class BuyerShopHandlersTest {
     @Test
     void logsBusinessEventInsideFirstCheckoutExecutionAndCompletionAfterReplay() {
         new BuyerShopHandlers(router, users, deduplicator, shop, cart,
-                checkout, payment, businessLog);
+                checkout, orders, payment, businessLog);
         when(users.requireUser("buyer-token"))
                 .thenReturn(new ShopUser("buyer-1", ShopUserKind.STUDENT, true));
         CheckoutCommand command = new CheckoutCommand(List.of(), false);
@@ -163,7 +191,7 @@ class BuyerShopHandlersTest {
     @Test
     void replaysCheckoutByRequestIdWithoutRepeatingBusinessEvent() {
         new BuyerShopHandlers(router, users, deduplicator, shop, cart,
-                checkout, payment, businessLog);
+                checkout, orders, payment, businessLog);
         when(users.requireUser("buyer-token"))
                 .thenReturn(new ShopUser("buyer-1", ShopUserKind.STUDENT, true));
         CheckoutCommand command = new CheckoutCommand(List.of(), false);
@@ -186,7 +214,7 @@ class BuyerShopHandlersTest {
     @Test
     void replaysPaymentByRequestIdWithoutRepeatingBusinessEvent() {
         new BuyerShopHandlers(router, users, deduplicator, shop, cart,
-                checkout, payment, businessLog);
+                checkout, orders, payment, businessLog);
         when(users.requireUser("buyer-token"))
                 .thenReturn(new ShopUser("buyer-1", ShopUserKind.STUDENT, true));
         SimulatePaymentCommand command = new SimulatePaymentCommand("payment-1",

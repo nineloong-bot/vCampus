@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.swing.SwingUtilities;
 import java.time.Duration;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -69,6 +70,33 @@ class ShopClientServiceTest {
                         ResponseBody.failure("AUTH_SESSION_EXPIRED", "expired", null)));
 
         assertThatThrownBy(() -> service.getCart().join())
+                .hasRootCauseInstanceOf(ShopClientException.class)
+                .hasRootCauseMessage("AUTH_SESSION_EXPIRED");
+    }
+
+    @Test
+    void sendsPaidOrderHistoryCommandWithEmptyRequest() {
+        ClientConnection connection = mock(ClientConnection.class);
+        ShopClientService service = new ShopClientService(connection, TIMEOUT);
+        PaidOrderHistory expected = new PaidOrderHistory(List.of());
+        when(connection.<PaidOrderHistory>send(eq("SHOP_GET_PAID_ORDERS"),
+                eq(EmptyRequest.INSTANCE), eq(TIMEOUT)))
+                .thenReturn(CompletableFuture.completedFuture(ResponseBody.success(expected)));
+
+        assertThat(service.getPaidOrders().join()).isEqualTo(expected);
+        verify(connection).send("SHOP_GET_PAID_ORDERS", EmptyRequest.INSTANCE, TIMEOUT);
+    }
+
+    @Test
+    void paidOrderHistoryPreservesStableServerErrorCode() {
+        ClientConnection connection = mock(ClientConnection.class);
+        ShopClientService service = new ShopClientService(connection, TIMEOUT);
+        when(connection.<PaidOrderHistory>send(eq("SHOP_GET_PAID_ORDERS"),
+                eq(EmptyRequest.INSTANCE), eq(TIMEOUT)))
+                .thenReturn(CompletableFuture.completedFuture(
+                        ResponseBody.failure("AUTH_SESSION_EXPIRED", "expired", null)));
+
+        assertThatThrownBy(() -> service.getPaidOrders().join())
                 .hasRootCauseInstanceOf(ShopClientException.class)
                 .hasRootCauseMessage("AUTH_SESSION_EXPIRED");
     }

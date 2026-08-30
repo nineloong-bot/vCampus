@@ -16,6 +16,7 @@ import edu.seu.vcampus.server.shop.logging.ShopBusinessLogger;
 import edu.seu.vcampus.server.shop.payment.SimulatedPaymentService;
 import edu.seu.vcampus.server.shop.repository.AccessShopRepository;
 import edu.seu.vcampus.server.shop.service.CartService;
+import edu.seu.vcampus.server.shop.service.BuyerOrderService;
 import edu.seu.vcampus.server.shop.service.CheckoutService;
 import edu.seu.vcampus.server.shop.service.ShopService;
 import edu.seu.vcampus.server.user.handler.UserHandlers;
@@ -77,6 +78,7 @@ public final class ShopAuthDemoRuntime implements AutoCloseable {
                 repository, shopUsers, transactions, locks, clock);
         CheckoutService checkoutService = new CheckoutService(
                 repository, shopUsers, transactions, locks, clock);
+        BuyerOrderService orderService = new BuyerOrderService(repository, transactions);
         SimulatedPaymentService paymentService = new SimulatedPaymentService(
                 shopUsers, transactions, locks, clock);
         MessageRouter router = new MessageRouter(Map.of(
@@ -84,7 +86,7 @@ public final class ShopAuthDemoRuntime implements AutoCloseable {
         new UserHandlers(router, userService, authorization);
         new BuyerShopHandlers(router, shopUsers,
                 new RequestDeduplicator(transactions, locks), shopService, cartService,
-                checkoutService, paymentService, new ShopBusinessLogger());
+                checkoutService, orderService, paymentService, new ShopBusinessLogger());
 
         ShopAuthDemoRuntime runtime = new ShopAuthDemoRuntime(
                 new SocketServer(port, WORKER_COUNT, QUEUE_CAPACITY, router));

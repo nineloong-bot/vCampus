@@ -5,6 +5,7 @@ import edu.seu.vcampus.common.shop.ProductSearchQuery;
 import edu.seu.vcampus.common.shop.ProductStatus;
 import edu.seu.vcampus.common.shop.ProductSummary;
 import edu.seu.vcampus.common.shop.CartView;
+import edu.seu.vcampus.common.shop.PaidOrderView;
 import edu.seu.vcampus.common.shop.SellerApplicationQuery;
 import edu.seu.vcampus.common.shop.SellerApplicationStatus;
 import edu.seu.vcampus.common.shop.ShopStatus;
@@ -83,4 +84,6 @@ public interface ShopRepository {
     void deleteCartItem(Connection connection, String cartItemId, String cartId) throws Exception;
 
     CartView loadCart(Connection connection, String userId) throws Exception;
+
+    List<PaidOrderView> findPaidOrders(Connection connection, String buyerUserId) throws Exception;
 }

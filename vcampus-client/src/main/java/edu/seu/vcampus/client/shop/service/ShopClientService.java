@@ -52,6 +52,11 @@ public final class ShopClientService implements ShopClientPort {
     }
 
     @Override
+    public CompletableFuture<PaidOrderHistory> getPaidOrders() {
+        return send("SHOP_GET_PAID_ORDERS", EmptyRequest.INSTANCE);
+    }
+
+    @Override
     public CompletableFuture<CartView> addToCart(AddCartItemCommand command) {
         return send("SHOP_CART_ADD", command);
     }
