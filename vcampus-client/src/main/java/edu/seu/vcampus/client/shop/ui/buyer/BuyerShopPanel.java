@@ -60,7 +60,10 @@ public final class BuyerShopPanel extends JPanel {
     }
 
     public StorefrontViewState capture(StorefrontViewState state) {
-        return new StorefrontViewState(state.query(), scroll.getVerticalScrollBar().getValue());
+        StorefrontViewState captured = new StorefrontViewState(
+                state.query(), scroll.getVerticalScrollBar().getValue());
+        latest.begin();
+        return captured;
     }
 
     public List<String> visibleProductNames() { return cards.visibleProductNames(); }
@@ -90,7 +93,11 @@ public final class BuyerShopPanel extends JPanel {
             normal.add(uiKit.stateView("storefront.state", ShopPageState.NORMAL, "", null), BorderLayout.NORTH);
             normal.add(cards, BorderLayout.CENTER);
             content.add(normal, BorderLayout.CENTER); refresh();
-            SwingUtilities.invokeLater(() -> scroll.getVerticalScrollBar().setValue(state.scrollY()));
+            SwingUtilities.invokeLater(() -> {
+                if (latest.accepts(request)) {
+                    scroll.getVerticalScrollBar().setValue(state.scrollY());
+                }
+            });
         });
     }
 

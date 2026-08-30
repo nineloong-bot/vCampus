@@ -47,6 +47,8 @@ public final class CartPanel extends JPanel {
     private Write active;
     private boolean reloadAfterWrites;
     private boolean disconnected;
+    private boolean routeActive = true;
+    private long loadCartRevision;
 
     public CartPanel(ShopClientPort client, ShopNavigator navigator, ShopUiKit uiKit, Runnable sessionExpired) {
         this(client, navigator, uiKit, new CartCountModel(), sessionExpired);
@@ -57,14 +59,21 @@ public final class CartPanel extends JPanel {
         this.client = Objects.requireNonNull(client); this.navigator = Objects.requireNonNull(navigator);
         this.uiKit = Objects.requireNonNull(uiKit); this.cartCount = Objects.requireNonNull(cartCount);
         this.sessionExpired = Objects.requireNonNull(sessionExpired);
+        navigator.addListener(route -> {
+            if (!(route instanceof ShopRoute.Cart)) leaveRoute();
+        });
         add(content, BorderLayout.CENTER); showState(ShopPageState.INITIAL, "", null);
     }
     public void load() {
         if (disposed || disconnected) return;
+        routeActive = true;
         long request = loads.begin(); routeGeneration = request;
         showState(ShopPageState.LOADING, "加载中…", null);
         if (active != null || !queued.isEmpty()) { reloadAfterWrites = true; return; }
-        client.getCart().whenComplete((result, failure) -> finishLoad(request, result, failure));
+        long cartRevision = cartCount.beginUpdate();
+        loadCartRevision = cartRevision;
+        client.getCart().whenComplete((result, failure) ->
+                finishLoad(request, cartRevision, result, failure));
     }
     public List<CartItemView> visibleItems() { return cart == null ? List.of() : cart.items(); }
     public void updateQuantity(String id, int quantity) { enqueue(new Write(true, id, quantity)); }
@@ -87,32 +96,47 @@ public final class CartPanel extends JPanel {
         if (item == null) { finishWrite(active, null, null); return; }
         if (active.generation() != routeGeneration) { finishWrite(active, null, null); return; }
         renderCart(ShopPageState.SUBMITTING, active.update() ? "正在更新购物车…" : "正在移除商品…");
+        long cartRevision = cartCount.beginUpdate();
         if (active.update()) client.updateCartItem(new UpdateCartItemCommand(item.cartItemId(), active.quantity(), item.rowVersion()))
-                .whenComplete((result, failure) -> finishWrite(active, result, failure));
-        else client.removeCartItem(active.id()).whenComplete((result, failure) -> finishWrite(active, result, failure));
+                .whenComplete((result, failure) -> finishWrite(active, cartRevision, result, failure));
+        else client.removeCartItem(active.id()).whenComplete((result, failure) ->
+                finishWrite(active, cartRevision, result, failure));
     }
-    private void finishLoad(long request, CartView result, Throwable failure) {
+    private void finishLoad(long request, long cartRevision, CartView result, Throwable failure) {
         SwingUtilities.invokeLater(() -> {
             if (disposed || disconnected || !loads.accepts(request)) return;
             if (active != null || !queued.isEmpty()) { reloadAfterWrites = true; return; }
             if (failure != null) { showFailure(failure); return; }
-            cart = result; cartCount.update(result); renderCart(ShopPageState.NORMAL, "");
+            cart = result; cartCount.update(cartRevision, result); renderCart(ShopPageState.NORMAL, "");
         });
     }
     private void finishWrite(Write write, CartView result, Throwable failure) {
+        finishWrite(write, 0, result, failure);
+    }
+    private void finishWrite(Write write, long cartRevision, CartView result, Throwable failure) {
         SwingUtilities.invokeLater(() -> {
             if (disposed || disconnected || active != write) return;
             active = null; queuedKeys.remove(write.key());
             boolean current = write.generation() == routeGeneration;
-            if (failure == null && result != null && current) {
-                cart = result; cartCount.update(result);
+            if (failure == null && result != null) {
+                if (cartRevision != 0) cartCount.update(cartRevision, result);
+                if (current) cart = result;
             }
             if (failure != null) {
                 if (showWriteFailure(failure, current)) return;
             } else if (current) renderCart(ShopPageState.NORMAL, "");
             if (!queued.isEmpty()) processNext();
-            else if (reloadAfterWrites || !current) { reloadAfterWrites = false; load(); }
+            else if (routeActive && (reloadAfterWrites || !current)) { reloadAfterWrites = false; load(); }
         });
+    }
+
+    private void leaveRoute() {
+        if (!routeActive) return;
+        routeActive = false;
+        routeGeneration = loads.begin();
+        cartCount.cancel(loadCartRevision);
+        loadCartRevision = 0;
+        reloadAfterWrites = false;
     }
     private boolean showWriteFailure(Throwable failure, boolean current) {
         String code = ShopUiErrors.code(failure);

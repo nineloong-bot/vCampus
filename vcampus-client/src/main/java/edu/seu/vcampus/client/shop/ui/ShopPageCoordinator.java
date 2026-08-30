@@ -8,6 +8,7 @@ import edu.seu.vcampus.client.shop.ui.buyer.PaymentResultPanel;
 import edu.seu.vcampus.client.shop.ui.buyer.ProductDetailPanel;
 import edu.seu.vcampus.client.shop.ui.buyer.ProductSearchPanel;
 import edu.seu.vcampus.client.shop.ui.buyer.ShopHomePanel;
+import edu.seu.vcampus.client.shop.ui.async.LatestRequest;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopRoute;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopRouteHost;
@@ -15,9 +16,9 @@ import edu.seu.vcampus.client.shop.ui.navigation.HomeViewState;
 import edu.seu.vcampus.client.shop.ui.navigation.SearchViewState;
 import edu.seu.vcampus.client.shop.ui.navigation.StorefrontViewState;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
+import edu.seu.vcampus.common.shop.CartView;
 import edu.seu.vcampus.common.shop.HomeProductQuery;
 import edu.seu.vcampus.common.shop.PaymentView;
-import edu.seu.vcampus.common.shop.PaymentStatus;
 import edu.seu.vcampus.common.shop.ProductSortMode;
 
 import javax.swing.JOptionPane;
@@ -26,6 +27,7 @@ import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 
 /** Installs fixed buyer pages and renders routes through the Shop-owned card navigator. */
 public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller.InstalledCoordinator {
@@ -42,6 +44,7 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
     private final PageSet pages;
     private final ShopNavigator navigator;
     private final CartCountModel cartCount = new CartCountModel();
+    private boolean initialCartSyncStarted;
     private boolean disposed;
 
     /** Creates and registers every stable Shop page. This must run on the EDT. */
@@ -92,6 +95,10 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         }
         ShopRoute current = navigator.current().orElse(null);
         if (current == null) {
+            if (!initialCartSyncStarted) {
+                initialCartSyncStarted = true;
+                pages.syncCartCount();
+            }
             navigator.open(new ShopRoute.Home(defaultHome()));
             return;
         }
@@ -190,6 +197,7 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         void loadCart();
         void loadCheckout();
         void loadPaymentResult(PaymentView payment);
+        default void syncCartCount() { }
         HomeViewState captureHome(HomeViewState state);
         SearchViewState captureSearch(SearchViewState state);
         StorefrontViewState captureStorefront(StorefrontViewState state);
@@ -267,6 +275,9 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         private final CheckoutPanel checkout;
         private final PaymentResultHost paymentResult;
         private final CartCountModel cartCount;
+        private final ShopClientPort client;
+        private final Runnable cartSessionExpired;
+        private final LatestRequest cartSync = new LatestRequest();
 
         private BuyerPageSet(ShopClientPort client, ShopNavigator navigator, CartCountModel cartCount,
                 ShopUiKit uiKit,
@@ -275,6 +286,8 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
                 Runnable cartSessionExpired, Runnable checkoutSessionExpired,
                 CheckoutPageFactory checkoutFactory, CallbackObserver callbackObserver) {
             this.cartCount = cartCount;
+            this.client = client;
+            this.cartSessionExpired = cartSessionExpired;
             callbackObserver.passedTo("home", homeSessionExpired);
             home = new ShopHomePanel(client, navigator, uiKit, homeSessionExpired);
             callbackObserver.passedTo("search", searchSessionExpired);
@@ -305,8 +318,16 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         @Override public void loadCart() { cart.load(); }
         @Override public void loadCheckout() { checkout.load(); }
         @Override public void loadPaymentResult(PaymentView payment) {
-            if (payment.status() == PaymentStatus.SUCCEEDED) cartCount.clear();
             paymentResult.load(payment);
+        }
+        @Override public void syncCartCount() {
+            long request = cartSync.begin();
+            long updateRevision = cartCount.beginUpdate();
+            CompletableFuture<CartView> response = client.getCart();
+            if (response != null) {
+                response.whenComplete((result, failure) -> finishCartSync(
+                        request, updateRevision, result, failure));
+            }
         }
         @Override public HomeViewState captureHome(HomeViewState state) { return home.capture(state); }
         @Override public SearchViewState captureSearch(SearchViewState state) { return search.capture(state); }
@@ -314,12 +335,25 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
             return storefront.capture(state);
         }
         @Override public void dispose() {
+            cartSync.dispose();
             home.dispose();
             search.dispose();
             product.dispose();
             storefront.dispose();
             cart.disposePage();
             checkout.disposePage();
+        }
+
+        private void finishCartSync(long request, long updateRevision, CartView result,
+                Throwable failure) {
+            SwingUtilities.invokeLater(() -> {
+                if (!cartSync.accepts(request)) return;
+                if (failure == null) {
+                    cartCount.update(updateRevision, result);
+                } else if (ShopUiErrors.sessionExpired(ShopUiErrors.code(failure))) {
+                    cartSessionExpired.run();
+                }
+            });
         }
     }
 

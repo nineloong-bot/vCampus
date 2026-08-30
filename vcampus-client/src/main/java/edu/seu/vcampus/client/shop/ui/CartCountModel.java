@@ -11,15 +11,37 @@ import java.util.function.IntConsumer;
 public final class CartCountModel {
     private final List<IntConsumer> listeners = new ArrayList<>();
     private int totalQuantity;
+    private long revision;
 
     public int totalQuantity() { return totalQuantity; }
 
-    public void update(CartView cart) {
+    /** Starts a globally ordered cart operation. Only this revision may publish next. */
+    public long beginUpdate() { return ++revision; }
+
+    public void update(long updateRevision, CartView cart) {
         Objects.requireNonNull(cart, "cart");
+        if (updateRevision != revision) return;
         setTotalQuantity(cart.items().stream().mapToInt(item -> item.quantity()).sum());
     }
 
-    public void clear() { setTotalQuantity(0); }
+    public void update(CartView cart) {
+        long updateRevision = beginUpdate();
+        update(updateRevision, cart);
+    }
+
+    public void clear(long updateRevision) {
+        if (updateRevision == revision) setTotalQuantity(0);
+    }
+
+    public void clear() {
+        long updateRevision = beginUpdate();
+        clear(updateRevision);
+    }
+
+    /** Invalidates a read only when it is still the newest cart operation. */
+    public void cancel(long updateRevision) {
+        if (updateRevision != 0 && updateRevision == revision) revision++;
+    }
 
     public void addListener(IntConsumer listener) {
         listeners.add(Objects.requireNonNull(listener, "listener"));

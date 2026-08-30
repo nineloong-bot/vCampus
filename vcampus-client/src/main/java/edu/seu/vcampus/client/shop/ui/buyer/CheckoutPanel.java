@@ -6,6 +6,7 @@ import edu.seu.vcampus.client.shop.ui.CartCountModel;
 import edu.seu.vcampus.client.shop.ui.ShopUiErrors;
 import edu.seu.vcampus.client.shop.ui.async.LatestRequest;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator;
+import edu.seu.vcampus.client.shop.ui.navigation.ShopRoute;
 import edu.seu.vcampus.client.shop.ui.style.ShopPageState;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
 import edu.seu.vcampus.common.shop.CartItemView;
@@ -13,6 +14,8 @@ import edu.seu.vcampus.common.shop.CartView;
 import edu.seu.vcampus.common.shop.CheckoutCommand;
 import edu.seu.vcampus.common.shop.CheckoutItem;
 import edu.seu.vcampus.common.shop.CheckoutResult;
+import edu.seu.vcampus.common.shop.PaymentStatus;
+import edu.seu.vcampus.common.shop.PaymentView;
 
 import javax.swing.JButton;
 import javax.swing.JLabel;
@@ -23,6 +26,7 @@ import java.awt.FlowLayout;
 import java.awt.Window;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /** Checkout confirmation page with route-bound price acknowledgement and cashier ownership. */
 public final class CheckoutPanel extends JPanel {
@@ -43,10 +47,15 @@ public final class CheckoutPanel extends JPanel {
     private boolean disconnected;
     private boolean checkoutInFlight;
     private ActiveCashier cashier;
+    private long loadCartRevision;
 
     public CheckoutPanel(ShopClientPort client, ShopNavigator navigator, ShopUiKit uiKit,
             ShopDialogs dialogs, Runnable sessionExpired) {
-        this(client, navigator, uiKit, dialogs, sessionExpired, SimulatedCashierDialog::new);
+        this(client, navigator, uiKit, dialogs, sessionExpired,
+                (owner, cashierClient, cashierNavigator, cashierKit, checkout,
+                        cashierExpired, terminal, closed) -> new SimulatedCashierDialog(owner,
+                        cashierClient, cashierNavigator, cashierKit, checkout, cashierExpired,
+                        terminal, closed));
     }
 
     CheckoutPanel(ShopClientPort client, ShopNavigator navigator, ShopUiKit uiKit,
@@ -58,6 +67,7 @@ public final class CheckoutPanel extends JPanel {
         this.dialogs = Objects.requireNonNull(dialogs, "dialogs");
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
         this.cashierFactory = Objects.requireNonNull(cashierFactory, "cashierFactory");
+        navigator.addListener(this::routeChanged);
         add(content, BorderLayout.CENTER);
         showState(ShopPageState.INITIAL, "", null);
     }
@@ -69,8 +79,11 @@ public final class CheckoutPanel extends JPanel {
         submissions.begin();
         checkoutInFlight = false;
         checkout = null;
+        long cartRevision = cartCount.beginUpdate();
+        loadCartRevision = cartRevision;
         showState(ShopPageState.LOADING, "加载中…", null);
-        client.getCart().whenComplete((result, failure) -> finishLoad(request, result, failure));
+        client.getCart().whenComplete((result, failure) ->
+                finishLoad(request, cartRevision, result, failure));
     }
 
     public List<CartItemView> visibleItems() { return cart == null ? List.of() : cart.items(); }
@@ -105,12 +118,12 @@ public final class CheckoutPanel extends JPanel {
                 item.cartItemId(), item.displayedUnitPrice())).toList(), acceptLatestPrice);
     }
 
-    private void finishLoad(long request, CartView result, Throwable failure) {
+    private void finishLoad(long request, long cartRevision, CartView result, Throwable failure) {
         SwingUtilities.invokeLater(() -> {
             if (disposed || !loads.accepts(request)) return;
             if (failure != null) { showFailure(failure, this::load); return; }
             cart = result;
-            cartCount.update(result);
+            cartCount.update(cartRevision, result);
             if (cart.items().isEmpty()) showState(ShopPageState.EMPTY, "购物车为空", this::load);
             else showCheckout(ShopPageState.NORMAL, "");
         });
@@ -143,12 +156,29 @@ public final class CheckoutPanel extends JPanel {
     private boolean activeCashier() { return cashier != null && !cashier.isClosed(); }
     private void openCashier(CheckoutResult result) {
         if (disposed || activeCashier()) return;
+        long checkoutLoad = activeLoad;
         ActiveCashier[] holder = new ActiveCashier[1];
         Runnable closed = () -> {
-            if (cashier == holder[0]) { cashier = null; if (!disposed && cart != null) showCheckout(ShopPageState.NORMAL, ""); }
+            if (cashier == holder[0]) {
+                cashier = null;
+                if (!disposed && cart != null
+                        && navigator.current().orElse(null) instanceof ShopRoute.Checkout) {
+                    showCheckout(ShopPageState.NORMAL, "");
+                }
+            }
+        };
+        Consumer<PaymentView> terminal = payment -> {
+            if (disposed || cashier != holder[0] || holder[0].isClosed()
+                    || activeLoad != checkoutLoad
+                    || !(navigator.current().orElse(null) instanceof ShopRoute.Checkout)) return;
+            if (payment.status() == PaymentStatus.SUCCEEDED) {
+                long cartRevision = cartCount.beginUpdate();
+                cartCount.clear(cartRevision);
+            }
+            navigator.replaceCurrent(new ShopRoute.PaymentResult(payment));
         };
         holder[0] = cashierFactory.create(SwingUtilities.getWindowAncestor(this), client, navigator,
-                uiKit, result, sessionExpired, closed);
+                uiKit, result, sessionExpired, terminal, closed);
         cashier = holder[0];
         showCheckout(ShopPageState.NORMAL, "");
         if (isShowing()) cashier.open();
@@ -180,6 +210,17 @@ public final class CheckoutPanel extends JPanel {
         loads.dispose(); submissions.dispose();
         showState(ShopPageState.DISCONNECTED, code, null); sessionExpired.run();
     }
+
+    private void routeChanged(ShopRoute route) {
+        if (route instanceof ShopRoute.Checkout) return;
+        loads.begin();
+        submissions.begin();
+        cartCount.cancel(loadCartRevision);
+        loadCartRevision = 0;
+        checkoutInFlight = false;
+        if (cashier != null) cashier.disposePage();
+        cashier = null;
+    }
     private void showState(ShopPageState state, String message, Runnable retry) {
         content.removeAll(); content.add(uiKit.stateView("checkout.state", state, message, retry), BorderLayout.CENTER); refresh();
     }
@@ -187,7 +228,8 @@ public final class CheckoutPanel extends JPanel {
 
     @FunctionalInterface interface CashierFactory {
         ActiveCashier create(Window owner, ShopClientPort client, ShopNavigator navigator, ShopUiKit uiKit,
-                CheckoutResult checkout, Runnable sessionExpired, Runnable closed);
+                CheckoutResult checkout, Runnable sessionExpired, Consumer<PaymentView> terminal,
+                Runnable closed);
     }
     interface ActiveCashier {
         void open();

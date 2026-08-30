@@ -82,8 +82,10 @@ public final class ProductSearchPanel extends JPanel {
     }
 
     public SearchViewState capture(SearchViewState state) {
-        return new SearchViewState(state.query(), filters.isVisible(),
+        SearchViewState captured = new SearchViewState(state.query(), filters.isVisible(),
                 scroll.getVerticalScrollBar().getValue());
+        latest.begin();
+        return captured;
     }
 
     public List<String> visibleProductNames() { return cards.visibleProductNames(); }
@@ -122,7 +124,11 @@ public final class ProductSearchPanel extends JPanel {
                 content.add(normal, BorderLayout.CENTER);
                 refresh();
             }
-            SwingUtilities.invokeLater(() -> scroll.getVerticalScrollBar().setValue(state.scrollY()));
+            SwingUtilities.invokeLater(() -> {
+                if (latest.accepts(request)) {
+                    scroll.getVerticalScrollBar().setValue(state.scrollY());
+                }
+            });
         });
     }
 

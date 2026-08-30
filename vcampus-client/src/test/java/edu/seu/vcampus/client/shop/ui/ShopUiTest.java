@@ -6,6 +6,8 @@ import edu.seu.vcampus.client.shop.ShopSwingTestSupport;
 import edu.seu.vcampus.client.shop.service.ShopClientPort;
 import edu.seu.vcampus.client.shop.ui.buyer.CheckoutPanelTestSeam;
 import edu.seu.vcampus.client.shop.ui.buyer.CartPanel;
+import edu.seu.vcampus.client.shop.ui.buyer.ProductDetailPanel;
+import edu.seu.vcampus.client.shop.ui.buyer.ShopHomePanel;
 import edu.seu.vcampus.client.shop.ui.navigation.HomeViewState;
 import edu.seu.vcampus.client.shop.ui.navigation.SearchViewState;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator;
@@ -278,6 +280,70 @@ class ShopUiTest {
         assertThat(component(toolbar, "shop.cart", JButton.class).getText())
                 .isEqualTo("购物车（3）");
     }
+
+    @Test
+    void firstShopEntrySynchronizesThePersistedCartBeforeAnyCartPageVisit() throws Exception {
+        CartMutationClient client = new CartMutationClient();
+        ShopModulePanel content = onEdt(ShopModulePanel::new);
+        ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(
+                content, client, new DefaultShopUiKit(), () -> { }));
+
+        onEdt(coordinator::enter);
+        flushEdt();
+
+        assertThat(component(content, "shop.cart", JButton.class).getText())
+                .isEqualTo("购物车（5）");
+        assertThat(coordinator.navigator().current()).contains(new ShopRoute.Home(defaultHome()));
+    }
+
+    @Test
+    void olderCartLoadCannotOverwriteACompletedNewerAddToCartTotal() throws Exception {
+        CartRaceClient client = new CartRaceClient();
+        CartCountModel count = new CartCountModel();
+        ShopNavigator navigator = new ShopNavigator(route -> { });
+        ShopToolbar toolbar = onEdt(() -> new ShopToolbar(
+                navigator, count, new DefaultShopUiKit()));
+        CartPanel cart = onEdt(() -> new CartPanel(client, navigator,
+                new DefaultShopUiKit(), count, () -> { }));
+        ProductDetailPanel product = onEdt(() -> new ProductDetailPanel(client, navigator,
+                new DefaultShopUiKit(), count, () -> { }));
+
+        onEdt(cart::load);
+        onEdt(() -> product.load("product-race"));
+        flushEdt();
+        onEdt(() -> component(product, "add-to-cart", JButton.class).doClick());
+        client.add.complete(cartWithQuantities(2, 3));
+        flushEdt();
+        client.slowCart.complete(cartWithQuantities(1, 1));
+        flushEdt();
+
+        assertThat(component(toolbar, "shop.cart", JButton.class).getText())
+                .isEqualTo("购物车（5）");
+    }
+
+    @Test
+    void newHomeRequestInvalidatesAnAlreadyQueuedOldScrollRestore() throws Exception {
+        ScrollRaceClient client = new ScrollRaceClient();
+        ShopHomePanel home = onEdt(() -> new ShopHomePanel(client,
+                new ShopNavigator(route -> { }), new DefaultShopUiKit(), () -> { }));
+        JScrollPane scroll = component(home, "home.scroll", JScrollPane.class);
+        HomeViewState oldState = new HomeViewState(defaultHome(), 360);
+        HomeViewState newState = new HomeViewState(new HomeProductQuery(null, null,
+                ProductSortMode.PRICE_DESC, 1, 20), 0);
+
+        onEdt(() -> {
+            scroll.getVerticalScrollBar().setValues(0, 10, 0, 1000);
+            home.load(oldState);
+        });
+        client.first.complete(RestoringClient.productsPage());
+        onEdt(() -> {
+            home.load(newState);
+            scroll.getVerticalScrollBar().setValues(17, 10, 0, 1000);
+        });
+        flushEdt();
+
+        assertThat(scroll.getVerticalScrollBar().getValue()).isEqualTo(17);
+    }
     @Test
     void rendersEachRouteByLoadingItsExactPayloadBeforeShowingItsCard() throws Exception {
         List<SequenceEvent> events = new ArrayList<>();
@@ -446,7 +512,7 @@ class ShopUiTest {
     }
 
     @Test
-    void addToCartAndOnlySuccessfulPaymentUpdateTheSharedToolbarCount() throws Exception {
+    void renderingAnyPaymentReceiptLeavesTheCurrentToolbarCountUnchanged() throws Exception {
         BadgeClient client = new BadgeClient();
         ShopModulePanel content = onEdt(ShopModulePanel::new);
         ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(
@@ -468,7 +534,10 @@ class ShopUiTest {
 
         onEdt(() -> coordinator.navigator().open(new ShopRoute.PaymentResult(payment())));
 
-        assertThat(component(content, "shop.cart", JButton.class).getText()).isEqualTo("购物车（0）");
+        assertThat(component(content, "shop.cart", JButton.class).getText()).isEqualTo("购物车（2）");
+
+        onEdt(() -> coordinator.navigator().renderCurrent());
+        assertThat(component(content, "shop.cart", JButton.class).getText()).isEqualTo("购物车（2）");
     }
 
     @Test
@@ -770,6 +839,48 @@ class ShopUiTest {
             return CompletableFuture.completedFuture(new CartView("cart-1", List.of(second),
                     new BigDecimal("12.00")));
         }
+        @Override public CompletableFuture<CheckoutResult> checkout(CheckoutCommand command) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<PaymentView> simulatePayment(SimulatePaymentCommand command) { return new CompletableFuture<>(); }
+    }
+
+    private static final class CartRaceClient implements ShopClientPort {
+        private final CompletableFuture<CartView> slowCart = new CompletableFuture<>();
+        private final CompletableFuture<CartView> add = new CompletableFuture<>();
+
+        @Override public CompletableFuture<PageResult<ProductSummary>> home(HomeProductQuery query) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<PageResult<ProductSummary>> search(ProductSearchQuery query) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<ProductDetail> getProduct(String productId) {
+            return CompletableFuture.completedFuture(new ProductDetail(productId, "签字笔", "文具", "",
+                    ProductStatus.ACTIVE, 0, new ShopSummary("shop-race", "校园文具店"), List.of(
+                    new ProductSkuView("sku-race", "黑色", new BigDecimal("3.00"), 10, true, 0)),
+                    Instant.parse("2026-08-30T00:00:00Z")));
+        }
+        @Override public CompletableFuture<ShopDetail> getShop(String shopId) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<PageResult<ProductSummary>> getShopProducts(ShopProductQuery query) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<CartView> getCart() { return slowCart; }
+        @Override public CompletableFuture<CartView> addToCart(AddCartItemCommand command) { return add; }
+        @Override public CompletableFuture<CartView> updateCartItem(UpdateCartItemCommand command) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<CartView> removeCartItem(String cartItemId) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<CheckoutResult> checkout(CheckoutCommand command) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<PaymentView> simulatePayment(SimulatePaymentCommand command) { return new CompletableFuture<>(); }
+    }
+
+    private static final class ScrollRaceClient implements ShopClientPort {
+        private final CompletableFuture<PageResult<ProductSummary>> first = new CompletableFuture<>();
+        private final CompletableFuture<PageResult<ProductSummary>> second = new CompletableFuture<>();
+        private int homeCalls;
+
+        @Override public CompletableFuture<PageResult<ProductSummary>> home(HomeProductQuery query) {
+            return homeCalls++ == 0 ? first : second;
+        }
+        @Override public CompletableFuture<PageResult<ProductSummary>> search(ProductSearchQuery query) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<ProductDetail> getProduct(String productId) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<ShopDetail> getShop(String shopId) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<PageResult<ProductSummary>> getShopProducts(ShopProductQuery query) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<CartView> getCart() { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<CartView> addToCart(AddCartItemCommand command) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<CartView> updateCartItem(UpdateCartItemCommand command) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<CartView> removeCartItem(String cartItemId) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CheckoutResult> checkout(CheckoutCommand command) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<PaymentView> simulatePayment(SimulatePaymentCommand command) { return new CompletableFuture<>(); }
     }

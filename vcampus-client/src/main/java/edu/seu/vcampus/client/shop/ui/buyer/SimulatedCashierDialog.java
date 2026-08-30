@@ -25,6 +25,7 @@ import java.awt.FlowLayout;
 import java.awt.Window;
 import java.util.Objects;
 import java.util.EnumMap;
+import java.util.function.Consumer;
 
 /** Non-blocking simulated payment dialog with retry-safe terminal transitions. */
 public final class SimulatedCashierDialog extends JDialog implements CheckoutPanel.ActiveCashier {
@@ -34,6 +35,7 @@ public final class SimulatedCashierDialog extends JDialog implements CheckoutPan
     private final CheckoutResult checkout;
     private final Runnable sessionExpired;
     private final Runnable closed;
+    private final Consumer<PaymentView> terminal;
     private final LatestRequest submissions = new LatestRequest();
     private final JPanel content = new JPanel(new BorderLayout());
     private final JComboBox<PaymentChannel> channels = new JComboBox<>(PaymentChannel.values());
@@ -46,17 +48,26 @@ public final class SimulatedCashierDialog extends JDialog implements CheckoutPan
 
     public SimulatedCashierDialog(Window owner, ShopClientPort client, ShopNavigator navigator,
             ShopUiKit uiKit, CheckoutResult checkout, Runnable sessionExpired) {
-        this(owner, client, navigator, uiKit, checkout, sessionExpired, () -> { });
+        this(owner, client, navigator, uiKit, checkout, sessionExpired,
+                payment -> navigator.replaceCurrent(new ShopRoute.PaymentResult(payment)), () -> { });
     }
 
     SimulatedCashierDialog(Window owner, ShopClientPort client, ShopNavigator navigator,
             ShopUiKit uiKit, CheckoutResult checkout, Runnable sessionExpired, Runnable closed) {
+        this(owner, client, navigator, uiKit, checkout, sessionExpired,
+                payment -> navigator.replaceCurrent(new ShopRoute.PaymentResult(payment)), closed);
+    }
+
+    SimulatedCashierDialog(Window owner, ShopClientPort client, ShopNavigator navigator,
+            ShopUiKit uiKit, CheckoutResult checkout, Runnable sessionExpired,
+            Consumer<PaymentView> terminal, Runnable closed) {
         super(owner, "模拟收银台", ModalityType.MODELESS);
         this.client = Objects.requireNonNull(client, "client");
         this.navigator = Objects.requireNonNull(navigator, "navigator");
         this.uiKit = Objects.requireNonNull(uiKit, "uiKit");
         this.checkout = Objects.requireNonNull(checkout, "checkout");
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
+        this.terminal = Objects.requireNonNull(terminal, "terminal");
         this.closed = Objects.requireNonNull(closed, "closed");
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         add(content); showCashier(ShopPageState.INITIAL, ""); pack();
@@ -98,8 +109,8 @@ public final class SimulatedCashierDialog extends JDialog implements CheckoutPan
                 return;
             }
             if (payment.status() == PaymentStatus.PENDING) { showCashier(ShopPageState.NORMAL, "待支付"); return; }
+            terminal.accept(payment);
             disposePage();
-            navigator.replaceCurrent(new ShopRoute.PaymentResult(payment));
         });
     }
 

@@ -63,7 +63,10 @@ public final class ShopHomePanel extends JPanel {
     }
 
     public HomeViewState capture(HomeViewState state) {
-        return new HomeViewState(state.query(), scroll.getVerticalScrollBar().getValue());
+        HomeViewState captured = new HomeViewState(
+                state.query(), scroll.getVerticalScrollBar().getValue());
+        latest.begin();
+        return captured;
     }
 
     public void dispose() { latest.dispose(); }
@@ -84,7 +87,11 @@ public final class ShopHomePanel extends JPanel {
                 content.add(normal, BorderLayout.CENTER);
                 refresh();
             }
-            SwingUtilities.invokeLater(() -> scroll.getVerticalScrollBar().setValue(state.scrollY()));
+            SwingUtilities.invokeLater(() -> {
+                if (latest.accepts(request)) {
+                    scroll.getVerticalScrollBar().setValue(state.scrollY());
+                }
+            });
         });
     }
 

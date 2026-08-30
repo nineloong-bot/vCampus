@@ -50,6 +50,7 @@ public final class ProductDetailPanel extends JPanel {
     private String shopId;
     private String currentProductId;
     private long displayedLoad;
+    private long cartRevision;
     public ProductDetailPanel(ShopClientPort client, ShopNavigator navigator, ShopUiKit uiKit,
             Runnable sessionExpired) {
         this(client, navigator, uiKit, new CartCountModel(), sessionExpired);
@@ -82,6 +83,8 @@ public final class ProductDetailPanel extends JPanel {
 
     public void load(String productId) {
         long request = loads.begin();
+        cartCount.cancel(cartRevision);
+        cartRevision = 0;
         submissions.begin();
         currentProductId = Objects.requireNonNull(productId, "productId");
         displayedLoad = 0;
@@ -95,7 +98,9 @@ public final class ProductDetailPanel extends JPanel {
     public void clearCartCount() {
         cartCount.clear();
     }
-    public void dispose() { loads.dispose(); submissions.dispose(); }
+    public void dispose() {
+        loads.dispose(); submissions.dispose(); cartCount.cancel(cartRevision);
+    }
 
     private void finishLoad(long request, ProductDetail detail, Throwable failure) {
         SwingUtilities.invokeLater(() -> {
@@ -126,18 +131,22 @@ public final class ProductDetailPanel extends JPanel {
         ProductSkuView selected = availableSkus.get(skuId);
         if (selected == null || displayedLoad == 0) return;
         long request = submissions.begin();
+        cartRevision = cartCount.beginUpdate();
+        long submissionCartRevision = cartRevision;
         long loadAtSubmission = displayedLoad;
         addToCart.setEnabled(false);
         showDetail(ShopPageState.SUBMITTING, "正在加入购物车…");
         client.addToCart(new AddCartItemCommand(selected.skuId(), (Integer) quantity.getValue()))
-                .whenComplete((cart, failure) -> finishAdd(request, loadAtSubmission, cart, failure));
+                .whenComplete((cart, failure) -> finishAdd(
+                        request, loadAtSubmission, submissionCartRevision, cart, failure));
     }
 
-    private void finishAdd(long request, long loadAtSubmission, CartView cart, Throwable failure) {
+    private void finishAdd(long request, long loadAtSubmission, long cartRevision,
+            CartView cart, Throwable failure) {
         SwingUtilities.invokeLater(() -> {
+            if (failure == null) cartCount.update(cartRevision, cart);
             if (!submissions.accepts(request) || displayedLoad != loadAtSubmission) return;
             if (failure != null) { showFailure(failure, () -> load(currentProductId)); return; }
-            cartCount.update(cart);
             setSkuControlsEnabled(!availableSkus.isEmpty());
             showDetail(ShopPageState.NORMAL, "");
         });
