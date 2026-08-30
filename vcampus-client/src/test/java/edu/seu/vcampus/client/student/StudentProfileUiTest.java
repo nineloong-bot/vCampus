@@ -5,6 +5,7 @@ import edu.seu.vcampus.client.core.network.ConnectionState;
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.client.student.service.StudentRequestClient;
 import edu.seu.vcampus.client.student.ui.MyStudentProfilePanel;
+import edu.seu.vcampus.client.student.ui.UpdateContactDialog;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.student.*;
 import org.junit.jupiter.api.Test;
@@ -14,18 +15,21 @@ import javax.swing.*;
 import java.awt.*;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class StudentProfileUiTest {
     private static final java.util.List<ClientConnection> connections = new java.util.ArrayList<>();
-    @AfterEach void closeConnections() { connections.forEach(ClientConnection::close); connections.clear(); }
+    @AfterEach void closeConnections() throws Exception { connections.forEach(ClientConnection::close); connections.clear(); SwingUtilities.invokeAndWait(() -> Arrays.stream(Window.getWindows()).forEach(Window::dispose)); }
     @Test void profileKeepsAcademicShellAndRendersStudentIdentityOnEdt() throws Exception {
         var response = new CompletableFuture<ResponseBody<StudentView>>();
         var fixture = new StudentUiFixture(response, ConnectionState.CONNECTED);
@@ -127,12 +131,48 @@ class StudentProfileUiTest {
         assertThat(fixture.visibleText()).doesNotContain("late");
     }
 
+    @Test void editContactDialogUsesFrameOwnerAndImmediatelyRendersReturnedProfile() throws Exception {
+        var initial = new CompletableFuture<ResponseBody<StudentView>>();
+        var saved = new CompletableFuture<ResponseBody<StudentView>>();
+        var fixture = new StudentUiFixture(initial, saved, ConnectionState.CONNECTED);
+        onEdt(fixture::showProfileInFrame);
+        fixture.awaitDispatch(1);
+        initial.complete(ResponseBody.success(profile(7, "old@seu.edu.cn", "13000000000")));
+        fixture.flushEdt();
+
+        SwingUtilities.invokeLater(() -> fixture.button("student.profile.edit").doClick());
+        UpdateContactDialog dialog = onEdt(() -> Arrays.stream(Window.getWindows())
+                .filter(UpdateContactDialog.class::isInstance).map(UpdateContactDialog.class::cast)
+                .filter(Window::isShowing).findFirst().orElseThrow());
+        assertThat(dialog.getOwner()).isSameAs(fixture.frame);
+        onEdt(() -> {
+            fixture.component(dialog, "student.contact.email", JTextField.class).setText("new@seu.edu.cn");
+            fixture.component(dialog, "student.contact.phone", JTextField.class).setText("13800000000");
+            fixture.button(dialog, "student.contact.submit").doClick();
+        });
+        fixture.awaitDispatch(2);
+        saved.complete(ResponseBody.success(profile(8, "new@seu.edu.cn", "13800000000")));
+        fixture.flushEdt();
+
+        assertThat(fixture.label("student.profile.email").getText()).isEqualTo("new@seu.edu.cn");
+        assertThat(fixture.label("student.profile.phone").getText()).isEqualTo("13800000000");
+        assertThat(fixture.label("student.profile.version").getText()).isEqualTo("8");
+    }
+
     private static StudentView profile(long version, String email, String phone) {
         return new StudentView("student-1", "user-1", "213240001", "09024101", StudentType.UNDERGRADUATE,
                 "张三", "MALE", email, phone, "major-1", "class-1", LocalDate.of(2024, 9, 1), StudentStatus.ACTIVE, version);
     }
     private static StudentView profile(StudentStatus status) { var p = profile(1, "a", "b"); return new StudentView(p.studentId(), p.userId(), p.campusCardNumber(), p.studentNumber(), p.studentType(), p.studentName(), p.gender(), p.email(), p.phone(), p.majorId(), p.classId(), p.enrollmentDate(), status, p.rowVersion()); }
     private static StudentView profileWithNulls() { var p = profile(1, null, null); return new StudentView(p.studentId(), p.userId(), p.campusCardNumber(), p.studentNumber(), null, p.studentName(), p.gender(), null, null, p.majorId(), p.classId(), null, null, p.rowVersion()); }
+    private static <T> T onEdt(Callable<T> work) throws Exception {
+        var result = new AtomicReference<T>(); var failure = new AtomicReference<Throwable>();
+        SwingUtilities.invokeAndWait(() -> { try { result.set(work.call()); } catch (Throwable thrown) { failure.set(thrown); } });
+        if (failure.get() != null) throw new AssertionError(failure.get());
+        return result.get();
+    }
+    private static void onEdt(ThrowingRunnable work) throws Exception { onEdt(() -> { work.run(); return null; }); }
+    @FunctionalInterface private interface ThrowingRunnable { void run() throws Exception; }
 
     private static final class StudentUiFixture {
         final ClientConnection connection = new ClientConnection("localhost", 1); final StudentClientService students;
@@ -141,6 +181,7 @@ class StudentProfileUiTest {
         final AtomicInteger responseIndex = new AtomicInteger();
         final CountDownLatch[] dispatches = {new CountDownLatch(1), new CountDownLatch(1)};
         MyStudentProfilePanel panel;
+        JFrame frame;
         StudentUiFixture(CompletableFuture<ResponseBody<StudentView>> response, ConnectionState state) { this(response, new CompletableFuture[0]); setState(state); }
         StudentUiFixture(CompletableFuture<ResponseBody<StudentView>> response, CompletableFuture<ResponseBody<StudentView>> next, ConnectionState state) { this(response, next); setState(state); }
         @SafeVarargs StudentUiFixture(CompletableFuture<ResponseBody<StudentView>> response, CompletableFuture<ResponseBody<StudentView>>... next) {
@@ -153,10 +194,13 @@ class StudentProfileUiTest {
         void setState(ConnectionState state) { try { var f = ClientConnection.class.getDeclaredField("state"); f.setAccessible(true); f.set(connection, state); } catch (ReflectiveOperationException e) { throw new AssertionError(e); } }
         void awaitDispatch(int count) throws InterruptedException { assertThat(count).isBetween(1, dispatches.length); assertThat(dispatches[count - 1].await(2, TimeUnit.SECONDS)).isTrue(); }
         void showProfile() { panel = new MyStudentProfilePanel(students, connection); panel.addNotify(); }
+        void showProfileInFrame() { panel = new MyStudentProfilePanel(students, connection); frame = new JFrame("profile"); frame.setContentPane(panel); frame.pack(); frame.setVisible(true); }
         void flushEdt() throws Exception { SwingUtilities.invokeAndWait(() -> {}); }
         String visibleText() { return text(panel); }
         <T extends Component> T component(String name, Class<T> type) { return type.cast(find(panel, name)); }
+        <T extends Component> T component(Container root, String name, Class<T> type) { return type.cast(find(root, name)); }
         JButton button(String name) { return component(name, JButton.class); }
+        JButton button(Container root, String name) { return component(root, name, JButton.class); }
         JLabel label(String name) { return component(name, JLabel.class); }
         static String text(Component c) { if (c instanceof JLabel l) return l.getText() + " " + l.getName(); if (c instanceof AbstractButton b) return b.getText(); if (c instanceof Container p) { var s = new StringBuilder(); for (var x : p.getComponents()) s.append(text(x)).append(' '); return s.toString(); } return ""; }
         static Component find(Container p, String n) { if (n.equals(p.getName())) return p; for (var c : p.getComponents()) { if (n.equals(c.getName())) return c; if (c instanceof Container q) { var x = find(q, n); if (x != null) return x; } } return null; }
