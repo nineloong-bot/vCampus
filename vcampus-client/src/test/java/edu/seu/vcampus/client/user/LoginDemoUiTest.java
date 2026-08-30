@@ -3,8 +3,11 @@ package edu.seu.vcampus.client.user;
 import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.core.ui.MainFrame;
 import edu.seu.vcampus.client.user.service.UserClientService;
+import edu.seu.vcampus.client.user.ui.InitialPasswordChangeDialog;
 import edu.seu.vcampus.client.user.ui.LoginFrame;
+import edu.seu.vcampus.common.protocol.EmptyResponse;
 import edu.seu.vcampus.common.protocol.ResponseBody;
+import edu.seu.vcampus.common.user.ChangePasswordCommand;
 import edu.seu.vcampus.common.user.LoginCommand;
 import edu.seu.vcampus.common.user.LoginResult;
 import edu.seu.vcampus.common.user.UserView;
@@ -31,11 +34,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import static edu.seu.vcampus.common.user.AccountStatus.ACTIVE;
 import static edu.seu.vcampus.common.user.UserRole.ADMIN;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 class LoginDemoUiTest {
@@ -69,10 +74,180 @@ class LoginDemoUiTest {
     }
 
     @Test
+    void passwordChangeSendsCommandClearsPasswordsAndClearsTokenAfterServerSuccess() {
+        ClientConnection connection = mock(ClientConnection.class);
+        doReturn(CompletableFuture.completedFuture(ResponseBody.success(EmptyResponse.INSTANCE)))
+                .when(connection).send(eq("USER_CHANGE_PASSWORD"),
+                        any(ChangePasswordCommand.class), eq(TIMEOUT));
+        UserClientService service = new UserClientService(connection, "demo-client", TIMEOUT);
+        char[] oldPassword = "InitialPassword7".toCharArray();
+        char[] newPassword = "ReplacementPassword8".toCharArray();
+
+        service.changePassword(oldPassword, newPassword).join();
+
+        verify(connection).send(eq("USER_CHANGE_PASSWORD"),
+                any(ChangePasswordCommand.class), eq(TIMEOUT));
+        verify(connection).setSessionToken(null);
+        assertThat(oldPassword).containsOnly('\0');
+        assertThat(newPassword).containsOnly('\0');
+    }
+
+    @Test
+    void rejectedPasswordChangeKeepsTokenForRetryAndStillClearsPasswords() {
+        ClientConnection connection = mock(ClientConnection.class);
+        doReturn(CompletableFuture.completedFuture(ResponseBody.failure(
+                "AUTH_PASSWORD_REJECTED", "密码不符合要求", null)))
+                .when(connection).send(eq("USER_CHANGE_PASSWORD"),
+                        any(ChangePasswordCommand.class), eq(TIMEOUT));
+        UserClientService service = new UserClientService(connection, "demo-client", TIMEOUT);
+        char[] oldPassword = "InitialPassword7".toCharArray();
+        char[] newPassword = "ReplacementPassword8".toCharArray();
+
+        assertThatThrownBy(() -> service.changePassword(oldPassword, newPassword).join())
+                .hasCauseInstanceOf(IllegalArgumentException.class);
+
+        verify(connection, never()).setSessionToken(null);
+        assertThat(oldPassword).containsOnly('\0');
+        assertThat(newPassword).containsOnly('\0');
+    }
+
+    @Test
+    void logoutClearsTokenOnlyAfterServerSuccess() {
+        ClientConnection connection = mock(ClientConnection.class);
+        doReturn(CompletableFuture.completedFuture(ResponseBody.success(EmptyResponse.INSTANCE)))
+                .when(connection).send(eq("USER_LOGOUT"), eq(EmptyResponse.INSTANCE), eq(TIMEOUT));
+        UserClientService service = new UserClientService(connection, "demo-client", TIMEOUT);
+
+        service.logout().join();
+
+        verify(connection).send(eq("USER_LOGOUT"), eq(EmptyResponse.INSTANCE), eq(TIMEOUT));
+        verify(connection).setSessionToken(null);
+    }
+
+    @Test
+    void rejectedLogoutKeepsTokenForARestrictedUserRetry() {
+        ClientConnection connection = mock(ClientConnection.class);
+        doReturn(CompletableFuture.completedFuture(ResponseBody.failure(
+                "AUTH_SESSION_EXPIRED", "会话仍可重试", null)))
+                .when(connection).send(eq("USER_LOGOUT"), eq(EmptyResponse.INSTANCE), eq(TIMEOUT));
+        UserClientService service = new UserClientService(connection, "demo-client", TIMEOUT);
+
+        assertThatThrownBy(() -> service.logout().join())
+                .hasCauseInstanceOf(IllegalArgumentException.class);
+
+        verify(connection, never()).setSessionToken(null);
+    }
+
+    @Test
+    void restrictedLoginOpensPasswordChangeFlowWithoutCreatingMainFrame() throws Exception {
+        ClientConnection connection = mock(ClientConnection.class);
+        doReturn(CompletableFuture.completedFuture(ResponseBody.success(restrictedLoginResult())))
+                .when(connection).send(eq("USER_LOGIN"), any(LoginCommand.class), eq(TIMEOUT));
+        UserClientService service = new UserClientService(connection, "demo-client", TIMEOUT);
+        AtomicBoolean mainCreated = new AtomicBoolean();
+        AtomicBoolean restrictedFlowOpened = new AtomicBoolean();
+        LoginFrame[] login = new LoginFrame[1];
+        SwingUtilities.invokeAndWait(() -> {
+            login[0] = new LoginFrame(service,
+                    result -> mainCreated.set(true),
+                    result -> restrictedFlowOpened.set(true));
+            login[0].setVisible(true);
+        });
+
+        submit(login[0], "DEMO_ADMIN", "InitialPassword7");
+        flushEdt();
+
+        assertThat(login[0].isDisplayable()).isFalse();
+        assertThat(mainCreated).isFalse();
+        assertThat(restrictedFlowOpened).isTrue();
+        assertThat(showingMainFrames()).isEmpty();
+    }
+
+    @Test
+    void initialPasswordChangeKeepsEdtFreeThenClosesAndRequestsNewLoginAfterSuccess()
+            throws Exception {
+        ClientConnection connection = mock(ClientConnection.class);
+        CompletableFuture<ResponseBody<EmptyResponse>> pending = new CompletableFuture<>();
+        doReturn(pending).when(connection).send(eq("USER_CHANGE_PASSWORD"),
+                any(ChangePasswordCommand.class), eq(TIMEOUT));
+        UserClientService service = new UserClientService(connection, "demo-client", TIMEOUT);
+        AtomicBoolean completed = new AtomicBoolean();
+        AtomicBoolean completedOnEdt = new AtomicBoolean();
+        InitialPasswordChangeDialog[] dialog = new InitialPasswordChangeDialog[1];
+        SwingUtilities.invokeAndWait(() -> {
+            dialog[0] = new InitialPasswordChangeDialog(service, () -> {
+                completed.set(true);
+                completedOnEdt.set(SwingUtilities.isEventDispatchThread());
+            });
+            dialog[0].setVisible(true);
+            component(dialog[0], "password-change.old", JPasswordField.class)
+                    .setText("InitialPassword7");
+            component(dialog[0], "password-change.new", JPasswordField.class)
+                    .setText("ReplacementPassword8");
+            component(dialog[0], "password-change.confirm", JPasswordField.class)
+                    .setText("ReplacementPassword8");
+            component(dialog[0], "password-change.submit", AbstractButton.class).doClick();
+        });
+
+        assertThat(component(dialog[0], "password-change.submit", AbstractButton.class).isEnabled())
+                .isFalse();
+        assertThat(component(dialog[0], "password-change.old", JPasswordField.class).getPassword())
+                .isEmpty();
+        assertThat(component(dialog[0], "password-change.new", JPasswordField.class).getPassword())
+                .isEmpty();
+        assertThat(component(dialog[0], "password-change.confirm", JPasswordField.class).getPassword())
+                .isEmpty();
+
+        pending.complete(ResponseBody.success(EmptyResponse.INSTANCE));
+        flushEdt();
+
+        verify(connection).send(eq("USER_CHANGE_PASSWORD"),
+                any(ChangePasswordCommand.class), eq(TIMEOUT));
+        verify(connection).setSessionToken(null);
+        assertThat(dialog[0].isDisplayable()).isFalse();
+        assertThat(completed).isTrue();
+        assertThat(completedOnEdt).isTrue();
+        assertThat(showingMainFrames()).isEmpty();
+    }
+
+    @Test
+    void initialPasswordChangeRejectsMismatchedPasswordsWithoutSendingSecrets() throws Exception {
+        ClientConnection connection = mock(ClientConnection.class);
+        UserClientService service = new UserClientService(connection, "demo-client", TIMEOUT);
+        InitialPasswordChangeDialog[] dialog = new InitialPasswordChangeDialog[1];
+        SwingUtilities.invokeAndWait(() -> {
+            dialog[0] = new InitialPasswordChangeDialog(service, () -> {
+            });
+            dialog[0].setVisible(true);
+            component(dialog[0], "password-change.old", JPasswordField.class)
+                    .setText("InitialPassword7");
+            component(dialog[0], "password-change.new", JPasswordField.class)
+                    .setText("ReplacementPassword8");
+            component(dialog[0], "password-change.confirm", JPasswordField.class)
+                    .setText("DifferentPassword9");
+            component(dialog[0], "password-change.submit", AbstractButton.class).doClick();
+        });
+
+        verify(connection, never()).send(anyString(), any(), any());
+        String error = component(dialog[0], "password-change.error", JLabel.class).getText();
+        assertThat(error).contains("两次输入的密码不一致")
+                .doesNotContain("InitialPassword7", "ReplacementPassword8", "DifferentPassword9");
+        assertThat(component(dialog[0], "password-change.submit", AbstractButton.class).isEnabled())
+                .isTrue();
+        assertThat(component(dialog[0], "password-change.old", JPasswordField.class).getPassword())
+                .isEmpty();
+        assertThat(component(dialog[0], "password-change.new", JPasswordField.class).getPassword())
+                .isEmpty();
+        assertThat(component(dialog[0], "password-change.confirm", JPasswordField.class).getPassword())
+                .isEmpty();
+    }
+
+    @Test
     void successfulLoginClosesLoginAndShowsIdentityAndPlaceholders() throws Exception {
-        UserClientService service = mock(UserClientService.class);
-        doReturn(CompletableFuture.completedFuture(loginResult()))
-                .when(service).login(anyString(), any(char[].class));
+        ClientConnection connection = mock(ClientConnection.class);
+        doReturn(CompletableFuture.completedFuture(ResponseBody.success(loginResult())))
+                .when(connection).send(eq("USER_LOGIN"), any(LoginCommand.class), eq(TIMEOUT));
+        UserClientService service = new UserClientService(connection, "demo-client", TIMEOUT);
         AtomicReference<MainFrame> main = new AtomicReference<>();
         AtomicBoolean handoffOnEdt = new AtomicBoolean();
         LoginFrame[] login = new LoginFrame[1];
@@ -90,9 +265,7 @@ class LoginDemoUiTest {
         submit(login[0], "DEMO_ADMIN", "DemoPassword7");
         flushEdt();
 
-        ArgumentCaptor<char[]> submitted = ArgumentCaptor.forClass(char[].class);
-        verify(service).login(eq("DEMO_ADMIN"), submitted.capture());
-        assertThat(submitted.getValue()).containsOnly('\0');
+        verify(connection).send(eq("USER_LOGIN"), any(LoginCommand.class), eq(TIMEOUT));
         assertThat(login[0].isDisplayable()).isFalse();
         assertThat(main.get()).isNotNull();
         assertThat(main.get().isShowing()).isTrue();
@@ -104,10 +277,11 @@ class LoginDemoUiTest {
 
     @Test
     void failedLoginStaysUsableAndShowsOnlySafeMessage() throws Exception {
-        UserClientService service = mock(UserClientService.class);
-        doReturn(CompletableFuture.failedFuture(
-                new IllegalArgumentException("AUTH_INVALID_CREDENTIALS")))
-                .when(service).login(anyString(), any(char[].class));
+        ClientConnection connection = mock(ClientConnection.class);
+        doReturn(CompletableFuture.completedFuture(ResponseBody.failure(
+                "AUTH_INVALID_CREDENTIALS", "凭据错误", null)))
+                .when(connection).send(eq("USER_LOGIN"), any(LoginCommand.class), eq(TIMEOUT));
+        UserClientService service = new UserClientService(connection, "demo-client", TIMEOUT);
         AtomicBoolean mainCreated = new AtomicBoolean();
         AtomicBoolean errorUpdatedOnEdt = new AtomicBoolean();
         LoginFrame[] login = new LoginFrame[1];
@@ -196,5 +370,10 @@ class LoginDemoUiTest {
         UserView user = new UserView("demo-user", "DEMO_ADMIN", ADMIN, ACTIVE,
                 false, now, 0, now, now);
         return new LoginResult("demo-session-token", user, Set.of(), false);
+    }
+
+    private static LoginResult restrictedLoginResult() {
+        LoginResult regular = loginResult();
+        return new LoginResult(regular.sessionToken(), regular.user(), regular.permissions(), true);
     }
 }

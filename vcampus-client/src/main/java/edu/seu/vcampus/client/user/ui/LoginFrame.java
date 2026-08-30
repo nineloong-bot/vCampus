@@ -21,7 +21,8 @@ import java.util.function.Consumer;
 /** Minimal login window for the real-account demo. */
 public final class LoginFrame extends JFrame {
     private final UserClientService users;
-    private final Consumer<LoginResult> onSuccess;
+    private final Consumer<LoginResult> onAuthenticated;
+    private final Consumer<LoginResult> onPasswordChangeRequired;
     private final JTextField loginId = named(new JTextField(20), "login.loginId");
     private final JPasswordField password = named(
             new JPasswordField(20), "login.password");
@@ -31,9 +32,17 @@ public final class LoginFrame extends JFrame {
 
     /** Creates a login window and its successful-login handoff. */
     public LoginFrame(UserClientService users, Consumer<LoginResult> onSuccess) {
+        this(users, onSuccess, onSuccess);
+    }
+
+    /** Creates a login window with separate normal and restricted-login handoffs. */
+    public LoginFrame(UserClientService users, Consumer<LoginResult> onAuthenticated,
+            Consumer<LoginResult> onPasswordChangeRequired) {
         super("vCampus 登录");
         this.users = Objects.requireNonNull(users, "users");
-        this.onSuccess = Objects.requireNonNull(onSuccess, "onSuccess");
+        this.onAuthenticated = Objects.requireNonNull(onAuthenticated, "onAuthenticated");
+        this.onPasswordChangeRequired = Objects.requireNonNull(
+                onPasswordChangeRequired, "onPasswordChangeRequired");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout(8, 8));
 
@@ -81,7 +90,11 @@ public final class LoginFrame extends JFrame {
             return;
         }
         dispose();
-        onSuccess.accept(result);
+        if (result.mustChangePassword()) {
+            onPasswordChangeRequired.accept(result);
+        } else {
+            onAuthenticated.accept(result);
+        }
     }
 
     private static void onEdt(Runnable action) {

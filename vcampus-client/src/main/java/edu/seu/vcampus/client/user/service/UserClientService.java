@@ -1,7 +1,9 @@
 package edu.seu.vcampus.client.user.service;
 
 import edu.seu.vcampus.client.core.network.ClientConnection;
+import edu.seu.vcampus.common.protocol.EmptyResponse;
 import edu.seu.vcampus.common.protocol.ResponseBody;
+import edu.seu.vcampus.common.user.ChangePasswordCommand;
 import edu.seu.vcampus.common.user.LoginCommand;
 import edu.seu.vcampus.common.user.LoginResult;
 
@@ -13,6 +15,8 @@ import java.util.concurrent.CompletableFuture;
 /** Sends user requests through the shared client connection. */
 public class UserClientService {
     private static final String USER_LOGIN = "USER_LOGIN";
+    private static final String USER_CHANGE_PASSWORD = "USER_CHANGE_PASSWORD";
+    private static final String USER_LOGOUT = "USER_LOGOUT";
 
     private final ClientConnection connection;
     private final String clientInstanceId;
@@ -39,6 +43,35 @@ public class UserClientService {
                 .thenApply(this::requireSuccess);
     }
 
+    /** Changes the current user's password and invalidates the local session on success. */
+    public CompletableFuture<Void> changePassword(char[] oldPassword, char[] newPassword) {
+        ChangePasswordCommand command;
+        try {
+            command = new ChangePasswordCommand(
+                    Objects.requireNonNull(oldPassword, "oldPassword"),
+                    Objects.requireNonNull(newPassword, "newPassword"));
+        } finally {
+            clearPassword(oldPassword);
+            clearPassword(newPassword);
+        }
+        return connection.<EmptyResponse>send(USER_CHANGE_PASSWORD, command, timeout)
+                .thenApply(response -> {
+                    requireEmptySuccess(response);
+                    connection.setSessionToken(null);
+                    return null;
+                });
+    }
+
+    /** Logs out the current user and invalidates the local session on server confirmation. */
+    public CompletableFuture<Void> logout() {
+        return connection.<EmptyResponse>send(USER_LOGOUT, EmptyResponse.INSTANCE, timeout)
+                .thenApply(response -> {
+                    requireEmptySuccess(response);
+                    connection.setSessionToken(null);
+                    return null;
+                });
+    }
+
     private LoginResult requireSuccess(ResponseBody<LoginResult> response) {
         if (!response.success() || response.data() == null) {
             throw new IllegalArgumentException(response.code());
@@ -46,5 +79,17 @@ public class UserClientService {
         LoginResult result = response.data();
         connection.setSessionToken(result.sessionToken());
         return result;
+    }
+
+    private static void requireEmptySuccess(ResponseBody<EmptyResponse> response) {
+        if (!response.success() || response.data() != EmptyResponse.INSTANCE) {
+            throw new IllegalArgumentException(response.code());
+        }
+    }
+
+    private static void clearPassword(char[] password) {
+        if (password != null) {
+            Arrays.fill(password, '\0');
+        }
     }
 }

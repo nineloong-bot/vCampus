@@ -3,6 +3,7 @@ package edu.seu.vcampus.client;
 import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.core.ui.MainFrame;
 import edu.seu.vcampus.client.user.service.UserClientService;
+import edu.seu.vcampus.client.user.ui.InitialPasswordChangeDialog;
 import edu.seu.vcampus.client.user.ui.LoginFrame;
 
 import javax.swing.SwingUtilities;
@@ -32,17 +33,23 @@ public final class ClientMain {
             Runtime.getRuntime().addShutdownHook(new Thread(connection::close, "vcampus-client-close"));
             UserClientService users = new UserClientService(
                     connection, UUID.randomUUID().toString(), timeout);
-            SwingUtilities.invokeLater(() -> {
-                LoginFrame login = new LoginFrame(users, result -> {
-                    MainFrame main = new MainFrame(result.user());
-                    main.setVisible(true);
-                });
-                login.setVisible(true);
-            });
+            SwingUtilities.invokeLater(() -> showLogin(users));
         } catch (Exception error) {
             System.err.println("客户端启动失败：" + error.getMessage());
             System.exit(2);
         }
+    }
+
+    private static void showLogin(UserClientService users) {
+        LoginFrame login = new LoginFrame(users, result -> {
+            MainFrame main = new MainFrame(result.user());
+            main.setVisible(true);
+        }, restricted -> {
+            InitialPasswordChangeDialog dialog = new InitialPasswordChangeDialog(
+                    users, () -> showLogin(users));
+            dialog.setVisible(true);
+        });
+        login.setVisible(true);
     }
 
     private static Properties load(Path file) throws Exception {
