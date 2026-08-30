@@ -1,7 +1,11 @@
 package edu.seu.vcampus.client.shop.demo;
 
 import edu.seu.vcampus.client.core.network.ClientConnection;
+import edu.seu.vcampus.client.core.ui.MainFrame;
 import edu.seu.vcampus.client.shop.service.ShopClientService;
+import edu.seu.vcampus.client.shop.service.ShopClientPort;
+import edu.seu.vcampus.client.shop.ui.ShopUiInstaller;
+import edu.seu.vcampus.client.shop.ui.style.DefaultShopUiKit;
 import edu.seu.vcampus.client.user.service.UserClientService;
 import edu.seu.vcampus.common.protocol.Message;
 import edu.seu.vcampus.common.protocol.MessageType;
@@ -24,6 +28,10 @@ import edu.seu.vcampus.server.shop.demo.ShopAuthDemoRuntime;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import javax.swing.JButton;
+import javax.swing.JLabel;
+import java.awt.CardLayout;
+import java.awt.GraphicsEnvironment;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
@@ -43,6 +51,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -109,6 +118,29 @@ class ShopAuthEndToEndTest {
         assertThat(response.join()).isEqualTo(expected);
         assertThat(sendRanOnEdt).isFalse();
         verify(connection).setSessionToken("opaque-session");
+    }
+
+    @Test
+    void authenticatedDemoShellKeepsTheShopCardHostAndVisibleIdentity() throws Exception {
+        assumeFalse(GraphicsEnvironment.isHeadless());
+        LoginResult login = loginResult();
+        MainFrame main = edu.seu.vcampus.client.shop.ShopSwingTestSupport.onEdt(
+                () -> ShopAuthDemoClientMain.authenticatedMain(login.user()));
+        ShopClientPort client = mock(ShopClientPort.class);
+        when(client.home(any())).thenReturn(new CompletableFuture<>());
+
+        edu.seu.vcampus.client.shop.ShopSwingTestSupport.onEdt(() ->
+                ShopUiInstaller.install(main, client, new DefaultShopUiKit(), () -> { }));
+        JButton shop = edu.seu.vcampus.client.shop.ShopSwingTestSupport.component(
+                main.navigation(), "shop.navigation", JButton.class);
+        edu.seu.vcampus.client.shop.ShopSwingTestSupport.onEdt(
+                (Runnable) () -> shop.doClick());
+
+        assertThat(main.content().getLayout()).isInstanceOf(CardLayout.class);
+        assertThat(edu.seu.vcampus.client.shop.ShopSwingTestSupport.component(
+                main.header(), "shop-demo.identity", JLabel.class).getText())
+                .isEqualTo("当前用户：DEMO_BUYER（STUDENT）");
+        edu.seu.vcampus.client.shop.ShopSwingTestSupport.onEdt(main::dispose);
     }
 
     @Test

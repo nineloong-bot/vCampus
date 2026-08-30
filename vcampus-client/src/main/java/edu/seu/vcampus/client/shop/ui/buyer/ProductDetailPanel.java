@@ -87,6 +87,10 @@ public final class ProductDetailPanel extends JPanel {
 
     public int cartCount() { return cartCount; }
     public List<String> visibleSkuIds() { return List.copyOf(availableSkus.keySet()); }
+    public void clearCartCount() {
+        cartCount = 0;
+        cartCountLabel.setText("购物车（0）");
+    }
     public void dispose() { loads.dispose(); submissions.dispose(); }
 
     private void finishLoad(long request, ProductDetail detail, Throwable failure) {

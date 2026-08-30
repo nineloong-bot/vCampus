@@ -23,9 +23,12 @@ import edu.seu.vcampus.common.shop.PaymentView;
 import edu.seu.vcampus.common.shop.ProductDetail;
 import edu.seu.vcampus.common.shop.ProductSearchQuery;
 import edu.seu.vcampus.common.shop.ProductSortMode;
+import edu.seu.vcampus.common.shop.ProductSkuView;
+import edu.seu.vcampus.common.shop.ProductStatus;
 import edu.seu.vcampus.common.shop.ProductSummary;
 import edu.seu.vcampus.common.shop.ShopDetail;
 import edu.seu.vcampus.common.shop.ShopProductQuery;
+import edu.seu.vcampus.common.shop.ShopSummary;
 import edu.seu.vcampus.common.shop.SimulatePaymentCommand;
 import edu.seu.vcampus.common.shop.UpdateCartItemCommand;
 import org.junit.jupiter.api.Test;
@@ -214,6 +217,24 @@ class ShopUiTest {
     }
 
     @Test
+    void terminalPaymentClearsTheProductDetailCartBadge() throws Exception {
+        BadgeClient client = new BadgeClient();
+        JPanel content = onEdt((Callable<JPanel>) JPanel::new);
+        ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(
+                new PageNavigator(content), client, new DefaultShopUiKit(), () -> { }));
+
+        onEdt(() -> coordinator.navigator().open(new ShopRoute.Product("product-badge")));
+        flushEdt();
+        onEdt(() -> component(content, "add-to-cart", JButton.class).doClick());
+        flushEdt();
+        assertThat(component(content, "cart-count", JLabel.class).getText()).isEqualTo("购物车（2）");
+
+        onEdt(() -> coordinator.navigator().open(new ShopRoute.PaymentResult(payment())));
+
+        assertThat(component(content, "cart-count", JLabel.class).getText()).isEqualTo("购物车（0）");
+    }
+
+    @Test
     void installsOneShopEntryAndRendersHomeWithoutChangingMainFrame() throws Exception {
         assumeFalse(GraphicsEnvironment.isHeadless());
         RecordingClient client = new RecordingClient();
@@ -370,6 +391,27 @@ class ShopUiTest {
         @Override public CompletableFuture<PaymentView> simulatePayment(SimulatePaymentCommand command) {
             return new CompletableFuture<>();
         }
+    }
+
+    private static final class BadgeClient implements ShopClientPort {
+        @Override public CompletableFuture<PageResult<ProductSummary>> home(HomeProductQuery query) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<PageResult<ProductSummary>> search(ProductSearchQuery query) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<ProductDetail> getProduct(String productId) {
+            return CompletableFuture.completedFuture(new ProductDetail(productId, "签字笔", "文具", "",
+                    ProductStatus.ACTIVE, 0, new ShopSummary("shop-badge", "校园文具店"), List.of(
+                    new ProductSkuView("sku-badge", "黑色", new BigDecimal("3.00"), 10, true, 0)),
+                    Instant.parse("2026-08-30T00:00:00Z")));
+        }
+        @Override public CompletableFuture<ShopDetail> getShop(String shopId) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<PageResult<ProductSummary>> getShopProducts(ShopProductQuery query) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<CartView> getCart() { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<CartView> addToCart(AddCartItemCommand command) {
+            return CompletableFuture.completedFuture(ShopClientFixtures.cartView());
+        }
+        @Override public CompletableFuture<CartView> updateCartItem(UpdateCartItemCommand command) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<CartView> removeCartItem(String cartItemId) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<CheckoutResult> checkout(CheckoutCommand command) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<PaymentView> simulatePayment(SimulatePaymentCommand command) { return new CompletableFuture<>(); }
     }
 
     private static final class ExpiringClient implements ShopClientPort {

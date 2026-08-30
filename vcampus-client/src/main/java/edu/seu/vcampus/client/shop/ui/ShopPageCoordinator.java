@@ -14,6 +14,7 @@ import edu.seu.vcampus.client.shop.ui.navigation.ShopRoute;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopRouteHost;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
 import edu.seu.vcampus.common.shop.PaymentView;
+import edu.seu.vcampus.common.shop.PaymentStatus;
 
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
@@ -249,7 +250,10 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         @Override public void loadStorefront(String shopId) { storefront.load(shopId); }
         @Override public void loadCart() { cart.load(); }
         @Override public void loadCheckout() { checkout.load(); }
-        @Override public void loadPaymentResult(PaymentView payment) { paymentResult.load(payment); }
+        @Override public void loadPaymentResult(PaymentView payment) {
+            if (payment.status() != PaymentStatus.PENDING) product.clearCartCount();
+            paymentResult.load(payment);
+        }
         @Override public void dispose() {
             home.dispose();
             search.dispose();
