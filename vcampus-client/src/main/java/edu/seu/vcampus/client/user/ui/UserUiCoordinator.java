@@ -41,7 +41,25 @@ public final class UserUiCoordinator {
             return;
         }
         MainFrame main = new MainFrame(result.user(), connection);
+        replaceAccountPage(main, result);
         main.setVisible(true);
+    }
+
+    private void replaceAccountPage(MainFrame main, LoginResult result) {
+        for (java.awt.Component component : main.content().getComponents()) {
+            if ("page.account".equals(component.getName())) {
+                main.content().remove(component);
+                break;
+            }
+        }
+        AccountPanel account = new AccountPanel(users, result.user(), result.permissions(), () -> {
+            users.clearSession();
+            main.dispose();
+            showLogin(PASSWORD_CHANGED);
+        });
+        main.content().add(account, "account");
+        main.content().revalidate();
+        main.content().repaint();
     }
 
     private static void onEdt(Runnable action) {

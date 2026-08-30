@@ -5,8 +5,17 @@ import edu.seu.vcampus.common.protocol.EmptyRequest;
 import edu.seu.vcampus.common.protocol.EmptyResponse;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.user.ChangePasswordCommand;
+import edu.seu.vcampus.common.user.ChangeUserStatusCommand;
 import edu.seu.vcampus.common.user.LoginCommand;
 import edu.seu.vcampus.common.user.LoginResult;
+import edu.seu.vcampus.common.user.SecurityAuditQuery;
+import edu.seu.vcampus.common.user.SecurityAuditView;
+import edu.seu.vcampus.common.user.TeacherAccountApplicationCommand;
+import edu.seu.vcampus.common.user.UpdateUserRoleCommand;
+import edu.seu.vcampus.common.user.UserSearchQuery;
+import edu.seu.vcampus.common.user.UserSummary;
+import edu.seu.vcampus.common.user.UserView;
+import edu.seu.vcampus.common.paging.PageResult;
 
 import java.time.Duration;
 import java.io.Serializable;
@@ -19,6 +28,12 @@ public class UserClientService {
     private static final String USER_LOGIN = "USER_LOGIN";
     private static final String USER_CHANGE_PASSWORD = "USER_CHANGE_PASSWORD";
     private static final String USER_LOGOUT = "USER_LOGOUT";
+    private static final String USER_REGISTER = "USER_REGISTER";
+    private static final String USER_GET_CURRENT = "USER_GET_CURRENT";
+    private static final String USER_SEARCH = "USER_SEARCH";
+    private static final String USER_UPDATE_ROLE = "USER_UPDATE_ROLE";
+    private static final String USER_CHANGE_STATUS = "USER_CHANGE_STATUS";
+    private static final String SECURITY_AUDIT_SEARCH = "SECURITY_AUDIT_SEARCH";
 
     private final ClientConnection connection;
     private final String clientInstanceId;
@@ -43,6 +58,52 @@ public class UserClientService {
         }
         return this.<LoginResult>sendAsync(USER_LOGIN, command, command::clearPassword)
                 .thenApply(this::requireLoginSuccess);
+    }
+
+    /** Submits a public teacher-account application and clears all password copies. */
+    public CompletableFuture<UserView> applyForTeacherAccount(
+            String loginId, char[] password) {
+        Objects.requireNonNull(password, "password");
+        TeacherAccountApplicationCommand command;
+        try {
+            command = new TeacherAccountApplicationCommand(loginId, password);
+        } finally {
+            Arrays.fill(password, '\0');
+        }
+        return this.<UserView>sendAsync(USER_REGISTER, command, command::clearPassword)
+                .thenApply(UserClientService::requireSuccess);
+    }
+
+    /** Gets the current safe account projection. */
+    public CompletableFuture<UserView> getCurrentUser() {
+        return this.<UserView>sendAsync(USER_GET_CURRENT, EmptyRequest.INSTANCE, () -> { })
+                .thenApply(UserClientService::requireSuccess);
+    }
+
+    /** Searches safe user summaries using server-side paging and filters. */
+    public CompletableFuture<PageResult<UserSummary>> searchUsers(UserSearchQuery query) {
+        return this.<PageResult<UserSummary>>sendAsync(USER_SEARCH, query, () -> { })
+                .thenApply(UserClientService::requireSuccess);
+    }
+
+    /** Updates a teacher or administrator role using optimistic locking. */
+    public CompletableFuture<UserView> updateRole(UpdateUserRoleCommand command) {
+        return this.<UserView>sendAsync(USER_UPDATE_ROLE, command, () -> { })
+                .thenApply(UserClientService::requireSuccess);
+    }
+
+    /** Updates an account lifecycle status using optimistic locking. */
+    public CompletableFuture<UserView> changeStatus(ChangeUserStatusCommand command) {
+        return this.<UserView>sendAsync(USER_CHANGE_STATUS, command, () -> { })
+                .thenApply(UserClientService::requireSuccess);
+    }
+
+    /** Searches sanitized audit records through the separate read-only command. */
+    public CompletableFuture<PageResult<SecurityAuditView>> searchSecurityAudits(
+            SecurityAuditQuery query) {
+        return this.<PageResult<SecurityAuditView>>sendAsync(
+                        SECURITY_AUDIT_SEARCH, query, () -> { })
+                .thenApply(UserClientService::requireSuccess);
     }
 
     /** Changes the password and clears the revoked local session after success. */

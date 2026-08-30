@@ -9,14 +9,17 @@ import edu.seu.vcampus.server.network.SocketServer;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import edu.seu.vcampus.server.persistence.TransactionManager;
 import edu.seu.vcampus.server.routing.MessageRouter;
+import edu.seu.vcampus.server.routing.MessageHandler;
 import edu.seu.vcampus.server.routing.RequestDeduplicator;
 import edu.seu.vcampus.server.security.AuthorizationService;
 import edu.seu.vcampus.server.session.SessionRegistry;
 import edu.seu.vcampus.server.user.handler.UserHandlers;
+import edu.seu.vcampus.server.user.handler.SecurityAuditHandler;
 import edu.seu.vcampus.server.user.repository.AccessAuditRepository;
 import edu.seu.vcampus.server.user.repository.AccessPermissionRepository;
 import edu.seu.vcampus.server.user.repository.AccessUserRepository;
 import edu.seu.vcampus.server.user.service.PasswordHasher;
+import edu.seu.vcampus.server.user.service.SecurityAuditService;
 import edu.seu.vcampus.server.user.service.UserService;
 import edu.seu.vcampus.server.user.service.UserServiceImpl;
 import org.slf4j.Logger;
@@ -61,6 +64,7 @@ public final class ServerMain {
                 "PING", (request, context) -> ResponseBody.success(EmptyResponse.INSTANCE)));
         UserRuntime users = createUserRuntime(config);
         new UserHandlers(router, users.service(), users.authorization(), users.deduplicator());
+        registerSecurityAudit(router, users.auditHandler());
         SocketServer server = new SocketServer(config.port(), config.workerThreads(),
                 config.maxConnections(), router);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> shutdown(server), "vcampus-shutdown"));
@@ -77,11 +81,20 @@ public final class ServerMain {
         StripedResourceLockManager locks = new StripedResourceLockManager();
         SessionRegistry sessions = new SessionRegistry(clock,
                 Duration.ofMinutes(config.sessionTimeoutMinutes()));
+        AccessAuditRepository audits = new AccessAuditRepository();
         UserService service = new UserServiceImpl(transactions, locks,
                 new AccessUserRepository(), new AccessPermissionRepository(),
-                new AccessAuditRepository(), new PasswordHasher(), sessions, clock);
-        return new UserRuntime(service, new AuthorizationService(sessions),
-                new RequestDeduplicator(transactions, locks));
+                audits, new PasswordHasher(), sessions, clock);
+        AuthorizationService authorization = new AuthorizationService(sessions);
+        SecurityAuditHandler auditHandler = new SecurityAuditHandler(authorization,
+                new SecurityAuditService(transactions, audits));
+        return new UserRuntime(service, authorization,
+                new RequestDeduplicator(transactions, locks), auditHandler);
+    }
+
+    private static void registerSecurityAudit(
+            MessageRouter router, MessageHandler handler) {
+        router.register("SECURITY_AUDIT_SEARCH", handler);
     }
 
     private static void shutdown(SocketServer server) {
@@ -97,6 +110,7 @@ public final class ServerMain {
     }
 
     private record UserRuntime(UserService service, AuthorizationService authorization,
-                               RequestDeduplicator deduplicator) {
+                               RequestDeduplicator deduplicator,
+                               SecurityAuditHandler auditHandler) {
     }
 }

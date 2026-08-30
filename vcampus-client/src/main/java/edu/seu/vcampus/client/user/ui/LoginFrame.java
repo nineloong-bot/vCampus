@@ -18,6 +18,7 @@ import javax.swing.JPanel;
 import javax.swing.JPasswordField;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 import java.awt.BorderLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -30,15 +31,19 @@ import java.util.function.Consumer;
 
 /** Accessible split-layout login window for the real-account client flow. */
 public final class LoginFrame extends JFrame {
-    private static final String DEMO_HINT = "演示账号：DEMO_ADMIN / admin123456";
+    private static final int DEMO_LOCKOUT_SECONDS = 30;
     private final UserClientService users;
     private final Consumer<LoginResult> onSuccess;
     private final JTextField loginId = named(new JTextField(20), "login.loginId", "登录标识");
     private final JPasswordField password = named(
             new JPasswordField(20), "login.password", "登录密码");
     private final JButton submit = named(new JButton("登录"), "login.submit", "登录");
+    private final JButton apply = named(
+            new JButton("申请教师账户"), "login.applyTeacher", "申请教师账户");
     private final JLabel status = named(new JLabel(" "), "login.status", "登录状态");
     private final JLabel error = named(new JLabel(" "), "login.error", "登录提示");
+    private final Timer lockoutTimer = new Timer(1_000, event -> tickLockoutCountdown());
+    private int lockoutSecondsRemaining;
 
     /** Creates a login window without live connection binding for compatibility. */
     public LoginFrame(UserClientService users, Consumer<LoginResult> onSuccess) {
@@ -51,12 +56,15 @@ public final class LoginFrame extends JFrame {
         super("vCampus 登录");
         this.users = Objects.requireNonNull(users, "users");
         this.onSuccess = Objects.requireNonNull(onSuccess, "onSuccess");
+        lockoutTimer.setCoalesce(true);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new GridLayout(1, 2));
         add(brandPanel());
         add(formPanel(connection));
         getRootPane().setDefaultButton(submit);
         submit.addActionListener(event -> submitLogin());
+        apply.addActionListener(event -> new TeacherAccountApplicationDialog(
+                this, users, () -> showNotice("申请已提交，等待管理员审核")).setVisible(true));
         setSize(UiDimensions.LOGIN_WINDOW);
         setResizable(false);
         setLocationRelativeTo(null);
@@ -110,19 +118,18 @@ public final class LoginFrame extends JFrame {
                 ? new ConnectionStatusPanel() : new ConnectionStatusPanel(connection);
         panel.add(connectionStatus, c);
         c.gridy = 4;
-        JLabel demoHint = named(new JLabel(DEMO_HINT),
-                "login.demoHint", "演示账号提示");
-        demoHint.setFont(UiTypography.CAPTION);
-        demoHint.setForeground(UiColors.TEXT_SECONDARY);
-        panel.add(demoHint, c);
+        panel.add(demoAccounts(), c);
         c.gridy = 5;
         submit.setBackground(UiColors.ACCENT);
         submit.setForeground(UiColors.TEXT_ON_PRIMARY);
         panel.add(submit, c);
         c.gridy = 6;
+        apply.setForeground(UiColors.PRIMARY);
+        panel.add(apply, c);
+        c.gridy = 7;
         status.setForeground(UiColors.TEXT_SECONDARY);
         panel.add(status, c);
-        c.gridy = 7;
+        c.gridy = 8;
         error.setForeground(UiColors.ERROR_FG);
         panel.add(error, c);
         return panel;
@@ -165,14 +172,69 @@ public final class LoginFrame extends JFrame {
         status.setText(" ");
         submit.setText("登录");
         if (failure != null || result == null) {
+            if (UserErrorMessages.isAccountLocked(failure)) {
+                startLockoutCountdown();
+                password.requestFocusInWindow();
+                return;
+            }
             submit.setEnabled(true);
             error.setForeground(UiColors.ERROR_FG);
-            error.setText("用户名或密码错误，请重试");
+            error.setText(UserErrorMessages.login(failure));
             password.requestFocusInWindow();
             return;
         }
         dispose();
         SwingUtilities.invokeLater(() -> onSuccess.accept(result));
+    }
+
+    private JPanel demoAccounts() {
+        JPanel panel = new JPanel(new GridLayout(0, 1, 0, UiSpacing.SPACE_1));
+        panel.setOpaque(false);
+        panel.getAccessibleContext().setAccessibleName("课程演示账号");
+        panel.add(demoLabel("演示账号", "login.demoTitle"));
+        panel.add(demoLabel("管理员：DEMO_ADMIN / admin123456", "login.demoAdmin"));
+        panel.add(demoLabel("教师：DEMO_TEACHER / Teacher123456", "login.demoTeacher"));
+        panel.add(demoLabel("学生：213242478 / 12345678（首次登录需修改密码）",
+                "login.demoStudent"));
+        return panel;
+    }
+
+    private static JLabel demoLabel(String text, String name) {
+        JLabel label = named(new JLabel(text), name, text);
+        label.setFont(UiTypography.CAPTION);
+        label.setForeground(UiColors.TEXT_SECONDARY);
+        return label;
+    }
+
+    private void startLockoutCountdown() {
+        lockoutTimer.stop();
+        lockoutSecondsRemaining = DEMO_LOCKOUT_SECONDS;
+        submit.setEnabled(false);
+        error.setForeground(UiColors.ERROR_FG);
+        showLockoutCountdown();
+        lockoutTimer.start();
+    }
+
+    private void tickLockoutCountdown() {
+        lockoutSecondsRemaining--;
+        if (lockoutSecondsRemaining <= 0) {
+            lockoutTimer.stop();
+            submit.setEnabled(true);
+            error.setText(" ");
+            return;
+        }
+        showLockoutCountdown();
+    }
+
+    private void showLockoutCountdown() {
+        error.setText("登录失败次数过多，请 " + lockoutSecondsRemaining + " 秒后再试");
+    }
+
+    /** Stops the demo countdown when the login window is closed. */
+    @Override
+    public void dispose() {
+        lockoutTimer.stop();
+        super.dispose();
     }
 
     private static void onEdt(Runnable action) {

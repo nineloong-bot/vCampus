@@ -122,15 +122,21 @@ class LoginDemoUiTest {
     }
 
     @Test
-    void loginShowsExactDemoHintWithoutPrefillingCredentials() throws Exception {
+    void loginShowsAllDemoAccountsWithoutPrefillingCredentials() throws Exception {
         UserClientService service = mock(UserClientService.class);
         LoginFrame[] login = new LoginFrame[1];
 
         SwingUtilities.invokeAndWait(() ->
                 login[0] = new LoginFrame(service, result -> { }));
 
-        assertThat(component(login[0], "login.demoHint", JLabel.class).getText())
-                .isEqualTo("演示账号：DEMO_ADMIN / admin123456");
+        assertThat(component(login[0], "login.demoTitle", JLabel.class).getText())
+                .isEqualTo("演示账号");
+        assertThat(component(login[0], "login.demoAdmin", JLabel.class).getText())
+                .isEqualTo("管理员：DEMO_ADMIN / admin123456");
+        assertThat(component(login[0], "login.demoTeacher", JLabel.class).getText())
+                .isEqualTo("教师：DEMO_TEACHER / Teacher123456");
+        assertThat(component(login[0], "login.demoStudent", JLabel.class).getText())
+                .isEqualTo("学生：213242478 / 12345678（首次登录需修改密码）");
         assertThat(component(login[0], "login.loginId", JTextField.class).getText())
                 .isEmpty();
         assertThat(component(login[0], "login.password", JPasswordField.class).getPassword())

@@ -18,7 +18,8 @@ import static edu.seu.vcampus.common.user.AccountStatus.ACTIVE;
 
 /** Verifies one credential attempt and updates lockout state atomically. */
 final class CredentialAuthenticator {
-    private static final Duration LOCKOUT_DURATION = Duration.ofMinutes(15);
+    // 30 秒是团队确认的课程演示与调试锁定策略。
+    static final Duration LOCKOUT_DURATION = Duration.ofSeconds(30);
     private final TransactionManager transactions;
     private final UserRepository users;
     private final PermissionRepository permissions;
@@ -40,12 +41,14 @@ final class CredentialAuthenticator {
     Attempt authenticate(String userId, char[] password, String clientAddress) {
         return transactions.inTransaction(connection -> {
             UserAccount account = users.findById(connection, userId).orElse(null);
-            if (account == null || !hasher.verify(password, account.passwordHash(),
-                    account.passwordSalt(), account.passwordIterations())) {
-                if (account != null) recordFailure(connection, account);
-                return Attempt.failure("AUTH_INVALID_CREDENTIALS");
+            if (account == null) return Attempt.failure("AUTH_INVALID_CREDENTIALS");
+            String blocked = lockedCode(account);
+            if (blocked != null) return Attempt.failure(blocked);
+            if (!hasher.verify(password, account.passwordHash(), account.passwordSalt(),
+                    account.passwordIterations())) {
+                return Attempt.failure(recordFailure(connection, account));
             }
-            String blocked = blockedCode(account);
+            blocked = unavailableStatusCode(account);
             if (blocked != null) return Attempt.failure(blocked);
             Instant now = clock.instant();
             UserAccount updated = authenticationUpdate(account, 0, null, time(now), now);
@@ -57,7 +60,7 @@ final class CredentialAuthenticator {
         });
     }
 
-    private void recordFailure(java.sql.Connection connection, UserAccount account) {
+    private String recordFailure(java.sql.Connection connection, UserAccount account) {
         if (account.lockedUntil() == null || !account.lockedUntil().isAfter(time(clock.instant()))) {
             int failures = account.failedLoginCount() + 1;
             Instant now = clock.instant();
@@ -65,15 +68,22 @@ final class CredentialAuthenticator {
                     ? time(now.plus(LOCKOUT_DURATION)) : account.lockedUntil();
             users.updateWithVersion(connection, authenticationUpdate(account, failures,
                     lockedUntil, account.lastLoginAt(), now), account.rowVersion());
+            return failures >= 5 ? "AUTH_ACCOUNT_LOCKED" : "AUTH_INVALID_CREDENTIALS";
         }
+        return "AUTH_ACCOUNT_LOCKED";
     }
 
-    private String blockedCode(UserAccount account) {
+    private String unavailableStatusCode(UserAccount account) {
         if (account.accountStatus() != ACTIVE) {
             return account.accountStatus().name().equals("PENDING")
                     ? "AUTH_ACCOUNT_PENDING" : "AUTH_ACCOUNT_DISABLED";
         }
-        return account.lockedUntil() != null && account.lockedUntil().isAfter(time(clock.instant()))
+        return null;
+    }
+
+    private String lockedCode(UserAccount account) {
+        return account.lockedUntil() != null
+                && account.lockedUntil().isAfter(time(clock.instant()))
                 ? "AUTH_ACCOUNT_LOCKED" : null;
     }
 

@@ -64,15 +64,22 @@ class LoginLockoutTest {
     }
 
     @Test
-    void fifthInvalidPasswordLocksAccountForFifteenMinutes() {
-        for (int attempt = 0; attempt < 5; attempt++) {
+    void fifthInvalidPasswordLocksAccountForThirtySeconds() {
+        for (int attempt = 0; attempt < 4; attempt++) {
             assertThatThrownBy(() -> login("wrong"))
                     .isInstanceOf(InvalidCredentialsException.class);
         }
+        assertThatThrownBy(() -> login("wrong"))
+                .isInstanceOf(AccountLockedException.class);
 
         assertThatThrownBy(() -> login("Password1"))
                 .isInstanceOf(AccountLockedException.class);
-        clock.advance(Duration.ofMinutes(15));
+        assertThatThrownBy(() -> login("wrong"))
+                .isInstanceOf(AccountLockedException.class);
+        clock.advance(Duration.ofSeconds(29));
+        assertThatThrownBy(() -> login("Password1"))
+                .isInstanceOf(AccountLockedException.class);
+        clock.advance(Duration.ofSeconds(1));
 
         assertThat(login("Password1").sessionToken()).isNotBlank();
     }
@@ -91,22 +98,24 @@ class LoginLockoutTest {
 
     @Test
     void wrongPasswordDuringLockDoesNotExtendTheLockoutWindow() {
-        for (int attempt = 0; attempt < 5; attempt++) {
+        for (int attempt = 0; attempt < 4; attempt++) {
             assertThatThrownBy(() -> login("wrong")).isInstanceOf(InvalidCredentialsException.class);
         }
-        clock.advance(Duration.ofMinutes(10));
-        assertThatThrownBy(() -> login("wrong")).isInstanceOf(InvalidCredentialsException.class);
-        clock.advance(Duration.ofMinutes(5));
+        assertThatThrownBy(() -> login("wrong")).isInstanceOf(AccountLockedException.class);
+        clock.advance(Duration.ofSeconds(20));
+        assertThatThrownBy(() -> login("wrong")).isInstanceOf(AccountLockedException.class);
+        clock.advance(Duration.ofSeconds(10));
 
         assertThat(login("Password1").sessionToken()).isNotBlank();
     }
 
     @Test
     void successfulLoginAfterLockoutResetsFailureCount() {
-        for (int attempt = 0; attempt < 5; attempt++) {
+        for (int attempt = 0; attempt < 4; attempt++) {
             assertThatThrownBy(() -> login("wrong")).isInstanceOf(InvalidCredentialsException.class);
         }
-        clock.advance(Duration.ofMinutes(15));
+        assertThatThrownBy(() -> login("wrong")).isInstanceOf(AccountLockedException.class);
+        clock.advance(Duration.ofSeconds(30));
 
         login("Password1");
 
@@ -116,9 +125,54 @@ class LoginLockoutTest {
         assertThat(account.lockedUntil()).isNull();
     }
 
+    @Test
+    void unknownLoginIdHasTheSameFiveAttemptLockoutWithoutCreatingUserData() {
+        long usersBefore = count("tblUser", null);
+
+        for (int attempt = 0; attempt < 4; attempt++) {
+            assertThatThrownBy(() -> login("missing_user", "wrong"))
+                    .isInstanceOf(InvalidCredentialsException.class);
+        }
+        assertThatThrownBy(() -> login("  missing_user  ", "wrong"))
+                .isInstanceOf(AccountLockedException.class);
+        assertThatThrownBy(() -> login("MISSING_USER", "Password1"))
+                .isInstanceOf(AccountLockedException.class);
+        assertThatThrownBy(() -> login("missing_user", "wrong"))
+                .isInstanceOf(AccountLockedException.class);
+
+        clock.advance(Duration.ofSeconds(30));
+
+        assertThatThrownBy(() -> login("missing_user", "Password1"))
+                .isInstanceOf(InvalidCredentialsException.class);
+        assertThat(count("tblUser", null)).isEqualTo(usersBefore);
+        java.util.Optional<UserAccount> unknown = transactions.inTransaction(connection ->
+                users.findByNormalizedLoginId(connection, "MISSING_USER"));
+        assertThat(unknown).isEmpty();
+        assertThat(count("tblAuditLog", "resultCode='SUCCESS' AND actionCode='USER_LOGIN'"))
+                .isZero();
+    }
+
     private edu.seu.vcampus.common.user.LoginResult login(String password) {
-        return service.login(new LoginCommand("alice", password.toCharArray(), "client"),
+        return login("alice", password);
+    }
+
+    private edu.seu.vcampus.common.user.LoginResult login(String loginId, String password) {
+        return service.login(new LoginCommand(loginId, password.toCharArray(), "client"),
                 new ClientContext("connection", "127.0.0.1"));
+    }
+
+    private long count(String table, String condition) {
+        return transactions.inTransaction(connection -> {
+            String sql = "SELECT COUNT(*) FROM " + table
+                    + (condition == null ? "" : " WHERE " + condition);
+            try (var statement = connection.createStatement();
+                 var rows = statement.executeQuery(sql)) {
+                rows.next();
+                return rows.getLong(1);
+            } catch (java.sql.SQLException error) {
+                throw new AssertionError(error);
+            }
+        });
     }
 
     private static Path projectFile(String folder, String name) {

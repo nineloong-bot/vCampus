@@ -40,6 +40,7 @@ final class AuthenticationService {
     private final Clock clock;
     private final UserAuditWriter auditWriter;
     private final CredentialAuthenticator authenticator;
+    private final UnknownLoginAttemptTracker unknownAttempts;
 
     AuthenticationService(TransactionManager transactions, ResourceLockManager locks,
             UserRepository users, PermissionRepository permissions, AuditRepository audits,
@@ -54,6 +55,8 @@ final class AuthenticationService {
         auditWriter = new UserAuditWriter(transactions, audits);
         authenticator = new CredentialAuthenticator(transactions, users, permissions,
                 audits, hasher, clock);
+        unknownAttempts = new UnknownLoginAttemptTracker(
+                clock, CredentialAuthenticator.LOCKOUT_DURATION);
     }
 
     LoginResult login(LoginCommand command, ClientContext context) {
@@ -65,7 +68,7 @@ final class AuthenticationService {
             UserAccount known = transactions.inTransaction(connection ->
                     users.findByNormalizedLoginId(connection, loginId).orElse(null));
             if (known == null) {
-                InvalidCredentialsException error = new InvalidCredentialsException();
+                RuntimeException error = loginFailure(unknownAttempts.recordFailure(loginId));
                 auditWriter.failure(null, "USER_LOGIN", null, error, context.clientAddress());
                 throw error;
             }
