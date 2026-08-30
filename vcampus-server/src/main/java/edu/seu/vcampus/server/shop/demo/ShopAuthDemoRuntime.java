@@ -69,7 +69,8 @@ public final class ShopAuthDemoRuntime implements AutoCloseable {
                 new AccessUserRepository(), new AccessAuditRepository(), new PasswordHasher(),
                 sessions, clock);
         AuthorizationService authorization = new AuthorizationService(sessions);
-        FoundationShopUserAdapter shopUsers = new FoundationShopUserAdapter(authorization);
+        FoundationShopUserAdapter shopUsers = new FoundationShopUserAdapter(
+                authorization, token -> sessions.requireSnapshot(token).restricted());
         AccessShopRepository repository = new AccessShopRepository();
         ShopService shopService = new ShopService(repository, transactions);
         CartService cartService = new CartService(
