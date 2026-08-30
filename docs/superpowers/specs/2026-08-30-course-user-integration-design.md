@@ -8,7 +8,7 @@
 
 ## 2. 合并策略
 
-从 `course` 创建 `codex/course-user-integration`，使用非快进合并引入 `origin/feat/user-management`。冲突解决遵循以下原则：
+从 `course` 创建 `course-user-management`，使用非快进合并引入 `origin/feat/user-management`。冲突解决遵循以下原则：
 
 - 保留 `course` 新增的选课源代码、测试、文档、主题样式和分发文件；
 - 保留用户分支新增的用户协议、用户服务、认证会话、登录界面、数据库 schema 与测试；
