@@ -27,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.ArgumentMatchers.any;
 import edu.seu.vcampus.common.library.BookSummary;
 import edu.seu.vcampus.common.paging.PageResult;
@@ -194,6 +195,30 @@ class LibraryUiTest {
         verify(service).changeCopyStatus(status);
         assertThat(labels(books)).contains("书目已新增");
         assertThat(labels(copies)).contains("副本状态已更新");
+    }
+
+    @Test
+    void selectingAQueryTabAutomaticallyRefreshesItsData() throws Exception {
+        when(service.searchBooks(any())).thenReturn(CompletableFuture.completedFuture(
+                new PageResult<>(List.of(), 1, 20, 0)));
+        when(service.getCurrentLoans()).thenReturn(CompletableFuture.completedFuture(List.of()));
+        when(service.getLoanHistory(any())).thenReturn(CompletableFuture.completedFuture(
+                new PageResult<>(List.of(), 1, 20, 0)));
+        when(service.searchAllLoans(any())).thenReturn(CompletableFuture.completedFuture(
+                new PageResult<>(List.of(), 1, 20, 0)));
+        LibraryWorkspacePanel workspace = new LibraryWorkspacePanel(service, Set.of("LIBRARY_ADMIN"));
+        JTabbedPane tabs = (JTabbedPane) named(workspace, "library.tabs");
+
+        tabs.setSelectedIndex(1);
+        tabs.setSelectedIndex(2);
+        tabs.setSelectedIndex(3);
+        tabs.setSelectedIndex(5);
+        SwingUtilities.invokeAndWait(() -> { });
+
+        verify(service).getCurrentLoans();
+        verify(service).getLoanHistory(new LoanHistoryQuery(null, 1, 20));
+        verify(service, atLeastOnce()).searchBooks(new BookSearchQuery("", null, false, 1, 100));
+        verify(service).searchAllLoans(new AdminLoanSearchQuery(null, null, 1, 20));
     }
 
     private static Component button(Container root, String text) {
