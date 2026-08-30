@@ -73,10 +73,11 @@ class StudentProfileUiTest {
     }
 
     @Test void refreshKeepsOldValuesWhileLoading() throws Exception {
-        var first = CompletableFuture.completedFuture(ResponseBody.success(profile(1, "old@seu.edu.cn", "1")));
+        var first = new CompletableFuture<ResponseBody<StudentView>>();
         var second = new CompletableFuture<ResponseBody<StudentView>>();
         var fixture = new StudentUiFixture(first, second, ConnectionState.CONNECTED);
-        SwingUtilities.invokeAndWait(fixture::showProfile); fixture.awaitDispatch(1); fixture.flushEdt();
+        SwingUtilities.invokeAndWait(fixture::showProfile); fixture.awaitDispatch(1);
+        first.complete(ResponseBody.success(profile(1, "old@seu.edu.cn", "1"))); fixture.flushEdt();
         SwingUtilities.invokeAndWait(() -> fixture.panel.refreshProfile());
         fixture.awaitDispatch(2);
         assertThat(fixture.visibleText()).contains("old@seu.edu.cn", "正在加载");
@@ -104,22 +105,25 @@ class StudentProfileUiTest {
     }
 
     @Test void failedBodyShowsBusinessMessageAndRetry() throws Exception {
-        var initial = CompletableFuture.completedFuture(ResponseBody.success(profile(1, "loaded@seu.edu.cn", "phone")));
-        var failed = CompletableFuture.completedFuture(ResponseBody.<StudentView>failure("DENIED", "没有权限", null));
+        var initial = new CompletableFuture<ResponseBody<StudentView>>();
+        var failed = new CompletableFuture<ResponseBody<StudentView>>();
         var fixture = new StudentUiFixture(initial, failed, ConnectionState.CONNECTED);
-        SwingUtilities.invokeAndWait(fixture::showProfile); fixture.awaitDispatch(1); fixture.flushEdt();
+        SwingUtilities.invokeAndWait(fixture::showProfile); fixture.awaitDispatch(1);
+        initial.complete(ResponseBody.success(profile(1, "loaded@seu.edu.cn", "phone"))); fixture.flushEdt();
         assertThat(fixture.label("student.profile.email").getText()).isEqualTo("loaded@seu.edu.cn");
         assertThat(fixture.button("student.profile.refresh").getText()).isEqualTo("刷新");
-        SwingUtilities.invokeAndWait(() -> fixture.panel.refreshProfile()); fixture.awaitDispatch(2); fixture.flushEdt();
+        SwingUtilities.invokeAndWait(() -> fixture.panel.refreshProfile()); fixture.awaitDispatch(2);
+        failed.complete(ResponseBody.failure("DENIED", "没有权限", null)); fixture.flushEdt();
         assertThat(fixture.visibleText()).contains("没有权限");
         assertThat(fixture.button("student.profile.refresh").getText()).isEqualTo("重试");
         assertThat(fixture.button("student.profile.refresh").isEnabled()).isTrue();
     }
 
     @Test void disconnectedStateRetainsLoadedValuesAndDisablesEdit() throws Exception {
-        var response = CompletableFuture.completedFuture(ResponseBody.success(profile(1, "x@y", "2")));
+        var response = new CompletableFuture<ResponseBody<StudentView>>();
         var fixture = new StudentUiFixture(response, ConnectionState.CONNECTED);
-        SwingUtilities.invokeAndWait(fixture::showProfile); fixture.awaitDispatch(1); fixture.flushEdt();
+        SwingUtilities.invokeAndWait(fixture::showProfile); fixture.awaitDispatch(1);
+        response.complete(ResponseBody.success(profile(1, "x@y", "2"))); fixture.flushEdt();
         fixture.connection.close(); fixture.flushEdt();
         assertThat(fixture.visibleText()).contains("x@y");
         assertThat(fixture.button("student.profile.edit").isEnabled()).isFalse();
