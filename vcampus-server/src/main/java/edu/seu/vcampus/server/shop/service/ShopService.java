@@ -4,6 +4,7 @@ import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.shop.HomeProductQuery;
 import edu.seu.vcampus.common.shop.ProductDetail;
 import edu.seu.vcampus.common.shop.ProductSearchQuery;
+import edu.seu.vcampus.common.shop.ProductSortMode;
 import edu.seu.vcampus.common.shop.ProductSkuView;
 import edu.seu.vcampus.common.shop.ProductStatus;
 import edu.seu.vcampus.common.shop.ProductSummary;
@@ -34,7 +35,7 @@ public final class ShopService {
     public PageResult<ProductSummary> getHomeProducts(HomeProductQuery query) {
         Objects.requireNonNull(query, "query");
         return searchProducts(new ProductSearchQuery(null, null, query.minPrice(), query.maxPrice(),
-                query.sortMode(), query.pageNumber(), query.pageSize()));
+                ProductSortMode.SALES_DESC, query.pageNumber(), query.pageSize()));
     }
 
     public PageResult<ProductSummary> searchProducts(ProductSearchQuery query) {

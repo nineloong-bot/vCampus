@@ -15,6 +15,8 @@ import edu.seu.vcampus.common.shop.ProductSortMode;
 import edu.seu.vcampus.common.shop.ProductSummary;
 
 import javax.swing.JButton;
+import javax.swing.BoxLayout;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
@@ -32,9 +34,10 @@ public final class ShopHomePanel extends JPanel {
     private final Runnable sessionExpired;
     private final LatestRequest latest = new LatestRequest();
     private final ProductCardsPanel cards;
-    private final JPanel content = new JPanel(new BorderLayout());
+    private final JPanel content = new JPanel();
     private final JScrollPane scroll = named(new JScrollPane(content), "home.scroll");
     private final JTextField keyword = named(new JTextField(18), "home.keyword");
+    private final JPanel results = named(new JPanel(new BorderLayout()), "home.results");
 
     public ShopHomePanel(ShopClientPort client, ShopNavigator navigator, ShopUiKit uiKit,
             Runnable sessionExpired) {
@@ -44,6 +47,7 @@ public final class ShopHomePanel extends JPanel {
         this.uiKit = Objects.requireNonNull(uiKit, "uiKit");
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
         this.cards = new ProductCardsPanel(navigator, uiKit);
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
         navigator.addListener(route -> {
             if (!(route instanceof ShopRoute.Home)) latest.begin();
         });
@@ -53,7 +57,18 @@ public final class ShopHomePanel extends JPanel {
                         ProductSortMode.SALES_DESC, 0, 20), false, false, 0))));
         JPanel searchBar = uiKit.filterPanel("home.search-bar", new FlowLayout(FlowLayout.LEFT));
         searchBar.add(keyword); searchBar.add(search);
-        add(searchBar, BorderLayout.NORTH);
+        JPanel categories = uiKit.filterPanel("home.categories", new FlowLayout(FlowLayout.LEFT));
+        for (String category : List.of("文具", "图书", "生活用品", "药品")) {
+            JButton button = uiKit.secondaryButton("home.category." + category, category);
+            button.addActionListener(event -> navigator.open(new ShopRoute.Search(new SearchViewState(
+                    new ProductSearchQuery(null, category, null, null,
+                            ProductSortMode.SALES_DESC, 0, 20), false, false, 0))));
+            categories.add(button);
+        }
+        content.add(searchBar);
+        content.add(categories);
+        content.add(named(new JLabel("猜你喜欢"), "home.recommendations"));
+        content.add(results);
         add(scroll, BorderLayout.CENTER);
         showState(ShopPageState.INITIAL, "", null);
     }
@@ -90,11 +105,12 @@ public final class ShopHomePanel extends JPanel {
             else if (result.items().isEmpty()) showState(ShopPageState.EMPTY, "暂无商品", () -> load(state));
             else {
                 cards.showProducts(result.items());
-                content.removeAll();
+                results.removeAll();
                 JPanel normal = uiKit.filterPanel("home.normal", new BorderLayout());
-                normal.add(uiKit.stateView("home.state", ShopPageState.NORMAL, "", null), BorderLayout.NORTH);
+                normal.add(uiKit.stateView("home.state", ShopPageState.NORMAL, "", null),
+                        BorderLayout.NORTH);
                 normal.add(cards, BorderLayout.CENTER);
-                content.add(normal, BorderLayout.CENTER);
+                results.add(normal, BorderLayout.CENTER);
                 refresh();
             }
             SwingUtilities.invokeLater(() -> {
@@ -114,8 +130,8 @@ public final class ShopHomePanel extends JPanel {
     }
 
     private void showState(ShopPageState state, String message, Runnable retry) {
-        content.removeAll();
-        content.add(uiKit.stateView("home.state", state, message, retry), BorderLayout.CENTER);
+        results.removeAll();
+        results.add(uiKit.stateView("home.state", state, message, retry), BorderLayout.CENTER);
         refresh();
     }
 

@@ -7,6 +7,7 @@ import edu.seu.vcampus.common.shop.ProductSummary;
 
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
 import java.awt.FlowLayout;
 import java.math.BigDecimal;
@@ -48,6 +49,11 @@ public final class ProductCardsPanel extends JPanel {
     private JPanel card(ProductSummary product) {
         String name = "product-" + product.productId();
         JPanel card = uiKit.productCard(name, new FlowLayout(FlowLayout.LEFT));
+        card.add(named(new JLabel(product.productName()), name + ".name"));
+        card.add(named(new JLabel(product.shopName()), name + ".shop"));
+        card.add(named(new JLabel(product.category()), name + ".category"));
+        card.add(named(new JLabel(formatPrice(product.minimumPrice())), name + ".price"));
+        card.add(named(new JLabel("销量 " + product.salesCount()), name + ".sales"));
         JButton action = uiKit.secondaryButton(name + ".open", "%s | %s | %s | 销量 %d | %s".formatted(
                 product.productName(), product.shopName(), product.category(), product.salesCount(),
                 formatPrice(product.minimumPrice())));
@@ -58,4 +64,8 @@ public final class ProductCardsPanel extends JPanel {
     }
 
     private static String formatPrice(BigDecimal price) { return "¥" + price.setScale(2) + " 起"; }
+
+    private static <T extends java.awt.Component> T named(T component, String name) {
+        component.setName(name); return component;
+    }
 }

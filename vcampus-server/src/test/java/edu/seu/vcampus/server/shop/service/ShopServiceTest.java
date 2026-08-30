@@ -3,6 +3,7 @@ package edu.seu.vcampus.server.shop.service;
 import edu.seu.vcampus.common.shop.ProductSearchQuery;
 import edu.seu.vcampus.common.shop.ProductSortMode;
 import edu.seu.vcampus.common.shop.ProductSummary;
+import edu.seu.vcampus.common.shop.HomeProductQuery;
 import edu.seu.vcampus.server.persistence.TransactionManager;
 import edu.seu.vcampus.server.shop.repository.AccessShopRepository;
 import edu.seu.vcampus.server.shop.testutil.ShopTestDatabase;
@@ -44,6 +45,15 @@ class ShopServiceTest {
                 .containsExactly("service-product");
     }
 
+    @Test
+    void homeProductsAlwaysUseSalesDescendingEvenWhenAnotherSortIsRequested() {
+        HomeProductQuery query = new HomeProductQuery(null, null, ProductSortMode.PRICE_DESC, 0, 20);
+
+        assertThat(service.getHomeProducts(query).items())
+                .extracting(ProductSummary::productId)
+                .containsExactly("popular-product", "service-product");
+    }
+
     private void seedCatalog() {
         transactions.inTransaction(connection -> {
             Timestamp now = Timestamp.from(Instant.parse("2026-08-24T09:00:00Z"));
@@ -70,6 +80,22 @@ class ShopServiceTest {
                             + "reservedQuantity, isActive, rowVersion) "
                             + "VALUES ('service-sku', 'service-product', '轻量款', ?, 10, 0, TRUE, 0)")) {
                 sku.setBigDecimal(1, new BigDecimal("19.00"));
+                sku.executeUpdate();
+            }
+            try (var product = connection.prepareStatement(
+                    "INSERT INTO tblProduct (productId, shopId, productName, category, description, "
+                            + "productStatus, salesCount, rowVersion, createdAt, updatedAt) "
+                            + "VALUES ('popular-product', 'service-shop', '畅销笔记本', '文具', "
+                            + "'销量更高但价格更低', 'ACTIVE', 10, 0, ?, ?)")) {
+                product.setTimestamp(1, now);
+                product.setTimestamp(2, now);
+                product.executeUpdate();
+            }
+            try (var sku = connection.prepareStatement(
+                    "INSERT INTO tblProductSku (skuId, productId, skuName, unitPrice, stockQuantity, "
+                            + "reservedQuantity, isActive, rowVersion) "
+                            + "VALUES ('popular-sku', 'popular-product', '普通装', ?, 10, 0, TRUE, 0)")) {
+                sku.setBigDecimal(1, new BigDecimal("2.00"));
                 sku.executeUpdate();
             }
             return null;

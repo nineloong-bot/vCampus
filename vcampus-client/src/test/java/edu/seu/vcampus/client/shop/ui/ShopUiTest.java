@@ -345,6 +345,43 @@ class ShopUiTest {
     }
 
     @Test
+    void homeOrdersSearchCategoriesAndRecommendationsWithStructuredCategoryRoutesAndCardFields()
+            throws Exception {
+        List<ShopRoute> rendered = new ArrayList<>();
+        ShopNavigator navigator = new ShopNavigator(rendered::add);
+        ProductSummary product = new ProductSummary("product-1", "shop-1", "校园文具店",
+                "笔记本", "文具", new BigDecimal("6.50"), 12, Instant.EPOCH);
+        ShopHomePanel home = onEdt(() -> new ShopHomePanel(
+                homeClient(new PageResult<>(List.of(product), 0, 20, 1)), navigator,
+                new DefaultShopUiKit(), () -> { }));
+
+        onEdt(() -> home.load());
+        flushEdt();
+
+        JScrollPane scroll = component(home, "home.scroll", JScrollPane.class);
+        JPanel content = (JPanel) scroll.getViewport().getView();
+        assertThat(Arrays.stream(content.getComponents()).map(Component::getName).toList())
+                .containsExactly("home.search-bar", "home.categories", "home.recommendations",
+                        "home.results");
+        assertThat(component(home, "home.recommendations", JLabel.class).getText()).isEqualTo("猜你喜欢");
+        assertThat(component(home, "product-product-1.name", JLabel.class).getText()).isEqualTo("笔记本");
+        assertThat(component(home, "product-product-1.shop", JLabel.class).getText()).isEqualTo("校园文具店");
+        assertThat(component(home, "product-product-1.category", JLabel.class).getText()).isEqualTo("文具");
+        assertThat(component(home, "product-product-1.price", JLabel.class).getText()).isEqualTo("¥6.50 起");
+        assertThat(component(home, "product-product-1.sales", JLabel.class).getText()).isEqualTo("销量 12");
+
+        onEdt(() -> {
+            component(home, "home.category.文具", JButton.class).doClick();
+            component(home, "home.category.图书", JButton.class).doClick();
+            component(home, "home.category.生活用品", JButton.class).doClick();
+            component(home, "home.category.药品", JButton.class).doClick();
+        });
+
+        assertThat(rendered).containsExactly(
+                categorySearch("文具"), categorySearch("图书"), categorySearch("生活用品"), categorySearch("药品"));
+    }
+
+    @Test
     void cartPagePublishesLoadUpdateAndDeleteTotalsToTheSharedToolbar() throws Exception {
         CartMutationClient client = new CartMutationClient();
         CartCountModel count = new CartCountModel();
@@ -824,6 +861,48 @@ class ShopUiTest {
 
     private static ProductSearchQuery defaultSearch() {
         return new ProductSearchQuery(null, null, null, null, ProductSortMode.SALES_DESC, 0, 20);
+    }
+
+    private static ShopRoute.Search categorySearch(String category) {
+        return new ShopRoute.Search(new SearchViewState(new ProductSearchQuery(null, category,
+                null, null, ProductSortMode.SALES_DESC, 0, 20), false, false, 0));
+    }
+
+    private static ShopClientPort homeClient(PageResult<ProductSummary> homeResult) {
+        return new ShopClientPort() {
+            @Override public CompletableFuture<PageResult<ProductSummary>> home(HomeProductQuery query) {
+                return CompletableFuture.completedFuture(homeResult);
+            }
+            @Override public CompletableFuture<PageResult<ProductSummary>> search(ProductSearchQuery query) {
+                return new CompletableFuture<>();
+            }
+            @Override public CompletableFuture<ProductDetail> getProduct(String productId) {
+                return new CompletableFuture<>();
+            }
+            @Override public CompletableFuture<ShopDetail> getShop(String shopId) {
+                return new CompletableFuture<>();
+            }
+            @Override public CompletableFuture<PageResult<ProductSummary>> getShopProducts(
+                    ShopProductQuery query) {
+                return new CompletableFuture<>();
+            }
+            @Override public CompletableFuture<CartView> getCart() { return new CompletableFuture<>(); }
+            @Override public CompletableFuture<CartView> addToCart(AddCartItemCommand command) {
+                return new CompletableFuture<>();
+            }
+            @Override public CompletableFuture<CartView> updateCartItem(UpdateCartItemCommand command) {
+                return new CompletableFuture<>();
+            }
+            @Override public CompletableFuture<CartView> removeCartItem(String cartItemId) {
+                return new CompletableFuture<>();
+            }
+            @Override public CompletableFuture<CheckoutResult> checkout(CheckoutCommand command) {
+                return new CompletableFuture<>();
+            }
+            @Override public CompletableFuture<PaymentView> simulatePayment(SimulatePaymentCommand command) {
+                return new CompletableFuture<>();
+            }
+        };
     }
 
     private static ShopClientPort searchClient(
