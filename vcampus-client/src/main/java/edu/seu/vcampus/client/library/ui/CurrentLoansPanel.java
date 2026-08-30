@@ -30,7 +30,7 @@ public final class CurrentLoansPanel extends LibraryDataPanel {
         service.getCurrentLoans().whenComplete((loans, failure) ->
                 SwingUtilities.invokeLater(() -> {
                     if (!accepts(request)) return;
-                    if (failure != null) { status.setText("当前借阅加载失败，请重试"); return; }
+                    if (failure != null) { LibraryFeedback.failure(this, status, failure, "当前借阅加载失败，请重试。"); return; }
                     this.loans = List.copyOf(loans);
                     DefaultTableModel model = (DefaultTableModel) table.getModel();
                     model.setRowCount(0);
@@ -73,7 +73,9 @@ public final class CurrentLoansPanel extends LibraryDataPanel {
         long request = beginRequest();
         status.setText(pending);
         future.whenComplete((loan, failure) -> SwingUtilities.invokeLater(() -> {
-            if (accepts(request)) status.setText(failure == null ? success : "操作失败，请刷新后重试");
+            if (!accepts(request)) return;
+            if (failure == null) status.setText(success);
+            else LibraryFeedback.failure(this, status, failure, "操作失败，请刷新后重试。");
         }));
     }
 }

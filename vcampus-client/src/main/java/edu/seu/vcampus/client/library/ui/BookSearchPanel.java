@@ -45,7 +45,7 @@ public final class BookSearchPanel extends LibraryDataPanel {
                     if (!accepts(request)) return;
                     search.setEnabled(true);
                     if (failure != null) {
-                        status.setText("馆藏加载失败，请重试");
+                        LibraryFeedback.failure(this, status, failure, "馆藏加载失败，请重试。");
                         return;
                     }
                     books = List.copyOf(page.items());
@@ -66,7 +66,7 @@ public final class BookSearchPanel extends LibraryDataPanel {
         status.setText("正在加载图书详情……");
         service.getBook(book.bookId()).whenComplete((result, failure) -> SwingUtilities.invokeLater(() -> {
             if (!accepts(request)) return;
-            if (failure != null) status.setText("图书详情加载失败，请重试");
+            if (failure != null) LibraryFeedback.failure(this, status, failure, "图书详情加载失败，请重试。");
             else detail.showBook(result);
         }));
     }

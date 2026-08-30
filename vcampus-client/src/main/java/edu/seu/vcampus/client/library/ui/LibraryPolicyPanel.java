@@ -31,7 +31,7 @@ public final class LibraryPolicyPanel extends LibraryDataPanel {
         service.updatePolicy(command).whenComplete((policy, failure) ->
                 SwingUtilities.invokeLater(() -> {
                     if (!accepts(request)) return;
-                    if (failure != null) { status.setText("借阅策略保存失败，请刷新后重试"); return; }
+                    if (failure != null) { LibraryFeedback.failure(this, status, failure, "借阅策略保存失败，请刷新后重试。"); return; }
                     role.setSelectedItem(policy.roleCode()); maxLoans.setValue(policy.maxActiveLoans());
                     loanDays.setValue(policy.loanDays()); renewals.setValue(policy.maxRenewals());
                     renewalDays.setValue(policy.renewalDays()); version.setValue((int) policy.rowVersion());

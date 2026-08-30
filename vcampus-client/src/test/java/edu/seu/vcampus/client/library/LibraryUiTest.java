@@ -1,6 +1,7 @@
 package edu.seu.vcampus.client.library;
 
 import edu.seu.vcampus.client.library.service.LibraryClientService;
+import edu.seu.vcampus.client.library.service.LibraryRequestException;
 import edu.seu.vcampus.client.library.ui.LibraryWorkspacePanel;
 import edu.seu.vcampus.client.library.ui.CurrentLoansPanel;
 import edu.seu.vcampus.client.library.ui.LoanHistoryPanel;
@@ -219,6 +220,24 @@ class LibraryUiTest {
         verify(service).getLoanHistory(new LoanHistoryQuery(null, 1, 20));
         verify(service, atLeastOnce()).searchBooks(new BookSearchQuery("", null, false, 1, 100));
         verify(service).searchAllLoans(new AdminLoanSearchQuery(null, null, 1, 20));
+    }
+
+    @Test
+    void concurrentUpdateFailureShowsActionableRefreshMessage() throws Exception {
+        LoanView loan = new LoanView("loan-3", "copy-3", "book-3", "user-1",
+                Instant.parse("2026-08-01T00:00:00Z"), Instant.parse("2026-09-01T00:00:00Z"),
+                null, 0, LoanStatus.ACTIVE, 2);
+        when(service.getCurrentLoans()).thenReturn(CompletableFuture.completedFuture(List.of(loan)));
+        when(service.renew(any())).thenReturn(CompletableFuture.failedFuture(
+                new LibraryRequestException("COMMON_CONCURRENT_MODIFICATION", "conflict")));
+        CurrentLoansPanel panel = new CurrentLoansPanel(service);
+        panel.refresh(); SwingUtilities.invokeAndWait(() -> { });
+        first(panel, JTable.class).setRowSelectionInterval(0, 0);
+
+        panel.renewSelected();
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(labels(panel)).contains("数据已被其他操作修改，请刷新后重试。");
     }
 
     private static Component button(Container root, String text) {

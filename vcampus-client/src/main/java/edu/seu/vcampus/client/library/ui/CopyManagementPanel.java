@@ -25,14 +25,18 @@ public final class CopyManagementPanel extends LibraryDataPanel {
         long request = beginRequest();
         status.setText("正在新增馆藏副本……");
         service.addCopy(command).whenComplete((copy, failure) -> SwingUtilities.invokeLater(() -> {
-            if (accepts(request)) status.setText(failure == null ? "馆藏副本已新增" : "新增副本失败，请检查输入后重试");
+            if (!accepts(request)) return;
+            if (failure == null) status.setText("馆藏副本已新增");
+            else LibraryFeedback.failure(this, status, failure, "新增副本失败，请检查输入后重试。");
         }));
     }
     public void changeStatus(ChangeCopyStatusCommand command) {
         long request = beginRequest();
         status.setText("正在更新副本状态……");
         service.changeCopyStatus(command).whenComplete((copy, failure) -> SwingUtilities.invokeLater(() -> {
-            if (accepts(request)) status.setText(failure == null ? "副本状态已更新" : "状态更新失败，请刷新后重试");
+            if (!accepts(request)) return;
+            if (failure == null) status.setText("副本状态已更新");
+            else LibraryFeedback.failure(this, status, failure, "副本状态更新失败，请刷新后重试。");
         }));
     }
 
@@ -42,7 +46,7 @@ public final class CopyManagementPanel extends LibraryDataPanel {
         long request = beginRequest(); status.setText("正在加载馆藏副本……");
         service.getBook(selectedBook).whenComplete((book, failure) -> SwingUtilities.invokeLater(() -> {
             if (!accepts(request)) return;
-            if (failure != null) { status.setText("副本加载失败，请检查书目 ID"); return; }
+            if (failure != null) { LibraryFeedback.failure(this, status, failure, "副本加载失败，请检查书目 ID。"); return; }
             copies = book.copies(); DefaultTableModel model = (DefaultTableModel) table.getModel(); model.setRowCount(0);
             for (BookCopyView copy : copies) model.addRow(new Object[]{copy.barcode(), book.title(), copy.locationCode(), copy.status(), "选择后变更"});
             status.setText(copies.isEmpty() ? "该书目暂无馆藏副本" : "共 " + copies.size() + " 个馆藏副本");

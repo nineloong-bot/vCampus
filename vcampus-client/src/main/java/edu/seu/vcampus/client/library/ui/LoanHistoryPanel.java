@@ -20,7 +20,7 @@ public final class LoanHistoryPanel extends LibraryDataPanel {
         service.getLoanHistory(new LoanHistoryQuery(null, 1, 20)).whenComplete((page, failure) ->
                 SwingUtilities.invokeLater(() -> {
                     if (!accepts(request)) return;
-                    if (failure != null) { status.setText("借阅历史加载失败，请重试"); return; }
+                    if (failure != null) { LibraryFeedback.failure(this, status, failure, "借阅历史加载失败，请重试。"); return; }
                     DefaultTableModel model = (DefaultTableModel) table.getModel(); model.setRowCount(0);
                     for (LoanView loan : page.items()) model.addRow(new Object[]{loan.loanId(), loan.borrowedAt(), loan.returnedAt(), loan.status().name()});
                     status.setText(page.items().isEmpty() ? "暂无借阅历史" : "共 " + page.total() + " 条借阅历史");

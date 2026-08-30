@@ -40,8 +40,9 @@ public final class BookDetailPanel extends LibraryDataPanel {
         long request = beginRequest();
         service.borrow(new BorrowBookCommand(copy.copyId())).whenComplete((loan, failure) ->
                 SwingUtilities.invokeLater(() -> {
-                    if (accepts(request)) status.setText(failure == null
-                            ? "借阅成功，到期时间：" + loan.dueAt() : "借阅失败，请刷新馆藏后重试");
+                    if (!accepts(request)) return;
+                    if (failure == null) status.setText("借阅成功，到期时间：" + loan.dueAt());
+                    else LibraryFeedback.failure(this, status, failure, "借阅失败，请刷新馆藏后重试。");
                 }));
     }
 

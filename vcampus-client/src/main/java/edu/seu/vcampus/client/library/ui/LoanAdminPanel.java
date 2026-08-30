@@ -20,7 +20,7 @@ public final class LoanAdminPanel extends LibraryDataPanel {
         service.searchAllLoans(new AdminLoanSearchQuery(null, null, 1, 20)).whenComplete((page, failure) ->
                 SwingUtilities.invokeLater(() -> {
                     if (!accepts(request)) return;
-                    if (failure != null) { status.setText("借阅记录加载失败，请重试"); return; }
+                    if (failure != null) { LibraryFeedback.failure(this, status, failure, "借阅记录加载失败，请重试。"); return; }
                     DefaultTableModel model = (DefaultTableModel) table.getModel(); model.setRowCount(0);
                     for (LoanView loan : page.items()) model.addRow(new Object[]{loan.loanId(), loan.borrowerUserId(), loan.copyId(), loan.dueAt(), loan.status().name()});
                     status.setText(page.items().isEmpty() ? "未找到借阅记录" : "共 " + page.total() + " 条借阅记录");

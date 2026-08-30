@@ -25,14 +25,18 @@ public final class BookManagementPanel extends LibraryDataPanel {
         long request = beginRequest();
         status.setText("正在新增书目……");
         service.createBook(command).whenComplete((book, failure) -> SwingUtilities.invokeLater(() -> {
-            if (accepts(request)) status.setText(failure == null ? "书目已新增" : "新增书目失败，请检查输入后重试");
+            if (!accepts(request)) return;
+            if (failure == null) status.setText("书目已新增");
+            else LibraryFeedback.failure(this, status, failure, "新增书目失败，请检查输入后重试。");
         }));
     }
     public void update(UpdateBookCommand command) {
         long request = beginRequest();
         status.setText("正在保存书目……");
         service.updateBook(command).whenComplete((book, failure) -> SwingUtilities.invokeLater(() -> {
-            if (accepts(request)) status.setText(failure == null ? "书目已保存" : "保存失败，请刷新后重试");
+            if (!accepts(request)) return;
+            if (failure == null) status.setText("书目已保存");
+            else LibraryFeedback.failure(this, status, failure, "书目保存失败，请刷新后重试。");
         }));
     }
 
@@ -41,7 +45,7 @@ public final class BookManagementPanel extends LibraryDataPanel {
         service.searchBooks(new BookSearchQuery("", null, false, 1, 100)).whenComplete((page, failure) ->
                 SwingUtilities.invokeLater(() -> {
                     if (!accepts(request)) return;
-                    if (failure != null) { status.setText("书目加载失败，请重试"); return; }
+                    if (failure != null) { LibraryFeedback.failure(this, status, failure, "书目加载失败，请重试。"); return; }
                     books = List.copyOf(page.items()); DefaultTableModel model = (DefaultTableModel) table.getModel();
                     model.setRowCount(0); for (BookSummary book : books)
                         model.addRow(new Object[]{book.isbn(), book.title(), book.author(), "已启用", "选择后编辑"});
@@ -56,7 +60,7 @@ public final class BookManagementPanel extends LibraryDataPanel {
         service.getBook(books.get(table.convertRowIndexToModel(row)).bookId()).whenComplete((book, failure) ->
                 SwingUtilities.invokeLater(() -> {
                     if (!accepts(request)) return;
-                    if (failure != null) status.setText("书目详情加载失败，请重试"); else openUpdateDialog(book);
+                    if (failure != null) LibraryFeedback.failure(this, status, failure, "书目详情加载失败，请重试。"); else openUpdateDialog(book);
                 }));
     }
 
