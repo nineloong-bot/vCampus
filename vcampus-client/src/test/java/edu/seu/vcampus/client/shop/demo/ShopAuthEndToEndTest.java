@@ -164,7 +164,7 @@ class ShopAuthEndToEndTest {
             ShopClientService shop = new ShopClientService(connection, TIMEOUT);
 
             CartView cart = shop.addToCart(
-                    new AddCartItemCommand("demo-pen-black", 2)).join();
+                    new AddCartItemCommand("demo-stationery-001-sku-1", 2)).join();
             CheckoutResult checkout = shop.checkout(new CheckoutCommand(
                     cart.items().stream()
                             .map(item -> new CheckoutItem(
@@ -236,12 +236,12 @@ class ShopAuthEndToEndTest {
         try (Connection connection = open(database)) {
             long stock = scalarLong(connection,
                     "SELECT stockQuantity FROM tblProductSku WHERE skuId = ?",
-                    "demo-pen-black");
+                    "demo-stationery-001-sku-1");
             long sales = scalarLong(connection,
                     "SELECT salesCount FROM tblProduct WHERE productId = ?",
-                    "demo-pen");
+                    "demo-stationery-001");
             assertThat(stock).isEqualTo(10);
-            assertThat(sales).isZero();
+            assertThat(sales).isEqualTo(500);
             return new InventoryState(stock, sales);
         }
     }
@@ -263,17 +263,18 @@ class ShopAuthEndToEndTest {
                             paymentId),
                     scalarString(connection,
                             "SELECT reservationStatus FROM tblInventoryReservation "
-                                    + "WHERE paymentId = ? AND skuId = 'demo-pen-black'",
+                                    + "WHERE paymentId = ? "
+                                    + "AND skuId = 'demo-stationery-001-sku-1'",
                             paymentId),
                     scalarLong(connection,
                             "SELECT stockQuantity FROM tblProductSku WHERE skuId = ?",
-                            "demo-pen-black"),
+                            "demo-stationery-001-sku-1"),
                     scalarLong(connection,
                             "SELECT reservedQuantity FROM tblProductSku WHERE skuId = ?",
-                            "demo-pen-black"),
+                            "demo-stationery-001-sku-1"),
                     scalarLong(connection,
                             "SELECT salesCount FROM tblProduct WHERE productId = ?",
-                            "demo-pen"));
+                            "demo-stationery-001"));
         }
     }
 

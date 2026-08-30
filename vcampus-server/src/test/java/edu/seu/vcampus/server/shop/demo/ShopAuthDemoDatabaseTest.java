@@ -3,8 +3,12 @@ package edu.seu.vcampus.server.shop.demo;
 import edu.seu.vcampus.common.protocol.Message;
 import edu.seu.vcampus.common.protocol.MessageType;
 import edu.seu.vcampus.common.protocol.ResponseBody;
+import edu.seu.vcampus.common.shop.ProductSearchQuery;
+import edu.seu.vcampus.common.shop.ProductSortMode;
+import edu.seu.vcampus.common.shop.ProductSummary;
 import edu.seu.vcampus.common.user.LoginCommand;
 import edu.seu.vcampus.common.user.LoginResult;
+import edu.seu.vcampus.server.shop.repository.AccessShopRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -15,6 +19,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,7 +33,7 @@ class ShopAuthDemoDatabaseTest {
     Path temp;
 
     @Test
-    void createsKnownBuyerAndTwoVisibleShops() throws Exception {
+    void createsKnownBuyerAndOneHundredSellableProductsAcrossFourShops() throws Exception {
         Path database = temp.resolve("shop-auth.accdb");
 
         ShopAuthDemoDatabase.initialize(database, schemaDir(), seedDir());
@@ -36,21 +45,106 @@ class ShopAuthDemoDatabaseTest {
                     .isEqualTo(1);
             assertThat(count(connection,
                     "SELECT COUNT(*) FROM tblShop WHERE shopStatus='ACTIVE'"))
-                    .isEqualTo(2);
+                    .isEqualTo(4);
             assertThat(count(connection,
-                    "SELECT COUNT(*) FROM tblProductSku WHERE skuId='demo-pen-black' "
-                            + "AND stockQuantity=10 AND isActive=TRUE"))
-                    .isEqualTo(1);
+                    "SELECT COUNT(*) FROM tblProduct")).isEqualTo(100);
             assertThat(count(connection,
-                    "SELECT COUNT(*) FROM tblProductSku WHERE skuId='demo-book-standard' "
-                            + "AND stockQuantity=5 AND isActive=TRUE"))
-                    .isEqualTo(1);
+                    "SELECT COUNT(*) FROM tblProduct WHERE shopId='demo-shop-stationery' "
+                            + "AND category='文具'"))
+                    .isEqualTo(10);
             assertThat(count(connection,
-                    "SELECT COUNT(*) FROM tblProductSku WHERE stockQuantity=1 AND isActive=TRUE"))
-                    .isEqualTo(1);
+                    "SELECT COUNT(*) FROM tblProduct WHERE shopId='demo-shop-books' "
+                            + "AND category='图书'"))
+                    .isEqualTo(30);
             assertThat(count(connection,
-                    "SELECT COUNT(*) FROM tblProductSku WHERE isActive=FALSE"))
-                    .isEqualTo(1);
+                    "SELECT COUNT(*) FROM tblProduct WHERE shopId='demo-shop-daily' "
+                            + "AND category='生活用品'"))
+                    .isEqualTo(55);
+            assertThat(count(connection,
+                    "SELECT COUNT(*) FROM tblProduct WHERE shopId='demo-shop-medicine' "
+                            + "AND category='药品'"))
+                    .isEqualTo(5);
+
+            List<String> productIds = strings(connection,
+                    "SELECT productId FROM tblProduct");
+            List<String> productNames = strings(connection,
+                    "SELECT productName FROM tblProduct");
+            List<String> descriptions = strings(connection,
+                    "SELECT description FROM tblProduct");
+            List<String> skuIds = strings(connection,
+                    "SELECT skuId FROM tblProductSku");
+            assertThat(new HashSet<>(productIds)).hasSize(100);
+            assertThat(new HashSet<>(productNames)).hasSize(100);
+            assertThat(new HashSet<>(skuIds)).hasSize(120);
+            assertThat(productIds).allMatch(id -> id.matches(
+                    "demo-(stationery|books|daily|medicine)-\\d{3}"));
+            assertThat(descriptions).allMatch(description -> description.contains("分类：")
+                    && description.contains("用途：") && description.contains("规格："));
+            assertThat(skuCounts(connection)).allSatisfy((productId, skuCount) -> {
+                int categoryIndex = Integer.parseInt(productId.substring(productId.length() - 3));
+                assertThat(skuCount).isEqualTo(categoryIndex % 5 == 0 ? 2L : 1L);
+            });
+            assertThat(count(connection,
+                    "SELECT COUNT(*) FROM tblProduct p WHERE NOT EXISTS "
+                            + "(SELECT 1 FROM tblProductSku k WHERE k.productId=p.productId "
+                            + "AND k.isActive=TRUE AND k.stockQuantity-k.reservedQuantity>0)"))
+                    .isZero();
+            assertThat(count(connection,
+                    "SELECT COUNT(*) FROM tblProductSku WHERE skuName='组合装' "
+                            + "AND isActive=TRUE AND stockQuantity>0"))
+                    .isEqualTo(20);
+            assertThat(count(connection,
+                    "SELECT COUNT(*) FROM (SELECT salesCount FROM tblProduct "
+                            + "GROUP BY salesCount) AS salesValues"))
+                    .isGreaterThan(1);
+            assertThat(count(connection,
+                    "SELECT COUNT(*) FROM (SELECT unitPrice FROM tblProductSku "
+                            + "GROUP BY unitPrice) AS priceValues"))
+                    .isGreaterThan(1);
+            assertThat(count(connection,
+                    "SELECT COUNT(*) FROM (SELECT stockQuantity FROM tblProductSku "
+                            + "GROUP BY stockQuantity) AS stockValues"))
+                    .isGreaterThan(1);
+        }
+    }
+
+    @Test
+    void supportsSortedCatalogPagesCategoryPagesAndDeduplicatedSkuSearch() throws Exception {
+        Path database = temp.resolve("catalog.accdb");
+        ShopAuthDemoDatabase.initialize(database, schemaDir(), seedDir());
+
+        try (Connection connection = open(database)) {
+            AccessShopRepository repository = new AccessShopRepository();
+            List<ProductSummary> firstForty = new ArrayList<>();
+            for (int page = 0; page < 2; page++) {
+                var result = repository.searchCatalog(connection,
+                        query(null, null, page, 20), null);
+                assertThat(result.total()).isEqualTo(100);
+                assertThat(result.items()).hasSize(20);
+                firstForty.addAll(result.items());
+            }
+            assertThat(firstForty).isSortedAccordingTo(
+                    (left, right) -> Long.compare(right.salesCount(), left.salesCount()));
+
+            var booksFirstPage = repository.searchCatalog(connection,
+                    query(null, "图书", 0, 20), null);
+            var booksSecondPage = repository.searchCatalog(connection,
+                    query(null, "图书", 1, 20), null);
+            assertThat(booksFirstPage.total()).isEqualTo(30);
+            assertThat(booksFirstPage.items()).hasSize(20);
+            assertThat(booksSecondPage.items()).hasSize(10);
+
+            var dailyThirdPage = repository.searchCatalog(connection,
+                    query(null, "生活用品", 2, 20), null);
+            assertThat(dailyThirdPage.total()).isEqualTo(55);
+            assertThat(dailyThirdPage.items()).hasSize(15);
+
+            var skuMatches = repository.searchCatalog(connection,
+                    query("组合装", null, 0, 100), null);
+            assertThat(skuMatches.total()).isEqualTo(20);
+            assertThat(skuMatches.items()).hasSize(20);
+            assertThat(skuMatches.items().stream().map(ProductSummary::productId))
+                    .doesNotHaveDuplicates();
         }
     }
 
@@ -61,7 +155,7 @@ class ShopAuthDemoDatabaseTest {
         try (Connection connection = open(database);
                 var statement = connection.createStatement()) {
             statement.executeUpdate("UPDATE tblProductSku SET stockQuantity=2 "
-                    + "WHERE skuId='demo-pen-black'");
+                    + "WHERE skuId='demo-stationery-001-sku-1'");
         }
 
         ShopAuthDemoDatabase.initialize(database, schemaDir(), seedDir());
@@ -70,9 +164,10 @@ class ShopAuthDemoDatabaseTest {
             assertThat(count(connection, "SELECT COUNT(*) FROM tblUser WHERE userId='demo-buyer'"))
                     .isEqualTo(1);
             assertThat(count(connection, "SELECT COUNT(*) FROM tblShop"))
-                    .isEqualTo(2);
+                    .isEqualTo(4);
             assertThat(count(connection,
-                    "SELECT COUNT(*) FROM tblProductSku WHERE skuId='demo-pen-black' "
+                    "SELECT COUNT(*) FROM tblProductSku "
+                            + "WHERE skuId='demo-stationery-001-sku-1' "
                             + "AND stockQuantity=10"))
                     .isEqualTo(1);
         }
@@ -85,7 +180,7 @@ class ShopAuthDemoDatabaseTest {
         try (Connection connection = open(database);
                 var statement = connection.createStatement()) {
             statement.executeUpdate("UPDATE tblProductSku SET stockQuantity=7 "
-                    + "WHERE skuId='demo-pen-black'");
+                    + "WHERE skuId='demo-stationery-001-sku-1'");
         }
 
         try (ShopAuthDemoRuntime runtime = ShopAuthDemoRuntime.start(database, 0)) {
@@ -95,7 +190,8 @@ class ShopAuthDemoDatabaseTest {
 
         try (Connection connection = open(database)) {
             assertThat(count(connection,
-                    "SELECT COUNT(*) FROM tblProductSku WHERE skuId='demo-pen-black' "
+                    "SELECT COUNT(*) FROM tblProductSku "
+                            + "WHERE skuId='demo-stationery-001-sku-1' "
                             + "AND stockQuantity=7"))
                     .isEqualTo(1);
         }
@@ -134,6 +230,35 @@ class ShopAuthDemoDatabaseTest {
             result.next();
             return result.getLong(1);
         }
+    }
+
+    private static List<String> strings(Connection connection, String sql) throws Exception {
+        try (var statement = connection.createStatement();
+                var result = statement.executeQuery(sql)) {
+            List<String> values = new ArrayList<>();
+            while (result.next()) {
+                values.add(result.getString(1));
+            }
+            return values;
+        }
+    }
+
+    private static Map<String, Long> skuCounts(Connection connection) throws Exception {
+        try (var statement = connection.createStatement();
+                var result = statement.executeQuery(
+                        "SELECT productId, COUNT(*) FROM tblProductSku GROUP BY productId")) {
+            Map<String, Long> counts = new LinkedHashMap<>();
+            while (result.next()) {
+                counts.put(result.getString(1), result.getLong(2));
+            }
+            return counts;
+        }
+    }
+
+    private static ProductSearchQuery query(
+            String keyword, String category, int page, int pageSize) {
+        return new ProductSearchQuery(keyword, category, null, null,
+                ProductSortMode.SALES_DESC, page, pageSize);
     }
 
     private static Path schemaDir() {
