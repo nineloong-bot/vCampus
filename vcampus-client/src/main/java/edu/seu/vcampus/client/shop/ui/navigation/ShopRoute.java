@@ -20,7 +20,7 @@ public sealed interface ShopRoute permits ShopRoute.Home, ShopRoute.Search,
 
     record Search(SearchViewState state) implements ShopRoute {
         public Search { Objects.requireNonNull(state, "state"); }
-        public Search(ProductSearchQuery query) { this(new SearchViewState(query, false, 0)); }
+        public Search(ProductSearchQuery query) { this(new SearchViewState(query, false, false, 0)); }
         public ProductSearchQuery query() { return state.query(); }
     }
 

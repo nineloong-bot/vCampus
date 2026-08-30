@@ -5,6 +5,7 @@ import edu.seu.vcampus.client.shop.ui.async.LatestRequest;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopRoute;
 import edu.seu.vcampus.client.shop.ui.navigation.HomeViewState;
+import edu.seu.vcampus.client.shop.ui.navigation.SearchViewState;
 import edu.seu.vcampus.client.shop.ui.style.ShopPageState;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
 import edu.seu.vcampus.common.paging.PageResult;
@@ -16,8 +17,10 @@ import edu.seu.vcampus.common.shop.ProductSummary;
 import javax.swing.JButton;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
+import java.awt.FlowLayout;
 import java.util.List;
 import java.util.Objects;
 
@@ -31,6 +34,7 @@ public final class ShopHomePanel extends JPanel {
     private final ProductCardsPanel cards;
     private final JPanel content = new JPanel(new BorderLayout());
     private final JScrollPane scroll = named(new JScrollPane(content), "home.scroll");
+    private final JTextField keyword = named(new JTextField(18), "home.keyword");
 
     public ShopHomePanel(ShopClientPort client, ShopNavigator navigator, ShopUiKit uiKit,
             Runnable sessionExpired) {
@@ -43,10 +47,13 @@ public final class ShopHomePanel extends JPanel {
         navigator.addListener(route -> {
             if (!(route instanceof ShopRoute.Home)) latest.begin();
         });
-        JButton search = uiKit.primaryButton("home.search", "搜索商品");
-        search.addActionListener(event -> navigator.open(new ShopRoute.Search(new ProductSearchQuery(
-                null, null, null, null, ProductSortMode.SALES_DESC, 0, 20))));
-        add(search, BorderLayout.NORTH);
+        JButton search = uiKit.primaryButton("home.search", "搜索");
+        search.addActionListener(event -> navigator.open(new ShopRoute.Search(new SearchViewState(
+                new ProductSearchQuery(value(keyword), null, null, null,
+                        ProductSortMode.SALES_DESC, 0, 20), false, false, 0))));
+        JPanel searchBar = uiKit.filterPanel("home.search-bar", new FlowLayout(FlowLayout.LEFT));
+        searchBar.add(keyword); searchBar.add(search);
+        add(searchBar, BorderLayout.NORTH);
         add(scroll, BorderLayout.CENTER);
         showState(ShopPageState.INITIAL, "", null);
     }
@@ -113,6 +120,11 @@ public final class ShopHomePanel extends JPanel {
     }
 
     private void refresh() { content.revalidate(); content.repaint(); }
+
+    private static String value(JTextField field) {
+        String value = field.getText().trim();
+        return value.isEmpty() ? null : value;
+    }
 
     private static String failureCode(Throwable failure) {
         Throwable cause = failure;

@@ -44,6 +44,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.swing.JButton;
 import javax.swing.AbstractButton;
+import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -230,7 +231,7 @@ class ShopUiTest {
         assertThat(homeScroll.getVerticalScrollBar().getValue()).isEqualTo(360);
 
         onEdt(() -> coordinator.navigator().reset(new ShopRoute.Search(
-                new SearchViewState(search, true, 0))));
+                new SearchViewState(search, true, true, 0))));
         flushEdt();
         JScrollPane searchScroll = component(content, "search.scroll", JScrollPane.class);
         onEdt(() -> searchScroll.getVerticalScrollBar().setValues(420, 10, 0, 1000));
@@ -240,7 +241,7 @@ class ShopUiTest {
         flushEdt();
         assertThat(client.searchQueries).containsExactly(search, search);
         assertThat(component(content, "keyword", JTextField.class).getText()).isEqualTo("笔");
-        assertThat(component(content, "category", JTextField.class).getText()).isEqualTo("文具");
+        assertThat(component(content, "category", JComboBox.class).getSelectedItem()).isEqualTo("文具");
         assertThat(component(content, "min-price", JTextField.class).getText()).isEqualTo("2.00");
         assertThat(component(content, "max-price", JTextField.class).getText()).isEqualTo("10.00");
         assertThat(component(content, "search.filters", JPanel.class).isVisible()).isTrue();
@@ -258,6 +259,89 @@ class ShopUiTest {
         assertThat(client.shopQueries).containsExactly(storefront, storefront);
         assertThat(storefrontScroll.getVerticalScrollBar().getValue()).isEqualTo(275);
         onEdt(coordinator::dispose);
+    }
+
+    @Test
+    void searchStartsWithOneKeywordFieldAndRevealsOnlyFixedFiltersAfterEmptySuccess()
+            throws Exception {
+        CompletableFuture<PageResult<ProductSummary>> result = new CompletableFuture<>();
+        AtomicReference<ProductSearchPanel> searchPanel = new AtomicReference<>();
+        ShopRouteHost host = new ShopRouteHost() {
+            @Override public ShopRoute capture(ShopRoute route) {
+                if (route instanceof ShopRoute.Search(var state)) {
+                    return new ShopRoute.Search(searchPanel.get().capture(state));
+                }
+                return route;
+            }
+            @Override public void render(ShopRoute route) {
+                if (route instanceof ShopRoute.Search(var state)) {
+                    searchPanel.get().search(state);
+                }
+            }
+        };
+        ShopNavigator navigator = new ShopNavigator(host);
+        ShopClientPort client = searchClient(result);
+        ProductSearchPanel panel = onEdt(() -> new ProductSearchPanel(client, navigator,
+                new DefaultShopUiKit(), () -> { }));
+        searchPanel.set(panel);
+
+        assertThat(component(panel, "keyword", JTextField.class).isVisible()).isTrue();
+        assertThat(component(panel, "search", JButton.class).isVisible()).isTrue();
+        assertThat(component(panel, "search.filters.toggle", JButton.class).isVisible()).isFalse();
+        assertThat(component(panel, "search.filters", JPanel.class).isVisible()).isFalse();
+
+        onEdt(() -> {
+            component(panel, "keyword", JTextField.class).setText("  雨伞  ");
+            component(panel, "search", JButton.class).doClick();
+        });
+        assertThat(navigator.current()).contains(new ShopRoute.Search(new SearchViewState(
+                new ProductSearchQuery("雨伞", null, null, null,
+                        ProductSortMode.SALES_DESC, 0, 20), false, false, 0)));
+        assertThat(component(panel, "search.filters.toggle", JButton.class).isVisible()).isFalse();
+
+        result.complete(new PageResult<>(List.of(), 0, 20, 0));
+        flushEdt();
+        assertThat(component(panel, "search.filters.toggle", JButton.class).isVisible()).isTrue();
+        onEdt(() -> component(panel, "search.filters.toggle", JButton.class).doClick());
+        assertThat(component(panel, "search.filters", JPanel.class).isVisible()).isTrue();
+        JComboBox<?> categories = component(panel, "category", JComboBox.class);
+        assertThat(IntStream.range(0, categories.getItemCount())
+                .mapToObj(index -> String.valueOf(categories.getItemAt(index))).toList())
+                .containsExactly("全部", "文具", "图书", "生活用品", "药品");
+        assertThat(component(panel, "min-price", JTextField.class)).isNotNull();
+        assertThat(component(panel, "max-price", JTextField.class)).isNotNull();
+        assertThat(component(panel, "sort", JComboBox.class)).isNotNull();
+    }
+
+    @Test
+    void failedSearchDoesNotRevealFilters() throws Exception {
+        CompletableFuture<PageResult<ProductSummary>> failure = new CompletableFuture<>();
+        ProductSearchPanel panel = onEdt(() -> new ProductSearchPanel(searchClient(failure),
+                new ShopNavigator(route -> { }), new DefaultShopUiKit(), () -> { }));
+
+        onEdt(() -> panel.search(new SearchViewState(defaultSearch(), false, false, 0)));
+        failure.completeExceptionally(new IllegalStateException("SHOP_UNAVAILABLE"));
+        flushEdt();
+
+        assertThat(component(panel, "search.filters.toggle", JButton.class).isVisible()).isFalse();
+        assertThat(component(panel, "search.filters", JPanel.class).isVisible()).isFalse();
+    }
+
+    @Test
+    void homeKeywordSearchOpensAStatefulSearchRoute() throws Exception {
+        List<ShopRoute> rendered = new ArrayList<>();
+        ShopNavigator navigator = new ShopNavigator(rendered::add);
+        ShopHomePanel home = onEdt(() -> new ShopHomePanel(searchClient(new CompletableFuture<>()),
+                navigator, new DefaultShopUiKit(), () -> { }));
+
+        onEdt(() -> {
+            component(home, "home.keyword", JTextField.class).setText("  校园书店  ");
+            component(home, "home.search", JButton.class).doClick();
+        });
+
+        assertThat(navigator.current()).contains(new ShopRoute.Search(new SearchViewState(
+                new ProductSearchQuery("校园书店", null, null, null,
+                        ProductSortMode.SALES_DESC, 0, 20), false, false, 0)));
     }
 
     @Test
@@ -740,6 +824,44 @@ class ShopUiTest {
 
     private static ProductSearchQuery defaultSearch() {
         return new ProductSearchQuery(null, null, null, null, ProductSortMode.SALES_DESC, 0, 20);
+    }
+
+    private static ShopClientPort searchClient(
+            CompletableFuture<PageResult<ProductSummary>> searchResult) {
+        return new ShopClientPort() {
+            @Override public CompletableFuture<PageResult<ProductSummary>> home(HomeProductQuery query) {
+                return new CompletableFuture<>();
+            }
+            @Override public CompletableFuture<PageResult<ProductSummary>> search(ProductSearchQuery query) {
+                return searchResult;
+            }
+            @Override public CompletableFuture<ProductDetail> getProduct(String productId) {
+                return new CompletableFuture<>();
+            }
+            @Override public CompletableFuture<ShopDetail> getShop(String shopId) {
+                return new CompletableFuture<>();
+            }
+            @Override public CompletableFuture<PageResult<ProductSummary>> getShopProducts(
+                    ShopProductQuery query) {
+                return new CompletableFuture<>();
+            }
+            @Override public CompletableFuture<CartView> getCart() { return new CompletableFuture<>(); }
+            @Override public CompletableFuture<CartView> addToCart(AddCartItemCommand command) {
+                return new CompletableFuture<>();
+            }
+            @Override public CompletableFuture<CartView> updateCartItem(UpdateCartItemCommand command) {
+                return new CompletableFuture<>();
+            }
+            @Override public CompletableFuture<CartView> removeCartItem(String cartItemId) {
+                return new CompletableFuture<>();
+            }
+            @Override public CompletableFuture<CheckoutResult> checkout(CheckoutCommand command) {
+                return new CompletableFuture<>();
+            }
+            @Override public CompletableFuture<PaymentView> simulatePayment(SimulatePaymentCommand command) {
+                return new CompletableFuture<>();
+            }
+        };
     }
 
     private static String pageId(ShopRoute route) {

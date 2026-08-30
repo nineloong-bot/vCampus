@@ -4,6 +4,7 @@ import edu.seu.vcampus.client.shop.ShopSwingTestSupport;
 import edu.seu.vcampus.client.shop.service.ShopClientPort;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopRoute;
+import edu.seu.vcampus.client.shop.ui.navigation.SearchViewState;
 import edu.seu.vcampus.client.shop.ui.style.DefaultShopUiKit;
 import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.shop.AddCartItemCommand;
@@ -69,24 +70,24 @@ class CatalogPanelsTest {
     @Test
     void searchFormUsesEnteredFiltersAndSortWhenSubmitting() throws Exception {
         ShopClientPort client = mock(ShopClientPort.class);
-        when(client.search(any())).thenReturn(pageFuture());
+        List<ShopRoute> routes = new ArrayList<>();
+        ShopNavigator navigator = new ShopNavigator(routes::add);
         ProductSearchPanel panel = onEdt(() -> new ProductSearchPanel(client,
-                new ShopNavigator(route -> { }), new DefaultShopUiKit(), () -> { }));
+                navigator, new DefaultShopUiKit(), () -> { }));
 
         onEdt(() -> {
             component(panel, "keyword", JTextField.class).setText("铅笔");
-            component(panel, "category", JTextField.class).setText("文具");
+            component(panel, "category", JComboBox.class).setSelectedItem("文具");
             component(panel, "min-price", JTextField.class).setText("2.50");
             component(panel, "max-price", JTextField.class).setText("9.00");
             component(panel, "sort", JComboBox.class).setSelectedItem(ProductSortMode.PRICE_DESC);
             component(panel, "search", JButton.class).doClick();
         });
 
-        ArgumentCaptor<ProductSearchQuery> query = ArgumentCaptor.forClass(ProductSearchQuery.class);
-        verify(client).search(query.capture());
-        assertThat(query.getValue()).isEqualTo(new ProductSearchQuery("铅笔", "文具",
-                new BigDecimal("2.50"), new BigDecimal("9.00"),
-                ProductSortMode.PRICE_DESC, 0, 20));
+        assertThat(navigator.current()).contains(new ShopRoute.Search(new SearchViewState(
+                new ProductSearchQuery("铅笔", "文具", new BigDecimal("2.50"),
+                        new BigDecimal("9.00"), ProductSortMode.PRICE_DESC, 0, 20),
+                false, false, 0)));
     }
 
     @Test

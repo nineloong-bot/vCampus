@@ -355,8 +355,13 @@ public final class AccessShopRepository implements ShopRepository {
             values.add(shopId);
         }
         if (query.keyword() != null && !query.keyword().isBlank()) {
-            sql.append(" AND p.productName LIKE ?");
-            values.add("%" + query.keyword().strip() + "%");
+            sql.append(" AND (p.productName LIKE ? OR s.shopName LIKE ? OR p.category LIKE ? "
+                    + "OR p.description LIKE ? OR EXISTS (SELECT 1 FROM tblProductSku matched "
+                    + "WHERE matched.productId = p.productId AND matched.skuName LIKE ?))");
+            String keyword = "%" + query.keyword().strip() + "%";
+            for (int index = 0; index < 5; index++) {
+                values.add(keyword);
+            }
         }
         if (query.category() != null && !query.category().isBlank()) {
             sql.append(" AND p.category = ?");
