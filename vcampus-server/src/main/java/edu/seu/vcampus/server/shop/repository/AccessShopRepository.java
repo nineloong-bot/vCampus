@@ -589,15 +589,21 @@ public final class AccessShopRepository implements ShopRepository {
             String orderId) throws Exception {
         String sql = "SELECT k.productId, i.productNameSnapshot, i.skuId, "
                 + "i.skuNameSnapshot, i.quantity, i.unitPrice, i.lineAmount "
-                + "FROM tblOrderItem i INNER JOIN tblProductSku k ON i.skuId = k.skuId "
+                + "FROM tblOrderItem i LEFT JOIN tblProductSku k ON i.skuId = k.skuId "
                 + "WHERE i.orderId = ? ORDER BY i.orderItemId";
         List<PaidOrderItemView> items = new ArrayList<>();
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, orderId);
             try (ResultSet result = statement.executeQuery()) {
                 while (result.next()) {
-                    items.add(new PaidOrderItemView(result.getString("productId"),
-                            result.getString("productNameSnapshot"), result.getString("skuId"),
+                    String skuId = result.getString("skuId");
+                    String productId = result.getString("productId");
+                    if (productId == null) {
+                        throw new IllegalStateException(
+                                "Paid order item references missing SKU: " + skuId);
+                    }
+                    items.add(new PaidOrderItemView(productId,
+                            result.getString("productNameSnapshot"), skuId,
                             result.getString("skuNameSnapshot"),
                             Math.toIntExact(result.getLong("quantity")),
                             result.getBigDecimal("unitPrice"), result.getBigDecimal("lineAmount")));

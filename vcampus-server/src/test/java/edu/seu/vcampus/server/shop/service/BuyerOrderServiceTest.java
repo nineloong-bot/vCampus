@@ -13,6 +13,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class BuyerOrderServiceTest {
     private ShopTestDatabase database;
@@ -84,6 +85,21 @@ class BuyerOrderServiceTest {
         assertThat(newest.items().getFirst().unitPrice()).isEqualByComparingTo("5.00");
         assertThat(newest.items().getFirst().lineAmount()).isEqualByComparingTo("10.00");
         assertThat(newest.items().get(1).productId()).isEqualTo("product-3");
+    }
+
+    @Test
+    void rejectsEntirePaidHistoryWhenOrderItemReferencesMissingSku() {
+        Instant paidAt = Instant.parse("2026-08-30T09:00:00Z");
+        seedOrder("group-orphan", "student-1", "PAID", "order-orphan", "O-ORPHAN",
+                "shop-1", "5.00", "PAID", paidAt);
+        seedItem("item-valid", "order-orphan", "sku-1", "签字笔快照", "黑色快照",
+                "文具店快照", "2.50", 1, "2.50");
+        seedItem("item-orphan", "order-orphan", "missing-sku", "历史商品快照", "历史规格快照",
+                "文具店快照", "2.50", 1, "2.50");
+
+        assertThatThrownBy(() -> service.getPaidOrders("student-1"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("missing-sku");
     }
 
     private void seedCatalog() {
