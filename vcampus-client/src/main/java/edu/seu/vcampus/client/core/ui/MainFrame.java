@@ -35,19 +35,20 @@ public final class MainFrame extends JFrame {
         add(content, BorderLayout.CENTER);
         add(footer, BorderLayout.SOUTH);
         if (user != null) {
-            addDemoIdentityAndPlaceholders(user);
+            configureLoggedInContent(header, pageNavigator, user);
         }
         pack();
     }
 
-    private void addDemoIdentityAndPlaceholders(UserView user) {
+    static void configureLoggedInContent(JPanel header, PageNavigator pageNavigator, UserView user) {
         header.add(new JLabel(
                 "当前用户：" + user.loginId() + "（" + user.role().name() + "）"),
                 BorderLayout.CENTER);
-        content.setLayout(new GridLayout(0, 1, 8, 8));
+        JPanel home = new JPanel(new GridLayout(0, 1, 8, 8));
         for (String module : new String[]{"学籍", "选课", "图书馆", "商城"}) {
-            content.add(new JLabel(module + "：建设中"));
+            home.add(new JLabel(module + "：建设中"));
         }
+        pageNavigator.register("home", home);
     }
 
     /** Returns the header extension point. */
