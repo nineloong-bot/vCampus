@@ -5,8 +5,10 @@ import edu.seu.vcampus.client.shop.ShopClientFixtures;
 import edu.seu.vcampus.client.shop.ShopSwingTestSupport;
 import edu.seu.vcampus.client.shop.service.ShopClientPort;
 import edu.seu.vcampus.client.shop.ui.buyer.CheckoutPanelTestSeam;
+import edu.seu.vcampus.client.shop.ui.buyer.BuyerShopPanel;
 import edu.seu.vcampus.client.shop.ui.buyer.CartPanel;
 import edu.seu.vcampus.client.shop.ui.buyer.ProductDetailPanel;
+import edu.seu.vcampus.client.shop.ui.buyer.ProductSearchPanel;
 import edu.seu.vcampus.client.shop.ui.buyer.ShopHomePanel;
 import edu.seu.vcampus.client.shop.ui.navigation.HomeViewState;
 import edu.seu.vcampus.client.shop.ui.navigation.SearchViewState;
@@ -61,6 +63,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
 import static edu.seu.vcampus.client.shop.ShopSwingTestSupport.component;
@@ -343,6 +346,21 @@ class ShopUiTest {
         flushEdt();
 
         assertThat(scroll.getVerticalScrollBar().getValue()).isEqualTo(17);
+    }
+
+    @Test
+    void backDepartureInvalidatesQueuedScrollRestoreForEveryListPage() throws Exception {
+        assertEveryListRejectsQueuedRestore(ScrollDeparture.BACK);
+    }
+
+    @Test
+    void resetDepartureInvalidatesQueuedScrollRestoreForEveryListPage() throws Exception {
+        assertEveryListRejectsQueuedRestore(ScrollDeparture.RESET);
+    }
+
+    @Test
+    void disposeInvalidatesQueuedScrollRestoreForEveryListPage() throws Exception {
+        assertEveryListRejectsQueuedRestore(ScrollDeparture.DISPOSE);
     }
     @Test
     void rendersEachRouteByLoadingItsExactPayloadBeforeShowingItsCard() throws Exception {
@@ -686,6 +704,18 @@ class ShopUiTest {
                 Instant.parse("2026-08-30T00:00:00Z"), null, 0);
     }
 
+    private static void assertEveryListRejectsQueuedRestore(ScrollDeparture departure)
+            throws Exception {
+        for (ListPage page : ListPage.values()) {
+            ScrollDepartureFixture fixture = new ScrollDepartureFixture(page);
+            fixture.start(departure);
+            fixture.completeThenDepart(departure);
+            assertThat(fixture.scroll.getVerticalScrollBar().getValue())
+                    .as("%s via %s", page, departure)
+                    .isEqualTo(17);
+        }
+    }
+
     private static PaymentView payment(PaymentStatus status) {
         return new PaymentView("payment-7", "group-7", "P0007", new BigDecimal("7.00"),
                 status, status == PaymentStatus.SUCCEEDED ? PaymentChannel.WECHAT : null,
@@ -877,6 +907,114 @@ class ShopUiTest {
         @Override public CompletableFuture<ProductDetail> getProduct(String productId) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<ShopDetail> getShop(String shopId) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<PageResult<ProductSummary>> getShopProducts(ShopProductQuery query) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<CartView> getCart() { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<CartView> addToCart(AddCartItemCommand command) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<CartView> updateCartItem(UpdateCartItemCommand command) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<CartView> removeCartItem(String cartItemId) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<CheckoutResult> checkout(CheckoutCommand command) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<PaymentView> simulatePayment(SimulatePaymentCommand command) { return new CompletableFuture<>(); }
+    }
+
+    private enum ListPage { HOME, SEARCH, STOREFRONT }
+    private enum ScrollDeparture { BACK, RESET, DISPOSE }
+
+    private static final class ScrollDepartureFixture {
+        private final DepartureScrollClient client = new DepartureScrollClient();
+        private final AtomicReference<Consumer<ShopRoute>> renderer =
+                new AtomicReference<>(route -> { });
+        private final ShopNavigator navigator = new ShopNavigator(
+                route -> renderer.get().accept(route));
+        private final JPanel panel;
+        private final JScrollPane scroll;
+        private final ShopRoute listRoute;
+        private final Runnable dispose;
+
+        private ScrollDepartureFixture(ListPage page) throws Exception {
+            switch (page) {
+                case HOME -> {
+                    ShopHomePanel home = onEdt(() -> new ShopHomePanel(client, navigator,
+                            new DefaultShopUiKit(), () -> { }));
+                    HomeViewState state = new HomeViewState(defaultHome(), 360);
+                    panel = home;
+                    listRoute = new ShopRoute.Home(state);
+                    dispose = home::dispose;
+                    renderer.set(route -> {
+                        if (route instanceof ShopRoute.Home(var requested)) home.load(requested);
+                    });
+                }
+                case SEARCH -> {
+                    ProductSearchPanel search = onEdt(() -> new ProductSearchPanel(client,
+                            navigator, new DefaultShopUiKit(), () -> { }));
+                    SearchViewState state = new SearchViewState(defaultSearch(), true, 360);
+                    panel = search;
+                    listRoute = new ShopRoute.Search(state);
+                    dispose = search::dispose;
+                    renderer.set(route -> {
+                        if (route instanceof ShopRoute.Search(var requested)) search.search(requested);
+                    });
+                }
+                case STOREFRONT -> {
+                    BuyerShopPanel storefront = onEdt(() -> new BuyerShopPanel(client,
+                            navigator, new DefaultShopUiKit(), () -> { }));
+                    StorefrontViewState state = new StorefrontViewState(new ShopProductQuery(
+                            "shop-1", null, null, null, null,
+                            ProductSortMode.SALES_DESC, 0, 20), 360);
+                    panel = storefront;
+                    listRoute = new ShopRoute.Storefront(state);
+                    dispose = storefront::dispose;
+                    renderer.set(route -> {
+                        if (route instanceof ShopRoute.Storefront(var requested)) {
+                            storefront.load(requested);
+                        }
+                    });
+                }
+                default -> throw new IllegalStateException("Unknown list page");
+            }
+            scroll = component(panel, switch (page) {
+                case HOME -> "home.scroll";
+                case SEARCH -> "search.scroll";
+                case STOREFRONT -> "storefront.scroll";
+            }, JScrollPane.class);
+        }
+
+        private void start(ScrollDeparture departure) throws Exception {
+            onEdt(() -> {
+                scroll.getVerticalScrollBar().setValues(0, 10, 0, 1000);
+                if (departure == ScrollDeparture.BACK) {
+                    navigator.reset(new ShopRoute.My());
+                    navigator.open(listRoute);
+                } else {
+                    navigator.reset(listRoute);
+                }
+            });
+            flushEdt();
+        }
+
+        private void completeThenDepart(ScrollDeparture departure) throws Exception {
+            client.result.complete(RestoringClient.productsPage());
+            onEdt(() -> {
+                switch (departure) {
+                    case BACK -> navigator.back();
+                    case RESET -> navigator.reset(new ShopRoute.My());
+                    case DISPOSE -> dispose.run();
+                }
+                scroll.getVerticalScrollBar().setValues(17, 10, 0, 1000);
+            });
+            flushEdt();
+        }
+    }
+
+    private static final class DepartureScrollClient implements ShopClientPort {
+        private final CompletableFuture<PageResult<ProductSummary>> result =
+                new CompletableFuture<>();
+
+        @Override public CompletableFuture<PageResult<ProductSummary>> home(HomeProductQuery query) { return result; }
+        @Override public CompletableFuture<PageResult<ProductSummary>> search(ProductSearchQuery query) { return result; }
+        @Override public CompletableFuture<ProductDetail> getProduct(String productId) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<ShopDetail> getShop(String shopId) {
+            return CompletableFuture.completedFuture(ShopClientFixtures.shopDetail());
+        }
+        @Override public CompletableFuture<PageResult<ProductSummary>> getShopProducts(ShopProductQuery query) { return result; }
         @Override public CompletableFuture<CartView> getCart() { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> addToCart(AddCartItemCommand command) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> updateCartItem(UpdateCartItemCommand command) { return new CompletableFuture<>(); }

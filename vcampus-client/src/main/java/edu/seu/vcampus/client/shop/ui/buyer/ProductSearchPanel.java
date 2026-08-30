@@ -52,6 +52,9 @@ public final class ProductSearchPanel extends JPanel {
         this.uiKit = Objects.requireNonNull(uiKit, "uiKit");
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
         this.cards = new ProductCardsPanel(navigator, uiKit);
+        navigator.addListener(route -> {
+            if (!(route instanceof ShopRoute.Search)) latest.begin();
+        });
         this.searchButton = uiKit.primaryButton("search", "搜索");
         this.filterToggle = uiKit.secondaryButton("search.filters-toggle", "筛选");
         this.filters = uiKit.filterPanel("search.filters", new FlowLayout(FlowLayout.LEFT));

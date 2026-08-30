@@ -40,6 +40,9 @@ public final class ShopHomePanel extends JPanel {
         this.uiKit = Objects.requireNonNull(uiKit, "uiKit");
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
         this.cards = new ProductCardsPanel(navigator, uiKit);
+        navigator.addListener(route -> {
+            if (!(route instanceof ShopRoute.Home)) latest.begin();
+        });
         JButton search = uiKit.primaryButton("home.search", "搜索商品");
         search.addActionListener(event -> navigator.open(new ShopRoute.Search(new ProductSearchQuery(
                 null, null, null, null, ProductSortMode.SALES_DESC, 0, 20))));

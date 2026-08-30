@@ -3,6 +3,7 @@ package edu.seu.vcampus.client.shop.ui.buyer;
 import edu.seu.vcampus.client.shop.service.ShopClientPort;
 import edu.seu.vcampus.client.shop.ui.async.LatestRequest;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator;
+import edu.seu.vcampus.client.shop.ui.navigation.ShopRoute;
 import edu.seu.vcampus.client.shop.ui.navigation.StorefrontViewState;
 import edu.seu.vcampus.client.shop.ui.style.ShopPageState;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
@@ -38,7 +39,11 @@ public final class BuyerShopPanel extends JPanel {
         this.client = Objects.requireNonNull(client, "client");
         this.uiKit = Objects.requireNonNull(uiKit, "uiKit");
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
-        cards = new ProductCardsPanel(Objects.requireNonNull(navigator, "navigator"), uiKit);
+        ShopNavigator routes = Objects.requireNonNull(navigator, "navigator");
+        cards = new ProductCardsPanel(routes, uiKit);
+        routes.addListener(route -> {
+            if (!(route instanceof ShopRoute.Storefront)) latest.begin();
+        });
         add(shopName, BorderLayout.NORTH); add(scroll, BorderLayout.CENTER);
         showState(ShopPageState.INITIAL, "", null);
     }
