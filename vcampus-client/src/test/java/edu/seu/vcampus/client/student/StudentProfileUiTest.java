@@ -39,9 +39,10 @@ class StudentProfileUiTest {
         var updatedOnEdt = new AtomicBoolean();
         fixture.label("student.profile.email").addPropertyChangeListener("text", e -> updatedOnEdt.set(SwingUtilities.isEventDispatchThread()));
         fixture.awaitDispatch(1);
+        var rendered = onEdt(() -> fixture.observeText("student.profile.email"));
         Thread completion = new Thread(() -> response.complete(ResponseBody.success(profile(7, "zhangsan@seu.edu.cn", "13800000000"))));
         completion.start(); completion.join();
-        fixture.flushEdt();
+        fixture.awaitText(rendered);
         assertThat(fixture.visibleText()).contains("我的学籍档案", "张三", "213240001", "09024101", "正常",
                 "本科生", "2024-09-01", "major-1", "class-1", "zhangsan@seu.edu.cn", "13800000000");
         assertThat(fixture.button("student.profile.edit").isEnabled()).isTrue();
@@ -52,7 +53,8 @@ class StudentProfileUiTest {
         var response = new CompletableFuture<ResponseBody<StudentView>>();
         var fixture = new StudentUiFixture(response, ConnectionState.CONNECTED);
         SwingUtilities.invokeAndWait(fixture::showProfile);
-        fixture.awaitDispatch(1); response.complete(ResponseBody.success(profileWithNulls())); fixture.flushEdt();
+        fixture.awaitDispatch(1); var rendered = onEdt(() -> fixture.observeText("student.profile.name"));
+        response.complete(ResponseBody.success(profileWithNulls())); fixture.awaitText(rendered);
         assertThat(fixture.label("student.profile.name").getText()).isEqualTo("张三");
         assertThat(fixture.label("student.profile.email").getText()).isEqualTo("未填写");
         assertThat(fixture.label("student.profile.phone").getText()).isEqualTo("未填写");
@@ -67,7 +69,8 @@ class StudentProfileUiTest {
             var fixture = new StudentUiFixture(response, ConnectionState.CONNECTED);
             SwingUtilities.invokeAndWait(fixture::showProfile);
             fixture.awaitDispatch(1);
-            response.complete(ResponseBody.success(profile(status))); fixture.flushEdt();
+            var rendered = onEdt(() -> fixture.observeText("student.profile.lifecycle"));
+            response.complete(ResponseBody.success(profile(status))); fixture.awaitText(rendered);
             assertThat(fixture.visibleText()).contains(status == StudentStatus.SUSPENDED ? "休学" : status == StudentStatus.GRADUATED ? "已毕业" : "已退学");
         }
     }
@@ -77,7 +80,8 @@ class StudentProfileUiTest {
         var second = new CompletableFuture<ResponseBody<StudentView>>();
         var fixture = new StudentUiFixture(first, second, ConnectionState.CONNECTED);
         SwingUtilities.invokeAndWait(fixture::showProfile); fixture.awaitDispatch(1);
-        first.complete(ResponseBody.success(profile(1, "old@seu.edu.cn", "1"))); fixture.flushEdt();
+        var initial = onEdt(() -> fixture.observeText("student.profile.email"));
+        first.complete(ResponseBody.success(profile(1, "old@seu.edu.cn", "1"))); fixture.awaitText(initial);
         SwingUtilities.invokeAndWait(() -> fixture.panel.refreshProfile());
         fixture.awaitDispatch(2);
         assertThat(fixture.visibleText()).contains("old@seu.edu.cn", "正在加载");
@@ -92,15 +96,19 @@ class StudentProfileUiTest {
         SwingUtilities.invokeAndWait(fixture::showProfile); fixture.awaitDispatch(1); fixture.flushEdt();
         SwingUtilities.invokeAndWait(() -> fixture.panel.refreshProfile());
         fixture.awaitDispatch(2);
-        second.complete(ResponseBody.success(profile(2, "new@seu.edu.cn", "new-phone"))); fixture.flushEdt();
-        first.complete(ResponseBody.success(profile(1, "stale@seu.edu.cn", "stale-phone"))); fixture.flushEdt();
+        var current = onEdt(() -> fixture.observeText("student.profile.email"));
+        second.complete(ResponseBody.success(profile(2, "new@seu.edu.cn", "new-phone"))); fixture.awaitText(current);
+        var stale = onEdt(() -> fixture.observeText("student.profile.email"));
+        first.complete(ResponseBody.success(profile(1, "stale@seu.edu.cn", "stale-phone"))); fixture.assertNoText(stale);
         assertThat(fixture.visibleText()).contains("new@seu.edu.cn", "new-phone").doesNotContain("stale@");
     }
 
     @Test void failedFutureUsesSafeGenericMessage() throws Exception {
         var response = new CompletableFuture<ResponseBody<StudentView>>();
         var fixture = new StudentUiFixture(response, ConnectionState.CONNECTED);
-        SwingUtilities.invokeAndWait(fixture::showProfile); fixture.awaitDispatch(1); response.completeExceptionally(new IllegalStateException("secret")); fixture.flushEdt();
+        SwingUtilities.invokeAndWait(fixture::showProfile); fixture.awaitDispatch(1);
+        var failure = onEdt(() -> fixture.observeText("student.profile.error"));
+        response.completeExceptionally(new IllegalStateException("secret")); fixture.awaitText(failure);
         assertThat(fixture.visibleText()).contains("档案加载失败，请稍后重试").doesNotContain("secret");
     }
 
@@ -109,11 +117,13 @@ class StudentProfileUiTest {
         var failed = new CompletableFuture<ResponseBody<StudentView>>();
         var fixture = new StudentUiFixture(initial, failed, ConnectionState.CONNECTED);
         SwingUtilities.invokeAndWait(fixture::showProfile); fixture.awaitDispatch(1);
-        initial.complete(ResponseBody.success(profile(1, "loaded@seu.edu.cn", "phone"))); fixture.flushEdt();
+        var initialRender = onEdt(() -> fixture.observeText("student.profile.email"));
+        initial.complete(ResponseBody.success(profile(1, "loaded@seu.edu.cn", "phone"))); fixture.awaitText(initialRender);
         assertThat(fixture.label("student.profile.email").getText()).isEqualTo("loaded@seu.edu.cn");
         assertThat(fixture.button("student.profile.refresh").getText()).isEqualTo("刷新");
         SwingUtilities.invokeAndWait(() -> fixture.panel.refreshProfile()); fixture.awaitDispatch(2);
-        failed.complete(ResponseBody.failure("DENIED", "没有权限", null)); fixture.flushEdt();
+        var failure = onEdt(() -> fixture.observeText("student.profile.error"));
+        failed.complete(ResponseBody.failure("DENIED", "没有权限", null)); fixture.awaitText(failure);
         assertThat(fixture.visibleText()).contains("没有权限");
         assertThat(fixture.button("student.profile.refresh").getText()).isEqualTo("重试");
         assertThat(fixture.button("student.profile.refresh").isEnabled()).isTrue();
@@ -123,7 +133,8 @@ class StudentProfileUiTest {
         var response = new CompletableFuture<ResponseBody<StudentView>>();
         var fixture = new StudentUiFixture(response, ConnectionState.CONNECTED);
         SwingUtilities.invokeAndWait(fixture::showProfile); fixture.awaitDispatch(1);
-        response.complete(ResponseBody.success(profile(1, "x@y", "2"))); fixture.flushEdt();
+        var initial = onEdt(() -> fixture.observeText("student.profile.email"));
+        response.complete(ResponseBody.success(profile(1, "x@y", "2"))); fixture.awaitText(initial);
         fixture.connection.close(); fixture.flushEdt();
         assertThat(fixture.visibleText()).contains("x@y");
         assertThat(fixture.button("student.profile.edit").isEnabled()).isFalse();
@@ -135,7 +146,8 @@ class StudentProfileUiTest {
         SwingUtilities.invokeAndWait(fixture::showProfile);
         fixture.awaitDispatch(1);
         SwingUtilities.invokeAndWait(fixture.panel::removeNotify);
-        response.complete(ResponseBody.success(profile(9, "late", "late"))); fixture.flushEdt();
+        var late = onEdt(() -> fixture.observeText("student.profile.email"));
+        response.complete(ResponseBody.success(profile(9, "late", "late"))); fixture.assertNoText(late);
         assertThat(fixture.visibleText()).doesNotContain("late");
     }
 
@@ -145,8 +157,9 @@ class StudentProfileUiTest {
         var fixture = new StudentUiFixture(initial, saved, ConnectionState.CONNECTED);
         onEdt(fixture::showProfileInFrame);
         fixture.awaitDispatch(1);
+        var initialRender = onEdt(() -> fixture.observeText("student.profile.email"));
         initial.complete(ResponseBody.success(profile(7, "old@seu.edu.cn", "13000000000")));
-        fixture.flushEdt();
+        fixture.awaitText(initialRender);
 
         SwingUtilities.invokeLater(() -> fixture.button("student.profile.edit").doClick());
         UpdateContactDialog dialog = onEdt(() -> Arrays.stream(Window.getWindows())
@@ -159,8 +172,9 @@ class StudentProfileUiTest {
             fixture.button(dialog, "student.contact.submit").doClick();
         });
         fixture.awaitDispatch(2);
+        var savedRender = onEdt(() -> fixture.observeText("student.profile.email"));
         saved.complete(ResponseBody.success(profile(8, "new@seu.edu.cn", "13800000000")));
-        fixture.flushEdt();
+        fixture.awaitText(savedRender);
 
         assertThat(fixture.label("student.profile.email").getText()).isEqualTo("new@seu.edu.cn");
         assertThat(fixture.label("student.profile.phone").getText()).isEqualTo("13800000000");
@@ -204,6 +218,21 @@ class StudentProfileUiTest {
         void showProfile() { panel = new MyStudentProfilePanel(students, connection); panel.addNotify(); }
         void showProfileInFrame() { panel = new MyStudentProfilePanel(students, connection); frame = new JFrame("profile"); frame.setContentPane(panel); frame.pack(); frame.setVisible(true); }
         void flushEdt() throws Exception { SwingUtilities.invokeAndWait(() -> {}); }
+        TextSignal observeText(String name) {
+            var signal = new TextSignal();
+            label(name).addPropertyChangeListener("text", event -> {
+                signal.onEdt.set(SwingUtilities.isEventDispatchThread());
+                signal.changed.countDown();
+            });
+            return signal;
+        }
+        void awaitText(TextSignal signal) throws InterruptedException {
+            assertThat(signal.changed.await(2, TimeUnit.SECONDS)).isTrue();
+            assertThat(signal.onEdt).isTrue();
+        }
+        void assertNoText(TextSignal signal) throws InterruptedException {
+            assertThat(signal.changed.await(2, TimeUnit.SECONDS)).isFalse();
+        }
         String visibleText() { return text(panel); }
         <T extends Component> T component(String name, Class<T> type) { return type.cast(find(panel, name)); }
         <T extends Component> T component(Container root, String name, Class<T> type) { return type.cast(find(root, name)); }
@@ -212,5 +241,9 @@ class StudentProfileUiTest {
         JLabel label(String name) { return component(name, JLabel.class); }
         static String text(Component c) { if (c instanceof JLabel l) return l.getText() + " " + l.getName(); if (c instanceof AbstractButton b) return b.getText(); if (c instanceof Container p) { var s = new StringBuilder(); for (var x : p.getComponents()) s.append(text(x)).append(' '); return s.toString(); } return ""; }
         static Component find(Container p, String n) { if (n.equals(p.getName())) return p; for (var c : p.getComponents()) { if (n.equals(c.getName())) return c; if (c instanceof Container q) { var x = find(q, n); if (x != null) return x; } } return null; }
+        private static final class TextSignal {
+            final CountDownLatch changed = new CountDownLatch(1);
+            final AtomicBoolean onEdt = new AtomicBoolean();
+        }
     }
 }

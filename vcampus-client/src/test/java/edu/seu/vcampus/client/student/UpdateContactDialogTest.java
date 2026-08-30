@@ -35,8 +35,16 @@ class UpdateContactDialogTest {
         var client = new RecordingStudentClient();
         var service = new StudentClientService(client, Duration.ofSeconds(3));
         var saved = new AtomicReference<StudentView>();
+        var savedCount = new AtomicInteger();
+        var savedOnEdt = new AtomicBoolean();
+        var savedSignal = new CountDownLatch(1);
         UpdateContactDialog dialog = onEdt(() -> displayed(new UpdateContactDialog(
-                null, service, profile(7, "old@seu.edu.cn", "13000000000"), saved::set)));
+                null, service, profile(7, "old@seu.edu.cn", "13000000000"), value -> {
+                    saved.set(value);
+                    savedCount.incrementAndGet();
+                    savedOnEdt.set(SwingUtilities.isEventDispatchThread());
+                    savedSignal.countDown();
+                })));
 
         onEdt(() -> {
             field(dialog, "student.contact.email").setText("new@seu.edu.cn");
@@ -45,11 +53,14 @@ class UpdateContactDialogTest {
         });
         var call = client.await("STUDENT_UPDATE_CONTACT");
         client.complete(call, ResponseBody.success(profile(8, "new@seu.edu.cn", "13800000000")));
-        flushEdt();
+        await(savedSignal);
+        assertThat(client.complete(call, ResponseBody.success(profile(9, "late@seu.edu.cn", "13900000000"))).isFalse();
 
         assertThat(call.body()).isEqualTo(new UpdateStudentContactCommand(
                 "student-1", "new@seu.edu.cn", "13800000000", 7));
         assertThat(saved.get().rowVersion()).isEqualTo(8);
+        assertThat(savedCount).hasValue(1);
+        assertThat(savedOnEdt).isTrue();
         assertThat(dialog.isDisplayable()).isFalse();
     }
 
@@ -105,10 +116,9 @@ class UpdateContactDialogTest {
             button(dialog, "student.contact.submit").doClick();
         });
         var call = client.await("STUDENT_UPDATE_CONTACT");
-        label(dialog, "student.contact.error").addPropertyChangeListener("text",
-                event -> updatedOnEdt.set(SwingUtilities.isEventDispatchThread()));
+        var errorSignal = onEdt(() -> signal(label(dialog, "student.contact.error"), "text", updatedOnEdt));
         client.fail(call, new IllegalStateException("internal.Secret"));
-        flushEdt();
+        await(errorSignal);
 
         assertThat(field(dialog, "student.contact.email").getText()).isEqualTo("typed@seu.edu.cn");
         assertThat(field(dialog, "student.contact.phone").getText()).isEqualTo("13900000000");
@@ -120,21 +130,26 @@ class UpdateContactDialogTest {
     @Test
     void ordinaryFailedResponseKeepsTypedValuesAndHidesInternalCode() throws Exception {
         var client = new RecordingStudentClient();
-        UpdateContactDialog dialog = dialog(client, profile(4, "old@seu.edu.cn", "130"));
+        var published = new AtomicInteger();
+        UpdateContactDialog dialog = onEdt(() -> displayed(new UpdateContactDialog(null,
+                new StudentClientService(client, Duration.ofSeconds(3)), profile(4, "old@seu.edu.cn", "130"),
+                ignored -> published.incrementAndGet())));
         onEdt(() -> {
             field(dialog, "student.contact.email").setText("typed@seu.edu.cn");
             field(dialog, "student.contact.phone").setText("13900000000");
             button(dialog, "student.contact.submit").doClick();
         });
         var call = client.await("STUDENT_UPDATE_CONTACT");
+        var errorSignal = onEdt(() -> signal(label(dialog, "student.contact.error"), "text"));
         client.complete(call, ResponseBody.failure("INTERNAL_DENIED", "没有权限修改联系方式", null));
-        flushEdt();
+        await(errorSignal);
 
         assertThat(field(dialog, "student.contact.email").getText()).isEqualTo("typed@seu.edu.cn");
         assertThat(field(dialog, "student.contact.phone").getText()).isEqualTo("13900000000");
         assertThat(label(dialog, "student.contact.error").getText())
                 .contains("没有权限修改联系方式").doesNotContain("INTERNAL_DENIED");
         assertThat(button(dialog, "student.contact.submit").isEnabled()).isTrue();
+        assertThat(published).hasValue(0);
     }
 
     @Test
@@ -147,8 +162,9 @@ class UpdateContactDialogTest {
             button(dialog, "student.contact.submit").doClick();
         });
         var save = client.await("STUDENT_UPDATE_CONTACT");
+        var conflictSignal = onEdt(() -> signal(label(dialog, "student.contact.error"), "text"));
         client.complete(save, ResponseBody.failure("COMMON_CONCURRENT_MODIFICATION", "数据已被修改，请刷新", null));
-        flushEdt();
+        await(conflictSignal);
 
         assertThat(field(dialog, "student.contact.email").getText()).isEqualTo("typed@seu.edu.cn");
         assertThat(field(dialog, "student.contact.phone").getText()).isEqualTo("13900000000");
@@ -158,8 +174,9 @@ class UpdateContactDialogTest {
 
         onEdt(() -> button(dialog, "student.contact.refresh").doClick());
         var refresh = client.await("STUDENT_GET_CURRENT");
+        var refreshedSignal = onEdt(() -> signal(label(dialog, "student.contact.error"), "text"));
         client.complete(refresh, ResponseBody.success(profile(9, "server@seu.edu.cn", "13700000000")));
-        flushEdt();
+        await(refreshedSignal);
 
         assertThat(field(dialog, "student.contact.email").getText()).isEqualTo("typed@seu.edu.cn");
         assertThat(field(dialog, "student.contact.phone").getText()).isEqualTo("13900000000");
@@ -185,9 +202,112 @@ class UpdateContactDialogTest {
         assertThat(dialog.isDisplayable()).isFalse();
     }
 
+    @Test
+    void disposalDuringInFlightSaveIgnoresLateSuccessWithoutPublishingOrMutatingUi() throws Exception {
+        var client = new RecordingStudentClient();
+        var published = new AtomicInteger();
+        UpdateContactDialog dialog = onEdt(() -> displayed(new UpdateContactDialog(null,
+                new StudentClientService(client, Duration.ofSeconds(3)), profile(4, "old@seu.edu.cn", "130"),
+                ignored -> published.incrementAndGet())));
+        onEdt(() -> {
+            field(dialog, "student.contact.email").setText("typed@seu.edu.cn");
+            button(dialog, "student.contact.submit").doClick();
+        });
+        var save = client.await("STUDENT_UPDATE_CONTACT");
+        var lateUi = onEdt(() -> signal(label(dialog, "student.contact.error"), "text"));
+        onEdt(dialog::dispose);
+        client.complete(save, ResponseBody.success(profile(5, "server@seu.edu.cn", "13900000000")));
+        assertNoUiEvent(lateUi);
+
+        assertThat(published).hasValue(0);
+        assertThat(field(dialog, "student.contact.email").getText()).isEqualTo("typed@seu.edu.cn");
+        assertThat(dialog.isDisplayable()).isFalse();
+    }
+
+    @Test
+    void disposalDuringConflictRefreshSupersedesGenerationAndIgnoresLateResponse() throws Exception {
+        var client = new RecordingStudentClient();
+        var published = new AtomicInteger();
+        UpdateContactDialog dialog = onEdt(() -> displayed(new UpdateContactDialog(null,
+                new StudentClientService(client, Duration.ofSeconds(3)), profile(4, "old@seu.edu.cn", "130"),
+                ignored -> published.incrementAndGet())));
+        onEdt(() -> {
+            field(dialog, "student.contact.email").setText("typed@seu.edu.cn");
+            field(dialog, "student.contact.phone").setText("13900000000");
+            button(dialog, "student.contact.submit").doClick();
+        });
+        var save = client.await("STUDENT_UPDATE_CONTACT");
+        var conflict = onEdt(() -> signal(label(dialog, "student.contact.error"), "text"));
+        client.complete(save, ResponseBody.failure("COMMON_CONCURRENT_MODIFICATION", "数据已被修改，请刷新", null));
+        await(conflict);
+        onEdt(() -> button(dialog, "student.contact.refresh").doClick());
+        var refresh = client.await("STUDENT_GET_CURRENT");
+        var lateUi = onEdt(() -> signal(label(dialog, "student.contact.error"), "text"));
+        onEdt(dialog::dispose);
+        client.complete(refresh, ResponseBody.success(profile(9, "server@seu.edu.cn", "13700000000")));
+        assertNoUiEvent(lateUi);
+
+        assertThat(published).hasValue(0);
+        assertThat(field(dialog, "student.contact.email").getText()).isEqualTo("typed@seu.edu.cn");
+        assertThat(field(dialog, "student.contact.phone").getText()).isEqualTo("13900000000");
+        assertThat(dialog.isDisplayable()).isFalse();
+    }
+
+    @Test
+    void exceptionalRefreshFailureKeepsConflictStateAndTypedValues() throws Exception {
+        var client = new RecordingStudentClient();
+        UpdateContactDialog dialog = dialog(client, profile(4, "old@seu.edu.cn", "130"));
+        enterConflict(client, dialog);
+        onEdt(() -> button(dialog, "student.contact.refresh").doClick());
+        var refresh = client.await("STUDENT_GET_CURRENT");
+        var failure = onEdt(() -> signal(label(dialog, "student.contact.error"), "text"));
+        client.fail(refresh, new IllegalStateException("server.Secret"));
+        await(failure);
+
+        assertConflictRemains(dialog);
+        assertThat(label(dialog, "student.contact.error").getText())
+                .isEqualTo("刷新失败，请稍后重试").doesNotContain("Secret", "server");
+    }
+
+    @Test
+    void ordinaryRefreshFailureKeepsConflictStateAndHidesInternalCode() throws Exception {
+        var client = new RecordingStudentClient();
+        UpdateContactDialog dialog = dialog(client, profile(4, "old@seu.edu.cn", "130"));
+        enterConflict(client, dialog);
+        onEdt(() -> button(dialog, "student.contact.refresh").doClick());
+        var refresh = client.await("STUDENT_GET_CURRENT");
+        var failure = onEdt(() -> signal(label(dialog, "student.contact.error"), "text"));
+        client.complete(refresh, ResponseBody.failure("INTERNAL_STALE", "刷新被拒绝", null));
+        await(failure);
+
+        assertConflictRemains(dialog);
+        assertThat(label(dialog, "student.contact.error").getText())
+                .contains("刷新被拒绝").doesNotContain("INTERNAL_STALE");
+    }
+
     private static UpdateContactDialog dialog(RecordingStudentClient client, StudentView initial) throws Exception {
         return onEdt(() -> displayed(new UpdateContactDialog(null,
                 new StudentClientService(client, Duration.ofSeconds(3)), initial, ignored -> { })));
+    }
+
+    private static void enterConflict(RecordingStudentClient client, UpdateContactDialog dialog) throws Exception {
+        onEdt(() -> {
+            field(dialog, "student.contact.email").setText("typed@seu.edu.cn");
+            field(dialog, "student.contact.phone").setText("13900000000");
+            button(dialog, "student.contact.submit").doClick();
+        });
+        var save = client.await("STUDENT_UPDATE_CONTACT");
+        var conflict = onEdt(() -> signal(label(dialog, "student.contact.error"), "text"));
+        client.complete(save, ResponseBody.failure("COMMON_CONCURRENT_MODIFICATION", "数据已被修改，请刷新", null));
+        await(conflict);
+    }
+
+    private static void assertConflictRemains(UpdateContactDialog dialog) {
+        assertThat(field(dialog, "student.contact.email").getText()).isEqualTo("typed@seu.edu.cn");
+        assertThat(field(dialog, "student.contact.phone").getText()).isEqualTo("13900000000");
+        assertThat(button(dialog, "student.contact.refresh").isVisible()).isTrue();
+        assertThat(button(dialog, "student.contact.refresh").isEnabled()).isTrue();
+        assertThat(button(dialog, "student.contact.submit").isEnabled()).isFalse();
     }
 
     private static UpdateContactDialog displayed(UpdateContactDialog dialog) {
@@ -213,6 +333,22 @@ class UpdateContactDialogTest {
 
     private static void onEdt(ThrowingRunnable work) throws Exception { onEdt(() -> { work.run(); return null; }); }
     private static void flushEdt() throws Exception { SwingUtilities.invokeAndWait(() -> { }); }
+    private static UiSignal signal(JComponent component, String property) { return signal(component, property, new AtomicBoolean()); }
+    private static UiSignal signal(JComponent component, String property, AtomicBoolean onEdt) {
+        var signal = new UiSignal(onEdt);
+        component.addPropertyChangeListener(property, event -> {
+            signal.onEdt().set(SwingUtilities.isEventDispatchThread());
+            signal.changed().countDown();
+        });
+        return signal;
+    }
+    private static void await(UiSignal signal) throws InterruptedException {
+        assertThat(signal.changed().await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(signal.onEdt()).isTrue();
+    }
+    private static void assertNoUiEvent(UiSignal signal) throws InterruptedException {
+        assertThat(signal.changed().await(2, TimeUnit.SECONDS)).isFalse();
+    }
     private static JTextField field(Container root, String name) { return component(root, name, JTextField.class); }
     private static JButton button(Container root, String name) { return component(root, name, JButton.class); }
     private static JLabel label(Container root, String name) { return component(root, name, JLabel.class); }
@@ -229,6 +365,9 @@ class UpdateContactDialogTest {
     }
 
     @FunctionalInterface private interface ThrowingRunnable { void run() throws Exception; }
+    private record UiSignal(CountDownLatch changed, AtomicBoolean onEdt) {
+        UiSignal(AtomicBoolean onEdt) { this(new CountDownLatch(1), onEdt); }
+    }
 
     private static final class RecordingStudentClient implements StudentRequestClient {
         private final BlockingQueue<Call> calls = new LinkedBlockingQueue<>();
@@ -250,7 +389,7 @@ class UpdateContactDialogTest {
         Call poll() throws InterruptedException { return calls.poll(150, TimeUnit.MILLISECONDS); }
 
         @SuppressWarnings({"unchecked", "rawtypes"})
-        void complete(Call call, ResponseBody<?> response) { ((CompletableFuture) call.response()).complete(response); }
+        boolean complete(Call call, ResponseBody<?> response) { return ((CompletableFuture) call.response()).complete(response); }
         @SuppressWarnings({"unchecked", "rawtypes"})
         void fail(Call call, Throwable failure) { ((CompletableFuture) call.response()).completeExceptionally(failure); }
     }
