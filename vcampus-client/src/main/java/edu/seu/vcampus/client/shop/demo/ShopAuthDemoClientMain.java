@@ -24,7 +24,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/** Starts the authenticated buyer Shop demo against the local composed server. */
+/** Starts the authenticated buyer Shop demo against the selected composed server. */
 public final class ShopAuthDemoClientMain {
     private static final String DEFAULT_HOST = "127.0.0.1";
     private static final int DEFAULT_PORT = 19090;
@@ -35,7 +35,8 @@ public final class ShopAuthDemoClientMain {
 
     /** Connects off the EDT and then opens the real user login and Shop UI flow. */
     public static void main(String[] args) {
-        ClientConnection connection = new ClientConnection(DEFAULT_HOST, DEFAULT_PORT);
+        ServerAddress server = serverAddress(args);
+        ClientConnection connection = new ClientConnection(server.host(), server.port());
         try {
             connection.connect(TIMEOUT);
             Runtime.getRuntime().addShutdownHook(
@@ -52,6 +53,34 @@ public final class ShopAuthDemoClientMain {
             System.err.println("Shop Demo 客户端启动失败：" + error.getMessage());
             System.exit(2);
         }
+    }
+
+    static ServerAddress serverAddress(String[] args) {
+        Objects.requireNonNull(args, "args");
+        if (args.length > 2) {
+            throw new IllegalArgumentException(
+                    "Shop Demo 客户端最多接受 2 个参数：host [port]");
+        }
+
+        String host = args.length >= 1 ? args[0] : DEFAULT_HOST;
+        if (host == null || host.isBlank()) {
+            throw new IllegalArgumentException("Shop Demo 服务器地址不能为空");
+        }
+
+        int port = DEFAULT_PORT;
+        if (args.length == 2) {
+            try {
+                port = Integer.parseInt(args[1]);
+            } catch (NumberFormatException error) {
+                throw new IllegalArgumentException(
+                        "Shop Demo 服务器端口必须是数字：" + args[1], error);
+            }
+            if (port < 1 || port > 65535) {
+                throw new IllegalArgumentException(
+                        "Shop Demo 服务器端口必须在 1..65535 范围内：" + port);
+            }
+        }
+        return new ServerAddress(host, port);
     }
 
     static UserClientService asynchronousUsers(
@@ -139,6 +168,8 @@ public final class ShopAuthDemoClientMain {
             throw new IllegalStateException("Shop Demo UI must run on the EDT");
         }
     }
+
+    record ServerAddress(String host, int port) { }
 
     private static final class AsyncUserClientService extends UserClientService {
         private final Executor executor;

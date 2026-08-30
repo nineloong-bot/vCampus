@@ -61,6 +61,17 @@ try {
         'Client must use an absolute Logback configuration path after changing directory.'
     Assert-Contains $clientArgs "-cp $(Join-Path $repoRoot 'vcampus-distribution\lib\vCampusClient.jar') edu.seu.vcampus.client.shop.demo.ShopAuthDemoClientMain" `
         'Client must launch the Shop Auth Demo client main class from its absolute shaded JAR path.'
+    Assert-Contains $clientArgs 'edu.seu.vcampus.client.shop.demo.ShopAuthDemoClientMain 127.0.0.1 19090' `
+        'Client must pass the local Shop Demo server defaults to the Java main class.'
+
+    $remoteClientCapture = Join-Path $testRoot 'remote-client'
+    $env:SHOP_AUTH_DEMO_SCRIPT_CAPTURE = $remoteClientCapture
+    & (Join-Path $repoRoot 'vcampus-distribution\scripts\start-shop-auth-demo-client.ps1') `
+        -ServerHost '100.64.12.34' -ServerPort 23456
+    $remoteClientArgs = (Get-Content -Raw -LiteralPath "$remoteClientCapture.args").Trim()
+
+    Assert-Contains $remoteClientArgs 'edu.seu.vcampus.client.shop.demo.ShopAuthDemoClientMain 100.64.12.34 23456' `
+        'Client must pass the selected remote Shop Demo server to the Java main class.'
 
     Write-Host 'Shop Auth Demo startup script tests passed.'
 } finally {

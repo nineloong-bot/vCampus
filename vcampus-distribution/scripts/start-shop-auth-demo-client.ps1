@@ -1,3 +1,8 @@
+param(
+    [string] $ServerHost = '127.0.0.1',
+    [string] $ServerPort = '19090'
+)
+
 $ErrorActionPreference = 'Stop'
 
 $worktreeRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
@@ -17,7 +22,9 @@ try {
     Set-Location -LiteralPath $runtimeRoot
     & java "-Dlogback.configurationFile=$logbackConfig" `
         -cp $clientJar `
-        edu.seu.vcampus.client.shop.demo.ShopAuthDemoClientMain
+        edu.seu.vcampus.client.shop.demo.ShopAuthDemoClientMain `
+        $ServerHost `
+        $ServerPort
     if ($LASTEXITCODE -ne 0) {
         throw "Shop Demo 客户端退出，退出码：$LASTEXITCODE"
     }
