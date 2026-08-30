@@ -5,6 +5,7 @@ import edu.seu.vcampus.client.shop.ui.buyer.BuyerShopPanel;
 import edu.seu.vcampus.client.shop.ui.buyer.CartPanel;
 import edu.seu.vcampus.client.shop.ui.buyer.CheckoutPanel;
 import edu.seu.vcampus.client.shop.ui.buyer.PaymentResultPanel;
+import edu.seu.vcampus.client.shop.ui.buyer.MyShopPanel;
 import edu.seu.vcampus.client.shop.ui.buyer.ProductDetailPanel;
 import edu.seu.vcampus.client.shop.ui.buyer.ProductSearchPanel;
 import edu.seu.vcampus.client.shop.ui.buyer.ShopHomePanel;
@@ -20,10 +21,10 @@ import edu.seu.vcampus.common.shop.CartView;
 import edu.seu.vcampus.common.shop.HomeProductQuery;
 import edu.seu.vcampus.common.shop.PaymentView;
 import edu.seu.vcampus.common.shop.ProductSortMode;
+import edu.seu.vcampus.common.user.UserView;
 
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.util.Objects;
@@ -48,28 +49,30 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
     private boolean disposed;
 
     /** Creates and registers every stable Shop page. This must run on the EDT. */
-    public ShopPageCoordinator(ShopModulePanel pages, ShopClientPort client, ShopUiKit uiKit,
+    public ShopPageCoordinator(ShopModulePanel pages, UserView user, ShopClientPort client,
+            ShopUiKit uiKit,
             Runnable sessionExpired) {
-        this((CardNavigator) pages, new BuyerPageFactory(client), uiKit, sessionExpired);
+        this((CardNavigator) pages, user, new BuyerPageFactory(client), uiKit, sessionExpired);
     }
 
-    ShopPageCoordinator(ShopModulePanel pages, PageFactory factory, ShopUiKit uiKit,
+    ShopPageCoordinator(ShopModulePanel pages, UserView user, PageFactory factory, ShopUiKit uiKit,
             Runnable sessionExpired) {
-        this((CardNavigator) pages, factory, uiKit, sessionExpired);
+        this((CardNavigator) pages, user, factory, uiKit, sessionExpired);
     }
 
-    ShopPageCoordinator(CardNavigator cards, PageFactory factory, ShopUiKit uiKit,
+    ShopPageCoordinator(CardNavigator cards, UserView user, PageFactory factory, ShopUiKit uiKit,
             Runnable sessionExpired) {
         requireEdt();
         this.cards = Objects.requireNonNull(cards, "cards");
         Objects.requireNonNull(factory, "factory");
+        Objects.requireNonNull(user, "user");
         Objects.requireNonNull(uiKit, "uiKit");
         Objects.requireNonNull(sessionExpired, "sessionExpired");
         navigator = new ShopNavigator(this);
         cards.installToolbar(new ShopToolbar(navigator, cartCount, uiKit));
         factory.setCartCountModel(cartCount);
-        this.pages = factory.create(navigator, uiKit, sessionExpired, sessionExpired, sessionExpired,
-                sessionExpired, sessionExpired, sessionExpired);
+        this.pages = factory.create(user, navigator, uiKit, sessionExpired, sessionExpired,
+                sessionExpired, sessionExpired, sessionExpired, sessionExpired, sessionExpired);
         register(HOME, this.pages.home());
         register(SEARCH, this.pages.search());
         register(PRODUCT, this.pages.product());
@@ -77,9 +80,7 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         register(CART, this.pages.cart());
         register(CHECKOUT, this.pages.checkout());
         register(PAYMENT_RESULT, this.pages.paymentResult());
-        JPanel my = new JPanel(new BorderLayout());
-        my.add(new JLabel("我的商城即将开放"), BorderLayout.CENTER);
-        register(MY, my);
+        register(MY, this.pages.my());
     }
 
     /** Returns the sole Shop history owner used by page actions and the sidebar entry. */
@@ -135,7 +136,9 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
             case ShopRoute.PaymentResult(var payment) -> {
                 pages.loadPaymentResult(payment);
             }
-            case ShopRoute.My ignored -> { }
+            case ShopRoute.My ignored -> {
+                pages.loadMy();
+            }
         }
         cards.show(pageId(requested));
     }
@@ -175,10 +178,11 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
 
     @FunctionalInterface
     interface PageFactory {
-        PageSet create(ShopNavigator navigator, ShopUiKit uiKit, Runnable homeSessionExpired,
+        PageSet create(UserView user, ShopNavigator navigator, ShopUiKit uiKit,
+                Runnable homeSessionExpired,
                 Runnable searchSessionExpired, Runnable productSessionExpired,
                 Runnable storefrontSessionExpired, Runnable cartSessionExpired,
-                Runnable checkoutSessionExpired);
+                Runnable checkoutSessionExpired, Runnable mySessionExpired);
         default void setCartCountModel(CartCountModel cartCount) { }
     }
 
@@ -190,6 +194,7 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         JPanel cart();
         JPanel checkout();
         JPanel paymentResult();
+        JPanel my();
         void loadHome(HomeViewState state);
         void search(SearchViewState state);
         void loadProduct(String productId);
@@ -197,6 +202,7 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         void loadCart();
         void loadCheckout();
         void loadPaymentResult(PaymentView payment);
+        void loadMy();
         default void syncCartCount() { }
         HomeViewState captureHome(HomeViewState state);
         SearchViewState captureSearch(SearchViewState state);
@@ -240,13 +246,15 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         }
 
         @Override
-        public PageSet create(ShopNavigator navigator, ShopUiKit uiKit, Runnable homeSessionExpired,
+        public PageSet create(UserView user, ShopNavigator navigator, ShopUiKit uiKit,
+                Runnable homeSessionExpired,
                 Runnable searchSessionExpired, Runnable productSessionExpired,
                 Runnable storefrontSessionExpired, Runnable cartSessionExpired,
-                Runnable checkoutSessionExpired) {
-            return new BuyerPageSet(client, navigator, cartCount, uiKit, homeSessionExpired, searchSessionExpired,
+                Runnable checkoutSessionExpired, Runnable mySessionExpired) {
+            return new BuyerPageSet(user, client, navigator, cartCount, uiKit,
+                    homeSessionExpired, searchSessionExpired,
                     productSessionExpired, storefrontSessionExpired, cartSessionExpired,
-                    checkoutSessionExpired, checkoutFactory, callbackObserver);
+                    checkoutSessionExpired, mySessionExpired, checkoutFactory, callbackObserver);
         }
 
         @Override
@@ -274,16 +282,19 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         private final CartPanel cart;
         private final CheckoutPanel checkout;
         private final PaymentResultHost paymentResult;
+        private final MyShopPanel my;
         private final CartCountModel cartCount;
         private final ShopClientPort client;
         private final Runnable cartSessionExpired;
         private final LatestRequest cartSync = new LatestRequest();
 
-        private BuyerPageSet(ShopClientPort client, ShopNavigator navigator, CartCountModel cartCount,
+        private BuyerPageSet(UserView user, ShopClientPort client, ShopNavigator navigator,
+                CartCountModel cartCount,
                 ShopUiKit uiKit,
                 Runnable homeSessionExpired, Runnable searchSessionExpired,
                 Runnable productSessionExpired, Runnable storefrontSessionExpired,
                 Runnable cartSessionExpired, Runnable checkoutSessionExpired,
+                Runnable mySessionExpired,
                 CheckoutPageFactory checkoutFactory, CallbackObserver callbackObserver) {
             this.cartCount = cartCount;
             this.client = client;
@@ -302,6 +313,8 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
             checkout = checkoutFactory.create(client, navigator, uiKit, checkoutSessionExpired);
             checkout.setCartCountModel(cartCount);
             paymentResult = new PaymentResultHost(navigator, uiKit);
+            callbackObserver.passedTo("my", mySessionExpired);
+            my = new MyShopPanel(user, client, uiKit, mySessionExpired);
         }
 
         @Override public JPanel home() { return home; }
@@ -311,6 +324,7 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         @Override public JPanel cart() { return cart; }
         @Override public JPanel checkout() { return checkout; }
         @Override public JPanel paymentResult() { return paymentResult; }
+        @Override public JPanel my() { return my; }
         @Override public void loadHome(HomeViewState state) { home.load(state); }
         @Override public void search(SearchViewState state) { search.search(state); }
         @Override public void loadProduct(String productId) { product.load(productId); }
@@ -320,6 +334,7 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         @Override public void loadPaymentResult(PaymentView payment) {
             paymentResult.load(payment);
         }
+        @Override public void loadMy() { my.load(); }
         @Override public void syncCartCount() {
             long request = cartSync.begin();
             long updateRevision = cartCount.beginUpdate();
@@ -342,6 +357,7 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
             storefront.dispose();
             cart.disposePage();
             checkout.disposePage();
+            my.disposePage();
         }
 
         private void finishCartSync(long request, long updateRevision, CartView result,

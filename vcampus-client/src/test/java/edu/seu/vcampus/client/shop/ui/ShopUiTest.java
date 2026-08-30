@@ -7,6 +7,8 @@ import edu.seu.vcampus.client.shop.service.ShopClientPort;
 import edu.seu.vcampus.client.shop.ui.buyer.CheckoutPanelTestSeam;
 import edu.seu.vcampus.client.shop.ui.buyer.BuyerShopPanel;
 import edu.seu.vcampus.client.shop.ui.buyer.CartPanel;
+import edu.seu.vcampus.client.shop.ui.buyer.MyShopPanel;
+import edu.seu.vcampus.client.shop.ui.buyer.PaymentResultPanel;
 import edu.seu.vcampus.client.shop.ui.buyer.ProductDetailPanel;
 import edu.seu.vcampus.client.shop.ui.buyer.ProductSearchPanel;
 import edu.seu.vcampus.client.shop.ui.buyer.ShopHomePanel;
@@ -30,6 +32,9 @@ import edu.seu.vcampus.common.shop.PaymentChannel;
 import edu.seu.vcampus.common.shop.PaymentStatus;
 import edu.seu.vcampus.common.shop.PaymentView;
 import edu.seu.vcampus.common.shop.PaidOrderHistory;
+import edu.seu.vcampus.common.shop.PaidOrderItemView;
+import edu.seu.vcampus.common.shop.PaidOrderView;
+import edu.seu.vcampus.common.shop.OrderStatus;
 import edu.seu.vcampus.common.shop.ProductDetail;
 import edu.seu.vcampus.common.shop.ProductSearchQuery;
 import edu.seu.vcampus.common.shop.ProductSortMode;
@@ -41,6 +46,9 @@ import edu.seu.vcampus.common.shop.ShopProductQuery;
 import edu.seu.vcampus.common.shop.ShopSummary;
 import edu.seu.vcampus.common.shop.SimulatePaymentCommand;
 import edu.seu.vcampus.common.shop.UpdateCartItemCommand;
+import edu.seu.vcampus.common.user.AccountStatus;
+import edu.seu.vcampus.common.user.UserRole;
+import edu.seu.vcampus.common.user.UserView;
 import org.junit.jupiter.api.Test;
 
 import javax.swing.JButton;
@@ -58,6 +66,7 @@ import java.awt.LayoutManager;
 import java.awt.event.WindowEvent;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Arrays;
@@ -76,6 +85,84 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 class ShopUiTest {
+    @Test
+    void myPageShowsReadOnlyIdentityAndExpandsPaidOrdersInServerOrder() throws Exception {
+        PaidOrderHistory history = paidOrders();
+        ShopClientPort client = paidOrdersClient(CompletableFuture.completedFuture(history));
+        MyShopPanel panel = onEdt(() -> new MyShopPanel(
+                buyer(), client, new DefaultShopUiKit(), () -> { }));
+
+        onEdt(panel::load);
+        flushEdt();
+
+        assertThat(component(panel, "my.user-id", JLabel.class).getText())
+                .isEqualTo("buyer-7");
+        assertThat(component(panel, "my.login-id", JLabel.class).getText())
+                .isEqualTo("DEMO_BUYER");
+        assertThat(component(panel, "my.role", JLabel.class).getText())
+                .isEqualTo("STUDENT");
+        assertThat(component(panel, "my.account-status", JLabel.class).getText())
+                .isEqualTo("ACTIVE");
+        JPanel orders = component(panel, "my.orders", JPanel.class);
+        assertThat(Arrays.asList(orders.getComponents()))
+                .extracting(Component::getName)
+                .containsExactly("my.order.order-new", "my.order.order-old");
+
+        JPanel details = component(panel, "my.order.details.order-new", JPanel.class);
+        assertThat(details.isVisible()).isFalse();
+        onEdt(() -> component(panel, "my.order.toggle.order-new", JButton.class).doClick());
+        assertThat(details.isVisible()).isTrue();
+        assertThat(component(panel, "my.order.item.order-new.sku-new", JLabel.class).getText())
+                .contains("product-new", "签字笔", "sku-new", "黑色",
+                        "2", "3.00", "6.00");
+        assertThat(component(panel, "my.order.total.order-new", JLabel.class).getText())
+                .contains("6.00");
+        assertThat(component(panel, "my.order.paid-at.order-new", JLabel.class).getText())
+                .contains("2026-08-30T02:00:00Z");
+        assertThat(component(panel, "my.order.status.order-new", JLabel.class).getText())
+                .contains("PAID");
+    }
+
+    @Test
+    void myPageRejectsOlderAndDisposedResponsesAndExpiresTheSharedSession() throws Exception {
+        CompletableFuture<PaidOrderHistory> old = new CompletableFuture<>();
+        CompletableFuture<PaidOrderHistory> latest = new CompletableFuture<>();
+        CompletableFuture<PaidOrderHistory> afterDispose = new CompletableFuture<>();
+        ShopClientPort client = paidOrdersClient(old, latest, afterDispose);
+        StateCountingKit uiKit = new StateCountingKit();
+        AtomicInteger expired = new AtomicInteger();
+        MyShopPanel panel = onEdt(() -> new MyShopPanel(
+                buyer(), client, uiKit, expired::incrementAndGet));
+
+        onEdt(panel::load);
+        onEdt(panel::load);
+        latest.complete(new PaidOrderHistory(List.of(paidOrders().orders().getFirst())));
+        flushEdt();
+        old.complete(new PaidOrderHistory(List.of(paidOrders().orders().getLast())));
+        flushEdt();
+        assertThat(component(panel, "my.orders", JPanel.class).getComponents())
+                .extracting(Component::getName)
+                .containsExactly("my.order.order-new");
+
+        onEdt(panel::load);
+        int stateCallsAtDispose = uiKit.stateCalls.get();
+        onEdt(panel::disposePage);
+        afterDispose.completeExceptionally(new IllegalStateException("AUTH_SESSION_EXPIRED"));
+        flushEdt();
+        assertThat(uiKit.stateCalls).hasValue(stateCallsAtDispose);
+        assertThat(expired).hasValue(0);
+
+        AtomicInteger liveExpired = new AtomicInteger();
+        MyShopPanel expiring = onEdt(() -> new MyShopPanel(buyer(),
+                paidOrdersClient(CompletableFuture.failedFuture(
+                        new IllegalStateException("AUTH_SESSION_EXPIRED"))),
+                uiKit, liveExpired::incrementAndGet));
+        onEdt(expiring::load);
+        flushEdt();
+        assertThat(uiKit.states.getLast()).isEqualTo(ShopPageState.DISCONNECTED);
+        assertThat(liveExpired).hasValue(1);
+    }
+
     @Test
     void navigatorCapturesExactListStateAndNotifiesBoundedHistoryChanges() {
         HomeProductQuery homeQuery = new HomeProductQuery(null, null,
@@ -163,6 +250,37 @@ class ShopUiTest {
     }
 
     @Test
+    void successfulPaymentButtonsUseApprovedCopyAndClearCheckoutHistory() throws Exception {
+        ShopNavigator navigator = new ShopNavigator(route -> { });
+        ShopRoute.Home home = new ShopRoute.Home(defaultHome());
+        navigator.open(home);
+        navigator.open(new ShopRoute.Checkout());
+        navigator.replaceCurrent(new ShopRoute.PaymentResult(payment()));
+        PaymentResultPanel homeExit = onEdt(() -> new PaymentResultPanel(
+                navigator, new DefaultShopUiKit(), payment()));
+
+        assertThat(component(homeExit, "payment-result.home", JButton.class).getText())
+                .isEqualTo("继续购物");
+        assertThat(component(homeExit, "payment-result.orders", JButton.class).getText())
+                .isEqualTo("查看已支付订单");
+        onEdt(() -> component(homeExit, "payment-result.home", JButton.class).doClick());
+        assertThat(navigator.current()).contains(home);
+        assertThat(navigator.history()).isEmpty();
+        navigator.back();
+        assertThat(navigator.current()).contains(home);
+
+        navigator.open(new ShopRoute.Checkout());
+        navigator.replaceCurrent(new ShopRoute.PaymentResult(payment()));
+        PaymentResultPanel ordersExit = onEdt(() -> new PaymentResultPanel(
+                navigator, new DefaultShopUiKit(), payment()));
+        onEdt(() -> component(ordersExit, "payment-result.orders", JButton.class).doClick());
+        assertThat(navigator.current()).contains(new ShopRoute.My());
+        assertThat(navigator.history()).isEmpty();
+        navigator.back();
+        assertThat(navigator.current()).contains(new ShopRoute.My());
+    }
+
+    @Test
     void toolbarReflectsEveryRouteAndUsesTheAuthoritativeQuantitySum() throws Exception {
         ShopNavigator navigator = new ShopNavigator(route -> { });
         CartCountModel cartCount = new CartCountModel();
@@ -210,7 +328,7 @@ class ShopUiTest {
         RestoringClient client = new RestoringClient();
         ShopModulePanel content = onEdt(ShopModulePanel::new);
         ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(
-                content, client, new DefaultShopUiKit(), () -> { }));
+                content, buyer(), client, new DefaultShopUiKit(), () -> { }));
         HomeProductQuery home = new HomeProductQuery(new BigDecimal("1.00"),
                 new BigDecimal("20.00"), ProductSortMode.PRICE_DESC, 2, 8);
         ProductSearchQuery search = new ProductSearchQuery("笔", "文具",
@@ -411,7 +529,7 @@ class ShopUiTest {
         CartMutationClient client = new CartMutationClient();
         ShopModulePanel content = onEdt(ShopModulePanel::new);
         ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(
-                content, client, new DefaultShopUiKit(), () -> { }));
+                content, buyer(), client, new DefaultShopUiKit(), () -> { }));
 
         onEdt(coordinator::enter);
         flushEdt();
@@ -489,9 +607,9 @@ class ShopUiTest {
         List<SequenceEvent> events = new ArrayList<>();
         SequencePageSet pages = onEdt(() -> new SequencePageSet(events));
         SequenceCards cards = new SequenceCards(events);
-        ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(cards,
-                (navigator, uiKit, homeExpired, searchExpired, productExpired, storefrontExpired,
-                        cartExpired, checkoutExpired) -> pages,
+        ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(cards, buyer(),
+                (user, navigator, uiKit, homeExpired, searchExpired, productExpired,
+                        storefrontExpired, cartExpired, checkoutExpired, myExpired) -> pages,
                 new DefaultShopUiKit(), () -> { }));
         List<ShopRoute> routes = List.of(
                 new ShopRoute.Home(defaultHome()),
@@ -506,23 +624,20 @@ class ShopUiTest {
         for (ShopRoute route : routes) {
             events.clear();
             onEdt(() -> coordinator.render(route));
-            if (route instanceof ShopRoute.My) {
-                assertThat(events).containsExactly(new SequenceEvent("show", pageId(route)));
-            } else {
-                assertThat(events).containsExactly(
-                        new SequenceEvent(operation(route), new RouteInvocation(pageId(route), payload(route))),
-                        new SequenceEvent("show", pageId(route)));
-            }
+            assertThat(events).containsExactly(
+                    new SequenceEvent(operation(route),
+                            new RouteInvocation(pageId(route), payload(route))),
+                    new SequenceEvent("show", pageId(route)));
         }
     }
 
     @Test
-    void disposeInvalidatesSixPendingPagesBeforeAnyCompletionCanMutateUiOrSession() throws Exception {
+    void disposeInvalidatesSevenPendingPagesBeforeAnyCompletionCanMutateUiOrSession() throws Exception {
         PendingClient client = new PendingClient();
         StateCountingKit uiKit = new StateCountingKit();
         AtomicInteger expired = new AtomicInteger();
         ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(
-                new ShopModulePanel(), client, uiKit, expired::incrementAndGet));
+                new ShopModulePanel(), buyer(), client, uiKit, expired::incrementAndGet));
 
         onEdt(() -> coordinator.navigator().open(new ShopRoute.Home(defaultHome())));
         onEdt(() -> coordinator.navigator().open(new ShopRoute.Search(defaultSearch())));
@@ -530,6 +645,7 @@ class ShopUiTest {
         onEdt(() -> coordinator.navigator().open(new ShopRoute.Storefront("shop")));
         onEdt(() -> coordinator.navigator().open(new ShopRoute.Cart()));
         onEdt(() -> coordinator.navigator().open(new ShopRoute.Checkout()));
+        onEdt(() -> coordinator.navigator().open(new ShopRoute.My()));
         int stateCallsBeforeDispose = uiKit.stateCalls.get();
         List<ShopRoute> historyBeforeDispose = coordinator.navigator().history();
         ShopRoute currentBeforeDispose = coordinator.navigator().current().orElseThrow();
@@ -560,10 +676,10 @@ class ShopUiTest {
                     return fixture.panel();
                 }, (page, callback) -> captures.add(new CallbackCapture(page, callback)));
         ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(
-                new ShopModulePanel(), factory, new DefaultShopUiKit(), sessionExpired));
+                new ShopModulePanel(), buyer(), factory, new DefaultShopUiKit(), sessionExpired));
 
         assertThat(captures).extracting(CallbackCapture::page).containsExactly(
-                "home", "search", "product", "storefront", "cart", "checkout");
+                "home", "search", "product", "storefront", "cart", "checkout", "my");
         assertThat(captures).allSatisfy(capture ->
                 assertThat(capture.callback()).isSameAs(sessionExpired));
         onEdt(() -> coordinator.navigator().open(new ShopRoute.Checkout()));
@@ -583,7 +699,7 @@ class ShopUiTest {
         RecordingClient client = new RecordingClient();
         ShopModulePanel content = onEdt(ShopModulePanel::new);
         ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(
-                content, client, new DefaultShopUiKit(), () -> { }));
+                content, buyer(), client, new DefaultShopUiKit(), () -> { }));
         assertThat(namedComponents(content, "shop.toolbar")).hasSize(1);
         JPanel cardHost = component(content, "shop.pages", JPanel.class);
         List<Component> fixedCards = Arrays.asList(cardHost.getComponents());
@@ -656,7 +772,7 @@ class ShopUiTest {
         BadgeClient client = new BadgeClient();
         ShopModulePanel content = onEdt(ShopModulePanel::new);
         ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(
-                content, client, new DefaultShopUiKit(), () -> { }));
+                content, buyer(), client, new DefaultShopUiKit(), () -> { }));
 
         onEdt(() -> coordinator.navigator().open(new ShopRoute.Product("product-badge")));
         flushEdt();
@@ -688,7 +804,7 @@ class ShopUiTest {
         MainFrame frame = onEdt((Callable<MainFrame>) MainFrame::new);
         int navigationCount = frame.navigation().getComponentCount();
 
-        onEdt(() -> ShopUiInstaller.install(frame, client, uiKit, () -> { }));
+        onEdt(() -> ShopUiInstaller.install(frame, buyer(), client, uiKit, () -> { }));
         AbstractButton shop = component(frame.navigation(), "navigation.shop", AbstractButton.class);
         onEdt(() -> shop.doClick());
         flushEdt();
@@ -711,8 +827,9 @@ class ShopUiTest {
         MainFrame frame = onEdt((Callable<MainFrame>) MainFrame::new);
         RecordingInstalledCoordinator coordinator = new RecordingInstalledCoordinator();
 
-        onEdt(() -> ShopUiInstaller.install(frame, new RecordingClient(), new DefaultShopUiKit(),
-                () -> { }, (module, client, uiKit, sessionExpired) -> coordinator));
+        onEdt(() -> ShopUiInstaller.install(frame, buyer(), new RecordingClient(),
+                new DefaultShopUiKit(), () -> { },
+                (module, user, client, uiKit, sessionExpired) -> coordinator));
         AbstractButton shop = component(frame.navigation(), "navigation.shop", AbstractButton.class);
         onEdt(() -> shop.doClick());
 
@@ -727,7 +844,7 @@ class ShopUiTest {
                 .setName("navigation.other"));
 
         assertThatThrownBy(() -> onEdt(() -> ShopUiInstaller.install(missingEntry,
-                new RecordingClient(), new DefaultShopUiKit(), () -> { })))
+                buyer(), new RecordingClient(), new DefaultShopUiKit(), () -> { })))
                 .hasCauseInstanceOf(IllegalStateException.class);
 
         MainFrame ambiguousPage = onEdt((Callable<MainFrame>) MainFrame::new);
@@ -738,7 +855,7 @@ class ShopUiTest {
         });
 
         assertThatThrownBy(() -> onEdt(() -> ShopUiInstaller.install(ambiguousPage,
-                new RecordingClient(), new DefaultShopUiKit(), () -> { })))
+                buyer(), new RecordingClient(), new DefaultShopUiKit(), () -> { })))
                 .hasCauseInstanceOf(IllegalStateException.class);
     }
 
@@ -749,8 +866,9 @@ class ShopUiTest {
         RecordingInstalledCoordinator coordinator = new RecordingInstalledCoordinator();
         onEdt(() -> frame.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE));
 
-        onEdt(() -> ShopUiInstaller.install(frame, new RecordingClient(), new DefaultShopUiKit(),
-                () -> { }, (module, client, uiKit, sessionExpired) -> coordinator));
+        onEdt(() -> ShopUiInstaller.install(frame, buyer(), new RecordingClient(),
+                new DefaultShopUiKit(), () -> { },
+                (module, user, client, uiKit, sessionExpired) -> coordinator));
         onEdt(() -> frame.dispatchEvent(new WindowEvent(frame, WindowEvent.WINDOW_CLOSING)));
         onEdt(() -> frame.dispatchEvent(new WindowEvent(frame, WindowEvent.WINDOW_CLOSING)));
         flushEdt();
@@ -765,7 +883,7 @@ class ShopUiTest {
         AtomicInteger expired = new AtomicInteger();
         Runnable sessionExpired = expired::incrementAndGet;
         ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(
-                new ShopModulePanel(), client, new DefaultShopUiKit(), sessionExpired));
+                new ShopModulePanel(), buyer(), client, new DefaultShopUiKit(), sessionExpired));
 
         onEdt(() -> coordinator.navigator().open(new ShopRoute.Home(defaultHome())));
         client.home.completeExceptionally(new IllegalStateException("AUTH_SESSION_EXPIRED"));
@@ -785,8 +903,11 @@ class ShopUiTest {
         onEdt(() -> coordinator.navigator().open(new ShopRoute.Checkout()));
         client.checkoutCart.completeExceptionally(new IllegalStateException("AUTH_SESSION_EXPIRED"));
         flushEdt();
+        onEdt(() -> coordinator.navigator().open(new ShopRoute.My()));
+        client.paidOrders.completeExceptionally(new IllegalStateException("AUTH_SESSION_EXPIRED"));
+        flushEdt();
 
-        assertThat(expired).hasValue(6);
+        assertThat(expired).hasValue(7);
         onEdt(coordinator::dispose);
     }
 
@@ -795,9 +916,9 @@ class ShopUiTest {
         List<SequenceEvent> events = new ArrayList<>();
         SequencePageSet pages = onEdt(() -> new SequencePageSet(events));
         SequenceCards cards = new SequenceCards(events);
-        ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(cards,
-                (navigator, uiKit, homeExpired, searchExpired, productExpired, storefrontExpired,
-                        cartExpired, checkoutExpired) -> pages,
+        ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(cards, buyer(),
+                (user, navigator, uiKit, homeExpired, searchExpired, productExpired,
+                        storefrontExpired, cartExpired, checkoutExpired, myExpired) -> pages,
                 new DefaultShopUiKit(), () -> { }));
         ShopRoute.Search search = new ShopRoute.Search(defaultSearch());
 
@@ -824,6 +945,40 @@ class ShopUiTest {
         return new PaymentView("payment-7", "group-7", "P0007", new BigDecimal("7.00"),
                 PaymentStatus.SUCCEEDED, PaymentChannel.WECHAT,
                 Instant.parse("2026-08-30T00:00:00Z"), null, 0);
+    }
+
+    private static UserView buyer() {
+        LocalDateTime now = LocalDateTime.of(2026, 8, 30, 0, 0);
+        return new UserView("buyer-7", "DEMO_BUYER", UserRole.STUDENT,
+                AccountStatus.ACTIVE, false, now, 0, now, now);
+    }
+
+    private static PaidOrderHistory paidOrders() {
+        PaidOrderView newest = new PaidOrderView(
+                "order-new", "O-NEW", "shop-1", "校园文具店",
+                new BigDecimal("6.00"), Instant.parse("2026-08-30T02:00:00Z"),
+                OrderStatus.PAID, List.of(new PaidOrderItemView(
+                        "product-new", "签字笔", "sku-new", "黑色", 2,
+                        new BigDecimal("3.00"), new BigDecimal("6.00"))));
+        PaidOrderView older = new PaidOrderView(
+                "order-old", "O-OLD", "shop-2", "校园书店",
+                new BigDecimal("12.00"), Instant.parse("2026-08-29T02:00:00Z"),
+                OrderStatus.PAID, List.of(new PaidOrderItemView(
+                        "product-old", "习题册", "sku-old", "高数", 1,
+                        new BigDecimal("12.00"), new BigDecimal("12.00"))));
+        return new PaidOrderHistory(List.of(newest, older));
+    }
+
+    @SafeVarargs
+    private static ShopClientPort paidOrdersClient(
+            CompletableFuture<PaidOrderHistory>... responses) {
+        return new RecordingClient() {
+            private int request;
+
+            @Override public CompletableFuture<PaidOrderHistory> getPaidOrders() {
+                return responses[request++];
+            }
+        };
     }
 
     private static void assertEveryListRejectsQueuedRestore(ScrollDeparture departure)
@@ -976,7 +1131,7 @@ class ShopUiTest {
         };
     }
 
-    private static final class RecordingClient implements ShopClientPort {
+    private static class RecordingClient implements ShopClientPort {
         private final List<HomeProductQuery> homeQueries = new ArrayList<>();
         private final List<ProductSearchQuery> searchQueries = new ArrayList<>();
         private final List<String> productIds = new ArrayList<>();
@@ -1275,6 +1430,7 @@ class ShopUiTest {
         private final CompletableFuture<ShopDetail> storefront = new CompletableFuture<>();
         private final CompletableFuture<CartView> cart = new CompletableFuture<>();
         private final CompletableFuture<CartView> checkoutCart = new CompletableFuture<>();
+        private final CompletableFuture<PaidOrderHistory> paidOrders = new CompletableFuture<>();
 
         @Override public CompletableFuture<PageResult<ProductSummary>> home(HomeProductQuery query) { return home; }
         @Override public CompletableFuture<PageResult<ProductSummary>> search(ProductSearchQuery query) { return search; }
@@ -1284,7 +1440,7 @@ class ShopUiTest {
         @Override public CompletableFuture<CartView> getCart() {
             return cart.isDone() ? checkoutCart : cart;
         }
-        @Override public CompletableFuture<PaidOrderHistory> getPaidOrders() { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<PaidOrderHistory> getPaidOrders() { return paidOrders; }
         @Override public CompletableFuture<CartView> addToCart(AddCartItemCommand command) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> updateCartItem(UpdateCartItemCommand command) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> removeCartItem(String cartItemId) { return new CompletableFuture<>(); }
@@ -1299,6 +1455,7 @@ class ShopUiTest {
         private final CompletableFuture<ShopDetail> storefront = new CompletableFuture<>();
         private final List<CompletableFuture<CartView>> carts = List.of(
                 new CompletableFuture<>(), new CompletableFuture<>());
+        private final CompletableFuture<PaidOrderHistory> paidOrders = new CompletableFuture<>();
         private int nextCart;
 
         @Override public CompletableFuture<PageResult<ProductSummary>> home(HomeProductQuery query) { return home; }
@@ -1307,7 +1464,7 @@ class ShopUiTest {
         @Override public CompletableFuture<ShopDetail> getShop(String shopId) { return storefront; }
         @Override public CompletableFuture<PageResult<ProductSummary>> getShopProducts(ShopProductQuery query) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> getCart() { return carts.get(nextCart++); }
-        @Override public CompletableFuture<PaidOrderHistory> getPaidOrders() { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<PaidOrderHistory> getPaidOrders() { return paidOrders; }
         @Override public CompletableFuture<CartView> addToCart(AddCartItemCommand command) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> updateCartItem(UpdateCartItemCommand command) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CartView> removeCartItem(String cartItemId) { return new CompletableFuture<>(); }
@@ -1321,12 +1478,14 @@ class ShopUiTest {
             product.completeExceptionally(expired);
             storefront.completeExceptionally(expired);
             carts.forEach(future -> future.completeExceptionally(expired));
+            paidOrders.completeExceptionally(expired);
         }
     }
 
     private static final class StateCountingKit implements ShopUiKit {
         private final ShopUiKit delegate = new DefaultShopUiKit();
         private final AtomicInteger stateCalls = new AtomicInteger();
+        private final List<ShopPageState> states = new ArrayList<>();
 
         @Override public JButton navigationButton(String name, String text) { return delegate.navigationButton(name, text); }
         @Override public JButton primaryButton(String name, String text) { return delegate.primaryButton(name, text); }
@@ -1335,6 +1494,7 @@ class ShopUiTest {
         @Override public JPanel productCard(String name, LayoutManager layout) { return delegate.productCard(name, layout); }
         @Override public JComponent stateView(String name, ShopPageState state, String message, Runnable retry) {
             stateCalls.incrementAndGet();
+            states.add(state);
             return delegate.stateView(name, state, message, retry);
         }
     }
@@ -1371,6 +1531,7 @@ class ShopUiTest {
         private final JPanel cart = new JPanel();
         private final JPanel checkout = new JPanel();
         private final JPanel paymentResult = new JPanel();
+        private final JPanel my = new JPanel();
 
         private SequencePageSet(List<SequenceEvent> events) { this.events = events; }
         @Override public JPanel home() { return home; }
@@ -1380,6 +1541,7 @@ class ShopUiTest {
         @Override public JPanel cart() { return cart; }
         @Override public JPanel checkout() { return checkout; }
         @Override public JPanel paymentResult() { return paymentResult; }
+        @Override public JPanel my() { return my; }
         @Override public void loadHome(HomeViewState state) { load("shop.home", state); }
         @Override public void search(SearchViewState state) {
             events.add(new SequenceEvent("search", new RouteInvocation("shop.search", state)));
@@ -1389,6 +1551,7 @@ class ShopUiTest {
         @Override public void loadCart() { load("shop.cart", null); }
         @Override public void loadCheckout() { load("shop.checkout", null); }
         @Override public void loadPaymentResult(PaymentView payment) { load("shop.payment-result", payment); }
+        @Override public void loadMy() { load("shop.my", null); }
         @Override public HomeViewState captureHome(HomeViewState state) { return state; }
         @Override public SearchViewState captureSearch(SearchViewState state) { return state; }
         @Override public StorefrontViewState captureStorefront(StorefrontViewState state) { return state; }

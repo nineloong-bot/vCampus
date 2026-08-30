@@ -131,7 +131,8 @@ class ShopAuthEndToEndTest {
         int navigationCount = main.navigation().getComponentCount();
 
         edu.seu.vcampus.client.shop.ShopSwingTestSupport.onEdt(() ->
-                ShopUiInstaller.install(main, client, new DefaultShopUiKit(), () -> { }));
+                ShopUiInstaller.install(main, login.user(), client,
+                        new DefaultShopUiKit(), () -> { }));
         AbstractButton shop = edu.seu.vcampus.client.shop.ShopSwingTestSupport.component(
                 main.navigation(), "navigation.shop", AbstractButton.class);
         edu.seu.vcampus.client.shop.ShopSwingTestSupport.onEdt(

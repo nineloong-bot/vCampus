@@ -3,6 +3,7 @@ package edu.seu.vcampus.client.shop.demo;
 import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.core.ui.MainFrame;
 import edu.seu.vcampus.client.shop.service.ShopClientService;
+import edu.seu.vcampus.client.shop.service.ShopClientPort;
 import edu.seu.vcampus.client.shop.ui.ShopUiInstaller;
 import edu.seu.vcampus.client.shop.ui.style.DefaultShopUiKit;
 import edu.seu.vcampus.client.user.service.UserClientService;
@@ -113,8 +114,13 @@ public final class ShopAuthDemoClientMain {
                 main::dispose,
                 () -> connection.setSessionToken(null),
                 () -> showLogin(users, shop, connection));
-        ShopUiInstaller.install(main, shop, new DefaultShopUiKit(), sessionTransition);
+        installAuthenticatedShop(main, result.user(), shop, sessionTransition);
         main.setVisible(true);
+    }
+
+    static void installAuthenticatedShop(MainFrame main, UserView user, ShopClientPort shop,
+            Runnable sessionExpired) {
+        ShopUiInstaller.install(main, user, shop, new DefaultShopUiKit(), sessionExpired);
     }
 
     static MainFrame authenticatedMain(UserView user) {

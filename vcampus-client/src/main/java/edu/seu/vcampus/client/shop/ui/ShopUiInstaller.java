@@ -3,6 +3,7 @@ package edu.seu.vcampus.client.shop.ui;
 import edu.seu.vcampus.client.core.ui.MainFrame;
 import edu.seu.vcampus.client.shop.service.ShopClientPort;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
+import edu.seu.vcampus.common.user.UserView;
 
 import javax.swing.AbstractButton;
 import javax.swing.SwingUtilities;
@@ -21,15 +22,16 @@ public final class ShopUiInstaller {
     private ShopUiInstaller() { }
 
     /** Installs the Shop module into the shared Shop entry and placeholder page. */
-    public static void install(MainFrame frame, ShopClientPort client, ShopUiKit uiKit,
-            Runnable sessionExpired) {
-        install(frame, client, uiKit, sessionExpired, ShopPageCoordinator::new);
+    public static void install(MainFrame frame, UserView user, ShopClientPort client,
+            ShopUiKit uiKit, Runnable sessionExpired) {
+        install(frame, user, client, uiKit, sessionExpired, ShopPageCoordinator::new);
     }
 
-    static void install(MainFrame frame, ShopClientPort client, ShopUiKit uiKit,
+    static void install(MainFrame frame, UserView user, ShopClientPort client, ShopUiKit uiKit,
             Runnable sessionExpired, CoordinatorFactory factory) {
         requireEdt();
         Objects.requireNonNull(frame, "frame");
+        Objects.requireNonNull(user, "user");
         Objects.requireNonNull(client, "client");
         Objects.requireNonNull(uiKit, "uiKit");
         Objects.requireNonNull(sessionExpired, "sessionExpired");
@@ -38,7 +40,7 @@ public final class ShopUiInstaller {
         ShopModulePanel module = new ShopModulePanel();
         placeholder.add(module, BorderLayout.CENTER);
         InstalledCoordinator coordinator = Objects.requireNonNull(factory, "factory")
-                .create(module, client, uiKit, sessionExpired);
+                .create(module, user, client, uiKit, sessionExpired);
         entry.addActionListener(event -> coordinator.enter());
         AtomicBoolean disposed = new AtomicBoolean();
         frame.addWindowListener(new WindowAdapter() {
@@ -53,7 +55,7 @@ public final class ShopUiInstaller {
 
     @FunctionalInterface
     interface CoordinatorFactory {
-        InstalledCoordinator create(ShopModulePanel module,
+        InstalledCoordinator create(ShopModulePanel module, UserView user,
                 ShopClientPort client, ShopUiKit uiKit, Runnable sessionExpired);
     }
 
