@@ -9,10 +9,12 @@ import edu.seu.vcampus.server.network.SocketServer;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import edu.seu.vcampus.server.persistence.TransactionManager;
 import edu.seu.vcampus.server.routing.MessageRouter;
+import edu.seu.vcampus.server.routing.RequestDeduplicator;
 import edu.seu.vcampus.server.security.AuthorizationService;
 import edu.seu.vcampus.server.session.SessionRegistry;
 import edu.seu.vcampus.server.user.handler.UserHandlers;
 import edu.seu.vcampus.server.user.repository.AccessAuditRepository;
+import edu.seu.vcampus.server.user.repository.AccessPermissionRepository;
 import edu.seu.vcampus.server.user.repository.AccessUserRepository;
 import edu.seu.vcampus.server.user.service.PasswordHasher;
 import edu.seu.vcampus.server.user.service.UserService;
@@ -58,7 +60,7 @@ public final class ServerMain {
         MessageRouter router = new MessageRouter(Map.of(
                 "PING", (request, context) -> ResponseBody.success(EmptyResponse.INSTANCE)));
         UserRuntime users = createUserRuntime(config);
-        new UserHandlers(router, users.service(), users.authorization());
+        new UserHandlers(router, users.service(), users.authorization(), users.deduplicator());
         SocketServer server = new SocketServer(config.port(), config.workerThreads(),
                 config.maxConnections(), router);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> shutdown(server), "vcampus-shutdown"));
@@ -70,11 +72,16 @@ public final class ServerMain {
         String databaseUrl = "jdbc:ucanaccess://" + config.databasePath()
                 + ";immediatelyReleaseResources=true";
         ConnectionProvider connections = () -> DriverManager.getConnection(databaseUrl);
-        SessionRegistry sessions = new SessionRegistry();
-        UserService service = new UserServiceImpl(new TransactionManager(connections),
-                new StripedResourceLockManager(), new AccessUserRepository(),
-                new AccessAuditRepository(), new PasswordHasher(), sessions, java.time.Clock.systemUTC());
-        return new UserRuntime(service, new AuthorizationService(sessions));
+        java.time.Clock clock = java.time.Clock.systemUTC();
+        TransactionManager transactions = new TransactionManager(connections);
+        StripedResourceLockManager locks = new StripedResourceLockManager();
+        SessionRegistry sessions = new SessionRegistry(clock,
+                Duration.ofMinutes(config.sessionTimeoutMinutes()));
+        UserService service = new UserServiceImpl(transactions, locks,
+                new AccessUserRepository(), new AccessPermissionRepository(),
+                new AccessAuditRepository(), new PasswordHasher(), sessions, clock);
+        return new UserRuntime(service, new AuthorizationService(sessions),
+                new RequestDeduplicator(transactions, locks));
     }
 
     private static void shutdown(SocketServer server) {
@@ -89,6 +96,7 @@ public final class ServerMain {
         }
     }
 
-    private record UserRuntime(UserService service, AuthorizationService authorization) {
+    private record UserRuntime(UserService service, AuthorizationService authorization,
+                               RequestDeduplicator deduplicator) {
     }
 }

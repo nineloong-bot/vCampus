@@ -80,8 +80,9 @@ public final class UserAccountProvisioningService implements UserAccountProvisio
         } catch (DuplicateLoginIdException error) {
             throw loginExists(error);
         }
-        audits.record(transaction.connection(), account.userId(),
-                "STUDENT_ACCOUNT_PROVISIONED", "SUCCESS");
+        audits.record(transaction.connection(), transaction.userId(),
+                "STUDENT_ACCOUNT_PROVISIONED", "USER", account.userId(),
+                "SUCCESS", null);
         return new ProvisionedUserAccount(
                 account.userId(), account.loginId(), account.role(),
                 account.accountStatus());

@@ -14,6 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AccessAuditRepositoryTest {
+    private static final String ADMIN_ID = "00000000-0000-0000-0000-000000000001";
     private ConnectionProvider provider;
     private TransactionManager transactions;
     private AuditRepository repository;
@@ -73,15 +74,19 @@ class AccessAuditRepositoryTest {
     @Test
     void recordsAnExplicitTargetWithoutPersistingRequestPayload() throws Exception {
         transactions.inTransaction(connection -> {
-            repository.record(connection, null, "USER_CHANGE_STATUS", "USER", "target", "SUCCESS");
+            repository.record(connection, ADMIN_ID, "USER_CHANGE_STATUS", "USER", "target",
+                    "SUCCESS", "127.0.0.1");
             return null;
         });
 
         try (var connection = provider.open(); var statement = connection.createStatement();
-             var result = statement.executeQuery("SELECT targetType, targetId FROM tblAuditLog")) {
+             var result = statement.executeQuery(
+                     "SELECT userId, targetType, targetId, clientAddress FROM tblAuditLog")) {
             assertThat(result.next()).isTrue();
-            assertThat(result.getString(1)).isEqualTo("USER");
-            assertThat(result.getString(2)).isEqualTo("target");
+            assertThat(result.getString(1)).isEqualTo(ADMIN_ID);
+            assertThat(result.getString(2)).isEqualTo("USER");
+            assertThat(result.getString(3)).isEqualTo("target");
+            assertThat(result.getString(4)).isEqualTo("127.0.0.1");
         }
     }
 

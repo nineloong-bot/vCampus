@@ -18,16 +18,17 @@ public final class AccessAuditRepository implements AuditRepository {
             """;
 
     @Override
-    public void record(Connection connection, String userId, String actionCode,
-                       String targetType, String targetId, String resultCode) {
+    public void record(Connection connection, String actorUserId, String actionCode,
+                       String targetType, String targetId, String resultCode,
+                       String clientAddress) {
         try (var statement = connection.prepareStatement(INSERT_SQL)) {
             statement.setString(1, UUID.randomUUID().toString());
-            statement.setString(2, userId);
+            statement.setString(2, actorUserId);
             statement.setString(3, actionCode);
             statement.setString(4, targetType);
             statement.setString(5, targetId);
             statement.setString(6, resultCode);
-            statement.setString(7, null);
+            statement.setString(7, clientAddress);
             statement.setTimestamp(8, Timestamp.valueOf(LocalDateTime.now()));
             statement.executeUpdate();
         } catch (SQLException error) {

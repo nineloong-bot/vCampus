@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /** Stores short-lived authenticated sessions in memory only. */
@@ -32,17 +33,30 @@ public final class SessionRegistry {
         this.idleTimeout = Objects.requireNonNull(idleTimeout, "idleTimeout");
     }
 
-    /** Creates a new opaque session token for an authenticated identity. */
+    /** Creates a normal session without permissions or client metadata. */
     public String create(UserIdentity identity) {
+        return create(identity, Set.of(), false, "unknown");
+    }
+
+    /** Creates a new opaque token whose authorization state is held only in memory. */
+    public String create(UserIdentity identity, Set<String> permissions,
+                         boolean restricted, String clientInstanceId) {
         byte[] bytes = new byte[32];
         random.nextBytes(bytes);
         String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-        sessions.put(token, new Session(Objects.requireNonNull(identity, "identity"), clock.instant()));
+        SessionSnapshot snapshot = new SessionSnapshot(identity, permissions, restricted,
+                clientInstanceId);
+        sessions.put(token, new Session(snapshot, clock.instant()));
         return token;
     }
 
     /** Returns a valid identity and refreshes the idle-session expiry. */
     public UserIdentity requireSession(String token) {
+        return requireSnapshot(token).identity();
+    }
+
+    /** Returns live session authorization state and refreshes its idle expiry. */
+    public SessionSnapshot requireSnapshot(String token) {
         if (token == null) {
             throw new SessionExpiredException();
         }
@@ -53,7 +67,7 @@ public final class SessionRegistry {
             throw new SessionExpiredException();
         }
         session.touch(now);
-        return session.identity;
+        return session.snapshot;
     }
 
     /** Revokes one token, returning its identity when it represented a live session. */
@@ -62,20 +76,32 @@ public final class SessionRegistry {
             return Optional.empty();
         }
         Session session = sessions.remove(token);
-        return session == null ? Optional.empty() : Optional.of(session.identity);
+        return session == null ? Optional.empty() : Optional.of(session.snapshot.identity());
     }
 
     /** Revokes every session that belongs to the supplied user. */
     public void revokeAllForUser(String userId) {
-        sessions.entrySet().removeIf(entry -> entry.getValue().identity.userId().equals(userId));
+        sessions.entrySet().removeIf(entry ->
+                entry.getValue().snapshot.identity().userId().equals(userId));
+    }
+
+    /** Immutable server-internal authorization state attached to one live session. */
+    public record SessionSnapshot(UserIdentity identity, Set<String> permissions,
+                                  boolean restricted, String clientInstanceId) {
+        /** Validates identity and snapshots mutable authorization values. */
+        public SessionSnapshot {
+            Objects.requireNonNull(identity, "identity");
+            permissions = Set.copyOf(Objects.requireNonNull(permissions, "permissions"));
+            clientInstanceId = clientInstanceId == null ? "unknown" : clientInstanceId;
+        }
     }
 
     private static final class Session {
-        private final UserIdentity identity;
+        private final SessionSnapshot snapshot;
         private volatile Instant lastTouched;
 
-        private Session(UserIdentity identity, Instant lastTouched) {
-            this.identity = identity;
+        private Session(SessionSnapshot snapshot, Instant lastTouched) {
+            this.snapshot = snapshot;
             this.lastTouched = lastTouched;
         }
 

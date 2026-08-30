@@ -1,6 +1,7 @@
 package edu.seu.vcampus.server.user.handler;
 
 import edu.seu.vcampus.common.paging.PageResult;
+import edu.seu.vcampus.common.protocol.EmptyRequest;
 import edu.seu.vcampus.common.protocol.EmptyResponse;
 import edu.seu.vcampus.common.protocol.Message;
 import edu.seu.vcampus.common.protocol.MessageType;
@@ -20,8 +21,11 @@ import edu.seu.vcampus.server.routing.ClientContext;
 import edu.seu.vcampus.server.routing.CommandNotFoundException;
 import edu.seu.vcampus.server.routing.MessageRouter;
 import edu.seu.vcampus.server.security.AuthorizationPort;
+import edu.seu.vcampus.server.security.AuthorizationService;
 import edu.seu.vcampus.server.security.InitialPasswordChangeRequiredException;
+import edu.seu.vcampus.server.security.InvalidCredentialsException;
 import edu.seu.vcampus.server.security.UserIdentity;
+import edu.seu.vcampus.server.session.SessionRegistry;
 import edu.seu.vcampus.server.user.service.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,6 +34,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.util.ConcurrentModificationException;
 import java.util.Map;
 import java.util.Set;
 
@@ -53,8 +58,8 @@ class UserHandlersTest {
     void registersOnlyTheEightPublicUserCommands() {
         assertThat(route("USER_REGISTER", new TeacherAccountApplicationCommand("TEACHER", "Pass1234".toCharArray())).success()).isTrue();
         assertThat(route("USER_LOGIN", new LoginCommand("ADMIN", "Admin1234".toCharArray(), "client")).success()).isTrue();
-        assertThat(route("USER_LOGOUT", EmptyResponse.INSTANCE).success()).isTrue();
-        assertThat(route("USER_GET_CURRENT", EmptyResponse.INSTANCE).success()).isTrue();
+        assertThat(route("USER_LOGOUT", EmptyRequest.INSTANCE).success()).isTrue();
+        assertThat(route("USER_GET_CURRENT", EmptyRequest.INSTANCE).success()).isTrue();
         assertThat(route("USER_CHANGE_PASSWORD", new ChangePasswordCommand("OldPass123".toCharArray(), "NewPass123".toCharArray())).success()).isTrue();
         assertThat(route("USER_SEARCH", new UserSearchQuery(null, null, null, 0, 10)).success()).isTrue();
         assertThat(route("USER_UPDATE_ROLE", new UpdateUserRoleCommand("user", UserRole.TEACHER, 0)).success()).isTrue();
@@ -72,12 +77,36 @@ class UserHandlersTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"USER_LOGOUT", "USER_GET_CURRENT", "USER_CHANGE_PASSWORD"})
-    void restrictedSessionAllowlistUsesSessionValidation(String command) {
+    @CsvSource({"USER_GET_CURRENT", "USER_CHANGE_PASSWORD"})
+    void protectedRestrictedSessionCommandsUseSessionValidation(String command) {
         assertThat(route(command, bodyFor(command)).success()).isTrue();
 
         assertThat(((TrackingAuthorization) authorization).sessionCalls).isEqualTo(1);
         assertThat(((TrackingAuthorization) authorization).permission).isNull();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"USER_LOGOUT", "USER_GET_CURRENT"})
+    void emptyRequestCommandsRejectEmptyResponseAsRequestBody(String command) {
+        ResponseBody<?> response = route(command, EmptyResponse.INSTANCE);
+
+        assertThat(response).extracting(body -> body.success(), body -> body.code())
+                .containsExactly(false, "COMMON_VALIDATION_FAILED");
+    }
+
+    @ParameterizedTest
+    @CsvSource({"USER_GET_CURRENT", "USER_CHANGE_PASSWORD", "USER_SEARCH",
+            "USER_UPDATE_ROLE", "USER_CHANGE_STATUS"})
+    void malformedProtectedBodiesAreRejectedBeforeAuthorization(String command) {
+        RejectingAuthorization rejecting = new RejectingAuthorization();
+        MessageRouter bodyFirstRouter = new MessageRouter(Map.of());
+        new UserHandlers(bodyFirstRouter, users, rejecting);
+
+        ResponseBody<?> response = route(bodyFirstRouter, command, null,
+                EmptyResponse.INSTANCE);
+
+        assertThat(new Object[]{response.success(), response.code(), rejecting.calls})
+                .containsExactly(false, "COMMON_VALIDATION_FAILED", 0);
     }
 
     @ParameterizedTest
@@ -91,13 +120,115 @@ class UserHandlersTest {
                 .containsExactly(false, "AUTH_INITIAL_PASSWORD_CHANGE_REQUIRED");
     }
 
+    @Test
+    void logoutIsIdempotentAfterTheFirstCallRevokesTheToken() {
+        SessionRegistry sessions = new SessionRegistry();
+        String token = sessions.create(identity(false));
+        UserService revokingUsers = new StubUsers() {
+            @Override public void logout(String sessionToken) { sessions.revoke(sessionToken); }
+        };
+        MessageRouter idempotentRouter = new MessageRouter(Map.of());
+        new UserHandlers(idempotentRouter, revokingUsers, new AuthorizationService(sessions));
+
+        assertThat(route(idempotentRouter, "USER_LOGOUT", token, EmptyRequest.INSTANCE).success())
+                .isTrue();
+        assertThat(route(idempotentRouter, "USER_LOGOUT", token, EmptyRequest.INSTANCE).success())
+                .isTrue();
+    }
+
+    @Test
+    void passwordChangePreservesInvalidCredentialsErrorCode() {
+        UserService invalidOldPassword = new StubUsers() {
+            @Override public void changePassword(String sessionToken, ChangePasswordCommand command) {
+                throw new InvalidCredentialsException();
+            }
+        };
+        MessageRouter errorRouter = new MessageRouter(Map.of());
+        new UserHandlers(errorRouter, invalidOldPassword, new TrackingAuthorization());
+
+        ResponseBody<?> response = route(errorRouter, "USER_CHANGE_PASSWORD", "token",
+                new ChangePasswordCommand("WrongPass1".toCharArray(), "NewPass123".toCharArray()));
+
+        assertThat(response).extracting(body -> body.success(), body -> body.code())
+                .containsExactly(false, "AUTH_INVALID_CREDENTIALS");
+    }
+
+    @Test
+    void concurrentModificationUsesTheArchitectureErrorCode() {
+        UserService conflictingUsers = new StubUsers() {
+            @Override public UserView updateRole(UpdateUserRoleCommand command) {
+                throw new ConcurrentModificationException("stale row version");
+            }
+        };
+        MessageRouter errorRouter = new MessageRouter(Map.of());
+        new UserHandlers(errorRouter, conflictingUsers, new TrackingAuthorization());
+
+        ResponseBody<?> response = route(errorRouter, "USER_UPDATE_ROLE", "token",
+                new UpdateUserRoleCommand("user", UserRole.TEACHER, 0));
+
+        assertThat(response).extracting(body -> body.success(), body -> body.code())
+                .containsExactly(false, "COMMON_CONCURRENT_MODIFICATION");
+    }
+
+    @Test
+    void malformedBodyReturnsSafeValidationFailure() {
+        ResponseBody<?> response = route("USER_UPDATE_ROLE", EmptyRequest.INSTANCE);
+
+        assertThat(response).extracting(body -> body.success(), body -> body.code(),
+                        body -> body.data())
+                .containsExactly(false, "COMMON_VALIDATION_FAILED", null);
+    }
+
+    @Test
+    void internalFailureIncludesTraceIdWithoutLeakingExceptionOrSensitiveValues() {
+        UserService failingUsers = new StubUsers() {
+            @Override public UserView updateRole(UpdateUserRoleCommand command) {
+                throw new RuntimeException(
+                        "java.sql.SQLException password=Secret123 hash=PBKDF2 token=full-token");
+            }
+        };
+        MessageRouter errorRouter = new MessageRouter(Map.of());
+        new UserHandlers(errorRouter, failingUsers, new TrackingAuthorization());
+
+        ResponseBody<?> response = route(errorRouter, "USER_UPDATE_ROLE", "full-token",
+                new UpdateUserRoleCommand("user", UserRole.TEACHER, 0));
+
+        assertThat(response).extracting(body -> body.success(), body -> body.code())
+                .containsExactly(false, "COMMON_INTERNAL_ERROR");
+        assertThat(response.toString()).doesNotContain("RuntimeException", "SQLException",
+                "Secret123", "PBKDF2", "full-token");
+        assertThat(response.error()).isNotNull();
+        assertThat(response.error().traceId()).isNotBlank().isNotEqualTo("request");
+    }
+
+    @Test
+    void handlersClearPasswordMaterialRetainedInsideRequestDtos() {
+        TeacherAccountApplicationCommand registration =
+                new TeacherAccountApplicationCommand("TEACHER", "Password1".toCharArray());
+        ChangePasswordCommand change = new ChangePasswordCommand(
+                "OldPass123".toCharArray(), "NewPass123".toCharArray());
+
+        route("USER_REGISTER", registration);
+        route("USER_CHANGE_PASSWORD", change);
+
+        assertThat(registration.password()).containsOnly('\0');
+        assertThat(change.oldPassword()).containsOnly('\0');
+        assertThat(change.newPassword()).containsOnly('\0');
+    }
+
     private ResponseBody<?> route(String command, Serializable body) {
-        return router.route(new Message("request", MessageType.REQUEST, command, "token", body, 0), CONTEXT);
+        return route(router, command, "token", body);
+    }
+
+    private static ResponseBody<?> route(MessageRouter target, String command, String token,
+                                           Serializable body) {
+        return target.route(new Message("request", MessageType.REQUEST, command, token, body, 0),
+                CONTEXT);
     }
 
     private static Serializable bodyFor(String command) {
         return switch (command) {
-            case "USER_LOGOUT", "USER_GET_CURRENT" -> EmptyResponse.INSTANCE;
+            case "USER_LOGOUT", "USER_GET_CURRENT" -> EmptyRequest.INSTANCE;
             case "USER_CHANGE_PASSWORD" -> new ChangePasswordCommand("OldPass123".toCharArray(), "NewPass123".toCharArray());
             case "USER_SEARCH" -> new UserSearchQuery(null, null, null, 0, 10);
             case "USER_UPDATE_ROLE" -> new UpdateUserRoleCommand("user", UserRole.TEACHER, 0);
@@ -107,10 +238,10 @@ class UserHandlersTest {
     }
 
     private static UserIdentity identity(boolean restricted) {
-        return new UserIdentity("user", "USER", UserRole.ADMIN, Set.of("USER_READ_ALL"), restricted);
+        return new UserIdentity("user", "USER", UserRole.ADMIN, AccountStatus.ACTIVE);
     }
 
-    private static final class StubUsers implements UserService {
+    private static class StubUsers implements UserService {
         private static final UserView VIEW = new UserView("user", "USER", UserRole.ADMIN,
                 AccountStatus.ACTIVE, false, null, 0, LocalDateTime.MIN, LocalDateTime.MIN);
 
@@ -138,6 +269,20 @@ class UserHandlersTest {
         @Override public void requirePermission(String sessionToken, String permissionCode) {
             permission = permissionCode;
             if (restricted) throw new InitialPasswordChangeRequiredException();
+        }
+    }
+
+    private static final class RejectingAuthorization implements AuthorizationPort {
+        private int calls;
+
+        @Override public UserIdentity requireSession(String sessionToken) {
+            calls++;
+            throw new InitialPasswordChangeRequiredException();
+        }
+
+        @Override public void requirePermission(String sessionToken, String permissionCode) {
+            calls++;
+            throw new InitialPasswordChangeRequiredException();
         }
     }
 }

@@ -3,12 +3,18 @@ package edu.seu.vcampus.server.user.service;
 import edu.seu.vcampus.common.user.ChangePasswordCommand;
 import edu.seu.vcampus.common.user.LoginCommand;
 import edu.seu.vcampus.common.user.LoginResult;
+import edu.seu.vcampus.common.protocol.Message;
+import edu.seu.vcampus.common.protocol.MessageType;
+import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.server.concurrency.ResourceKey;
 import edu.seu.vcampus.server.concurrency.ResourceLockManager;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import edu.seu.vcampus.server.persistence.TransactionManager;
 import edu.seu.vcampus.server.routing.ClientContext;
+import edu.seu.vcampus.server.routing.MessageRouter;
+import edu.seu.vcampus.server.routing.RequestDeduplicator;
+import edu.seu.vcampus.server.security.AuthorizationService;
 import edu.seu.vcampus.server.security.InvalidCredentialsException;
 import edu.seu.vcampus.server.security.SessionExpiredException;
 import edu.seu.vcampus.server.session.SessionRegistry;
@@ -16,6 +22,7 @@ import edu.seu.vcampus.server.user.domain.UserAccount;
 import edu.seu.vcampus.server.user.repository.AccessAuditRepository;
 import edu.seu.vcampus.server.user.repository.AccessUserRepository;
 import edu.seu.vcampus.server.user.repository.UserRepository;
+import edu.seu.vcampus.server.user.handler.UserHandlers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -25,6 +32,7 @@ import java.sql.DriverManager;
 import java.time.LocalDateTime;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -53,7 +61,8 @@ class PasswordChangeTest {
         ConnectionProvider connections = () -> DriverManager.getConnection(url);
         transactions = new TransactionManager(connections);
         try (var connection = connections.open()) {
-            for (Path script : new Path[] {projectFile("schema", "010_user.sql"),
+            for (Path script : new Path[] {projectFile("schema", "001_common.sql"),
+                    projectFile("schema", "010_user.sql"),
                     projectFile("seed", "010_roles_permissions.sql")}) {
                 executeScript(connection, script);
             }
@@ -110,6 +119,78 @@ class PasswordChangeTest {
             assertThatThrownBy(() -> sessions.requireSession(result.sessionToken()))
                     .isInstanceOf(SessionExpiredException.class);
         }
+    }
+
+    @Test
+    void failedPasswordChangeWritesSafeActorTargetAudit() {
+        String token = login("12345678").sessionToken();
+
+        assertThatThrownBy(() -> service.changePassword(token,
+                new ChangePasswordCommand("WrongPass1".toCharArray(),
+                        "NewPass123".toCharArray()),
+                new ClientContext("connection", "10.0.0.20")))
+                .isInstanceOf(InvalidCredentialsException.class);
+
+        transactions.inTransaction(connection -> {
+            try (var statement = connection.prepareStatement(
+                    "SELECT userId, targetId, resultCode, clientAddress FROM tblAuditLog "
+                            + "WHERE actionCode='USER_CHANGE_PASSWORD'")) {
+                try (var result = statement.executeQuery()) {
+                    assertThat(result.next()).isTrue();
+                    assertThat(result.getString(1)).isEqualTo("student-id");
+                    assertThat(result.getString(2)).isEqualTo("student-id");
+                    assertThat(result.getString(3)).isEqualTo("AUTH_INVALID_CREDENTIALS");
+                    assertThat(result.getString(4)).isEqualTo("10.0.0.20");
+                }
+            }
+            return null;
+        });
+    }
+
+    @Test
+    void retryingPasswordChangeWithRevokedTokenRequiresAuthenticationAgain() {
+        String token = login("12345678").sessionToken();
+        MessageRouter router = new MessageRouter(Map.of());
+        new UserHandlers(router, service, new AuthorizationService(sessions),
+                new RequestDeduplicator(transactions));
+        String requestId = UUID.randomUUID().toString();
+        Message request = new Message(requestId, MessageType.REQUEST,
+                "USER_CHANGE_PASSWORD", token, new ChangePasswordCommand(
+                "12345678".toCharArray(), "NewPass123".toCharArray()), 0);
+        ClientContext context = new ClientContext("connection", "127.0.0.1");
+
+        ResponseBody<?> first = router.route(request, context);
+        long versionAfterFirst = findAccount().rowVersion();
+        long successAuditsAfterFirst = successPasswordChangeAudits();
+        ResponseBody<?> retry = router.route(request, context);
+
+        assertThat(first.success()).isTrue();
+        assertThatThrownBy(() -> sessions.requireSession(token))
+                .isInstanceOf(SessionExpiredException.class);
+        assertThat(retry.code()).isEqualTo("AUTH_SESSION_EXPIRED");
+        assertThat(findAccount().rowVersion()).isEqualTo(versionAfterFirst);
+        assertThat(successPasswordChangeAudits()).isEqualTo(successAuditsAfterFirst)
+                .isEqualTo(1);
+        assertThat(login("NewPass123").sessionToken()).isNotBlank();
+    }
+
+    private UserAccount findAccount() {
+        return transactions.inTransaction(connection ->
+                users.findByNormalizedLoginId(connection, "213242478").orElseThrow());
+    }
+
+    private long successPasswordChangeAudits() {
+        return transactions.inTransaction(connection -> {
+            try (var statement = connection.prepareStatement(
+                    "SELECT COUNT(*) FROM tblAuditLog WHERE actionCode=? AND resultCode=?")) {
+                statement.setString(1, "USER_CHANGE_PASSWORD");
+                statement.setString(2, "SUCCESS");
+                try (var rows = statement.executeQuery()) {
+                    rows.next();
+                    return rows.getLong(1);
+                }
+            }
+        });
     }
 
     private edu.seu.vcampus.common.user.LoginResult login(String password) {

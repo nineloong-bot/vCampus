@@ -27,4 +27,9 @@ public record LoginCommand(
     public char[] password() {
         return password.clone();
     }
+
+    /** Clears the password retained by this request; repeated calls are harmless. */
+    public void clearPassword() {
+        Arrays.fill(password, '\0');
+    }
 }
