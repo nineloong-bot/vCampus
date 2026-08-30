@@ -99,7 +99,7 @@ public final class SimulatedCashierDialog extends JDialog implements CheckoutPan
             }
             if (payment.status() == PaymentStatus.PENDING) { showCashier(ShopPageState.NORMAL, "待支付"); return; }
             disposePage();
-            navigator.open(new ShopRoute.PaymentResult(payment));
+            navigator.replaceCurrent(new ShopRoute.PaymentResult(payment));
         });
     }
 

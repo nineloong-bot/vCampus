@@ -267,16 +267,16 @@ class PurchasePanelsTest {
     }
 
     @Test
-    void resultOffersHomeAndEmptyCartNavigation() throws Exception {
+    void resultOffersHomeAndPaidOrdersNavigation() throws Exception {
         List<ShopRoute> routes = new ArrayList<>();
         PaymentResultPanel panel = onEdt(() -> new PaymentResultPanel(new ShopNavigator(routes::add),
                 new RecordingKit(), payment(PaymentStatus.SUCCEEDED, PaymentChannel.BANK_CARD)));
 
         onEdt(panel::openHome);
-        onEdt(panel::openCart);
+        onEdt(panel::openPaidOrders);
 
         assertThat(routes).hasSize(2);
-        assertThat(routes.get(1)).isEqualTo(new ShopRoute.Cart());
+        assertThat(routes.get(1)).isEqualTo(new ShopRoute.My());
         assertThat(component(panel, "payment-number", JLabel.class).getText()).isEqualTo("P0001");
     }
 
@@ -794,11 +794,11 @@ class PurchasePanelsTest {
         assertThat(component(panel, "payment-status", JLabel.class).getText()).isEqualTo("SUCCEEDED");
 
         onEdt(() -> component(panel, "payment-result.home", JButton.class).doClick());
-        onEdt(() -> component(panel, "payment-result.cart", JButton.class).doClick());
+        onEdt(() -> component(panel, "payment-result.orders", JButton.class).doClick());
         assertThat(routes).containsExactly(
                 new ShopRoute.Home(new HomeProductQuery(null, null,
                         ProductSortMode.SALES_DESC, 0, 20)),
-                new ShopRoute.Cart());
+                new ShopRoute.My());
     }
 
     @Test

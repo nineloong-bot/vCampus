@@ -2,6 +2,7 @@ package edu.seu.vcampus.client.shop.ui.buyer;
 
 import edu.seu.vcampus.client.shop.service.ShopClientPort;
 import edu.seu.vcampus.client.shop.ui.ShopDialogs;
+import edu.seu.vcampus.client.shop.ui.CartCountModel;
 import edu.seu.vcampus.client.shop.ui.ShopUiErrors;
 import edu.seu.vcampus.client.shop.ui.async.LatestRequest;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator;
@@ -34,6 +35,7 @@ public final class CheckoutPanel extends JPanel {
     private final LatestRequest loads = new LatestRequest();
     private final LatestRequest submissions = new LatestRequest();
     private final JPanel content = new JPanel(new BorderLayout());
+    private CartCountModel cartCount = new CartCountModel();
     private CartView cart;
     private CheckoutResult checkout;
     private long activeLoad;
@@ -73,6 +75,9 @@ public final class CheckoutPanel extends JPanel {
 
     public List<CartItemView> visibleItems() { return cart == null ? List.of() : cart.items(); }
     public CheckoutResult currentCheckout() { return checkout; }
+    public void setCartCountModel(CartCountModel cartCount) {
+        this.cartCount = Objects.requireNonNull(cartCount, "cartCount");
+    }
     public void submit() { submit(cart, activeLoad, false); }
     public void confirmLatestPriceAndRetry() { submit(cart, activeLoad, true); }
 
@@ -105,6 +110,7 @@ public final class CheckoutPanel extends JPanel {
             if (disposed || !loads.accepts(request)) return;
             if (failure != null) { showFailure(failure, this::load); return; }
             cart = result;
+            cartCount.update(result);
             if (cart.items().isEmpty()) showState(ShopPageState.EMPTY, "购物车为空", this::load);
             else showCheckout(ShopPageState.NORMAL, "");
         });

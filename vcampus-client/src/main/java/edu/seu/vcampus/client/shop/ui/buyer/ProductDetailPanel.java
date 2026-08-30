@@ -2,6 +2,7 @@ package edu.seu.vcampus.client.shop.ui.buyer;
 
 import edu.seu.vcampus.client.shop.service.ShopClientPort;
 import edu.seu.vcampus.client.shop.ui.async.LatestRequest;
+import edu.seu.vcampus.client.shop.ui.CartCountModel;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopRoute;
 import edu.seu.vcampus.client.shop.ui.style.ShopPageState;
@@ -36,7 +37,7 @@ public final class ProductDetailPanel extends JPanel {
     private final LatestRequest loads = new LatestRequest();
     private final LatestRequest submissions = new LatestRequest();
     private final JLabel productName = named(new JLabel(), "product-name");
-    private final JLabel cartCountLabel = named(new JLabel("购物车（0）"), "cart-count");
+    private final CartCountModel cartCount;
     private final JComboBox<String> sku = named(new JComboBox<>(), "sku");
     private final JSpinner quantity = named(new JSpinner(new SpinnerNumberModel(1, 1, 1, 1)), "quantity");
     private final JButton store;
@@ -49,14 +50,18 @@ public final class ProductDetailPanel extends JPanel {
     private String shopId;
     private String currentProductId;
     private long displayedLoad;
-    private int cartCount;
-
     public ProductDetailPanel(ShopClientPort client, ShopNavigator navigator, ShopUiKit uiKit,
             Runnable sessionExpired) {
+        this(client, navigator, uiKit, new CartCountModel(), sessionExpired);
+    }
+
+    public ProductDetailPanel(ShopClientPort client, ShopNavigator navigator, ShopUiKit uiKit,
+            CartCountModel cartCount, Runnable sessionExpired) {
         super(new BorderLayout(8, 8));
         this.client = Objects.requireNonNull(client, "client");
         this.navigator = Objects.requireNonNull(navigator, "navigator");
         this.uiKit = Objects.requireNonNull(uiKit, "uiKit");
+        this.cartCount = Objects.requireNonNull(cartCount, "cartCount");
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
         store = uiKit.secondaryButton("store", "店铺");
         addToCart = uiKit.primaryButton("add-to-cart", "加入购物车");
@@ -64,7 +69,7 @@ public final class ProductDetailPanel extends JPanel {
         actions = uiKit.filterPanel("detail.actions", new FlowLayout(FlowLayout.LEFT));
         skuDescriptions.setLayout(new BoxLayout(skuDescriptions, BoxLayout.Y_AXIS));
         actions.add(store); actions.add(sku); actions.add(quantity); actions.add(addToCart);
-        actions.add(openCart); actions.add(cartCountLabel);
+        actions.add(openCart);
         store.addActionListener(event -> { if (shopId != null) navigator.open(new ShopRoute.Storefront(shopId)); });
         sku.addActionListener(event -> updateQuantityLimit());
         addToCart.addActionListener(event -> addSelectedSku());
@@ -85,11 +90,10 @@ public final class ProductDetailPanel extends JPanel {
         client.getProduct(productId).whenComplete((detail, failure) -> finishLoad(request, detail, failure));
     }
 
-    public int cartCount() { return cartCount; }
+    public int cartCount() { return cartCount.totalQuantity(); }
     public List<String> visibleSkuIds() { return List.copyOf(availableSkus.keySet()); }
     public void clearCartCount() {
-        cartCount = 0;
-        cartCountLabel.setText("购物车（0）");
+        cartCount.clear();
     }
     public void dispose() { loads.dispose(); submissions.dispose(); }
 
@@ -133,8 +137,7 @@ public final class ProductDetailPanel extends JPanel {
         SwingUtilities.invokeLater(() -> {
             if (!submissions.accepts(request) || displayedLoad != loadAtSubmission) return;
             if (failure != null) { showFailure(failure, () -> load(currentProductId)); return; }
-            cartCount = cart.items().stream().mapToInt(item -> item.quantity()).sum();
-            cartCountLabel.setText("购物车（" + cartCount + "）");
+            cartCount.update(cart);
             setSkuControlsEnabled(!availableSkus.isEmpty());
             showDetail(ShopPageState.NORMAL, "");
         });

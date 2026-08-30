@@ -3,6 +3,8 @@ package edu.seu.vcampus.client.shop.ui.buyer;
 import edu.seu.vcampus.client.shop.service.ShopClientPort;
 import edu.seu.vcampus.client.shop.ui.async.LatestRequest;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator;
+import edu.seu.vcampus.client.shop.ui.navigation.ShopRoute;
+import edu.seu.vcampus.client.shop.ui.navigation.SearchViewState;
 import edu.seu.vcampus.client.shop.ui.style.ShopPageState;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
 import edu.seu.vcampus.common.paging.PageResult;
@@ -14,6 +16,7 @@ import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
+import javax.swing.JScrollPane;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.Component;
@@ -25,41 +28,62 @@ import java.util.Objects;
 /** Search form and result cards for the buyer catalog. */
 public final class ProductSearchPanel extends JPanel {
     private final ShopClientPort client;
+    private final ShopNavigator navigator;
     private final ShopUiKit uiKit;
     private final Runnable sessionExpired;
     private final LatestRequest latest = new LatestRequest();
     private final ProductCardsPanel cards;
     private final JPanel content = new JPanel(new BorderLayout());
+    private final JScrollPane scroll = named(new JScrollPane(content), "search.scroll");
     private final JTextField keyword = named(new JTextField(10), "keyword");
     private final JTextField category = named(new JTextField(8), "category");
     private final JTextField minPrice = named(new JTextField(6), "min-price");
     private final JTextField maxPrice = named(new JTextField(6), "max-price");
     private final JComboBox<ProductSortMode> sort = named(new JComboBox<>(ProductSortMode.values()), "sort");
     private final JButton searchButton;
+    private final JButton filterToggle;
+    private final JPanel filters;
 
     public ProductSearchPanel(ShopClientPort client, ShopNavigator navigator, ShopUiKit uiKit,
             Runnable sessionExpired) {
         super(new BorderLayout(8, 8));
         this.client = Objects.requireNonNull(client, "client");
+        this.navigator = Objects.requireNonNull(navigator, "navigator");
         this.uiKit = Objects.requireNonNull(uiKit, "uiKit");
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
-        this.cards = new ProductCardsPanel(Objects.requireNonNull(navigator, "navigator"), uiKit);
+        this.cards = new ProductCardsPanel(navigator, uiKit);
         this.searchButton = uiKit.primaryButton("search", "搜索");
-        JPanel filters = uiKit.filterPanel("search.filters", new FlowLayout(FlowLayout.LEFT));
+        this.filterToggle = uiKit.secondaryButton("search.filters-toggle", "筛选");
+        this.filters = uiKit.filterPanel("search.filters", new FlowLayout(FlowLayout.LEFT));
         filters.add(keyword); filters.add(category); filters.add(minPrice); filters.add(maxPrice);
         filters.add(sort); filters.add(searchButton);
         searchButton.addActionListener(event -> submit());
-        add(filters, BorderLayout.NORTH);
-        add(content, BorderLayout.CENTER);
+        filterToggle.addActionListener(event -> filters.setVisible(!filters.isVisible()));
+        JPanel controls = new JPanel(new BorderLayout());
+        controls.add(filterToggle, BorderLayout.WEST); controls.add(filters, BorderLayout.CENTER);
+        add(controls, BorderLayout.NORTH);
+        add(scroll, BorderLayout.CENTER);
+        filters.setVisible(false);
         showState(ShopPageState.INITIAL, "", null);
     }
 
     public void search(ProductSearchQuery query) {
+        search(new SearchViewState(query, false, 0));
+    }
+
+    public void search(SearchViewState state) {
+        SearchViewState requested = Objects.requireNonNull(state, "state");
+        restoreFilters(requested);
         long request = latest.begin();
         searchButton.setEnabled(false);
         showState(ShopPageState.LOADING, "加载中…", null);
-        client.search(Objects.requireNonNull(query, "query"))
-                .whenComplete((result, failure) -> finish(request, query, result, failure));
+        client.search(requested.query())
+                .whenComplete((result, failure) -> finish(request, requested, result, failure));
+    }
+
+    public SearchViewState capture(SearchViewState state) {
+        return new SearchViewState(state.query(), filters.isVisible(),
+                scroll.getVerticalScrollBar().getValue());
     }
 
     public List<String> visibleProductNames() { return cards.visibleProductNames(); }
@@ -68,20 +92,27 @@ public final class ProductSearchPanel extends JPanel {
 
     private void submit() {
         try {
-            search(new ProductSearchQuery(value(keyword), value(category), decimal(minPrice), decimal(maxPrice),
-                    (ProductSortMode) sort.getSelectedItem(), 0, 20));
+            ProductSearchQuery query = new ProductSearchQuery(value(keyword), value(category),
+                    decimal(minPrice), decimal(maxPrice), (ProductSortMode) sort.getSelectedItem(), 0, 20);
+            SearchViewState state = new SearchViewState(
+                    query, filters.isVisible(), scroll.getVerticalScrollBar().getValue());
+            if (navigator.current().orElse(null) instanceof ShopRoute.Search) {
+                navigator.replaceCurrent(new ShopRoute.Search(state));
+            } else {
+                search(state);
+            }
         } catch (NumberFormatException error) {
             showState(ShopPageState.ERROR, "价格格式错误", null);
         }
     }
 
-    private void finish(long request, ProductSearchQuery query, PageResult<ProductSummary> result,
+    private void finish(long request, SearchViewState state, PageResult<ProductSummary> result,
             Throwable failure) {
         SwingUtilities.invokeLater(() -> {
             if (!latest.accepts(request)) return;
             searchButton.setEnabled(true);
-            if (failure != null) showFailure(failure, () -> search(query));
-            else if (result.items().isEmpty()) showState(ShopPageState.EMPTY, "暂无商品", () -> search(query));
+            if (failure != null) showFailure(failure, () -> search(state));
+            else if (result.items().isEmpty()) showState(ShopPageState.EMPTY, "暂无商品", () -> search(state));
             else {
                 cards.showProducts(result.items());
                 content.removeAll();
@@ -91,7 +122,15 @@ public final class ProductSearchPanel extends JPanel {
                 content.add(normal, BorderLayout.CENTER);
                 refresh();
             }
+            SwingUtilities.invokeLater(() -> scroll.getVerticalScrollBar().setValue(state.scrollY()));
         });
+    }
+
+    private void restoreFilters(SearchViewState state) {
+        ProductSearchQuery query = state.query();
+        keyword.setText(text(query.keyword())); category.setText(text(query.category()));
+        minPrice.setText(text(query.minPrice())); maxPrice.setText(text(query.maxPrice()));
+        sort.setSelectedItem(query.sortMode()); filters.setVisible(state.filtersExpanded());
     }
 
     private void showFailure(Throwable failure, Runnable retry) {
@@ -110,6 +149,7 @@ public final class ProductSearchPanel extends JPanel {
     private void refresh() { content.revalidate(); content.repaint(); }
     private static String value(JTextField field) { String value = field.getText().trim(); return value.isEmpty() ? null : value; }
     private static BigDecimal decimal(JTextField field) { String value = value(field); return value == null ? null : new BigDecimal(value); }
+    private static String text(Object value) { return value == null ? "" : value.toString(); }
     private static String failureCode(Throwable failure) {
         Throwable cause = failure;
         while (cause.getCause() != null) cause = cause.getCause();

@@ -4,6 +4,7 @@ import edu.seu.vcampus.client.shop.service.ShopClientPort;
 import edu.seu.vcampus.client.shop.ui.async.LatestRequest;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopRoute;
+import edu.seu.vcampus.client.shop.ui.navigation.HomeViewState;
 import edu.seu.vcampus.client.shop.ui.style.ShopPageState;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
 import edu.seu.vcampus.common.paging.PageResult;
@@ -14,6 +15,7 @@ import edu.seu.vcampus.common.shop.ProductSummary;
 
 import javax.swing.JButton;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.util.List;
@@ -28,6 +30,7 @@ public final class ShopHomePanel extends JPanel {
     private final LatestRequest latest = new LatestRequest();
     private final ProductCardsPanel cards;
     private final JPanel content = new JPanel(new BorderLayout());
+    private final JScrollPane scroll = named(new JScrollPane(content), "home.scroll");
 
     public ShopHomePanel(ShopClientPort client, ShopNavigator navigator, ShopUiKit uiKit,
             Runnable sessionExpired) {
@@ -41,28 +44,37 @@ public final class ShopHomePanel extends JPanel {
         search.addActionListener(event -> navigator.open(new ShopRoute.Search(new ProductSearchQuery(
                 null, null, null, null, ProductSortMode.SALES_DESC, 0, 20))));
         add(search, BorderLayout.NORTH);
-        add(content, BorderLayout.CENTER);
+        add(scroll, BorderLayout.CENTER);
         showState(ShopPageState.INITIAL, "", null);
     }
 
     public void load() { load(new HomeProductQuery(null, null, ProductSortMode.SALES_DESC, 0, 20)); }
 
     public void load(HomeProductQuery query) {
+        load(new HomeViewState(query, 0));
+    }
+
+    public void load(HomeViewState state) {
         long request = latest.begin();
         showState(ShopPageState.LOADING, "加载中…", null);
-        client.home(Objects.requireNonNull(query, "query"))
-                .whenComplete((result, failure) -> finish(request, query, result, failure));
+        HomeViewState requested = Objects.requireNonNull(state, "state");
+        client.home(requested.query())
+                .whenComplete((result, failure) -> finish(request, requested, result, failure));
+    }
+
+    public HomeViewState capture(HomeViewState state) {
+        return new HomeViewState(state.query(), scroll.getVerticalScrollBar().getValue());
     }
 
     public void dispose() { latest.dispose(); }
     public List<String> visibleProductNames() { return cards.visibleProductNames(); }
 
-    private void finish(long request, HomeProductQuery query, PageResult<ProductSummary> result,
+    private void finish(long request, HomeViewState state, PageResult<ProductSummary> result,
             Throwable failure) {
         SwingUtilities.invokeLater(() -> {
             if (!latest.accepts(request)) return;
-            if (failure != null) showFailure(failure, () -> load(query));
-            else if (result.items().isEmpty()) showState(ShopPageState.EMPTY, "暂无商品", () -> load(query));
+            if (failure != null) showFailure(failure, () -> load(state));
+            else if (result.items().isEmpty()) showState(ShopPageState.EMPTY, "暂无商品", () -> load(state));
             else {
                 cards.showProducts(result.items());
                 content.removeAll();
@@ -72,6 +84,7 @@ public final class ShopHomePanel extends JPanel {
                 content.add(normal, BorderLayout.CENTER);
                 refresh();
             }
+            SwingUtilities.invokeLater(() -> scroll.getVerticalScrollBar().setValue(state.scrollY()));
         });
     }
 
@@ -95,5 +108,8 @@ public final class ShopHomePanel extends JPanel {
         Throwable cause = failure;
         while (cause.getCause() != null) cause = cause.getCause();
         return cause.getMessage() == null ? "COMMON_INTERNAL_ERROR" : cause.getMessage();
+    }
+    private static <T extends java.awt.Component> T named(T component, String name) {
+        component.setName(name); return component;
     }
 }

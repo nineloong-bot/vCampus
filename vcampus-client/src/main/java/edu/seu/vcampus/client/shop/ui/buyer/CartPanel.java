@@ -2,6 +2,7 @@ package edu.seu.vcampus.client.shop.ui.buyer;
 
 import edu.seu.vcampus.client.shop.service.ShopClientPort;
 import edu.seu.vcampus.client.shop.ui.ShopUiErrors;
+import edu.seu.vcampus.client.shop.ui.CartCountModel;
 import edu.seu.vcampus.client.shop.ui.async.LatestRequest;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopRoute;
@@ -33,6 +34,7 @@ public final class CartPanel extends JPanel {
     private final ShopNavigator navigator;
     private final ShopUiKit uiKit;
     private final Runnable sessionExpired;
+    private final CartCountModel cartCount;
     private final LatestRequest loads = new LatestRequest();
     private final JPanel content = new JPanel(new BorderLayout());
     private final Map<String, JButton> updateButtons = new HashMap<>();
@@ -47,9 +49,14 @@ public final class CartPanel extends JPanel {
     private boolean disconnected;
 
     public CartPanel(ShopClientPort client, ShopNavigator navigator, ShopUiKit uiKit, Runnable sessionExpired) {
+        this(client, navigator, uiKit, new CartCountModel(), sessionExpired);
+    }
+    public CartPanel(ShopClientPort client, ShopNavigator navigator, ShopUiKit uiKit,
+            CartCountModel cartCount, Runnable sessionExpired) {
         super(new BorderLayout(8, 8));
         this.client = Objects.requireNonNull(client); this.navigator = Objects.requireNonNull(navigator);
-        this.uiKit = Objects.requireNonNull(uiKit); this.sessionExpired = Objects.requireNonNull(sessionExpired);
+        this.uiKit = Objects.requireNonNull(uiKit); this.cartCount = Objects.requireNonNull(cartCount);
+        this.sessionExpired = Objects.requireNonNull(sessionExpired);
         add(content, BorderLayout.CENTER); showState(ShopPageState.INITIAL, "", null);
     }
     public void load() {
@@ -89,7 +96,7 @@ public final class CartPanel extends JPanel {
             if (disposed || disconnected || !loads.accepts(request)) return;
             if (active != null || !queued.isEmpty()) { reloadAfterWrites = true; return; }
             if (failure != null) { showFailure(failure); return; }
-            cart = result; renderCart(ShopPageState.NORMAL, "");
+            cart = result; cartCount.update(result); renderCart(ShopPageState.NORMAL, "");
         });
     }
     private void finishWrite(Write write, CartView result, Throwable failure) {
@@ -97,7 +104,9 @@ public final class CartPanel extends JPanel {
             if (disposed || disconnected || active != write) return;
             active = null; queuedKeys.remove(write.key());
             boolean current = write.generation() == routeGeneration;
-            if (failure == null && result != null && current) cart = result;
+            if (failure == null && result != null && current) {
+                cart = result; cartCount.update(result);
+            }
             if (failure != null) {
                 if (showWriteFailure(failure, current)) return;
             } else if (current) renderCart(ShopPageState.NORMAL, "");

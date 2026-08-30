@@ -3,6 +3,7 @@ package edu.seu.vcampus.client.shop.ui.buyer;
 import edu.seu.vcampus.client.shop.service.ShopClientPort;
 import edu.seu.vcampus.client.shop.ui.async.LatestRequest;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator;
+import edu.seu.vcampus.client.shop.ui.navigation.StorefrontViewState;
 import edu.seu.vcampus.client.shop.ui.style.ShopPageState;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
 import edu.seu.vcampus.common.paging.PageResult;
@@ -14,6 +15,7 @@ import edu.seu.vcampus.common.shop.ShopProductQuery;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
+import javax.swing.JScrollPane;
 import java.awt.BorderLayout;
 import java.util.List;
 import java.util.Objects;
@@ -27,6 +29,7 @@ public final class BuyerShopPanel extends JPanel {
     private final JLabel shopName = named(new JLabel(), "shop-name");
     private final ProductCardsPanel cards;
     private final JPanel content = new JPanel(new BorderLayout());
+    private final JScrollPane scroll = named(new JScrollPane(content), "storefront.scroll");
     private String currentShopId;
 
     public BuyerShopPanel(ShopClientPort client, ShopNavigator navigator, ShopUiKit uiKit,
@@ -36,44 +39,58 @@ public final class BuyerShopPanel extends JPanel {
         this.uiKit = Objects.requireNonNull(uiKit, "uiKit");
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
         cards = new ProductCardsPanel(Objects.requireNonNull(navigator, "navigator"), uiKit);
-        add(shopName, BorderLayout.NORTH); add(content, BorderLayout.CENTER);
+        add(shopName, BorderLayout.NORTH); add(scroll, BorderLayout.CENTER);
         showState(ShopPageState.INITIAL, "", null);
     }
 
     public void load(String shopId) {
+        load(new StorefrontViewState(new ShopProductQuery(shopId, null, null, null, null,
+                ProductSortMode.SALES_DESC, 0, 20), 0));
+    }
+
+    public void load(StorefrontViewState state) {
+        StorefrontViewState requested = Objects.requireNonNull(state, "state");
+        String shopId = requested.query().shopId();
         long request = latest.begin();
         currentShopId = Objects.requireNonNull(shopId, "shopId");
         shopName.setText(""); cards.showProducts(List.of());
         showState(ShopPageState.LOADING, "加载中…", null);
-        client.getShop(shopId).whenComplete((shop, failure) -> afterShop(request, shopId, shop, failure));
+        client.getShop(shopId).whenComplete((shop, failure) ->
+                afterShop(request, requested, shop, failure));
+    }
+
+    public StorefrontViewState capture(StorefrontViewState state) {
+        return new StorefrontViewState(state.query(), scroll.getVerticalScrollBar().getValue());
     }
 
     public List<String> visibleProductNames() { return cards.visibleProductNames(); }
     public void dispose() { latest.dispose(); }
 
-    private void afterShop(long request, String shopId, ShopDetail shop, Throwable failure) {
+    private void afterShop(long request, StorefrontViewState state, ShopDetail shop, Throwable failure) {
         SwingUtilities.invokeLater(() -> {
             if (!latest.accepts(request)) return;
-            if (failure != null) { showFailure(failure, () -> load(shopId)); return; }
-            client.getShopProducts(new ShopProductQuery(shopId, null, null, null, null,
-                    ProductSortMode.SALES_DESC, 0, 20))
-                    .whenComplete((products, productFailure) -> finish(request, shopId, shop, products, productFailure));
+            if (failure != null) { showFailure(failure, () -> load(state)); return; }
+            client.getShopProducts(state.query())
+                    .whenComplete((products, productFailure) ->
+                            finish(request, state, shop, products, productFailure));
         });
     }
 
-    private void finish(long request, String shopId, ShopDetail shop, PageResult<ProductSummary> products,
+    private void finish(long request, StorefrontViewState state, ShopDetail shop,
+            PageResult<ProductSummary> products,
             Throwable failure) {
         SwingUtilities.invokeLater(() -> {
             if (!latest.accepts(request)) return;
-            if (failure != null) { showFailure(failure, () -> load(shopId)); return; }
+            if (failure != null) { showFailure(failure, () -> load(state)); return; }
             shopName.setText(shop.shopName());
-            if (products.items().isEmpty()) { showState(ShopPageState.EMPTY, "暂无商品", () -> load(shopId)); return; }
+            if (products.items().isEmpty()) { showState(ShopPageState.EMPTY, "暂无商品", () -> load(state)); return; }
             cards.showProducts(products.items());
             content.removeAll();
             JPanel normal = uiKit.filterPanel("storefront.normal", new BorderLayout());
             normal.add(uiKit.stateView("storefront.state", ShopPageState.NORMAL, "", null), BorderLayout.NORTH);
             normal.add(cards, BorderLayout.CENTER);
             content.add(normal, BorderLayout.CENTER); refresh();
+            SwingUtilities.invokeLater(() -> scroll.getVerticalScrollBar().setValue(state.scrollY()));
         });
     }
 

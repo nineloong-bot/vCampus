@@ -5,7 +5,13 @@ import edu.seu.vcampus.client.shop.ShopClientFixtures;
 import edu.seu.vcampus.client.shop.ShopSwingTestSupport;
 import edu.seu.vcampus.client.shop.service.ShopClientPort;
 import edu.seu.vcampus.client.shop.ui.buyer.CheckoutPanelTestSeam;
+import edu.seu.vcampus.client.shop.ui.buyer.CartPanel;
+import edu.seu.vcampus.client.shop.ui.navigation.HomeViewState;
+import edu.seu.vcampus.client.shop.ui.navigation.SearchViewState;
+import edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopRoute;
+import edu.seu.vcampus.client.shop.ui.navigation.ShopRouteHost;
+import edu.seu.vcampus.client.shop.ui.navigation.StorefrontViewState;
 import edu.seu.vcampus.client.shop.ui.style.DefaultShopUiKit;
 import edu.seu.vcampus.client.shop.ui.style.ShopPageState;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
@@ -37,6 +43,8 @@ import javax.swing.AbstractButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTextField;
 import javax.swing.WindowConstants;
 import java.awt.Component;
 import java.awt.GraphicsEnvironment;
@@ -51,6 +59,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.IntStream;
 
 import static edu.seu.vcampus.client.shop.ShopSwingTestSupport.component;
 import static edu.seu.vcampus.client.shop.ShopSwingTestSupport.flushEdt;
@@ -60,6 +69,215 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 class ShopUiTest {
+    @Test
+    void navigatorCapturesExactListStateAndNotifiesBoundedHistoryChanges() {
+        HomeProductQuery homeQuery = new HomeProductQuery(null, null,
+                ProductSortMode.PRICE_DESC, 2, 20);
+        ProductSearchQuery searchQuery = new ProductSearchQuery("签字笔", "文具",
+                new BigDecimal("2.00"), new BigDecimal("18.00"),
+                ProductSortMode.PRICE_DESC, 3, 10);
+        ShopProductQuery shopQuery = new ShopProductQuery("shop-9", "纸", "文具",
+                new BigDecimal("1.00"), new BigDecimal("30.00"),
+                ProductSortMode.SALES_DESC, 4, 12);
+        List<ShopRoute> rendered = new ArrayList<>();
+        List<ShopRoute> changes = new ArrayList<>();
+        ShopRouteHost host = new ShopRouteHost() {
+            @Override public ShopRoute capture(ShopRoute route) {
+                return switch (route) {
+                    case ShopRoute.Home ignored -> new ShopRoute.Home(
+                            new HomeViewState(homeQuery, 360));
+                    case ShopRoute.Search ignored -> new ShopRoute.Search(
+                            new SearchViewState(searchQuery, true, 420));
+                    case ShopRoute.Storefront ignored -> new ShopRoute.Storefront(
+                            new StorefrontViewState(shopQuery, 275));
+                    default -> route;
+                };
+            }
+            @Override public void render(ShopRoute route) { rendered.add(route); }
+        };
+        ShopNavigator navigator = new ShopNavigator(host);
+        navigator.addListener(changes::add);
+
+        assertThat(navigator.canGoBack()).isFalse();
+        navigator.open(new ShopRoute.Home(homeQuery));
+        navigator.open(new ShopRoute.Product("product-home"));
+        navigator.back();
+
+        assertThat(navigator.current()).contains(new ShopRoute.Home(
+                new HomeViewState(homeQuery, 360)));
+        assertThat(navigator.canGoBack()).isFalse();
+
+        navigator.reset(new ShopRoute.Search(searchQuery));
+        navigator.open(new ShopRoute.Product("product-search"));
+        navigator.back();
+        assertThat(navigator.current()).contains(new ShopRoute.Search(
+                new SearchViewState(searchQuery, true, 420)));
+
+        navigator.reset(new ShopRoute.Storefront(shopQuery));
+        navigator.open(new ShopRoute.Product("product-storefront"));
+        navigator.back();
+        assertThat(navigator.current()).contains(new ShopRoute.Storefront(
+                new StorefrontViewState(shopQuery, 275)));
+
+        navigator.open(new ShopRoute.Cart());
+        navigator.back();
+        navigator.open(new ShopRoute.My());
+        navigator.back();
+        assertThat(navigator.current()).contains(new ShopRoute.Storefront(
+                new StorefrontViewState(shopQuery, 275)));
+        assertThat(changes).isNotEmpty();
+        assertThat(rendered.getLast()).isEqualTo(navigator.current().orElseThrow());
+
+        navigator.reset(new ShopRoute.Home(homeQuery));
+        IntStream.range(0, 25).forEach(index ->
+                navigator.open(new ShopRoute.Product("product-" + index)));
+        assertThat(navigator.history()).hasSize(20);
+    }
+
+    @Test
+    void replaceAndResetKeepCompletedCheckoutOutOfEverySafeExit() {
+        List<ShopRoute> rendered = new ArrayList<>();
+        ShopNavigator navigator = new ShopNavigator(rendered::add);
+        ShopRoute.Home home = new ShopRoute.Home(defaultHome());
+        ShopRoute.PaymentResult result = new ShopRoute.PaymentResult(payment());
+
+        navigator.open(home);
+        navigator.open(new ShopRoute.Checkout());
+        navigator.replaceCurrent(result);
+        navigator.back();
+
+        assertThat(navigator.current()).contains(home);
+        navigator.reset(result);
+        navigator.reset(new ShopRoute.My());
+        assertThat(navigator.current()).contains(new ShopRoute.My());
+        assertThat(navigator.history()).isEmpty();
+        navigator.renderCurrent();
+        assertThat(rendered.getLast()).isEqualTo(new ShopRoute.My());
+    }
+
+    @Test
+    void toolbarReflectsEveryRouteAndUsesTheAuthoritativeQuantitySum() throws Exception {
+        ShopNavigator navigator = new ShopNavigator(route -> { });
+        CartCountModel cartCount = new CartCountModel();
+        ShopToolbar toolbar = onEdt(() -> new ShopToolbar(
+                navigator, cartCount, new DefaultShopUiKit()));
+        List<ShopRoute> routes = List.of(
+                new ShopRoute.Home(defaultHome()),
+                new ShopRoute.Search(defaultSearch()),
+                new ShopRoute.Product("product-1"),
+                new ShopRoute.Storefront("shop-1"),
+                new ShopRoute.Cart(),
+                new ShopRoute.Checkout(),
+                new ShopRoute.PaymentResult(payment()),
+                new ShopRoute.My());
+
+        for (ShopRoute route : routes) {
+            onEdt(() -> navigator.reset(route));
+            assertThat(component(toolbar, "shop.title", JLabel.class).getText()).isNotBlank();
+            assertThat(component(toolbar, "shop.back", JButton.class).isVisible()).isTrue();
+            assertThat(component(toolbar, "shop.my", JButton.class).isVisible()).isTrue();
+            assertThat(component(toolbar, "shop.cart", JButton.class).isVisible())
+                    .isEqualTo(!(route instanceof ShopRoute.Search));
+        }
+
+        CartView fiveItems = cartWithQuantities(2, 3);
+        onEdt(() -> cartCount.update(fiveItems));
+        assertThat(component(toolbar, "shop.cart", JButton.class).getText())
+                .isEqualTo("购物车（5）");
+
+        onEdt(() -> navigator.reset(new ShopRoute.Home(defaultHome())));
+        assertThat(component(toolbar, "shop.back", JButton.class).isEnabled()).isFalse();
+        onEdt(() -> component(toolbar, "shop.cart", JButton.class).doClick());
+        assertThat(navigator.current()).contains(new ShopRoute.Cart());
+        onEdt(() -> component(toolbar, "shop.back", JButton.class).doClick());
+        assertThat(navigator.current()).contains(new ShopRoute.Home(defaultHome()));
+        onEdt(() -> component(toolbar, "shop.my", JButton.class).doClick());
+        assertThat(navigator.current()).contains(new ShopRoute.My());
+        onEdt(() -> component(toolbar, "shop.back", JButton.class).doClick());
+        assertThat(navigator.current()).contains(new ShopRoute.Home(defaultHome()));
+    }
+
+    @Test
+    void coordinatorRestoresHomeSearchAndStorefrontQueryControlsAndScrollAfterBack()
+            throws Exception {
+        RestoringClient client = new RestoringClient();
+        ShopModulePanel content = onEdt(ShopModulePanel::new);
+        ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(
+                content, client, new DefaultShopUiKit(), () -> { }));
+        HomeProductQuery home = new HomeProductQuery(new BigDecimal("1.00"),
+                new BigDecimal("20.00"), ProductSortMode.PRICE_DESC, 2, 8);
+        ProductSearchQuery search = new ProductSearchQuery("笔", "文具",
+                new BigDecimal("2.00"), new BigDecimal("10.00"),
+                ProductSortMode.PRICE_DESC, 3, 6);
+        ShopProductQuery storefront = new ShopProductQuery("shop-1", "本", "文具",
+                new BigDecimal("3.00"), new BigDecimal("30.00"),
+                ProductSortMode.SALES_DESC, 4, 7);
+
+        onEdt(() -> coordinator.navigator().reset(new ShopRoute.Home(home)));
+        flushEdt();
+        JScrollPane homeScroll = component(content, "home.scroll", JScrollPane.class);
+        onEdt(() -> homeScroll.getVerticalScrollBar().setValues(360, 10, 0, 1000));
+        onEdt(() -> coordinator.navigator().open(new ShopRoute.Product("product-1")));
+        flushEdt();
+        onEdt(coordinator.navigator()::back);
+        flushEdt();
+        assertThat(client.homeQueries).containsExactly(home, home);
+        assertThat(homeScroll.getVerticalScrollBar().getValue()).isEqualTo(360);
+
+        onEdt(() -> coordinator.navigator().reset(new ShopRoute.Search(
+                new SearchViewState(search, true, 0))));
+        flushEdt();
+        JScrollPane searchScroll = component(content, "search.scroll", JScrollPane.class);
+        onEdt(() -> searchScroll.getVerticalScrollBar().setValues(420, 10, 0, 1000));
+        onEdt(() -> coordinator.navigator().open(new ShopRoute.Product("product-1")));
+        flushEdt();
+        onEdt(coordinator.navigator()::back);
+        flushEdt();
+        assertThat(client.searchQueries).containsExactly(search, search);
+        assertThat(component(content, "keyword", JTextField.class).getText()).isEqualTo("笔");
+        assertThat(component(content, "category", JTextField.class).getText()).isEqualTo("文具");
+        assertThat(component(content, "min-price", JTextField.class).getText()).isEqualTo("2.00");
+        assertThat(component(content, "max-price", JTextField.class).getText()).isEqualTo("10.00");
+        assertThat(component(content, "search.filters", JPanel.class).isVisible()).isTrue();
+        assertThat(searchScroll.getVerticalScrollBar().getValue()).isEqualTo(420);
+
+        onEdt(() -> coordinator.navigator().reset(new ShopRoute.Storefront(
+                new StorefrontViewState(storefront, 0))));
+        flushEdt(); flushEdt();
+        JScrollPane storefrontScroll = component(content, "storefront.scroll", JScrollPane.class);
+        onEdt(() -> storefrontScroll.getVerticalScrollBar().setValues(275, 10, 0, 1000));
+        onEdt(() -> coordinator.navigator().open(new ShopRoute.Product("product-1")));
+        flushEdt();
+        onEdt(coordinator.navigator()::back);
+        flushEdt(); flushEdt();
+        assertThat(client.shopQueries).containsExactly(storefront, storefront);
+        assertThat(storefrontScroll.getVerticalScrollBar().getValue()).isEqualTo(275);
+        onEdt(coordinator::dispose);
+    }
+
+    @Test
+    void cartPagePublishesLoadUpdateAndDeleteTotalsToTheSharedToolbar() throws Exception {
+        CartMutationClient client = new CartMutationClient();
+        CartCountModel count = new CartCountModel();
+        ShopNavigator navigator = new ShopNavigator(route -> { });
+        ShopToolbar toolbar = onEdt(() -> new ShopToolbar(
+                navigator, count, new DefaultShopUiKit()));
+        CartPanel cart = onEdt(() -> new CartPanel(client, navigator,
+                new DefaultShopUiKit(), count, () -> { }));
+
+        onEdt(cart::load);
+        flushEdt();
+        assertThat(component(toolbar, "shop.cart", JButton.class).getText())
+                .isEqualTo("购物车（5）");
+        onEdt(() -> cart.updateQuantity("cart-item-1", 4));
+        flushEdt();
+        assertThat(component(toolbar, "shop.cart", JButton.class).getText())
+                .isEqualTo("购物车（7）");
+        onEdt(() -> cart.remove("cart-item-1"));
+        flushEdt();
+        assertThat(component(toolbar, "shop.cart", JButton.class).getText())
+                .isEqualTo("购物车（3）");
+    }
     @Test
     void rendersEachRouteByLoadingItsExactPayloadBeforeShowingItsCard() throws Exception {
         List<SequenceEvent> events = new ArrayList<>();
@@ -76,14 +294,19 @@ class ShopUiTest {
                 new ShopRoute.Storefront("shop-order"),
                 new ShopRoute.Cart(),
                 new ShopRoute.Checkout(),
-                new ShopRoute.PaymentResult(payment()));
+                new ShopRoute.PaymentResult(payment()),
+                new ShopRoute.My());
 
         for (ShopRoute route : routes) {
             events.clear();
             onEdt(() -> coordinator.render(route));
-            assertThat(events).containsExactly(
-                    new SequenceEvent(operation(route), new RouteInvocation(pageId(route), payload(route))),
-                    new SequenceEvent("show", pageId(route)));
+            if (route instanceof ShopRoute.My) {
+                assertThat(events).containsExactly(new SequenceEvent("show", pageId(route)));
+            } else {
+                assertThat(events).containsExactly(
+                        new SequenceEvent(operation(route), new RouteInvocation(pageId(route), payload(route))),
+                        new SequenceEvent("show", pageId(route)));
+            }
         }
     }
 
@@ -155,10 +378,12 @@ class ShopUiTest {
         ShopModulePanel content = onEdt(ShopModulePanel::new);
         ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(
                 content, client, new DefaultShopUiKit(), () -> { }));
-        List<Component> fixedCards = Arrays.asList(content.getComponents());
-        assertThat(fixedCards).hasSize(7).extracting(Component::getName).containsExactly(
+        assertThat(namedComponents(content, "shop.toolbar")).hasSize(1);
+        JPanel cardHost = component(content, "shop.pages", JPanel.class);
+        List<Component> fixedCards = Arrays.asList(cardHost.getComponents());
+        assertThat(fixedCards).hasSize(8).extracting(Component::getName).containsExactly(
                 "shop.home", "shop.search", "shop.product", "shop.storefront", "shop.cart",
-                "shop.checkout", "shop.payment-result");
+                "shop.checkout", "shop.payment-result", "shop.my");
         HomeProductQuery home = new HomeProductQuery(new BigDecimal("1.00"), new BigDecimal("9.00"),
                 ProductSortMode.PRICE_DESC, 4, 8);
         ProductSearchQuery search = new ProductSearchQuery("本", "文具", new BigDecimal("1.00"),
@@ -168,7 +393,7 @@ class ShopUiTest {
         onEdt(() -> coordinator.navigator().open(new ShopRoute.Home(home)));
         assertThat(client.homeQueries).containsExactly(home);
         assertVisible(content, "shop.home");
-        assertFixedCards(content, fixedCards);
+        assertFixedCards(cardHost, fixedCards);
         JPanel homePage = component(content, "shop.home", JPanel.class);
 
         onEdt(() -> coordinator.navigator().open(new ShopRoute.Search(search)));
@@ -176,32 +401,36 @@ class ShopUiTest {
         assertThat(client.searchQueries).containsExactly(search);
         assertThat(coordinator.navigator().history()).containsExactly(new ShopRoute.Home(home));
         assertVisible(content, "shop.search");
-        assertFixedCards(content, fixedCards);
+        assertFixedCards(cardHost, fixedCards);
 
         onEdt(() -> coordinator.navigator().open(new ShopRoute.Product("product-7")));
         assertThat(client.productIds).containsExactly("product-7");
         assertVisible(content, "shop.product");
-        assertFixedCards(content, fixedCards);
+        assertFixedCards(cardHost, fixedCards);
 
         onEdt(() -> coordinator.navigator().open(new ShopRoute.Storefront("shop-9")));
         assertThat(client.shopIds).containsExactly("shop-9");
         assertVisible(content, "shop.storefront");
-        assertFixedCards(content, fixedCards);
+        assertFixedCards(cardHost, fixedCards);
 
         onEdt(() -> coordinator.navigator().open(new ShopRoute.Cart()));
         assertThat(client.cartLoads).isEqualTo(1);
         assertVisible(content, "shop.cart");
-        assertFixedCards(content, fixedCards);
+        assertFixedCards(cardHost, fixedCards);
 
         onEdt(() -> coordinator.navigator().open(new ShopRoute.Checkout()));
         assertThat(client.cartLoads).isEqualTo(2);
         assertVisible(content, "shop.checkout");
-        assertFixedCards(content, fixedCards);
+        assertFixedCards(cardHost, fixedCards);
 
         onEdt(() -> coordinator.navigator().open(new ShopRoute.PaymentResult(payment)));
         assertVisible(content, "shop.payment-result");
         assertThat(component(content, "payment-number", JLabel.class).getText()).isEqualTo("P0007");
-        assertFixedCards(content, fixedCards);
+        assertFixedCards(cardHost, fixedCards);
+
+        onEdt(() -> coordinator.navigator().open(new ShopRoute.My()));
+        assertVisible(content, "shop.my");
+        assertFixedCards(cardHost, fixedCards);
 
         HomeProductQuery refreshedHome = new HomeProductQuery(null, new BigDecimal("12.00"),
                 ProductSortMode.SALES_DESC, 1, 5);
@@ -209,7 +438,7 @@ class ShopUiTest {
         assertThat(client.homeQueries).containsExactly(home, refreshedHome);
         assertThat(component(content, "shop.home", JPanel.class)).isSameAs(homePage);
         assertVisible(content, "shop.home");
-        assertFixedCards(content, fixedCards);
+        assertFixedCards(cardHost, fixedCards);
 
         onEdt(coordinator::dispose);
         onEdt(coordinator::dispose);
@@ -217,7 +446,7 @@ class ShopUiTest {
     }
 
     @Test
-    void terminalPaymentClearsTheProductDetailCartBadge() throws Exception {
+    void addToCartAndOnlySuccessfulPaymentUpdateTheSharedToolbarCount() throws Exception {
         BadgeClient client = new BadgeClient();
         ShopModulePanel content = onEdt(ShopModulePanel::new);
         ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(
@@ -227,11 +456,19 @@ class ShopUiTest {
         flushEdt();
         onEdt(() -> component(content, "add-to-cart", JButton.class).doClick());
         flushEdt();
-        assertThat(component(content, "cart-count", JLabel.class).getText()).isEqualTo("购物车（2）");
+        assertThat(component(content, "shop.cart", JButton.class).getText()).isEqualTo("购物车（2）");
+
+        onEdt(() -> coordinator.navigator().open(new ShopRoute.PaymentResult(
+                payment(PaymentStatus.CANCELLED))));
+        assertThat(component(content, "shop.cart", JButton.class).getText()).isEqualTo("购物车（2）");
+
+        onEdt(() -> coordinator.navigator().open(new ShopRoute.PaymentResult(
+                payment(PaymentStatus.PENDING))));
+        assertThat(component(content, "shop.cart", JButton.class).getText()).isEqualTo("购物车（2）");
 
         onEdt(() -> coordinator.navigator().open(new ShopRoute.PaymentResult(payment())));
 
-        assertThat(component(content, "cart-count", JLabel.class).getText()).isEqualTo("购物车（0）");
+        assertThat(component(content, "shop.cart", JButton.class).getText()).isEqualTo("购物车（0）");
     }
 
     @Test
@@ -380,6 +617,24 @@ class ShopUiTest {
                 Instant.parse("2026-08-30T00:00:00Z"), null, 0);
     }
 
+    private static PaymentView payment(PaymentStatus status) {
+        return new PaymentView("payment-7", "group-7", "P0007", new BigDecimal("7.00"),
+                status, status == PaymentStatus.SUCCEEDED ? PaymentChannel.WECHAT : null,
+                Instant.parse("2026-08-30T00:00:00Z"),
+                status == PaymentStatus.PENDING ? null : Instant.parse("2026-08-30T00:01:00Z"), 0);
+    }
+
+    private static CartView cartWithQuantities(int first, int second) {
+        return new CartView("cart-1", List.of(
+                new edu.seu.vcampus.common.shop.CartItemView("cart-item-1", "product-1", "签字笔",
+                        "sku-1", "黑色", "shop-1", "校园文具店",
+                        new BigDecimal("3.00"), first, 0),
+                new edu.seu.vcampus.common.shop.CartItemView("cart-item-2", "product-2", "练习本",
+                        "sku-2", "A5", "shop-1", "校园文具店",
+                        new BigDecimal("4.00"), second, 0)),
+                new BigDecimal("10.00"));
+    }
+
     private static HomeProductQuery defaultHome() {
         return new HomeProductQuery(null, null, ProductSortMode.SALES_DESC, 0, 20);
     }
@@ -397,6 +652,7 @@ class ShopUiTest {
             case ShopRoute.Cart ignored -> "shop.cart";
             case ShopRoute.Checkout ignored -> "shop.checkout";
             case ShopRoute.PaymentResult ignored -> "shop.payment-result";
+            case ShopRoute.My ignored -> "shop.my";
         };
     }
 
@@ -406,13 +662,14 @@ class ShopUiTest {
 
     private static Object payload(ShopRoute route) {
         return switch (route) {
-            case ShopRoute.Home(var query) -> query;
-            case ShopRoute.Search(var query) -> query;
+            case ShopRoute.Home(var state) -> state;
+            case ShopRoute.Search(var state) -> state;
             case ShopRoute.Product(var productId) -> productId;
-            case ShopRoute.Storefront(var shopId) -> shopId;
+            case ShopRoute.Storefront(var state) -> state;
             case ShopRoute.Cart ignored -> null;
             case ShopRoute.Checkout ignored -> null;
             case ShopRoute.PaymentResult(var payment) -> payment;
+            case ShopRoute.My ignored -> null;
         };
     }
 
@@ -456,6 +713,65 @@ class ShopUiTest {
         @Override public CompletableFuture<PaymentView> simulatePayment(SimulatePaymentCommand command) {
             return new CompletableFuture<>();
         }
+    }
+
+    private static final class RestoringClient implements ShopClientPort {
+        private final List<HomeProductQuery> homeQueries = new ArrayList<>();
+        private final List<ProductSearchQuery> searchQueries = new ArrayList<>();
+        private final List<ShopProductQuery> shopQueries = new ArrayList<>();
+
+        @Override public CompletableFuture<PageResult<ProductSummary>> home(HomeProductQuery query) {
+            homeQueries.add(query);
+            return CompletableFuture.completedFuture(productsPage());
+        }
+        @Override public CompletableFuture<PageResult<ProductSummary>> search(ProductSearchQuery query) {
+            searchQueries.add(query);
+            return CompletableFuture.completedFuture(productsPage());
+        }
+        @Override public CompletableFuture<ProductDetail> getProduct(String productId) {
+            return CompletableFuture.completedFuture(ShopClientFixtures.productDetail());
+        }
+        @Override public CompletableFuture<ShopDetail> getShop(String shopId) {
+            return CompletableFuture.completedFuture(ShopClientFixtures.shopDetail());
+        }
+        @Override public CompletableFuture<PageResult<ProductSummary>> getShopProducts(
+                ShopProductQuery query) {
+            shopQueries.add(query);
+            return CompletableFuture.completedFuture(productsPage());
+        }
+        @Override public CompletableFuture<CartView> getCart() { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<CartView> addToCart(AddCartItemCommand command) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<CartView> updateCartItem(UpdateCartItemCommand command) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<CartView> removeCartItem(String cartItemId) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<CheckoutResult> checkout(CheckoutCommand command) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<PaymentView> simulatePayment(SimulatePaymentCommand command) { return new CompletableFuture<>(); }
+
+        private static PageResult<ProductSummary> productsPage() {
+            return new PageResult<>(IntStream.range(0, 30)
+                    .mapToObj(index -> ShopClientFixtures.productSummary()).toList(), 0, 30, 30);
+        }
+    }
+
+    private static final class CartMutationClient implements ShopClientPort {
+        @Override public CompletableFuture<PageResult<ProductSummary>> home(HomeProductQuery query) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<PageResult<ProductSummary>> search(ProductSearchQuery query) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<ProductDetail> getProduct(String productId) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<ShopDetail> getShop(String shopId) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<PageResult<ProductSummary>> getShopProducts(ShopProductQuery query) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<CartView> getCart() {
+            return CompletableFuture.completedFuture(cartWithQuantities(2, 3));
+        }
+        @Override public CompletableFuture<CartView> addToCart(AddCartItemCommand command) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<CartView> updateCartItem(UpdateCartItemCommand command) {
+            return CompletableFuture.completedFuture(cartWithQuantities(4, 3));
+        }
+        @Override public CompletableFuture<CartView> removeCartItem(String cartItemId) {
+            var second = cartWithQuantities(2, 3).items().get(1);
+            return CompletableFuture.completedFuture(new CartView("cart-1", List.of(second),
+                    new BigDecimal("12.00")));
+        }
+        @Override public CompletableFuture<CheckoutResult> checkout(CheckoutCommand command) { return new CompletableFuture<>(); }
+        @Override public CompletableFuture<PaymentView> simulatePayment(SimulatePaymentCommand command) { return new CompletableFuture<>(); }
     }
 
     private static List<Component> namedComponents(java.awt.Container root, String name) {
@@ -602,15 +918,18 @@ class ShopUiTest {
         @Override public JPanel cart() { return cart; }
         @Override public JPanel checkout() { return checkout; }
         @Override public JPanel paymentResult() { return paymentResult; }
-        @Override public void loadHome(HomeProductQuery query) { load("shop.home", query); }
-        @Override public void search(ProductSearchQuery query) {
-            events.add(new SequenceEvent("search", new RouteInvocation("shop.search", query)));
+        @Override public void loadHome(HomeViewState state) { load("shop.home", state); }
+        @Override public void search(SearchViewState state) {
+            events.add(new SequenceEvent("search", new RouteInvocation("shop.search", state)));
         }
         @Override public void loadProduct(String productId) { load("shop.product", productId); }
-        @Override public void loadStorefront(String shopId) { load("shop.storefront", shopId); }
+        @Override public void loadStorefront(StorefrontViewState state) { load("shop.storefront", state); }
         @Override public void loadCart() { load("shop.cart", null); }
         @Override public void loadCheckout() { load("shop.checkout", null); }
         @Override public void loadPaymentResult(PaymentView payment) { load("shop.payment-result", payment); }
+        @Override public HomeViewState captureHome(HomeViewState state) { return state; }
+        @Override public SearchViewState captureSearch(SearchViewState state) { return state; }
+        @Override public StorefrontViewState captureStorefront(StorefrontViewState state) { return state; }
         @Override public void dispose() { }
 
         private void load(String pageId, Object payload) {

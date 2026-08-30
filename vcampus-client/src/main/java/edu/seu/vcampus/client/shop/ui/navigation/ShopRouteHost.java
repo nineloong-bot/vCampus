@@ -4,4 +4,7 @@ package edu.seu.vcampus.client.shop.ui.navigation;
 @FunctionalInterface
 public interface ShopRouteHost {
     void render(ShopRoute route);
+
+    /** Captures transient view state before the route is placed in history. */
+    default ShopRoute capture(ShopRoute route) { return route; }
 }

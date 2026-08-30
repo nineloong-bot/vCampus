@@ -30,10 +30,10 @@ public final class PaymentResultPanel extends JPanel {
     }
 
     public void openHome() {
-        navigator.open(new ShopRoute.Home(new HomeProductQuery(null, null,
+        navigator.reset(new ShopRoute.Home(new HomeProductQuery(null, null,
                 ProductSortMode.SALES_DESC, 0, 20)));
     }
-    public void openCart() { navigator.open(new ShopRoute.Cart()); }
+    public void openPaidOrders() { navigator.reset(new ShopRoute.My()); }
 
     private void render() {
         JPanel normal = uiKit.filterPanel("payment-result.normal", new BorderLayout(4, 4));
@@ -43,10 +43,10 @@ public final class PaymentResultPanel extends JPanel {
         details.add(named(new JLabel("¥" + payment.amount().toPlainString()), "payment-amount"));
         details.add(named(new JLabel(String.valueOf(payment.successfulChannel())), "payment-channel"));
         details.add(named(new JLabel(payment.status().name()), "payment-status"));
-        JButton home = uiKit.primaryButton("payment-result.home", "返回首页");
-        JButton cart = uiKit.secondaryButton("payment-result.cart", "查看空购物车");
-        home.addActionListener(event -> openHome()); cart.addActionListener(event -> openCart());
-        details.add(home); details.add(cart); normal.add(details, BorderLayout.CENTER); add(normal, BorderLayout.CENTER);
+        JButton home = uiKit.primaryButton("payment-result.home", "继续购物");
+        JButton orders = uiKit.secondaryButton("payment-result.orders", "查看已支付订单");
+        home.addActionListener(event -> openHome()); orders.addActionListener(event -> openPaidOrders());
+        details.add(home); details.add(orders); normal.add(details, BorderLayout.CENTER); add(normal, BorderLayout.CENTER);
     }
 
     private static <T extends java.awt.Component> T named(T component, String name) {
