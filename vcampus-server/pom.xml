@@ -50,7 +50,7 @@
                             <resources>
                                 <resource><directory>${project.parent.basedir}/docs/superpowers/specs</directory><targetPath>specs</targetPath></resource>
                                 <resource><directory>${project.parent.basedir}/docs/ui-review</directory><targetPath>ui-review</targetPath><includes><include>manifest.md</include></includes></resource>
-                                <resource><directory>${project.parent.basedir}/docs</directory><includes><include>course-demo-guide.md</include></includes></resource>
+                                <resource><directory>${project.parent.basedir}/docs</directory><includes><include>course-demo-guide.md</include><include>course-runtime-integration.md</include></includes></resource>
                             </resources>
                         </configuration>
                     </execution>
