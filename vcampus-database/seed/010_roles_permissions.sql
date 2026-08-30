@@ -20,6 +20,8 @@ INSERT INTO tblPermission (permissionCode, permissionName)
 VALUES ('USER_STATUS_WRITE', '修改账户状态');
 INSERT INTO tblPermission (permissionCode, permissionName)
 VALUES ('USER_AUDIT_READ', '查看安全审计');
+INSERT INTO tblPermission (permissionCode, permissionName)
+VALUES ('LIBRARY_ADMIN', '管理图书馆');
 
 INSERT INTO tblRolePermission (roleCode, permissionCode)
 VALUES ('ADMIN', 'USER_READ_ALL');
@@ -29,3 +31,5 @@ INSERT INTO tblRolePermission (roleCode, permissionCode)
 VALUES ('ADMIN', 'USER_STATUS_WRITE');
 INSERT INTO tblRolePermission (roleCode, permissionCode)
 VALUES ('ADMIN', 'USER_AUDIT_READ');
+INSERT INTO tblRolePermission (roleCode, permissionCode)
+VALUES ('ADMIN', 'LIBRARY_ADMIN');

@@ -4,6 +4,7 @@ import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.core.ui.theme.UiThemeInstaller;
 import edu.seu.vcampus.client.user.service.UserClientService;
 import edu.seu.vcampus.client.user.ui.UserUiCoordinator;
+import edu.seu.vcampus.client.library.service.LibraryClientService;
 
 import javax.swing.SwingUtilities;
 import java.io.InputStream;
@@ -32,9 +33,10 @@ public final class ClientMain {
             Runtime.getRuntime().addShutdownHook(new Thread(connection::close, "vcampus-client-close"));
             UserClientService users = new UserClientService(
                     connection, UUID.randomUUID().toString(), timeout);
+            LibraryClientService library = new LibraryClientService(connection, timeout);
             SwingUtilities.invokeLater(() -> {
                 UiThemeInstaller.install();
-                new UserUiCoordinator(users, connection).start();
+                new UserUiCoordinator(users, connection, library).start();
             });
         } catch (Exception error) {
             System.err.println("客户端启动失败：" + error.getMessage());

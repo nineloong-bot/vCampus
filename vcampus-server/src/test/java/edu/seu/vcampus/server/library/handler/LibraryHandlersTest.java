@@ -21,6 +21,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import edu.seu.vcampus.server.routing.RequestDeduplicator;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.doAnswer;
 
 class LibraryHandlersTest {
     private final LibraryService service = mock(LibraryService.class);
@@ -58,6 +61,33 @@ class LibraryHandlersTest {
 
         verify(access).requirePermission("token", "LIBRARY_ADMIN");
         verify(service).updatePolicy(command);
+    }
+
+    @Test
+    void mapsBusinessFailureInsteadOfEscapingTheRouter() {
+        LibraryHandlers.register(router, service, access);
+        when(service.borrow(anyString(), any())).thenThrow(
+                new edu.seu.vcampus.server.library.service.CopyUnavailableException("copy-1"));
+        Message message = new Message("request-1", MessageType.REQUEST, "LIBRARY_BORROW",
+                "token", new BorrowBookCommand("copy-1"), 1L);
+
+        var response = router.route(message, new ClientContext("connection-1", "127.0.0.1"));
+
+        assertThat(response.success()).isFalse();
+        assertThat(response.code()).isEqualTo("LIBRARY_COPY_UNAVAILABLE");
+    }
+
+    @Test
+    void routesWritesThroughRequestDeduplication() {
+        RequestDeduplicator deduplicator = mock(RequestDeduplicator.class);
+        doAnswer(invocation -> ((java.util.function.Supplier<?>) invocation.getArgument(3)).get())
+                .when(deduplicator).executeOnce(any(), isNull(), eq("connection-1"), any());
+        LibraryHandlers.register(router, service, access, deduplicator);
+        when(service.borrow("token", new BorrowBookCommand("copy-1"))).thenReturn(loan);
+
+        assertThat(route("LIBRARY_BORROW", new BorrowBookCommand("copy-1"))).isEqualTo(loan);
+
+        verify(deduplicator).executeOnce(any(), isNull(), eq("connection-1"), any());
     }
 
     private Object route(String command, java.io.Serializable body) {

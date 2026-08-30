@@ -5,6 +5,13 @@ import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.config.ConfigurationException;
 import edu.seu.vcampus.server.config.ServerConfig;
+import edu.seu.vcampus.server.library.handler.LibraryHandlers;
+import edu.seu.vcampus.server.library.repository.AccessBookRepository;
+import edu.seu.vcampus.server.library.repository.AccessLibraryPolicyRepository;
+import edu.seu.vcampus.server.library.repository.AccessLoanRepository;
+import edu.seu.vcampus.server.library.service.LibraryAuthorizationAdapter;
+import edu.seu.vcampus.server.library.service.LibraryService;
+import edu.seu.vcampus.server.library.service.LibraryServiceImpl;
 import edu.seu.vcampus.server.network.SocketServer;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import edu.seu.vcampus.server.persistence.TransactionManager;
@@ -26,6 +33,7 @@ import java.nio.file.Path;
 import java.sql.DriverManager;
 import java.time.Duration;
 import java.util.Map;
+import java.util.UUID;
 
 /** Validates configuration and starts the VCampus socket server. */
 public final class ServerMain {
@@ -57,15 +65,27 @@ public final class ServerMain {
     }
 
     private static void run(ServerConfig config) throws Exception {
-        MessageRouter router = new MessageRouter(Map.of(
-                "PING", (request, context) -> ResponseBody.success(EmptyResponse.INSTANCE)));
-        UserRuntime users = createUserRuntime(config);
-        new UserHandlers(router, users.service(), users.authorization(), users.deduplicator());
+        MessageRouter router = createApplicationRouter(config);
         SocketServer server = new SocketServer(config.port(), config.workerThreads(),
                 config.maxConnections(), router);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> shutdown(server), "vcampus-shutdown"));
         LOGGER.info("VCampus 服务端已启动，监听端口 {}", config.port());
         server.serve();
+    }
+
+    private static MessageRouter createApplicationRouter(ServerConfig config) {
+        MessageRouter router = new MessageRouter(Map.of(
+                "PING", (request, context) -> ResponseBody.success(EmptyResponse.INSTANCE)));
+        UserRuntime users = createUserRuntime(config);
+        new UserHandlers(router, users.service(), users.authorization(), users.deduplicator());
+        LibraryAuthorizationAdapter authorization =
+                new LibraryAuthorizationAdapter(users.authorization());
+        LibraryService library = new LibraryServiceImpl(authorization,
+                new AccessBookRepository(), new AccessLoanRepository(),
+                new AccessLibraryPolicyRepository(), users.transactions(), users.locks(),
+                users.clock(), () -> UUID.randomUUID().toString());
+        LibraryHandlers.register(router, library, authorization, users.deduplicator());
+        return router;
     }
 
     private static UserRuntime createUserRuntime(ServerConfig config) {
@@ -81,7 +101,7 @@ public final class ServerMain {
                 new AccessUserRepository(), new AccessPermissionRepository(),
                 new AccessAuditRepository(), new PasswordHasher(), sessions, clock);
         return new UserRuntime(service, new AuthorizationService(sessions),
-                new RequestDeduplicator(transactions, locks));
+                new RequestDeduplicator(transactions, locks), transactions, locks, clock);
     }
 
     private static void shutdown(SocketServer server) {
@@ -97,6 +117,9 @@ public final class ServerMain {
     }
 
     private record UserRuntime(UserService service, AuthorizationService authorization,
-                               RequestDeduplicator deduplicator) {
+                               RequestDeduplicator deduplicator,
+                               TransactionManager transactions,
+                               StripedResourceLockManager locks,
+                               java.time.Clock clock) {
     }
 }

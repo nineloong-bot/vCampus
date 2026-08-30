@@ -12,6 +12,7 @@ public final class UiDimensions {
     public static final int NAVIGATION_WIDTH = 184;
     public static final int STATUS_HEIGHT = 28;
     public static final int CONTROL_HEIGHT = 32;
+    public static final int TABLE_ROW_HEIGHT = 40;
 
     private UiDimensions() { }
 }
