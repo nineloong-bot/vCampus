@@ -39,7 +39,9 @@ git switch --track origin/demo/shop-auth
 
 ```powershell
 git switch demo/shop-auth
-git pull --ff-only
+git fetch origin
+git branch --set-upstream-to=origin/demo/shop-auth
+git merge --ff-only origin/demo/shop-auth
 ```
 
 本指南对应 `demo/shop-auth`。请勿使用 `feat/shop-only` 进行本测试；该分支是纯 Shop 正式分支，不包含组合登录 Demo。
@@ -107,29 +109,32 @@ tailscale ip -4
 先确认 Tailscale 能到达服务端。在 Windows PowerShell 中运行：
 
 ```powershell
-tailscale ping <服务器的 Tailscale IP>
-Test-NetConnection <服务器的 Tailscale IP> -Port 19090
+$ServerTailscaleIp = '<服务器的 Tailscale IP>'
+tailscale ping $ServerTailscaleIp
+Test-NetConnection $ServerTailscaleIp -Port 19090
 ```
 
 其中 `Test-NetConnection` 的 `TcpTestSucceeded` 应为 `True`。在 macOS 或 Linux 上可用以下命令检测端口：
 
 ```bash
-nc -vz <服务器的 Tailscale IP> 19090
+server_tailscale_ip='<服务器的 Tailscale IP>'
+nc -vz "$server_tailscale_ip" 19090
 ```
 
 然后在 Windows 客户端的仓库根目录运行：
 
 ```powershell
 Set-Location -LiteralPath '<仓库根目录>'
-.\vcampus-distribution\scripts\start-shop-auth-demo-client.ps1 -ServerHost '<服务器的 Tailscale IP>' -ServerPort 19090
+$ServerTailscaleIp = '<服务器的 Tailscale IP>'
+.\vcampus-distribution\scripts\start-shop-auth-demo-client.ps1 -ServerHost $ServerTailscaleIp -ServerPort 19090
 ```
 
 ## 人工验收流程
 
 1. 使用固定买家账号登录，确认主窗体显示当前用户，左侧出现“校园商城”。
 2. 打开商城首页，确认能看到两个营业店铺的在售商品。
-3. 进入“黑色签字笔”详情，选择黑色 SKU，将数量 `2` 加入购物车。
-4. 打开购物车，确认商品、单价、数量和合计正确；也可调整数量并确认页面同步更新。
+3. 进入“签字笔”详情，选择黑色（`demo-pen-black`）SKU，将数量 `2` 加入购物车。
+4. 打开购物车，确认商品、单价、数量和合计正确；可按 `2 → 1 → 2` 调整并确认页面同步更新，进入结算前最终数量必须为 `2`。
 5. 进入结算，确认订单后选择支付宝模拟成功。
 6. 确认支付结果为 `SUCCEEDED`，页面没有要求真实卡号、账户或验证码。
 7. 检查购物车已经清空，并核对 `target/shop-auth-demo/logs/business.log` 中出现 `SHOP_CHECKOUT` 与 `PAYMENT` 事件。
