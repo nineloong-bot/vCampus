@@ -11,6 +11,7 @@ import edu.seu.vcampus.common.student.UpdateStudentContactCommand;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.KeyEvent;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
@@ -50,6 +51,9 @@ public final class UpdateContactDialog extends JDialog {
         cancel.addActionListener(event -> dispose());
         submit.addActionListener(event -> save());
         getRootPane().setDefaultButton(submit);
+        getRootPane().registerKeyboardAction(event -> dispose(),
+                KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
+                JComponent.WHEN_IN_FOCUSED_WINDOW);
         setSize(new Dimension(560, 360));
         setResizable(false);
         setLocationRelativeTo(owner);

@@ -13,6 +13,8 @@ import org.junit.jupiter.api.Test;
 
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
 import java.io.Serializable;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -92,6 +94,21 @@ class UpdateContactDialogTest {
         assertThat(client.poll()).isNull();
         assertThat(label(dialog, "student.contact.error").getText()).contains("邮箱", "格式");
         assertThat(field(dialog, "student.contact.email").getText()).isEqualTo("not-an-email");
+    }
+
+    @Test
+    void dialogUsesAccessibleControlsAndTheRequiredFixedSize() throws Exception {
+        var client = new RecordingStudentClient();
+        UpdateContactDialog dialog = dialog(client, profile(4, "old@seu.edu.cn", "130"));
+
+        assertThat(dialog.getSize()).isEqualTo(new Dimension(560, 360));
+        assertThat(dialog.isResizable()).isFalse();
+        assertThat(dialog.getRootPane().getDefaultButton()).isSameAs(button(dialog, "student.contact.submit"));
+        for (String name : new String[]{"student.contact.email", "student.contact.phone",
+                "student.contact.cancel", "student.contact.refresh", "student.contact.submit"}) {
+            assertThat(component(dialog, name, JComponent.class)
+                    .getAccessibleContext().getAccessibleName()).isNotBlank();
+        }
     }
 
     @Test
@@ -201,6 +218,30 @@ class UpdateContactDialogTest {
                 new StudentClientService(client, Duration.ofSeconds(3)), profile(4, "old@seu.edu.cn", "130"),
                 ignored -> published.incrementAndGet())));
         onEdt(() -> button(dialog, "student.contact.cancel").doClick());
+        flushEdt();
+
+        assertThat(client.poll()).isNull();
+        assertThat(published).hasValue(0);
+        assertThat(dialog.isDisplayable()).isFalse();
+    }
+
+    @Test
+    void escapeCancelsWithoutSendingOrPublishing() throws Exception {
+        var client = new RecordingStudentClient();
+        var published = new AtomicInteger();
+        UpdateContactDialog dialog = onEdt(() -> displayed(new UpdateContactDialog(null,
+                new StudentClientService(client, Duration.ofSeconds(3)), profile(4, "old@seu.edu.cn", "130"),
+                ignored -> published.incrementAndGet())));
+
+        onEdt(() -> {
+            JRootPane root = dialog.getRootPane();
+            Object binding = root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+                    .get(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0));
+            assertThat(binding).isNotNull();
+            Action action = root.getActionMap().get(binding);
+            assertThat(action).isNotNull();
+            action.actionPerformed(new ActionEvent(dialog, ActionEvent.ACTION_PERFORMED, "escape"));
+        });
         flushEdt();
 
         assertThat(client.poll()).isNull();

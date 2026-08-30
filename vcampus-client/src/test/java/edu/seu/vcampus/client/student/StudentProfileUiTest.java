@@ -6,6 +6,7 @@ import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.client.student.service.StudentRequestClient;
 import edu.seu.vcampus.client.student.ui.MyStudentProfilePanel;
 import edu.seu.vcampus.client.student.ui.UpdateContactDialog;
+import edu.seu.vcampus.client.core.ui.theme.UiColors;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.student.*;
 import org.junit.jupiter.api.Test;
@@ -61,6 +62,25 @@ class StudentProfileUiTest {
         assertThat(fixture.label("student.profile.type").getText()).isEqualTo("未填写");
         assertThat(fixture.label("student.profile.lifecycle").getText()).isEqualTo("未填写");
         assertThat(fixture.label("student.profile.enrollment").getText()).isEqualTo("未填写");
+    }
+
+    @Test void profileActionsAreAccessibleAndRemainInsideSupportedContentSizes() throws Exception {
+        var response = new CompletableFuture<ResponseBody<StudentView>>();
+        var fixture = new StudentUiFixture(response, ConnectionState.CONNECTED);
+        SwingUtilities.invokeAndWait(fixture::showProfile);
+
+        for (int[] size : new int[][]{{1280, 800}, {1024, 680}}) {
+            SwingUtilities.invokeAndWait(() -> layout(fixture.panel, size[0], size[1]));
+            for (String name : new String[]{"student.profile.refresh", "student.profile.edit"}) {
+                JButton action = fixture.button(name);
+                assertThat(action.getAccessibleContext().getAccessibleName()).isNotBlank();
+                assertThat(boundsIn(fixture.panel, action).width).isPositive();
+                assertThat(boundsIn(fixture.panel, action).height).isPositive();
+                assertThat(fixture.panel.getBounds().contains(boundsIn(fixture.panel, action))).isTrue();
+            }
+        }
+
+        assertThat(fixture.panel.getBackground()).isEqualTo(UiColors.BACKGROUND_PAGE);
     }
 
     @Test void lifecycleStatusesRenderChineseLabels() throws Exception {
@@ -196,6 +216,17 @@ class StudentProfileUiTest {
         return result.get();
     }
     private static void onEdt(ThrowingRunnable work) throws Exception { onEdt(() -> { work.run(); return null; }); }
+    private static void layout(Container root, int width, int height) {
+        root.setBounds(0, 0, width, height);
+        layoutTree(root);
+    }
+    private static void layoutTree(Container root) {
+        root.doLayout();
+        for (Component child : root.getComponents()) if (child instanceof Container nested) layoutTree(nested);
+    }
+    private static Rectangle boundsIn(Container root, Component component) {
+        return SwingUtilities.convertRectangle(component.getParent(), component.getBounds(), root);
+    }
     @FunctionalInterface private interface ThrowingRunnable { void run() throws Exception; }
 
     private static final class StudentUiFixture {
