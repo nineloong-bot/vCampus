@@ -1,6 +1,5 @@
 package edu.seu.vcampus.client.shop.ui;
 
-import edu.seu.vcampus.client.core.navigation.PageNavigator;
 import edu.seu.vcampus.client.core.ui.MainFrame;
 import edu.seu.vcampus.client.shop.ShopClientFixtures;
 import edu.seu.vcampus.client.shop.ShopSwingTestSupport;
@@ -34,6 +33,7 @@ import edu.seu.vcampus.common.shop.UpdateCartItemCommand;
 import org.junit.jupiter.api.Test;
 
 import javax.swing.JButton;
+import javax.swing.AbstractButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -56,6 +56,7 @@ import static edu.seu.vcampus.client.shop.ShopSwingTestSupport.component;
 import static edu.seu.vcampus.client.shop.ShopSwingTestSupport.flushEdt;
 import static edu.seu.vcampus.client.shop.ShopSwingTestSupport.onEdt;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 class ShopUiTest {
@@ -92,7 +93,7 @@ class ShopUiTest {
         StateCountingKit uiKit = new StateCountingKit();
         AtomicInteger expired = new AtomicInteger();
         ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(
-                new PageNavigator(new JPanel()), client, uiKit, expired::incrementAndGet));
+                new ShopModulePanel(), client, uiKit, expired::incrementAndGet));
 
         onEdt(() -> coordinator.navigator().open(new ShopRoute.Home(defaultHome())));
         onEdt(() -> coordinator.navigator().open(new ShopRoute.Search(defaultSearch())));
@@ -130,7 +131,7 @@ class ShopUiTest {
                     return fixture.panel();
                 }, (page, callback) -> captures.add(new CallbackCapture(page, callback)));
         ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(
-                new PageNavigator(new JPanel()), factory, new DefaultShopUiKit(), sessionExpired));
+                new ShopModulePanel(), factory, new DefaultShopUiKit(), sessionExpired));
 
         assertThat(captures).extracting(CallbackCapture::page).containsExactly(
                 "home", "search", "product", "storefront", "cart", "checkout");
@@ -151,10 +152,9 @@ class ShopUiTest {
     @Test
     void coordinatorRegistersFixedPagesAndRendersEveryRouteWithItsExactPayload() throws Exception {
         RecordingClient client = new RecordingClient();
-        JPanel content = onEdt(() -> new JPanel());
-        PageNavigator pages = onEdt(() -> new PageNavigator(content));
+        ShopModulePanel content = onEdt(ShopModulePanel::new);
         ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(
-                pages, client, new DefaultShopUiKit(), () -> { }));
+                content, client, new DefaultShopUiKit(), () -> { }));
         List<Component> fixedCards = Arrays.asList(content.getComponents());
         assertThat(fixedCards).hasSize(7).extracting(Component::getName).containsExactly(
                 "shop.home", "shop.search", "shop.product", "shop.storefront", "shop.cart",
@@ -219,9 +219,9 @@ class ShopUiTest {
     @Test
     void terminalPaymentClearsTheProductDetailCartBadge() throws Exception {
         BadgeClient client = new BadgeClient();
-        JPanel content = onEdt((Callable<JPanel>) JPanel::new);
+        ShopModulePanel content = onEdt(ShopModulePanel::new);
         ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(
-                new PageNavigator(content), client, new DefaultShopUiKit(), () -> { }));
+                content, client, new DefaultShopUiKit(), () -> { }));
 
         onEdt(() -> coordinator.navigator().open(new ShopRoute.Product("product-badge")));
         flushEdt();
@@ -235,23 +235,65 @@ class ShopUiTest {
     }
 
     @Test
-    void installsOneShopEntryAndRendersHomeWithoutChangingMainFrame() throws Exception {
+    void reusesTheSharedShopEntryAndLoadsHomeOnlyOnFirstEntry() throws Exception {
         assumeFalse(GraphicsEnvironment.isHeadless());
         RecordingClient client = new RecordingClient();
         NavigationCountingKit uiKit = new NavigationCountingKit();
         MainFrame frame = onEdt((Callable<MainFrame>) MainFrame::new);
+        int navigationCount = frame.navigation().getComponentCount();
 
         onEdt(() -> ShopUiInstaller.install(frame, client, uiKit, () -> { }));
-        JButton shop = component(frame.navigation(), "shop.navigation", JButton.class);
+        AbstractButton shop = component(frame.navigation(), "navigation.shop", AbstractButton.class);
+        onEdt(() -> shop.doClick());
+        flushEdt();
         onEdt(() -> shop.doClick());
         flushEdt();
 
         assertThat(shop.getText()).isEqualTo("校园商城");
-        assertThat(uiKit.navigationButtons).containsExactly("shop.navigation");
-        assertThat(uiKit.primaryButtons).doesNotContain("shop.navigation");
+        assertThat(frame.navigation().getComponentCount()).isEqualTo(navigationCount);
+        assertThat(namedComponents(frame.navigation(), "navigation.shop")).hasSize(1);
+        assertThat(namedComponents(frame.navigation(), "shop.navigation")).isEmpty();
+        assertThat(uiKit.navigationButtons).isEmpty();
         assertThat(client.homeQueries).containsExactly(new HomeProductQuery(null, null,
                 ProductSortMode.SALES_DESC, 0, 20));
         assertVisible(frame.content(), "shop.home");
+    }
+
+    @Test
+    void originalShopEntryCallsEnterExactlyOncePerClick() throws Exception {
+        assumeFalse(GraphicsEnvironment.isHeadless());
+        MainFrame frame = onEdt((Callable<MainFrame>) MainFrame::new);
+        RecordingInstalledCoordinator coordinator = new RecordingInstalledCoordinator();
+
+        onEdt(() -> ShopUiInstaller.install(frame, new RecordingClient(), new DefaultShopUiKit(),
+                () -> { }, (module, client, uiKit, sessionExpired) -> coordinator));
+        AbstractButton shop = component(frame.navigation(), "navigation.shop", AbstractButton.class);
+        onEdt(() -> shop.doClick());
+
+        assertThat(coordinator.entries).hasValue(1);
+    }
+
+    @Test
+    void installerFailsFastWhenStableShopComponentsAreMissingOrAmbiguous() throws Exception {
+        assumeFalse(GraphicsEnvironment.isHeadless());
+        MainFrame missingEntry = onEdt((Callable<MainFrame>) MainFrame::new);
+        onEdt(() -> component(missingEntry.navigation(), "navigation.shop", AbstractButton.class)
+                .setName("navigation.other"));
+
+        assertThatThrownBy(() -> onEdt(() -> ShopUiInstaller.install(missingEntry,
+                new RecordingClient(), new DefaultShopUiKit(), () -> { })))
+                .hasCauseInstanceOf(IllegalStateException.class);
+
+        MainFrame ambiguousPage = onEdt((Callable<MainFrame>) MainFrame::new);
+        onEdt(() -> {
+            JPanel duplicate = new JPanel();
+            duplicate.setName("page.shop");
+            ambiguousPage.content().add(duplicate);
+        });
+
+        assertThatThrownBy(() -> onEdt(() -> ShopUiInstaller.install(ambiguousPage,
+                new RecordingClient(), new DefaultShopUiKit(), () -> { })))
+                .hasCauseInstanceOf(IllegalStateException.class);
     }
 
     @Test
@@ -262,7 +304,8 @@ class ShopUiTest {
         onEdt(() -> frame.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE));
 
         onEdt(() -> ShopUiInstaller.install(frame, new RecordingClient(), new DefaultShopUiKit(),
-                () -> { }, (pages, client, uiKit, sessionExpired) -> coordinator));
+                () -> { }, (module, client, uiKit, sessionExpired) -> coordinator));
+        onEdt(() -> frame.dispatchEvent(new WindowEvent(frame, WindowEvent.WINDOW_CLOSING)));
         onEdt(() -> frame.dispatchEvent(new WindowEvent(frame, WindowEvent.WINDOW_CLOSING)));
         flushEdt();
 
@@ -276,7 +319,7 @@ class ShopUiTest {
         AtomicInteger expired = new AtomicInteger();
         Runnable sessionExpired = expired::incrementAndGet;
         ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(
-                new PageNavigator(new JPanel()), client, new DefaultShopUiKit(), sessionExpired));
+                new ShopModulePanel(), client, new DefaultShopUiKit(), sessionExpired));
 
         onEdt(() -> coordinator.navigator().open(new ShopRoute.Home(defaultHome())));
         client.home.completeExceptionally(new IllegalStateException("AUTH_SESSION_EXPIRED"));
@@ -298,6 +341,28 @@ class ShopUiTest {
         flushEdt();
 
         assertThat(expired).hasValue(6);
+        onEdt(coordinator::dispose);
+    }
+
+    @Test
+    void laterEntryRestoresTheCurrentCardWithoutChangingShopHistory() throws Exception {
+        List<SequenceEvent> events = new ArrayList<>();
+        SequencePageSet pages = onEdt(() -> new SequencePageSet(events));
+        SequenceCards cards = new SequenceCards(events);
+        ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(cards,
+                (navigator, uiKit, homeExpired, searchExpired, productExpired, storefrontExpired,
+                        cartExpired, checkoutExpired) -> pages,
+                new DefaultShopUiKit(), () -> { }));
+        ShopRoute.Search search = new ShopRoute.Search(defaultSearch());
+
+        onEdt(coordinator::enter);
+        onEdt(() -> coordinator.navigator().open(search));
+        events.clear();
+        onEdt(coordinator::enter);
+
+        assertThat(events).containsExactly(new SequenceEvent("show", "shop.search"));
+        assertThat(coordinator.navigator().current()).contains(search);
+        assertThat(coordinator.navigator().history()).containsExactly(new ShopRoute.Home(defaultHome()));
         onEdt(coordinator::dispose);
     }
 
@@ -393,6 +458,19 @@ class ShopUiTest {
         }
     }
 
+    private static List<Component> namedComponents(java.awt.Container root, String name) {
+        List<Component> matches = new ArrayList<>();
+        for (Component child : root.getComponents()) {
+            if (name.equals(child.getName())) {
+                matches.add(child);
+            }
+            if (child instanceof java.awt.Container nested) {
+                matches.addAll(namedComponents(nested, name));
+            }
+        }
+        return matches;
+    }
+
     private static final class BadgeClient implements ShopClientPort {
         @Override public CompletableFuture<PageResult<ProductSummary>> home(HomeProductQuery query) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<PageResult<ProductSummary>> search(ProductSearchQuery query) { return new CompletableFuture<>(); }
@@ -485,10 +563,12 @@ class ShopUiTest {
 
     private static final class RecordingInstalledCoordinator implements ShopUiInstaller.InstalledCoordinator {
         private final AtomicInteger disposals = new AtomicInteger();
+        private final AtomicInteger entries = new AtomicInteger();
         private final edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator navigator =
                 new edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator(route -> { });
 
         @Override public edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator navigator() { return navigator; }
+        @Override public void enter() { entries.incrementAndGet(); }
         @Override public void dispose() { disposals.incrementAndGet(); }
     }
 

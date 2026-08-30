@@ -1,6 +1,5 @@
 package edu.seu.vcampus.client.shop.ui;
 
-import edu.seu.vcampus.client.core.navigation.PageNavigator;
 import edu.seu.vcampus.client.shop.service.ShopClientPort;
 import edu.seu.vcampus.client.shop.ui.buyer.BuyerShopPanel;
 import edu.seu.vcampus.client.shop.ui.buyer.CartPanel;
@@ -13,8 +12,10 @@ import edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopRoute;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopRouteHost;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
+import edu.seu.vcampus.common.shop.HomeProductQuery;
 import edu.seu.vcampus.common.shop.PaymentView;
 import edu.seu.vcampus.common.shop.PaymentStatus;
+import edu.seu.vcampus.common.shop.ProductSortMode;
 
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
@@ -22,7 +23,7 @@ import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.util.Objects;
 
-/** Installs fixed buyer pages and renders routes through the shared card navigator. */
+/** Installs fixed buyer pages and renders routes through the Shop-owned card navigator. */
 public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller.InstalledCoordinator {
     static final String HOME = "shop.home";
     static final String SEARCH = "shop.search";
@@ -38,14 +39,14 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
     private boolean disposed;
 
     /** Creates and registers every stable Shop page. This must run on the EDT. */
-    public ShopPageCoordinator(PageNavigator pages, ShopClientPort client, ShopUiKit uiKit,
+    public ShopPageCoordinator(ShopModulePanel pages, ShopClientPort client, ShopUiKit uiKit,
             Runnable sessionExpired) {
-        this(new PageNavigatorCards(pages), new BuyerPageFactory(client), uiKit, sessionExpired);
+        this((CardNavigator) pages, new BuyerPageFactory(client), uiKit, sessionExpired);
     }
 
-    ShopPageCoordinator(PageNavigator pages, PageFactory factory, ShopUiKit uiKit,
+    ShopPageCoordinator(ShopModulePanel pages, PageFactory factory, ShopUiKit uiKit,
             Runnable sessionExpired) {
-        this(new PageNavigatorCards(pages), factory, uiKit, sessionExpired);
+        this((CardNavigator) pages, factory, uiKit, sessionExpired);
     }
 
     ShopPageCoordinator(CardNavigator cards, PageFactory factory, ShopUiKit uiKit,
@@ -72,6 +73,20 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         return navigator;
     }
 
+    /** Enters the module without changing route history after its initial home route. */
+    public void enter() {
+        requireEdt();
+        if (disposed) {
+            return;
+        }
+        ShopRoute current = navigator.current().orElse(null);
+        if (current == null) {
+            navigator.open(new ShopRoute.Home(defaultHome()));
+            return;
+        }
+        cards.show(pageId(current));
+    }
+
     /** Loads the target fixed page before displaying its card. This must run on the EDT. */
     @Override
     public void render(ShopRoute route) {
@@ -79,37 +94,31 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         if (disposed) {
             return;
         }
-        String pageId = switch (Objects.requireNonNull(route, "route")) {
+        ShopRoute requested = Objects.requireNonNull(route, "route");
+        switch (requested) {
             case ShopRoute.Home(var query) -> {
                 pages.loadHome(query);
-                yield HOME;
             }
             case ShopRoute.Search(var query) -> {
                 pages.search(query);
-                yield SEARCH;
             }
             case ShopRoute.Product(var productId) -> {
                 pages.loadProduct(productId);
-                yield PRODUCT;
             }
             case ShopRoute.Storefront(var shopId) -> {
                 pages.loadStorefront(shopId);
-                yield STOREFRONT;
             }
             case ShopRoute.Cart ignored -> {
                 pages.loadCart();
-                yield CART;
             }
             case ShopRoute.Checkout ignored -> {
                 pages.loadCheckout();
-                yield CHECKOUT;
             }
             case ShopRoute.PaymentResult(var payment) -> {
                 pages.loadPaymentResult(payment);
-                yield PAYMENT_RESULT;
             }
-        };
-        cards.show(pageId);
+        }
+        cards.show(pageId(requested));
     }
 
     /** Invalidates every page lifecycle and any active cashier. This operation is idempotent. */
@@ -158,15 +167,20 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         void dispose();
     }
 
-    private static final class PageNavigatorCards implements CardNavigator {
-        private final PageNavigator pages;
+    private static HomeProductQuery defaultHome() {
+        return new HomeProductQuery(null, null, ProductSortMode.SALES_DESC, 0, 20);
+    }
 
-        private PageNavigatorCards(PageNavigator pages) {
-            this.pages = Objects.requireNonNull(pages, "pages");
-        }
-
-        @Override public void register(String pageId, JPanel page) { pages.register(pageId, page); }
-        @Override public void show(String pageId) { pages.show(pageId); }
+    private static String pageId(ShopRoute route) {
+        return switch (route) {
+            case ShopRoute.Home ignored -> HOME;
+            case ShopRoute.Search ignored -> SEARCH;
+            case ShopRoute.Product ignored -> PRODUCT;
+            case ShopRoute.Storefront ignored -> STOREFRONT;
+            case ShopRoute.Cart ignored -> CART;
+            case ShopRoute.Checkout ignored -> CHECKOUT;
+            case ShopRoute.PaymentResult ignored -> PAYMENT_RESULT;
+        };
     }
 
     static final class BuyerPageFactory implements PageFactory {
