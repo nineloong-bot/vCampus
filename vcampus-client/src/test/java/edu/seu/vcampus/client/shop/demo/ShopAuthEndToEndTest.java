@@ -28,7 +28,7 @@ import edu.seu.vcampus.server.shop.demo.ShopAuthDemoRuntime;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import javax.swing.JButton;
+import javax.swing.AbstractButton;
 import javax.swing.JLabel;
 import java.awt.CardLayout;
 import java.awt.GraphicsEnvironment;
@@ -128,15 +128,19 @@ class ShopAuthEndToEndTest {
                 () -> ShopAuthDemoClientMain.authenticatedMain(login.user()));
         ShopClientPort client = mock(ShopClientPort.class);
         when(client.home(any())).thenReturn(new CompletableFuture<>());
+        int navigationCount = main.navigation().getComponentCount();
 
         edu.seu.vcampus.client.shop.ShopSwingTestSupport.onEdt(() ->
                 ShopUiInstaller.install(main, client, new DefaultShopUiKit(), () -> { }));
-        JButton shop = edu.seu.vcampus.client.shop.ShopSwingTestSupport.component(
-                main.navigation(), "shop.navigation", JButton.class);
+        AbstractButton shop = edu.seu.vcampus.client.shop.ShopSwingTestSupport.component(
+                main.navigation(), "navigation.shop", AbstractButton.class);
         edu.seu.vcampus.client.shop.ShopSwingTestSupport.onEdt(
                 (Runnable) () -> shop.doClick());
 
         assertThat(main.content().getLayout()).isInstanceOf(CardLayout.class);
+        assertThat(main.navigation().getComponentCount()).isEqualTo(navigationCount);
+        assertThat(shop.getText()).isEqualTo("校园商城");
+        verify(client).home(any());
         assertThat(edu.seu.vcampus.client.shop.ShopSwingTestSupport.component(
                 main.header(), "shop-demo.identity", JLabel.class).getText())
                 .isEqualTo("当前用户：DEMO_BUYER（STUDENT）");
