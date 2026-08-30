@@ -1,6 +1,7 @@
 package edu.seu.vcampus.server.course.composition;
 
 import edu.seu.vcampus.server.course.domain.CourseForbiddenException;
+import edu.seu.vcampus.server.security.InitialPasswordChangeRequiredException;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -17,7 +18,8 @@ class CourseRuntimeAdaptersTest {
 
         assertThat(adapter.requireSession("student-1").userId()).isEqualTo("student-1");
         assertThat(adapter.requireSession("student-1").role()).isEqualTo("STUDENT");
-        assertThatThrownBy(() -> adapter.requireSession("restricted")).isInstanceOf(CourseForbiddenException.class);
+        assertThatThrownBy(() -> adapter.requireSession("restricted"))
+                .isInstanceOf(InitialPasswordChangeRequiredException.class);
         adapter.requireUserRole("teacher-1", "TEACHER");
         assertThatThrownBy(() -> adapter.requireUserRole("student-1", "TEACHER"))
                 .isInstanceOf(CourseForbiddenException.class);

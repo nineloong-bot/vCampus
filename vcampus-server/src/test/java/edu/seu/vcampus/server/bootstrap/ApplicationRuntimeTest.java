@@ -55,7 +55,7 @@ class ApplicationRuntimeTest {
 
         LoginResult restricted = login(runtime, "RESTRICTED1");
         assertThat(route(runtime, "COURSE_TERM_LIST", restricted.sessionToken(), EmptyRequest.INSTANCE).code())
-                .isEqualTo("COMMON_FORBIDDEN");
+                .isEqualTo("AUTH_INITIAL_PASSWORD_CHANGE_REQUIRED");
         assertThat(runtime.course().resourceLocks()).isSameAs(runtime.resourceLocks());
     }
 

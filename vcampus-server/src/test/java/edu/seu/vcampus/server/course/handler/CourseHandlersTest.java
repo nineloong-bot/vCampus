@@ -5,6 +5,8 @@ import edu.seu.vcampus.common.protocol.*;
 import edu.seu.vcampus.server.course.domain.OfferingFullException;
 import edu.seu.vcampus.server.course.service.*;
 import edu.seu.vcampus.server.routing.*;
+import edu.seu.vcampus.server.security.InitialPasswordChangeRequiredException;
+import edu.seu.vcampus.server.security.SessionExpiredException;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
@@ -20,6 +22,8 @@ class CourseHandlersTest {
         case "student" -> new CourseSessionIdentity("u-student", "STUDENT");
         case "teacher" -> new CourseSessionIdentity("u-teacher", "TEACHER");
         case "admin" -> new CourseSessionIdentity("u-admin", "ADMIN");
+        case "expired" -> throw new SessionExpiredException();
+        case "restricted" -> throw new InitialPasswordChangeRequiredException();
         default -> null;
     };
 
@@ -135,6 +139,15 @@ class CourseHandlersTest {
         ResponseBody<?> conflict = route(router, "COURSE_ENROLL", "student", new EnrollCommand("o-1"));
         assertThat(conflict.code()).isEqualTo("COMMON_CONCURRENT_MODIFICATION");
         assertThat(conflict.message()).contains("刷新");
+    }
+
+    @Test void preservesUserAuthenticationCodesAtTheCourseBoundary() {
+        MessageRouter router = router();
+
+        assertThat(route(router, "COURSE_TERM_LIST", "expired", EmptyRequest.INSTANCE).code())
+                .isEqualTo("AUTH_SESSION_EXPIRED");
+        assertThat(route(router, "COURSE_TERM_LIST", "restricted", EmptyRequest.INSTANCE).code())
+                .isEqualTo("AUTH_INITIAL_PASSWORD_CHANGE_REQUIRED");
     }
 
     @Test void voidCommandsReturnEmptyResponseAndWritesKeepRequestIdentity() {

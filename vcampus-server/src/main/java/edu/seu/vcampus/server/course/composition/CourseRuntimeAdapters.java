@@ -5,6 +5,7 @@ import edu.seu.vcampus.server.course.service.CourseAuthorizationGateway;
 import edu.seu.vcampus.server.course.service.CourseSessionIdentity;
 import edu.seu.vcampus.server.course.service.CourseStudentGateway;
 import edu.seu.vcampus.server.course.service.StudentEnrollmentEligibility;
+import edu.seu.vcampus.server.security.InitialPasswordChangeRequiredException;
 
 import java.util.Objects;
 import java.util.function.BiPredicate;
@@ -33,7 +34,7 @@ public final class CourseRuntimeAdapters {
         return new CourseAuthorizationGateway() {
             @Override public CourseSessionIdentity requireSession(String sessionToken) {
                 I identity = Objects.requireNonNull(requireSession.apply(sessionToken), "session identity");
-                if (!usable.test(identity)) throw new CourseForbiddenException();
+                if (!usable.test(identity)) throw new InitialPasswordChangeRequiredException();
                 return new CourseSessionIdentity(userId.apply(identity), role.apply(identity));
             }
 
