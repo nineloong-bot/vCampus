@@ -99,7 +99,8 @@ class StudentProfileUiTest {
         var current = onEdt(() -> fixture.observeText("student.profile.email"));
         second.complete(ResponseBody.success(profile(2, "new@seu.edu.cn", "new-phone"))); fixture.awaitText(current);
         var stale = onEdt(() -> fixture.observeText("student.profile.email"));
-        first.complete(ResponseBody.success(profile(1, "stale@seu.edu.cn", "stale-phone"))); fixture.assertNoText(stale);
+        fixture.awaitServiceDependent(first);
+        first.complete(ResponseBody.success(profile(1, "stale@seu.edu.cn", "stale-phone"))); fixture.flushEdt(); fixture.assertNoText(stale);
         assertThat(fixture.visibleText()).contains("new@seu.edu.cn", "new-phone").doesNotContain("stale@");
     }
 
@@ -147,7 +148,8 @@ class StudentProfileUiTest {
         fixture.awaitDispatch(1);
         SwingUtilities.invokeAndWait(fixture.panel::removeNotify);
         var late = onEdt(() -> fixture.observeText("student.profile.email"));
-        response.complete(ResponseBody.success(profile(9, "late", "late"))); fixture.assertNoText(late);
+        fixture.awaitServiceDependent(response);
+        response.complete(ResponseBody.success(profile(9, "late", "late"))); fixture.flushEdt(); fixture.assertNoText(late);
         assertThat(fixture.visibleText()).doesNotContain("late");
     }
 
@@ -215,6 +217,11 @@ class StudentProfileUiTest {
         }
         void setState(ConnectionState state) { try { var f = ClientConnection.class.getDeclaredField("state"); f.setAccessible(true); f.set(connection, state); } catch (ReflectiveOperationException e) { throw new AssertionError(e); } }
         void awaitDispatch(int count) throws InterruptedException { assertThat(count).isBetween(1, dispatches.length); assertThat(dispatches[count - 1].await(2, TimeUnit.SECONDS)).isTrue(); }
+        void awaitServiceDependent(CompletableFuture<?> response) {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+            while (response.getNumberOfDependents() == 0 && System.nanoTime() < deadline) Thread.onSpinWait();
+            assertThat(response.getNumberOfDependents()).isGreaterThan(0);
+        }
         void showProfile() { panel = new MyStudentProfilePanel(students, connection); panel.addNotify(); }
         void showProfileInFrame() { panel = new MyStudentProfilePanel(students, connection); frame = new JFrame("profile"); frame.setContentPane(panel); frame.pack(); frame.setVisible(true); }
         void flushEdt() throws Exception { SwingUtilities.invokeAndWait(() -> {}); }
