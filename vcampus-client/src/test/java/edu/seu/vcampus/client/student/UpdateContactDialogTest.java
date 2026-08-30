@@ -53,8 +53,8 @@ class UpdateContactDialogTest {
         });
         var call = client.await("STUDENT_UPDATE_CONTACT");
         client.complete(call, ResponseBody.success(profile(8, "new@seu.edu.cn", "13800000000")));
-        await(savedSignal);
-        assertThat(client.complete(call, ResponseBody.success(profile(9, "late@seu.edu.cn", "13900000000"))).isFalse();
+        assertThat(savedSignal.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(client.complete(call, ResponseBody.success(profile(9, "late@seu.edu.cn", "13900000000")))).isFalse();
 
         assertThat(call.body()).isEqualTo(new UpdateStudentContactCommand(
                 "student-1", "new@seu.edu.cn", "13800000000", 7));
