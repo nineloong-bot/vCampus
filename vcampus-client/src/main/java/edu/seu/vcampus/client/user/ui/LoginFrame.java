@@ -32,7 +32,7 @@ public final class LoginFrame extends JFrame {
 
     /** Creates a login window and its successful-login handoff. */
     public LoginFrame(UserClientService users, Consumer<LoginResult> onSuccess) {
-        this(users, onSuccess, onSuccess);
+        this(users, onSuccess, null);
     }
 
     /** Creates a login window with separate normal and restricted-login handoffs. */
@@ -41,8 +41,7 @@ public final class LoginFrame extends JFrame {
         super("vCampus 登录");
         this.users = Objects.requireNonNull(users, "users");
         this.onAuthenticated = Objects.requireNonNull(onAuthenticated, "onAuthenticated");
-        this.onPasswordChangeRequired = Objects.requireNonNull(
-                onPasswordChangeRequired, "onPasswordChangeRequired");
+        this.onPasswordChangeRequired = onPasswordChangeRequired;
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout(8, 8));
 
@@ -89,10 +88,17 @@ public final class LoginFrame extends JFrame {
             password.requestFocusInWindow();
             return;
         }
-        dispose();
         if (result.mustChangePassword()) {
+            if (onPasswordChangeRequired == null) {
+                submit.setEnabled(true);
+                error.setText("请先修改初始密码");
+                password.requestFocusInWindow();
+                return;
+            }
+            dispose();
             onPasswordChangeRequired.accept(result);
         } else {
+            dispose();
             onAuthenticated.accept(result);
         }
     }

@@ -7,6 +7,7 @@ import edu.seu.vcampus.common.user.ChangePasswordCommand;
 import edu.seu.vcampus.common.user.LoginCommand;
 import edu.seu.vcampus.common.user.LoginResult;
 
+import java.io.Serializable;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Objects;
@@ -39,7 +40,7 @@ public class UserClientService {
         } finally {
             Arrays.fill(password, '\0');
         }
-        return connection.<LoginResult>send(USER_LOGIN, command, timeout)
+        return this.<LoginResult>sendAsync(USER_LOGIN, command)
                 .thenApply(this::requireSuccess);
     }
 
@@ -54,7 +55,7 @@ public class UserClientService {
             clearPassword(oldPassword);
             clearPassword(newPassword);
         }
-        return connection.<EmptyResponse>send(USER_CHANGE_PASSWORD, command, timeout)
+        return this.<EmptyResponse>sendAsync(USER_CHANGE_PASSWORD, command)
                 .thenApply(response -> {
                     requireEmptySuccess(response);
                     connection.setSessionToken(null);
@@ -64,7 +65,7 @@ public class UserClientService {
 
     /** Logs out the current user and invalidates the local session on server confirmation. */
     public CompletableFuture<Void> logout() {
-        return connection.<EmptyResponse>send(USER_LOGOUT, EmptyResponse.INSTANCE, timeout)
+        return this.<EmptyResponse>sendAsync(USER_LOGOUT, EmptyResponse.INSTANCE)
                 .thenApply(response -> {
                     requireEmptySuccess(response);
                     connection.setSessionToken(null);
@@ -79,6 +80,13 @@ public class UserClientService {
         LoginResult result = response.data();
         connection.setSessionToken(result.sessionToken());
         return result;
+    }
+
+    private <T extends Serializable> CompletableFuture<ResponseBody<T>> sendAsync(
+            String command, Serializable body) {
+        return CompletableFuture.supplyAsync(
+                        () -> connection.<T>send(command, body, timeout))
+                .thenCompose(response -> response);
     }
 
     private static void requireEmptySuccess(ResponseBody<EmptyResponse> response) {

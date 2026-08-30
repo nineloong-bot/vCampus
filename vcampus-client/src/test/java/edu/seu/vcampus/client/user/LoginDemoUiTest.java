@@ -23,13 +23,20 @@ import javax.swing.SwingUtilities;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Frame;
+import java.awt.event.WindowEvent;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 
 import static edu.seu.vcampus.common.user.AccountStatus.ACTIVE;
 import static edu.seu.vcampus.common.user.UserRole.ADMIN;
@@ -39,6 +46,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -71,6 +79,17 @@ class LoginDemoUiTest {
         assertThat(command.getValue().clientInstanceId()).isEqualTo("demo-client");
         assertThat(submitted).containsOnly('\0');
         assertThat(actual).isEqualTo(expected);
+    }
+
+    @Test
+    void userCommandsReturnFromEdtBeforeABlockingConnectionSendCompletes() throws Exception {
+        assertSendRunsAfterEdtReturns("USER_LOGIN", loginResult(),
+                service -> service.login("demo_admin", "DemoPassword7".toCharArray()));
+        assertSendRunsAfterEdtReturns("USER_CHANGE_PASSWORD", EmptyResponse.INSTANCE,
+                service -> service.changePassword("InitialPassword7".toCharArray(),
+                        "ReplacementPassword8".toCharArray()));
+        assertSendRunsAfterEdtReturns("USER_LOGOUT", EmptyResponse.INSTANCE,
+                UserClientService::logout);
     }
 
     @Test
@@ -155,11 +174,35 @@ class LoginDemoUiTest {
         });
 
         submit(login[0], "DEMO_ADMIN", "InitialPassword7");
-        flushEdt();
+        awaitEdt(restrictedFlowOpened::get);
 
         assertThat(login[0].isDisplayable()).isFalse();
         assertThat(mainCreated).isFalse();
         assertThat(restrictedFlowOpened).isTrue();
+        assertThat(showingMainFrames()).isEmpty();
+    }
+
+    @Test
+    void twoArgumentLoginFrameNeverRoutesARestrictedResultToNormalSuccess() throws Exception {
+        ClientConnection connection = mock(ClientConnection.class);
+        doReturn(CompletableFuture.completedFuture(ResponseBody.success(restrictedLoginResult())))
+                .when(connection).send(eq("USER_LOGIN"), any(LoginCommand.class), eq(TIMEOUT));
+        UserClientService service = new UserClientService(connection, "demo-client", TIMEOUT);
+        AtomicBoolean normalSuccess = new AtomicBoolean();
+        LoginFrame[] login = new LoginFrame[1];
+        SwingUtilities.invokeAndWait(() -> {
+            login[0] = new LoginFrame(service, result -> normalSuccess.set(true));
+            login[0].setVisible(true);
+        });
+
+        submit(login[0], "DEMO_ADMIN", "InitialPassword7");
+        awaitEdt(() -> component(login[0], "login.submit", AbstractButton.class).isEnabled());
+
+        assertThat(normalSuccess).isFalse();
+        assertThat(login[0].isShowing()).isTrue();
+        assertThat(component(login[0], "login.submit", AbstractButton.class).isEnabled()).isTrue();
+        assertThat(component(login[0], "login.error", JLabel.class).getText())
+                .contains("请先修改初始密码");
         assertThat(showingMainFrames()).isEmpty();
     }
 
@@ -197,9 +240,10 @@ class LoginDemoUiTest {
                 .isEmpty();
         assertThat(component(dialog[0], "password-change.confirm", JPasswordField.class).getPassword())
                 .isEmpty();
+        verify(connection, never()).setSessionToken(null);
 
         pending.complete(ResponseBody.success(EmptyResponse.INSTANCE));
-        flushEdt();
+        awaitEdt(completed::get);
 
         verify(connection).send(eq("USER_CHANGE_PASSWORD"),
                 any(ChangePasswordCommand.class), eq(TIMEOUT));
@@ -208,6 +252,104 @@ class LoginDemoUiTest {
         assertThat(completed).isTrue();
         assertThat(completedOnEdt).isTrue();
         assertThat(showingMainFrames()).isEmpty();
+    }
+
+    @Test
+    void dialogLogoutWaitsForServerSuccessThenClearsTokenAndReopensLogin() throws Exception {
+        ClientConnection connection = mock(ClientConnection.class);
+        CompletableFuture<ResponseBody<EmptyResponse>> pending = new CompletableFuture<>();
+        doReturn(pending).when(connection).send(eq("USER_LOGOUT"),
+                eq(EmptyResponse.INSTANCE), eq(TIMEOUT));
+        UserClientService service = new UserClientService(connection, "demo-client", TIMEOUT);
+        AtomicBoolean completed = new AtomicBoolean();
+        InitialPasswordChangeDialog[] dialog = new InitialPasswordChangeDialog[1];
+        SwingUtilities.invokeAndWait(() -> {
+            dialog[0] = new InitialPasswordChangeDialog(service, () -> completed.set(true));
+            dialog[0].setVisible(true);
+            component(dialog[0], "password-change.old", JPasswordField.class)
+                    .setText("InitialPassword7");
+            component(dialog[0], "password-change.new", JPasswordField.class)
+                    .setText("ReplacementPassword8");
+            component(dialog[0], "password-change.confirm", JPasswordField.class)
+                    .setText("ReplacementPassword8");
+            component(dialog[0], "password-change.logout", AbstractButton.class).doClick();
+        });
+
+        assertThat(component(dialog[0], "password-change.submit", AbstractButton.class).isEnabled())
+                .isFalse();
+        assertThat(component(dialog[0], "password-change.logout", AbstractButton.class).isEnabled())
+                .isFalse();
+        assertPasswordFieldsEmpty(dialog[0]);
+        verify(connection, never()).setSessionToken(null);
+
+        pending.complete(ResponseBody.success(EmptyResponse.INSTANCE));
+        awaitEdt(completed::get);
+
+        verify(connection).setSessionToken(null);
+        assertThat(dialog[0].isDisplayable()).isFalse();
+        assertThat(completed).isTrue();
+    }
+
+    @Test
+    void rejectedDialogLogoutKeepsDialogUsableTokenAndSensitiveFieldsCleared() throws Exception {
+        ClientConnection connection = mock(ClientConnection.class);
+        doReturn(CompletableFuture.completedFuture(ResponseBody.failure(
+                "AUTH_LOGOUT_REJECTED", "服务器详情不能显示", null)))
+                .when(connection).send(eq("USER_LOGOUT"), eq(EmptyResponse.INSTANCE), eq(TIMEOUT));
+        UserClientService service = new UserClientService(connection, "demo-client", TIMEOUT);
+        AtomicBoolean completed = new AtomicBoolean();
+        InitialPasswordChangeDialog[] dialog = new InitialPasswordChangeDialog[1];
+        SwingUtilities.invokeAndWait(() -> {
+            dialog[0] = new InitialPasswordChangeDialog(service, () -> completed.set(true));
+            dialog[0].setVisible(true);
+            component(dialog[0], "password-change.old", JPasswordField.class)
+                    .setText("InitialPassword7");
+            component(dialog[0], "password-change.new", JPasswordField.class)
+                    .setText("ReplacementPassword8");
+            component(dialog[0], "password-change.confirm", JPasswordField.class)
+                    .setText("ReplacementPassword8");
+            component(dialog[0], "password-change.logout", AbstractButton.class).doClick();
+        });
+        awaitEdt(() -> component(dialog[0], "password-change.logout", AbstractButton.class)
+                .isEnabled());
+
+        verify(connection, never()).setSessionToken(null);
+        assertThat(dialog[0].isShowing()).isTrue();
+        assertThat(completed).isFalse();
+        assertThat(component(dialog[0], "password-change.logout", AbstractButton.class).isEnabled())
+                .isTrue();
+        assertPasswordFieldsEmpty(dialog[0]);
+        assertThat(component(dialog[0], "password-change.error", JLabel.class).getText())
+                .contains("退出失败")
+                .doesNotContain("AUTH_LOGOUT_REJECTED", "服务器详情不能显示");
+    }
+
+    @Test
+    void windowCloseUsesLogoutBeforeClosingAndRequestingNewLogin() throws Exception {
+        ClientConnection connection = mock(ClientConnection.class);
+        doReturn(CompletableFuture.completedFuture(ResponseBody.success(EmptyResponse.INSTANCE)))
+                .when(connection).send(eq("USER_LOGOUT"), eq(EmptyResponse.INSTANCE), eq(TIMEOUT));
+        UserClientService service = new UserClientService(connection, "demo-client", TIMEOUT);
+        AtomicBoolean completed = new AtomicBoolean();
+        InitialPasswordChangeDialog[] dialog = new InitialPasswordChangeDialog[1];
+        SwingUtilities.invokeAndWait(() -> {
+            dialog[0] = new InitialPasswordChangeDialog(service, () -> completed.set(true));
+            dialog[0].setVisible(true);
+            component(dialog[0], "password-change.old", JPasswordField.class)
+                    .setText("InitialPassword7");
+            component(dialog[0], "password-change.new", JPasswordField.class)
+                    .setText("ReplacementPassword8");
+            component(dialog[0], "password-change.confirm", JPasswordField.class)
+                    .setText("ReplacementPassword8");
+            dialog[0].dispatchEvent(new WindowEvent(dialog[0], WindowEvent.WINDOW_CLOSING));
+        });
+        awaitEdt(completed::get);
+
+        verify(connection).send(eq("USER_LOGOUT"), eq(EmptyResponse.INSTANCE), eq(TIMEOUT));
+        verify(connection).setSessionToken(null);
+        assertPasswordFieldsEmpty(dialog[0]);
+        assertThat(dialog[0].isDisplayable()).isFalse();
+        assertThat(completed).isTrue();
     }
 
     @Test
@@ -263,7 +405,7 @@ class LoginDemoUiTest {
         assertThat(showingMainFrames()).isEmpty();
 
         submit(login[0], "DEMO_ADMIN", "DemoPassword7");
-        flushEdt();
+        awaitEdt(() -> main.get() != null);
 
         verify(connection).send(eq("USER_LOGIN"), any(LoginCommand.class), eq(TIMEOUT));
         assertThat(login[0].isDisplayable()).isFalse();
@@ -294,7 +436,7 @@ class LoginDemoUiTest {
         });
 
         submit(login[0], "DEMO_ADMIN", "SecretPassword7");
-        flushEdt();
+        awaitEdt(() -> component(login[0], "login.submit", AbstractButton.class).isEnabled());
 
         assertThat(login[0].isShowing()).isTrue();
         assertThat(mainCreated).isFalse();
@@ -324,6 +466,60 @@ class LoginDemoUiTest {
     private static void flushEdt() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
         });
+    }
+
+    private static void awaitEdt(BooleanSupplier completed) throws Exception {
+        for (int attempt = 0; attempt < 100; attempt++) {
+            flushEdt();
+            if (completed.getAsBoolean()) {
+                return;
+            }
+            Thread.sleep(10);
+        }
+        throw new AssertionError("Timed out waiting for asynchronous UI completion");
+    }
+
+    private static void assertPasswordFieldsEmpty(InitialPasswordChangeDialog dialog) {
+        assertThat(component(dialog, "password-change.old", JPasswordField.class).getPassword())
+                .isEmpty();
+        assertThat(component(dialog, "password-change.new", JPasswordField.class).getPassword())
+                .isEmpty();
+        assertThat(component(dialog, "password-change.confirm", JPasswordField.class).getPassword())
+                .isEmpty();
+    }
+
+    private static <T extends java.io.Serializable> void assertSendRunsAfterEdtReturns(
+            String command, T responseData, UserRequest request) throws Exception {
+        ClientConnection connection = mock(ClientConnection.class);
+        CountDownLatch sendEntered = new CountDownLatch(1);
+        CountDownLatch releaseSend = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            sendEntered.countDown();
+            if (!releaseSend.await(2, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("test did not release connection send");
+            }
+            return CompletableFuture.completedFuture(ResponseBody.success(responseData));
+        }).when(connection).send(eq(command), any(), eq(TIMEOUT));
+        UserClientService service = new UserClientService(connection, "demo-client", TIMEOUT);
+        ExecutorService testThread = Executors.newSingleThreadExecutor();
+        try {
+            Future<CompletableFuture<?>> returned = testThread.submit(() -> {
+                AtomicReference<CompletableFuture<?>> future = new AtomicReference<>();
+                SwingUtilities.invokeAndWait(() -> future.set(request.send(service)));
+                return future.get();
+            });
+
+            assertThat(returned.get(500, TimeUnit.MILLISECONDS)).isNotNull();
+            assertThat(sendEntered.await(2, TimeUnit.SECONDS)).isTrue();
+        } finally {
+            releaseSend.countDown();
+            testThread.shutdownNow();
+        }
+    }
+
+    @FunctionalInterface
+    private interface UserRequest {
+        CompletableFuture<?> send(UserClientService service);
     }
 
     private static <T extends Component> T component(

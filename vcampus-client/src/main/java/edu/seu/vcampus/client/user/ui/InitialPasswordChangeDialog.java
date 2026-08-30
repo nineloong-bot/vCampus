@@ -12,6 +12,8 @@ import javax.swing.JPasswordField;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.GridLayout;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -36,7 +38,7 @@ public final class InitialPasswordChangeDialog extends JDialog {
         super((JFrame) null, "请修改初始密码", false);
         this.users = Objects.requireNonNull(users, "users");
         this.onComplete = Objects.requireNonNull(onComplete, "onComplete");
-        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+        setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
         setLayout(new BorderLayout(8, 8));
 
         JPanel form = new JPanel(new GridLayout(0, 2, 8, 8));
@@ -57,6 +59,12 @@ public final class InitialPasswordChangeDialog extends JDialog {
         add(error, BorderLayout.SOUTH);
         submit.addActionListener(event -> submitChange());
         logout.addActionListener(event -> submitLogout());
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent event) {
+                submitLogout();
+            }
+        });
         getRootPane().setDefaultButton(submit);
         pack();
         setLocationByPlatform(true);
@@ -93,6 +101,10 @@ public final class InitialPasswordChangeDialog extends JDialog {
     }
 
     private void submitLogout() {
+        if (!logout.isEnabled()) {
+            return;
+        }
+        clearFields();
         setPending(true, "正在退出…");
         error.setText(" ");
         CompletableFuture<Void> response;
@@ -122,6 +134,7 @@ public final class InitialPasswordChangeDialog extends JDialog {
             return;
         }
         dispose();
+        onComplete.run();
     }
 
     private void setPending(boolean pending, String message) {
