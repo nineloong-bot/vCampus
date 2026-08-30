@@ -22,8 +22,20 @@ public final class LoanAdminPanel extends LibraryDataPanel {
                     if (!accepts(request)) return;
                     if (failure != null) { LibraryFeedback.failure(this, status, failure, "借阅记录加载失败，请重试。"); return; }
                     DefaultTableModel model = (DefaultTableModel) table.getModel(); model.setRowCount(0);
-                    for (LoanView loan : page.items()) model.addRow(new Object[]{loan.loanId(), loan.borrowerUserId(), loan.copyId(), loan.dueAt(), loan.status().name()});
+                    for (LoanView loan : page.items()) model.addRow(new Object[]{
+                            loan.displayLoanNumber(), readable(loan.borrowerLoginId(), loan.borrowerUserId()),
+                            copyDescription(loan), loan.dueAt(), loan.status().name()});
                     status.setText(page.items().isEmpty() ? "未找到借阅记录" : "共 " + page.total() + " 条借阅记录");
                 }));
+    }
+
+    private static String copyDescription(LoanView loan) {
+        String title = readable(loan.bookTitle(), loan.bookId());
+        String barcode = readable(loan.copyBarcode(), loan.copyId());
+        return title + " / " + barcode;
+    }
+
+    private static String readable(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
     }
 }

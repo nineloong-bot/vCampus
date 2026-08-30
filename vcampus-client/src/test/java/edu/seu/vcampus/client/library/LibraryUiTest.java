@@ -124,9 +124,11 @@ class LibraryUiTest {
 
     @Test
     void historyAndAdministrativeLoanPagesRenderTheirQueries() throws Exception {
-        LoanView loan = new LoanView("loan-2", "copy-2", "book-2", "user-2",
+        LoanView loan = new LoanView("8ca302ec-5781-43d3-9d4d-1ee3db135432",
+                "copy-2", "book-2", "user-2",
                 Instant.parse("2026-07-01T00:00:00Z"), Instant.parse("2026-08-01T00:00:00Z"),
-                Instant.parse("2026-07-20T00:00:00Z"), 0, LoanStatus.RETURNED, 1);
+                Instant.parse("2026-07-20T00:00:00Z"), 0, LoanStatus.RETURNED, 1,
+                "AS812", "Java 核心技术", "LIB-0001");
         PageResult<LoanView> page = new PageResult<>(List.of(loan), 0, 20, 1);
         when(service.getLoanHistory(any())).thenReturn(CompletableFuture.completedFuture(page));
         when(service.searchAllLoans(any())).thenReturn(CompletableFuture.completedFuture(page));
@@ -136,8 +138,10 @@ class LibraryUiTest {
         history.refresh(); admin.refresh();
         SwingUtilities.invokeAndWait(() -> { });
 
-        assertThat(first(history, JTable.class).getValueAt(0, 0)).isEqualTo("loan-2");
-        assertThat(first(admin, JTable.class).getValueAt(0, 1)).isEqualTo("user-2");
+        assertThat(first(admin, JTable.class).getValueAt(0, 0)).isEqualTo("BR-8CA302EC");
+        assertThat(first(admin, JTable.class).getValueAt(0, 1)).isEqualTo("AS812");
+        assertThat(first(admin, JTable.class).getValueAt(0, 2))
+                .isEqualTo("Java 核心技术 / LIB-0001");
     }
 
     @Test

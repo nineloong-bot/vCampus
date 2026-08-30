@@ -15,8 +15,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 final class AccessLoanQueries {
-    private static final String SELECT_JOINED = "SELECT l.*, c.bookId FROM tblBookLoan l "
-            + "INNER JOIN tblBookCopy c ON l.copyId = c.copyId";
+    private static final String SELECT_JOINED = "SELECT l.*, c.bookId, c.barcode, b.title, "
+            + "u.loginId FROM ((tblBookLoan l INNER JOIN tblBookCopy c ON l.copyId = c.copyId) "
+            + "INNER JOIN tblBook b ON c.bookId = b.bookId) "
+            + "LEFT JOIN tblUser u ON l.borrowerUserId = u.userId";
 
     private AccessLoanQueries() {
     }
@@ -79,7 +81,9 @@ final class AccessLoanQueries {
                         result.getString("bookId"), result.getString("borrowerUserId"),
                         result.getTimestamp("borrowedAt").toInstant(), dueAt,
                         returnedAt == null ? null : returnedAt.toInstant(),
-                        result.getInt("renewCount"), status, result.getLong("rowVersion")));
+                        result.getInt("renewCount"), status, result.getLong("rowVersion"),
+                        result.getString("loginId"), result.getString("title"),
+                        result.getString("barcode")));
             }
             return records;
         }

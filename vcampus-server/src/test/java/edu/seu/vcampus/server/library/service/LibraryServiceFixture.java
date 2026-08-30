@@ -47,6 +47,7 @@ final class LibraryServiceFixture {
         connections = () -> DriverManager.getConnection(url);
         transactions = new TransactionManager(connections);
         try (Connection connection = connections.open()) {
+            executeScript(connection, Path.of("..", "vcampus-database", "schema", "010_user.sql"));
             executeScript(connection, Path.of("..", "vcampus-database", "schema", "040_library.sql"));
             executeScript(connection, Path.of("..", "vcampus-database", "seed", "040_library_policy.sql"));
         }

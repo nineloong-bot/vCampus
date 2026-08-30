@@ -37,7 +37,11 @@ class LibraryCatalogServiceTest {
         assertThat(service.getBook("book-1").copies()).hasSize(1);
 
         var borrowed = service.borrow("token", new BorrowBookCommand("copy-1"));
-        assertThat(service.getCurrentLoans("token")).singleElement().isEqualTo(borrowed);
+        assertThat(service.getCurrentLoans("token")).singleElement().satisfies(current -> {
+            assertThat(current.loanId()).isEqualTo(borrowed.loanId());
+            assertThat(current.bookTitle()).isEqualTo("Java 21");
+            assertThat(current.copyBarcode()).isEqualTo("BC-1");
+        });
         service.returnBook("token", new ReturnBookCommand(borrowed.loanId(), 0));
 
         assertThat(service.getCurrentLoans("token")).isEmpty();
