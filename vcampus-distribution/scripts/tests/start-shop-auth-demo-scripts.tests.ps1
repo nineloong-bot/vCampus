@@ -2,7 +2,8 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..\..')).Path
 $runtimeRoot = Join-Path $repoRoot 'target\shop-auth-demo'
-$testRoot = Join-Path $repoRoot 'target\shop-auth-demo-script-test'
+$testRunId = [Guid]::NewGuid().ToString('N')
+$testRoot = Join-Path $repoRoot "target\shop-auth-demo-script-test\$testRunId"
 $fakeBin = Join-Path $testRoot 'fake-bin'
 $originalPath = $env:PATH
 $originalCapture = $env:SHOP_AUTH_DEMO_SCRIPT_CAPTURE
@@ -42,6 +43,8 @@ try {
     Assert-Equal $runtimeRoot $serverCwd 'Server Java process must run in the ignored Shop Demo runtime directory.'
     Assert-Contains $serverArgs "-Dlogback.configurationFile=$(Join-Path $repoRoot 'vcampus-distribution\config\logback.xml')" `
         'Server must use an absolute Logback configuration path after changing directory.'
+    Assert-Contains $serverArgs "-cp $(Join-Path $repoRoot 'vcampus-distribution\lib\vCampusServer.jar') edu.seu.vcampus.server.shop.demo.ShopAuthDemoServerMain" `
+        'Server must launch the Shop Auth Demo server main class from its absolute shaded JAR path.'
     Assert-Contains $serverArgs "$(Join-Path $repoRoot 'vcampus-database\demo\vcampus-shop-auth-demo.accdb') 19090" `
         'Server must preserve the documented database path and port.'
     Assert-Contains $serverArgs "$(Join-Path $repoRoot 'vcampus-database\schema') $(Join-Path $repoRoot 'vcampus-database\seed')" `
@@ -56,6 +59,8 @@ try {
     Assert-Equal $runtimeRoot $clientCwd 'Client Java process must run in the ignored Shop Demo runtime directory.'
     Assert-Contains $clientArgs "-Dlogback.configurationFile=$(Join-Path $repoRoot 'vcampus-distribution\config\logback.xml')" `
         'Client must use an absolute Logback configuration path after changing directory.'
+    Assert-Contains $clientArgs "-cp $(Join-Path $repoRoot 'vcampus-distribution\lib\vCampusClient.jar') edu.seu.vcampus.client.shop.demo.ShopAuthDemoClientMain" `
+        'Client must launch the Shop Auth Demo client main class from its absolute shaded JAR path.'
 
     Write-Host 'Shop Auth Demo startup script tests passed.'
 } finally {
