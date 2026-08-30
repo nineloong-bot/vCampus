@@ -1,43 +1,111 @@
 package edu.seu.vcampus.client.library.ui;
+
 import edu.seu.vcampus.client.library.service.LibraryClientService;
 import edu.seu.vcampus.common.library.*;
+
 import javax.swing.*;
-import java.util.Objects;
 import java.awt.*;
-public final class LibraryPolicyPanel extends LibraryDataPanel {
+import java.util.Objects;
+
+/** Fixed library settings form: one row per borrower type plus read-only runtime status. */
+public final class LibraryPolicyPanel extends JPanel {
     private final LibraryClientService service;
-    private final JComboBox<String> role = new JComboBox<>(new String[]{"学生", "教师"});
-    private final JSpinner maxLoans = new JSpinner(new SpinnerNumberModel(5, 1, 100, 1));
-    private final JSpinner loanDays = new JSpinner(new SpinnerNumberModel(30, 1, 365, 1));
-    private final JSpinner renewals = new JSpinner(new SpinnerNumberModel(1, 0, 20, 1));
-    private final JSpinner renewalDays = new JSpinner(new SpinnerNumberModel(15, 1, 365, 1));
-    private final JSpinner version = new JSpinner(new SpinnerNumberModel(0, 0, Integer.MAX_VALUE, 1));
+    private final PolicyRow student = new PolicyRow("STUDENT", "学生", 5, 30, 1, 15);
+    private final PolicyRow teacher = new PolicyRow("TEACHER", "教师", 10, 60, 2, 30);
+    private final JLabel message = new JLabel("可分别调整学生和教师的借阅规则");
+    private final JLabel serverStatus = new JLabel("检查中");
+    private final JLabel databaseStatus = new JLabel("检查中");
+
     public LibraryPolicyPanel(LibraryClientService service) {
-        super("library.policy", "图书管理设置", "集中设置学生和教师的借阅数量、期限与续借规则。",
-                "适用身份", "最大同时借阅", "借阅期限（天）", "最大续借次数", "续借期限（天）");
+        super(new BorderLayout(0, 14));
         this.service = Objects.requireNonNull(service, "service");
-        JButton save = new JButton("保存策略");
-        save.addActionListener(event -> save(new UpdateLibraryPolicyCommand(
-                "学生".equals(role.getSelectedItem()) ? "STUDENT" : "TEACHER",
-                (Integer) maxLoans.getValue(), (Integer) loanDays.getValue(), (Integer) renewals.getValue(),
-                (Integer) renewalDays.getValue(), ((Integer) version.getValue()).longValue())));
-        JPanel form = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 8)); form.setOpaque(false);
-        form.add(new JLabel("角色")); form.add(role); form.add(new JLabel("最大在借")); form.add(maxLoans);
-        form.add(new JLabel("借阅期限（天）")); form.add(loanDays); form.add(new JLabel("最大续借次数")); form.add(renewals);
-        form.add(new JLabel("续借期限（天）")); form.add(renewalDays);
-        form.add(save); add(form, BorderLayout.SOUTH);
+        setName("library.policy");
+        setBorder(BorderFactory.createEmptyBorder(18, 22, 18, 22));
+        setBackground(LibraryPalette.PAGE);
+
+        JPanel header = new JPanel(new GridLayout(0, 1, 0, 4));
+        header.setOpaque(false);
+        JLabel title = new JLabel("图书管理设置"); title.setFont(title.getFont().deriveFont(Font.BOLD, 22f));
+        header.add(title); header.add(new JLabel("固定展示两类身份的全部借阅配置，保存时互不影响。"));
+        add(header, BorderLayout.NORTH);
+
+        JPanel content = new JPanel(); content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setOpaque(false);
+        content.add(columnHeader()); content.add(student.panel()); content.add(Box.createVerticalStrut(8));
+        content.add(teacher.panel()); content.add(Box.createVerticalStrut(18)); content.add(statusPanel());
+        add(content, BorderLayout.CENTER);
+        add(message, BorderLayout.SOUTH);
+        LibraryUiStyle.apply(this);
     }
-    public void save(UpdateLibraryPolicyCommand command) {
-        long request = beginRequest();
-        status.setText("正在保存借阅策略……");
-        service.updatePolicy(command).whenComplete((policy, failure) ->
-                SwingUtilities.invokeLater(() -> {
-                    if (!accepts(request)) return;
-                    if (failure != null) { LibraryFeedback.failure(this, status, failure, "借阅策略保存失败，请刷新后重试。"); return; }
-                    role.setSelectedItem("STUDENT".equals(policy.roleCode()) ? "学生" : "教师"); maxLoans.setValue(policy.maxActiveLoans());
-                    loanDays.setValue(policy.loanDays()); renewals.setValue(policy.maxRenewals());
-                    renewalDays.setValue(policy.renewalDays()); version.setValue((int) policy.rowVersion());
-                    status.setText(("STUDENT".equals(policy.roleCode()) ? "学生" : "教师") + "借阅策略已保存");
+
+    public void refreshStatus() {
+        serverStatus.setText("检查中"); databaseStatus.setText("检查中");
+        service.searchBooks(new BookSearchQuery("", null, false, 1, 1))
+                .whenComplete((page, failure) -> SwingUtilities.invokeLater(() -> {
+                    if (failure == null) { serverStatus.setText("已连接"); databaseStatus.setText("可访问"); }
+                    else { serverStatus.setText("连接异常"); databaseStatus.setText("无法确认"); }
                 }));
     }
+
+    public void save(UpdateLibraryPolicyCommand command) {
+        message.setText("正在保存设置……");
+        service.updatePolicy(command).whenComplete((policy, failure) -> SwingUtilities.invokeLater(() -> {
+            if (failure != null) { LibraryFeedback.failure(this, message, failure, "设置保存失败，请刷新后重试。"); return; }
+            PolicyRow row = "STUDENT".equals(policy.roleCode()) ? student : teacher;
+            row.apply(policy);
+            message.setText(("STUDENT".equals(policy.roleCode()) ? "学生" : "教师") + "借阅策略已保存");
+        }));
+    }
+
+    private JPanel columnHeader() {
+        JPanel row = rowPanel();
+        for (String text : new String[]{"适用身份", "最大同时借阅", "借阅期限（天）", "最大续借次数", "续借期限（天）", ""})
+            row.add(new JLabel(text));
+        return row;
+    }
+
+    private JPanel statusPanel() {
+        JPanel panel = new JPanel(new GridLayout(0, 2, 12, 8));
+        panel.setBorder(BorderFactory.createTitledBorder("运行状态（只读）"));
+        panel.setBackground(LibraryPalette.SURFACE);
+        panel.add(new JLabel("服务端状态")); panel.add(serverStatus);
+        panel.add(new JLabel("数据库状态")); panel.add(databaseStatus);
+        panel.add(new JLabel("配置来源")); panel.add(new JLabel("服务端数据库 tblLibraryPolicy"));
+        return panel;
+    }
+
+    private static JPanel rowPanel() {
+        JPanel row = new JPanel(new GridLayout(1, 6, 10, 6)); row.setOpaque(false); return row;
+    }
+
+    private final class PolicyRow {
+        private final String roleCode;
+        private final String label;
+        private final JSpinner maxLoans, loanDays, renewals, renewalDays;
+        private long version;
+
+        PolicyRow(String roleCode, String label, int max, int days, int renew, int renewal) {
+            this.roleCode = roleCode; this.label = label;
+            maxLoans = spinner(max, 1, 100); loanDays = spinner(days, 1, 365);
+            renewals = spinner(renew, 0, 20); renewalDays = spinner(renewal, 1, 365);
+        }
+
+        JPanel panel() {
+            JPanel row = rowPanel(); row.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(LibraryPalette.BORDER), BorderFactory.createEmptyBorder(10, 10, 10, 10)));
+            row.add(new JLabel(label)); row.add(maxLoans); row.add(loanDays); row.add(renewals); row.add(renewalDays);
+            JButton save = new JButton("保存" + label + "设置");
+            save.addActionListener(event -> save(new UpdateLibraryPolicyCommand(roleCode,
+                    value(maxLoans), value(loanDays), value(renewals), value(renewalDays), version)));
+            row.add(save); return row;
+        }
+
+        void apply(LibraryPolicyView policy) {
+            maxLoans.setValue(policy.maxActiveLoans()); loanDays.setValue(policy.loanDays());
+            renewals.setValue(policy.maxRenewals()); renewalDays.setValue(policy.renewalDays()); version = policy.rowVersion();
+        }
+    }
+
+    private static JSpinner spinner(int value, int min, int max) { return new JSpinner(new SpinnerNumberModel(value, min, max, 1)); }
+    private static int value(JSpinner spinner) { return (Integer) spinner.getValue(); }
 }

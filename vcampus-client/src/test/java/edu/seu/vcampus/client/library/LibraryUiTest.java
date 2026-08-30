@@ -211,6 +211,19 @@ class LibraryUiTest {
     }
 
     @Test
+    void settingsUsesFixedStudentTeacherRowsAndShowsLiveSystemStatus() throws Exception {
+        when(service.searchBooks(any())).thenReturn(CompletableFuture.completedFuture(
+                new PageResult<>(List.of(), 1, 1, 0)));
+        LibraryPolicyPanel panel = new LibraryPolicyPanel(service);
+
+        panel.refreshStatus();
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(first(panel, JTable.class)).isNull();
+        assertThat(labels(panel)).contains("学生", "教师", "服务端状态", "数据库状态", "已连接", "可访问");
+    }
+
+    @Test
     void currentLoanActionsUseTheSelectedLoanVersion() throws Exception {
         LoanView loan = new LoanView("loan-1", "copy-1", "book-1", "user-1",
                 Instant.parse("2026-08-01T00:00:00Z"), Instant.parse("2026-09-01T00:00:00Z"),
