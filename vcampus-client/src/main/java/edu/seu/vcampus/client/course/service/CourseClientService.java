@@ -92,9 +92,13 @@ public final class CourseClientService {
             var error = response.error();
             CourseClientException courseFailure = new CourseClientException(response.code(), response.message(),
                     error == null ? null : error.traceId(), error != null && error.retryable());
-            notifyAuthenticationFailure(courseFailure);
-            throw courseFailure;
+            throw responseFailure(courseFailure);
         });
+    }
+
+    private CourseClientException responseFailure(CourseClientException failure) {
+        notifyAuthenticationFailure(failure);
+        return failure;
     }
 
     private void notifyAuthenticationFailure(CourseClientException failure) {
@@ -115,10 +119,14 @@ public final class CourseClientService {
 
     private static CourseClientException network() { return new CourseClientException("COMMON_NETWORK_ERROR", "网络连接异常，请检查连接后重试", null, true); }
     private static CourseClientException timeout() { return new CourseClientException("COMMON_TIMEOUT", "请求超时，请稍后重试", null, true); }
-    private static CourseClientException transportFailure(Throwable failure) {
+    private CourseClientException transportFailure(Throwable failure) {
         Throwable cause = failure;
         while ((cause instanceof CompletionException || cause instanceof ExecutionException)
                 && cause.getCause() != null) cause = cause.getCause();
+        if (cause instanceof CourseClientException courseFailure && isAuthenticationFailure(courseFailure.code())) {
+            notifyAuthenticationFailure(courseFailure);
+            return courseFailure;
+        }
         return cause instanceof TimeoutException ? timeout() : network();
     }
     private static CourseClientException malformed() { return new CourseClientException("COMMON_PROTOCOL_ERROR", "服务器响应无效，请稍后重试", null, true); }

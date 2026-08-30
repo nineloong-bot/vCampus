@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -49,9 +50,31 @@ class AuthenticatedCourseShellTest {
     }
 
     @Test
+    void teacherCompositionConstructsOnlyTeacherPagesAndIssuesNoRestrictedPanelCommands() {
+        List<String> commands = new ArrayList<>();
+        CourseClientService courses = new CourseClientService(new CourseTransport() {
+            @Override public <T extends Serializable> CompletableFuture<ResponseBody<T>> send(
+                    String command, Serializable body, Duration timeout) {
+                commands.add(command);
+                return CompletableFuture.completedFuture(ResponseBody.failure("COMMON_FORBIDDEN", "rejected", null));
+            }
+        });
+
+        assertThat(new CourseUiComposition(courses).pagesFor(UserRole.TEACHER).keySet()).containsExactly(
+                "course.offerings", "course.schedule");
+
+        assertThat(commands).containsOnly("COURSE_GET_CURRENT_TERM", "COURSE_GET_MY_SCHEDULE");
+        assertThat(commands).doesNotContain("COURSE_GET_MY_ENROLLMENTS", "COURSE_RETAKE_CHECK",
+                "COURSE_RETAKE_ENROLL", "COURSE_ADJUSTMENT_ADD", "COURSE_ADJUSTMENT_DROP",
+                "COURSE_ADJUSTMENT_CHANGE", "COURSE_TERM_LIST", "COURSE_CATALOG_SEARCH",
+                "COURSE_IMPORT_OUTCOMES", "COURSE_ADJUSTMENT_AUDIT_SEARCH");
+    }
+
+    @Test
     void shellShowsOnlyStudentNavigationAndNeverDisplaysTheSessionToken() throws Exception {
         assumeFalse(GraphicsEnvironment.isHeadless());
-        ClientConnection connection = mock(ClientConnection.class);
+        ClientConnection connection = new ClientConnection("127.0.0.1", 8888);
+        connection.setSessionToken("session-token-must-not-appear");
         CourseClientService courses = failingCourses("COMMON_FORBIDDEN");
         MainFrame[] shell = new MainFrame[1];
 
@@ -63,6 +86,32 @@ class AuthenticatedCourseShellTest {
         assertThat(String.join(" ", labelTexts(shell[0].header()))).contains("S20260001", "STUDENT")
                 .doesNotContain("session-token-must-not-appear");
         SwingUtilities.invokeAndWait(shell[0]::dispose);
+        connection.close();
+    }
+
+    @Test
+    void everyRoleShowsItsNavigationLabelsAndFirstAuthorizedCard() throws Exception {
+        assumeFalse(GraphicsEnvironment.isHeadless());
+        Map<UserRole, List<String>> labels = Map.of(
+                UserRole.STUDENT, List.of("教学班查询", "我的选课", "我的课表", "退改补", "重修"),
+                UserRole.TEACHER, List.of("教学班查询", "我的课表"),
+                UserRole.ADMIN, List.of("学期管理", "课程目录", "教学班管理", "修读结果导入", "退改补审计"));
+        Map<UserRole, String> firstPageTitles = Map.of(
+                UserRole.STUDENT, "教学班查询", UserRole.TEACHER, "教学班查询", UserRole.ADMIN, "学期管理");
+
+        for (UserRole role : UserRole.values()) {
+            ClientConnection connection = mock(ClientConnection.class);
+            MainFrame[] shell = new MainFrame[1];
+            SwingUtilities.invokeAndWait(() -> shell[0] = new MainFrame(user(role),
+                    failingCourses("COMMON_FORBIDDEN"), connection));
+
+            assertThat(buttonTexts(shell[0].navigation())).containsExactlyElementsOf(labels.get(role));
+            List<Component> visibleCards = java.util.Arrays.stream(shell[0].content().getComponents())
+                    .filter(Component::isVisible).toList();
+            assertThat(visibleCards).hasSize(1);
+            assertThat(labelTexts((Container) visibleCards.getFirst())).contains(firstPageTitles.get(role));
+            SwingUtilities.invokeAndWait(shell[0]::dispose);
+        }
     }
 
     @ParameterizedTest
@@ -71,7 +120,8 @@ class AuthenticatedCourseShellTest {
             throws Exception {
         assumeFalse(GraphicsEnvironment.isHeadless());
         ClientConnection connection = mock(ClientConnection.class);
-        CourseClientService courses = failingCourses(code);
+        List<String> commands = new ArrayList<>();
+        CourseClientService courses = authenticationOnSecondOfferingSearch(code, commands);
         AtomicInteger loginRequests = new AtomicInteger();
         MainFrame[] shell = new MainFrame[1];
 
@@ -80,11 +130,17 @@ class AuthenticatedCourseShellTest {
                     loginRequests::incrementAndGet);
             shell[0].setVisible(true);
         });
+        awaitEdt(() -> commands.contains("COURSE_SEARCH_OFFERINGS"));
+        assertThat(loginRequests).hasValue(0);
+        SwingUtilities.invokeAndWait(() -> button(shell[0].content(), "查询教学班").doClick());
         awaitEdt(() -> loginRequests.get() == 1);
 
         verify(connection).setSessionToken(null);
         assertThat(shell[0].isDisplayable()).isFalse();
         assertThat(loginRequests).hasValue(1);
+        assertThat(commands).contains("COURSE_SEARCH_OFFERINGS").doesNotContain(
+                "COURSE_GET_MY_ENROLLMENTS", "COURSE_CATALOG_SEARCH",
+                "COURSE_ADJUSTMENT_AUDIT_SEARCH");
     }
 
     @Test
@@ -117,6 +173,36 @@ class AuthenticatedCourseShellTest {
         });
     }
 
+    private static CourseClientService authenticationOnSecondOfferingSearch(String code, List<String> commands) {
+        java.util.concurrent.atomic.AtomicInteger offeringSearches = new java.util.concurrent.atomic.AtomicInteger();
+        return new CourseClientService(new CourseTransport() {
+            @Override public <T extends Serializable> CompletableFuture<ResponseBody<T>> send(
+                    String command, Serializable body, Duration timeout) {
+                commands.add(command);
+                if ("COURSE_GET_CURRENT_TERM".equals(command)) {
+                    return success(new edu.seu.vcampus.common.course.TermView("term", "2026-1", "学期",
+                            java.time.LocalDate.of(2026, 9, 1), java.time.LocalDate.of(2027, 1, 1),
+                            java.time.Instant.EPOCH, java.time.Instant.EPOCH, java.time.Instant.EPOCH,
+                            java.time.Instant.EPOCH, "ACTIVE", 0, java.time.Instant.EPOCH, java.time.Instant.EPOCH));
+                }
+                if ("COURSE_SEARCH_OFFERINGS".equals(command)) {
+                    if (offeringSearches.incrementAndGet() > 1) {
+                        return CompletableFuture.completedFuture(ResponseBody.failure(code, "rejected", null));
+                    }
+                    return success(new edu.seu.vcampus.common.paging.PageResult<edu.seu.vcampus.common.course.OfferingSummary>(
+                            List.of(), 0, 20, 0));
+                }
+                return CompletableFuture.completedFuture(ResponseBody.failure("COMMON_FORBIDDEN", "rejected", null));
+            }
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T extends Serializable> CompletableFuture<ResponseBody<T>> success(Serializable value) {
+        return (CompletableFuture<ResponseBody<T>>) (CompletableFuture<?>)
+                CompletableFuture.completedFuture(ResponseBody.success(value));
+    }
+
     private static UserView user(UserRole role) {
         LocalDateTime now = LocalDateTime.of(2026, 8, 30, 12, 0);
         return new UserView("student-1", "S20260001", role, ACTIVE,
@@ -142,6 +228,11 @@ class AuthenticatedCourseShellTest {
             }
         }
         return found;
+    }
+
+    private static JButton button(Container root, String text) {
+        return descendants(root).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
+                .filter(button -> text.equals(button.getText())).findFirst().orElseThrow();
     }
 
     private static void awaitEdt(java.util.function.BooleanSupplier condition) throws Exception {
