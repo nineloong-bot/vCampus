@@ -129,7 +129,7 @@ public final class StudentAdmissionCoordinator implements StudentAdmissionServic
                 student.email(), student.phone(), student.majorId(), student.classId(),
                 student.enrollmentDate(), student.status(), student.rowVersion());
         StudentAdmissionResult result = new StudentAdmissionResult(view, campusCard, studentNumber,
-                account.mustChangePassword());
+                true);
         Message requestMessage = new Message(request.requestId(), MessageType.REQUEST, COMMAND, null,
                 command, System.currentTimeMillis());
         deduplicator.storeCompleted(tx, requestMessage, ResponseBody.success(result));

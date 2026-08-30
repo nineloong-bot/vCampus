@@ -54,7 +54,7 @@ public final class StudentServiceImpl implements StudentService, StudentQueryPor
         var matches = transactions.inTransaction(students::findAll).stream()
                 .filter(s -> keyword == null || s.studentName().contains(keyword)
                         || s.studentNumber().contains(keyword)
-                        || users.findLoginIdByUserId(s.userId()).contains(keyword))
+                        || loginId(s.userId()).contains(keyword))
                 .filter(s -> query.departmentId() == null || query.departmentId().equals(
                         transactions.inTransaction(connection -> organizations.findMajor(connection,
                                 s.majorId()).map(value -> value.departmentId()).orElse(null))))
@@ -64,7 +64,7 @@ public final class StudentServiceImpl implements StudentService, StudentQueryPor
         int from = Math.min((query.page() - 1) * query.pageSize(), matches.size());
         int to = Math.min(from + query.pageSize(), matches.size());
         var summaries = matches.subList(from, to).stream().map(s -> new StudentSummary(s.studentId(),
-                users.findLoginIdByUserId(s.userId()), s.studentNumber(), s.studentName(),
+                loginId(s.userId()), s.studentNumber(), s.studentName(),
                 s.majorId(), s.classId(), s.status())).toList();
         return new PageResult<>(summaries, query.page(), query.pageSize(), matches.size());
     }
@@ -143,7 +143,7 @@ public final class StudentServiceImpl implements StudentService, StudentQueryPor
         Student student = transactions.inTransaction(connection -> students.findByUserId(connection, userId)
                 .orElseThrow(StudentNotFoundException::new));
         return new StudentIdentity(student.studentId(), student.userId(),
-                users.findLoginIdByUserId(student.userId()), student.studentNumber(),
+                loginId(student.userId()), student.studentNumber(),
                 student.studentType(), student.majorId(), student.classId(), student.status());
     }
 
@@ -164,10 +164,15 @@ public final class StudentServiceImpl implements StudentService, StudentQueryPor
     }
 
     private StudentView view(Student student) {
-        return new StudentView(student.studentId(), student.userId(), users.findLoginIdByUserId(student.userId()),
+        return new StudentView(student.studentId(), student.userId(), loginId(student.userId()),
                 student.studentNumber(), student.studentType(), student.studentName(), student.gender(),
                 student.email(), student.phone(), student.majorId(), student.classId(), student.enrollmentDate(),
                 student.status(), student.rowVersion());
+    }
+
+    private String loginId(String userId) {
+        return users.findByUserId(userId).orElseThrow(() ->
+                new IllegalStateException("STUDENT_USER_ACCOUNT_NOT_FOUND")).loginId();
     }
 
     private <T> T withStudent(String studentId, java.util.function.Supplier<T> action) {

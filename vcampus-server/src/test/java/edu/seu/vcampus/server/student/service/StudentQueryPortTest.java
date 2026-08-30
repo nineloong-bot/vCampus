@@ -25,7 +25,8 @@ class StudentQueryPortTest {
         });
         StudentQueryPort port = new StudentServiceImpl(database.transactions(),
                 new StripedResourceLockManager(), repository, new StudentChangeRepository(),
-                new AccessOrganizationRepository(), userId -> "213240001", "admin-1");
+                new AccessOrganizationRepository(),
+                StudentFixtures.userQueries("user-1", "213240001"), "admin-1");
 
         var identity = port.findByUserId("user-1");
 
@@ -46,7 +47,8 @@ class StudentQueryPortTest {
         });
         StudentQueryPort port = new StudentServiceImpl(database.transactions(),
                 new StripedResourceLockManager(), repository, new StudentChangeRepository(),
-                new AccessOrganizationRepository(), userId -> "213240001", "admin-1");
+                new AccessOrganizationRepository(),
+                StudentFixtures.userQueries("user-1", "213240001"), "admin-1");
 
         var eligibility = port.getEnrollmentEligibility("user-1");
 

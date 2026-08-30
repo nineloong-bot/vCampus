@@ -37,7 +37,7 @@ class StudentProfileUpdateTest {
         });
         service = new StudentServiceImpl(database.transactions(), new StripedResourceLockManager(),
                 repository, new StudentChangeRepository(), new AccessOrganizationRepository(),
-                userId -> "213240001", "admin-1");
+                StudentFixtures.userQueries("user-1", "213240001"), "admin-1");
     }
 
     @Test

@@ -26,7 +26,8 @@ class StudentSearchPrivacyTest {
         });
         StudentService service = new StudentServiceImpl(database.transactions(),
                 new StripedResourceLockManager(), repository, new StudentChangeRepository(),
-                new AccessOrganizationRepository(), userId -> "213240001", "teacher-1");
+                new AccessOrganizationRepository(),
+                StudentFixtures.userQueries("user-1", "213240001"), "teacher-1");
 
         var page = service.searchStudents(new StudentSearchQuery("张三", null, null,
                 null, StudentStatus.ACTIVE, 1, 20));

@@ -53,8 +53,12 @@ class StudentAdmissionConcurrencyTest {
                         statement.setString(1, userId);
                         statement.setString(2, loginId);
                         statement.executeUpdate();
+                    } catch (java.sql.SQLException error) {
+                        throw new IllegalStateException(error);
                     }
-                    return new ProvisionedUserAccount(userId, loginId, true);
+                    return new ProvisionedUserAccount(userId, loginId,
+                            edu.seu.vcampus.common.user.UserRole.STUDENT,
+                            edu.seu.vcampus.common.user.AccountStatus.ACTIVE);
                 }, new StudentRepository(), new StudentChangeRepository());
         var start = new CountDownLatch(1);
         var tasks = new ArrayList<Callable<StudentAdmissionResult>>();
