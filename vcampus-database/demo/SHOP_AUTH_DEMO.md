@@ -2,6 +2,8 @@
 
 此 Demo 使用真实 Socket、用户模块登录、完整 Shop 客户端 UI 和 Access 持久化。请安装 JDK 21 与 Maven，并从 worktree 根目录启动两个 PowerShell 终端。
 
+需要让其他组员拉取分支并通过 Tailscale 或各自本地验收时，请参阅 [Shop 认证买家 Demo 团队测试指南](SHOP_AUTH_DEMO_TEAM_TESTING.md)。
+
 ## 启动顺序
 
 终端一先启动组合服务端：
@@ -23,7 +25,7 @@ Set-Location -LiteralPath "E:\summer-school\vCampus\.worktrees\shop-auth-demo"
 - 登录标识：`DEMO_BUYER`
 - 密码：`DemoPassword7`
 
-Demo 服务端监听 `127.0.0.1:19090`。服务端入口会先初始化数据库，再启动只消费该已初始化数据库的运行时。每次重新启动服务端都会恢复固定 Demo 数据。
+Demo 服务端监听本机可用网络接口的 `19090` 端口；客户端默认连接 `127.0.0.1:19090`，也可通过启动参数连接服务端主机的 Tailscale IP。服务端入口会先初始化数据库，再启动只消费该已初始化数据库的运行时。每次重新启动服务端都会恢复固定 Demo 数据。
 
 ## 文件位置
 
