@@ -98,6 +98,7 @@ class LibraryUiTest {
         assertThat(table.getRowCount()).isEqualTo(1);
         assertThat(table.getValueAt(0, 0)).isEqualTo("Java 核心技术");
         assertThat(labels(workspace)).contains("共 1 条");
+        verify(service).searchBooks(new BookSearchQuery("", null, false, 1, 20));
     }
 
     @Test

@@ -38,7 +38,7 @@ public final class BookManagementPanel extends LibraryDataPanel {
 
     public void refresh() {
         long request = beginRequest(); status.setText("正在加载书目……");
-        service.searchBooks(new BookSearchQuery("", null, false, 0, 100)).whenComplete((page, failure) ->
+        service.searchBooks(new BookSearchQuery("", null, false, 1, 100)).whenComplete((page, failure) ->
                 SwingUtilities.invokeLater(() -> {
                     if (!accepts(request)) return;
                     if (failure != null) { status.setText("书目加载失败，请重试"); return; }

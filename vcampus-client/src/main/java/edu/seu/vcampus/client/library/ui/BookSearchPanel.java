@@ -40,7 +40,7 @@ public final class BookSearchPanel extends LibraryDataPanel {
         long request = beginRequest();
         search.setEnabled(false);
         status.setText("正在加载馆藏……");
-        service.searchBooks(new BookSearchQuery(keyword.getText().trim(), null, false, 0, 20))
+        service.searchBooks(new BookSearchQuery(keyword.getText().trim(), null, false, 1, 20))
                 .whenComplete((page, failure) -> SwingUtilities.invokeLater(() -> {
                     if (!accepts(request)) return;
                     search.setEnabled(true);

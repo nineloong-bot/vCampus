@@ -17,7 +17,7 @@ public final class LoanAdminPanel extends LibraryDataPanel {
     public void refresh() {
         long request = beginRequest();
         status.setText("正在加载全校借阅……");
-        service.searchAllLoans(new AdminLoanSearchQuery(null, null, 0, 20)).whenComplete((page, failure) ->
+        service.searchAllLoans(new AdminLoanSearchQuery(null, null, 1, 20)).whenComplete((page, failure) ->
                 SwingUtilities.invokeLater(() -> {
                     if (!accepts(request)) return;
                     if (failure != null) { status.setText("借阅记录加载失败，请重试"); return; }
