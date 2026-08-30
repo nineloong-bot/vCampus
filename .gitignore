@@ -2,6 +2,8 @@
 .worktrees/
 **/target/
 vcampus-distribution/lib/*.jar
+!vcampus-distribution/lib/vCampusServer.jar
+!vcampus-distribution/lib/vCampusClient.jar
 vcampus-distribution/docs/
 vcampus-distribution/data/
 vcampus-distribution/database/
