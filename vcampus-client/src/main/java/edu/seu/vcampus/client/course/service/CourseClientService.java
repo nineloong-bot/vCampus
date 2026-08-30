@@ -15,15 +15,25 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 
 /** Typed, non-blocking client facade for the complete course command surface. */
 public final class CourseClientService {
     private static final Duration READ = Duration.ofSeconds(10);
     private static final Duration WRITE = Duration.ofSeconds(15);
     private final CourseTransport transport;
+    private final CopyOnWriteArrayList<Consumer<CourseClientException>> authenticationFailureListeners =
+            new CopyOnWriteArrayList<>();
 
     public CourseClientService(ClientConnection connection) { this(connection::send); }
     public CourseClientService(CourseTransport transport) { this.transport = Objects.requireNonNull(transport); }
+
+    /** Registers a listener for failures that invalidate the logged-in course shell. */
+    public Runnable addAuthenticationFailureListener(Consumer<CourseClientException> listener) {
+        authenticationFailureListeners.add(Objects.requireNonNull(listener, "listener"));
+        return () -> authenticationFailureListeners.remove(listener);
+    }
 
     public CompletableFuture<List<TermView>> listTerms() { return callList("COURSE_TERM_LIST", EmptyRequest.INSTANCE, READ, TermView.class); }
     public CompletableFuture<TermView> getCurrentTerm() { return call("COURSE_GET_CURRENT_TERM", EmptyRequest.INSTANCE, READ, TermView.class); }
@@ -80,8 +90,22 @@ public final class CourseClientService {
             }
             if (response.code() == null || response.code().isBlank() || response.message() == null || response.message().isBlank()) throw malformed();
             var error = response.error();
-            throw new CourseClientException(response.code(), response.message(), error == null ? null : error.traceId(), error != null && error.retryable());
+            CourseClientException courseFailure = new CourseClientException(response.code(), response.message(),
+                    error == null ? null : error.traceId(), error != null && error.retryable());
+            notifyAuthenticationFailure(courseFailure);
+            throw courseFailure;
         });
+    }
+
+    private void notifyAuthenticationFailure(CourseClientException failure) {
+        if (!isAuthenticationFailure(failure.code())) return;
+        authenticationFailureListeners.forEach(listener -> listener.accept(failure));
+    }
+
+    private static boolean isAuthenticationFailure(String code) {
+        return "AUTH_SESSION_EXPIRED".equals(code)
+                || "AUTH_ACCOUNT_DISABLED".equals(code)
+                || "AUTH_INITIAL_PASSWORD_CHANGE_REQUIRED".equals(code);
     }
 
     private static <T> T requireType(Object value, Class<T> type) {

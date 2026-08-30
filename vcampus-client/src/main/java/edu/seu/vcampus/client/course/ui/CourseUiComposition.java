@@ -1,6 +1,7 @@
 package edu.seu.vcampus.client.course.ui;
 
 import edu.seu.vcampus.client.course.service.CourseClientService;
+import edu.seu.vcampus.common.user.UserRole;
 
 import javax.swing.JPanel;
 import java.util.LinkedHashMap;
@@ -11,6 +12,7 @@ import java.util.Collections;
 /** Stable page registry consumed by the shared application navigator. */
 public final class CourseUiComposition {
     private final Map<String, JPanel> studentPages;
+    private final Map<String, JPanel> teacherPages;
     private final Map<String, JPanel> administrativePages;
 
     public CourseUiComposition(CourseClientService client) {
@@ -27,6 +29,11 @@ public final class CourseUiComposition {
         student.put("course.retake", new RetakePanel(gateway));
         studentPages = Collections.unmodifiableMap(new LinkedHashMap<>(student));
 
+        LinkedHashMap<String, JPanel> teacher = new LinkedHashMap<>();
+        teacher.put("course.offerings", studentPages.get("course.offerings"));
+        teacher.put("course.schedule", studentPages.get("course.schedule"));
+        teacherPages = Collections.unmodifiableMap(teacher);
+
         LinkedHashMap<String, JPanel> admin = new LinkedHashMap<>();
         admin.put("course.terms", new TermManagementPanel(gateway));
         admin.put("course.catalog", new CourseCatalogPanel(gateway));
@@ -42,6 +49,15 @@ public final class CourseUiComposition {
 
     public Map<String, JPanel> administrativePages() {
         return administrativePages;
+    }
+
+    /** Returns only the real course pages that the logged-in role may open. */
+    public Map<String, JPanel> pagesFor(UserRole role) {
+        return switch (Objects.requireNonNull(role, "role")) {
+            case STUDENT -> studentPages;
+            case TEACHER -> teacherPages;
+            case ADMIN -> administrativePages;
+        };
     }
 
     public Map<String, JPanel> allPages() {

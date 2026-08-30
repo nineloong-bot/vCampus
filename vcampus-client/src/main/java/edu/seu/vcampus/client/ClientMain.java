@@ -2,11 +2,14 @@ package edu.seu.vcampus.client;
 
 import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.core.ui.MainFrame;
+import edu.seu.vcampus.client.course.service.CourseClientService;
 import edu.seu.vcampus.client.user.service.UserClientService;
 import edu.seu.vcampus.client.user.ui.InitialPasswordChangeDialog;
 import edu.seu.vcampus.client.user.ui.LoginFrame;
 
 import javax.swing.SwingUtilities;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -33,21 +36,28 @@ public final class ClientMain {
             Runtime.getRuntime().addShutdownHook(new Thread(connection::close, "vcampus-client-close"));
             UserClientService users = new UserClientService(
                     connection, UUID.randomUUID().toString(), timeout);
-            SwingUtilities.invokeLater(() -> showLogin(users));
+            SwingUtilities.invokeLater(() -> showLogin(users, connection));
         } catch (Exception error) {
             System.err.println("客户端启动失败：" + error.getMessage());
             System.exit(2);
         }
     }
 
-    private static void showLogin(UserClientService users) {
+    private static void showLogin(UserClientService users, ClientConnection connection) {
         LoginFrame login = new LoginFrame(users, result -> {
-            MainFrame main = new MainFrame(result.user());
+            CourseClientService courses = new CourseClientService(connection);
+            MainFrame main = new MainFrame(result.user(), courses, connection,
+                    () -> showLogin(users, connection));
             main.setVisible(true);
         }, restricted -> {
             InitialPasswordChangeDialog dialog = new InitialPasswordChangeDialog(
-                    users, () -> showLogin(users));
+                    users, () -> showLogin(users, connection));
             dialog.setVisible(true);
+        });
+        login.addWindowListener(new WindowAdapter() {
+            @Override public void windowClosing(WindowEvent event) {
+                connection.close();
+            }
         });
         login.setVisible(true);
     }
