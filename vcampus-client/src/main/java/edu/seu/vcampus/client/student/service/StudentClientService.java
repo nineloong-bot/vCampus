@@ -16,20 +16,25 @@ public final class StudentClientService {
     public StudentClientService(StudentRequestClient client, Duration timeout) {
         this.client = Objects.requireNonNull(client); this.timeout = Objects.requireNonNull(timeout);
     }
-    public CompletableFuture<ResponseBody<StudentAdmissionResult>> admit(CreateStudentAdmissionCommand value) { return client.send("STUDENT_CREATE", value, timeout); }
-    public CompletableFuture<ResponseBody<StudentView>> getCurrent() { return client.send("STUDENT_GET_CURRENT", EmptyRequest.INSTANCE, timeout); }
-    public CompletableFuture<ResponseBody<StudentView>> get(String id) { return client.send("STUDENT_GET", new EntityIdRequest(id), timeout); }
-    public CompletableFuture<ResponseBody<PageResult<StudentSummary>>> search(StudentSearchQuery value) { return client.send("STUDENT_SEARCH", value, timeout); }
-    public CompletableFuture<ResponseBody<StudentView>> updateContact(UpdateStudentContactCommand value) { return client.send("STUDENT_UPDATE_CONTACT", value, timeout); }
-    public CompletableFuture<ResponseBody<StudentView>> updateEnrollment(UpdateStudentEnrollmentCommand value) { return client.send("STUDENT_UPDATE_ENROLLMENT", value, timeout); }
-    public CompletableFuture<ResponseBody<StudentView>> changeStatus(ChangeStudentStatusCommand value) { return client.send("STUDENT_CHANGE_STATUS", value, timeout); }
-    public CompletableFuture<ResponseBody<ArrayList<DepartmentView>>> listDepartments(boolean activeOnly) { return client.send("STUDENT_LIST_DEPARTMENTS", new ActiveOnlyQuery(activeOnly), timeout); }
+    private <T extends java.io.Serializable> CompletableFuture<ResponseBody<T>> sendAsync(
+            String command, java.io.Serializable body) {
+        return CompletableFuture.supplyAsync(() -> client.<T>send(command, body, timeout))
+                .thenCompose(java.util.function.Function.identity());
+    }
+    public CompletableFuture<ResponseBody<StudentAdmissionResult>> admit(CreateStudentAdmissionCommand value) { return sendAsync("STUDENT_CREATE", value); }
+    public CompletableFuture<ResponseBody<StudentView>> getCurrent() { return sendAsync("STUDENT_GET_CURRENT", EmptyRequest.INSTANCE); }
+    public CompletableFuture<ResponseBody<StudentView>> get(String id) { return sendAsync("STUDENT_GET", new EntityIdRequest(id)); }
+    public CompletableFuture<ResponseBody<PageResult<StudentSummary>>> search(StudentSearchQuery value) { return sendAsync("STUDENT_SEARCH", value); }
+    public CompletableFuture<ResponseBody<StudentView>> updateContact(UpdateStudentContactCommand value) { return sendAsync("STUDENT_UPDATE_CONTACT", value); }
+    public CompletableFuture<ResponseBody<StudentView>> updateEnrollment(UpdateStudentEnrollmentCommand value) { return sendAsync("STUDENT_UPDATE_ENROLLMENT", value); }
+    public CompletableFuture<ResponseBody<StudentView>> changeStatus(ChangeStudentStatusCommand value) { return sendAsync("STUDENT_CHANGE_STATUS", value); }
+    public CompletableFuture<ResponseBody<ArrayList<DepartmentView>>> listDepartments(boolean activeOnly) { return sendAsync("STUDENT_LIST_DEPARTMENTS", new ActiveOnlyQuery(activeOnly)); }
     public CompletableFuture<ResponseBody<ArrayList<MajorView>>> listMajors(String departmentId) { return listMajors(departmentId, true); }
-    public CompletableFuture<ResponseBody<ArrayList<MajorView>>> listMajors(String departmentId, boolean activeOnly) { return client.send("STUDENT_LIST_MAJORS", new OrganizationChildrenQuery(departmentId, activeOnly), timeout); }
+    public CompletableFuture<ResponseBody<ArrayList<MajorView>>> listMajors(String departmentId, boolean activeOnly) { return sendAsync("STUDENT_LIST_MAJORS", new OrganizationChildrenQuery(departmentId, activeOnly)); }
     public CompletableFuture<ResponseBody<ArrayList<ClassView>>> listClasses(String majorId) { return listClasses(majorId, true); }
-    public CompletableFuture<ResponseBody<ArrayList<ClassView>>> listClasses(String majorId, boolean activeOnly) { return client.send("STUDENT_LIST_CLASSES", new OrganizationChildrenQuery(majorId, activeOnly), timeout); }
-    public CompletableFuture<ResponseBody<ArrayList<StudentChangeView>>> listChanges(String studentId) { return client.send("STUDENT_GET_CHANGES", new EntityIdRequest(studentId), timeout); }
-    public CompletableFuture<ResponseBody<DepartmentView>> saveDepartment(SaveDepartmentCommand value) { return client.send("STUDENT_SAVE_DEPARTMENT", value, timeout); }
-    public CompletableFuture<ResponseBody<MajorView>> saveMajor(SaveMajorCommand value) { return client.send("STUDENT_SAVE_MAJOR", value, timeout); }
-    public CompletableFuture<ResponseBody<ClassView>> saveClass(SaveClassCommand value) { return client.send("STUDENT_SAVE_CLASS", value, timeout); }
+    public CompletableFuture<ResponseBody<ArrayList<ClassView>>> listClasses(String majorId, boolean activeOnly) { return sendAsync("STUDENT_LIST_CLASSES", new OrganizationChildrenQuery(majorId, activeOnly)); }
+    public CompletableFuture<ResponseBody<ArrayList<StudentChangeView>>> listChanges(String studentId) { return sendAsync("STUDENT_GET_CHANGES", new EntityIdRequest(studentId)); }
+    public CompletableFuture<ResponseBody<DepartmentView>> saveDepartment(SaveDepartmentCommand value) { return sendAsync("STUDENT_SAVE_DEPARTMENT", value); }
+    public CompletableFuture<ResponseBody<MajorView>> saveMajor(SaveMajorCommand value) { return sendAsync("STUDENT_SAVE_MAJOR", value); }
+    public CompletableFuture<ResponseBody<ClassView>> saveClass(SaveClassCommand value) { return sendAsync("STUDENT_SAVE_CLASS", value); }
 }
