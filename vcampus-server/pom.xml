@@ -54,11 +54,16 @@
                             </resources>
                         </configuration>
                     </execution>
-                    <execution><id>distribution-course-schema</id><phase>prepare-package</phase><goals><goal>copy-resources</goal></goals>
-                        <configuration><outputDirectory>${project.parent.basedir}/vcampus-distribution/database/schema</outputDirectory>
-                            <resources><resource><directory>${project.parent.basedir}/vcampus-database/schema</directory>
-                                <includes><include>001_common.sql</include><include>030_course.sql</include></includes>
-                            </resource></resources>
+                    <execution><id>distribution-database-resources</id><phase>prepare-package</phase><goals><goal>copy-resources</goal></goals>
+                        <configuration><outputDirectory>${project.parent.basedir}/vcampus-distribution/database</outputDirectory>
+                            <resources>
+                                <resource><directory>${project.parent.basedir}/vcampus-database/schema</directory><targetPath>schema</targetPath>
+                                    <includes><include>001_common.sql</include><include>010_user.sql</include><include>030_course.sql</include></includes>
+                                </resource>
+                                <resource><directory>${project.parent.basedir}/vcampus-database/seed</directory><targetPath>seed</targetPath>
+                                    <includes><include>010_roles_permissions.sql</include></includes>
+                                </resource>
+                            </resources>
                         </configuration>
                     </execution>
                 </executions>
