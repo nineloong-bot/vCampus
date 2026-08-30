@@ -7,17 +7,24 @@ import java.util.Objects;
 import java.awt.*;
 public final class LoanAdminPanel extends LibraryDataPanel {
     private final LibraryClientService service;
+    private final JTextField borrower = new JTextField(12);
+    private final JComboBox<String> loanStatus = new JComboBox<>(new String[]{"全部状态", "ACTIVE", "OVERDUE", "RETURNED", "LOST"});
     public LoanAdminPanel(LibraryClientService service) {
         super("library.loan-admin", "借阅管理", "查询全校借阅及逾期记录。", "借阅号", "借阅人", "副本", "到期时间", "状态");
         this.service = Objects.requireNonNull(service, "service");
-        JButton refresh = new JButton("查询借阅"); refresh.addActionListener(event -> refresh());
+        JButton refresh = new JButton("筛选借阅"); refresh.addActionListener(event -> refresh());
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT)); actions.setOpaque(false);
+        actions.add(new JLabel("借阅人账号或编号")); actions.add(borrower); actions.add(loanStatus);
         actions.add(refresh); add(actions, BorderLayout.SOUTH);
+        borrower.addActionListener(event -> refresh());
     }
     public void refresh() {
         long request = beginRequest();
         status.setText("正在加载全校借阅……");
-        service.searchAllLoans(new AdminLoanSearchQuery(null, null, 1, 20)).whenComplete((page, failure) ->
+        String selected = (String) loanStatus.getSelectedItem();
+        LoanStatus filter = "全部状态".equals(selected) ? null : LoanStatus.valueOf(selected);
+        String user = borrower.getText().trim();
+        service.searchAllLoans(new AdminLoanSearchQuery(user.isEmpty() ? null : user, filter, 1, 20)).whenComplete((page, failure) ->
                 SwingUtilities.invokeLater(() -> {
                     if (!accepts(request)) return;
                     if (failure != null) { LibraryFeedback.failure(this, status, failure, "借阅记录加载失败，请重试。"); return; }

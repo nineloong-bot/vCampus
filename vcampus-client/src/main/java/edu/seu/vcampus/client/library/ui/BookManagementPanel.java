@@ -9,17 +9,20 @@ import java.util.List;
 import javax.swing.table.DefaultTableModel;
 public final class BookManagementPanel extends LibraryDataPanel {
     private final LibraryClientService service;
+    private final JTextField keyword = new JTextField(18);
     private List<BookSummary> books = List.of();
     public BookManagementPanel(LibraryClientService service) {
-        super("library.book-management", "书目管理", "新增或维护书目元数据。", "ISBN", "书名", "作者", "状态", "操作");
+        super("library.book-management", "书目管理", "新增、搜索或维护书目元数据。", "ISBN", "书名", "作者", "状态");
         this.service = Objects.requireNonNull(service, "service");
-        JButton refresh = new JButton("查询书目"); JButton create = new JButton("新增书目");
+        JButton refresh = new JButton("搜索书目"); JButton create = new JButton("新增书目");
         JButton edit = new JButton("编辑所选");
         refresh.addActionListener(event -> refresh());
         create.addActionListener(event -> openCreateDialog());
         edit.addActionListener(event -> editSelected());
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT)); actions.setOpaque(false);
+        actions.add(new JLabel("书名 / 作者 / ISBN")); actions.add(keyword);
         actions.add(refresh); actions.add(edit); actions.add(create); add(actions, BorderLayout.SOUTH);
+        keyword.addActionListener(event -> refresh());
     }
     public void create(CreateBookCommand command) {
         long request = beginRequest();
@@ -42,13 +45,13 @@ public final class BookManagementPanel extends LibraryDataPanel {
 
     public void refresh() {
         long request = beginRequest(); status.setText("正在加载书目……");
-        service.searchBooks(new BookSearchQuery("", null, false, 1, 100)).whenComplete((page, failure) ->
+        service.searchBooks(new BookSearchQuery(keyword.getText().trim(), null, false, 1, 100)).whenComplete((page, failure) ->
                 SwingUtilities.invokeLater(() -> {
                     if (!accepts(request)) return;
                     if (failure != null) { LibraryFeedback.failure(this, status, failure, "书目加载失败，请重试。"); return; }
                     books = List.copyOf(page.items()); DefaultTableModel model = (DefaultTableModel) table.getModel();
                     model.setRowCount(0); for (BookSummary book : books)
-                        model.addRow(new Object[]{book.isbn(), book.title(), book.author(), "已启用", "选择后编辑"});
+                        model.addRow(new Object[]{book.isbn(), book.title(), book.author(), "已启用"});
                     status.setText(books.isEmpty() ? "暂无书目，可新增第一条书目" : "共 " + page.total() + " 条书目");
                 }));
     }

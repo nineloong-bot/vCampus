@@ -52,8 +52,10 @@ final class AccessLoanQueries {
         StringBuilder sql = new StringBuilder(SELECT_JOINED).append(" WHERE 1 = 1");
         List<String> values = new ArrayList<>();
         if (query.borrowerUserId() != null && !query.borrowerUserId().isBlank()) {
-            sql.append(" AND l.borrowerUserId = ?");
-            values.add(query.borrowerUserId().trim());
+            sql.append(" AND (l.borrowerUserId = ? OR u.loginId LIKE ?)");
+            String borrower = query.borrowerUserId().trim();
+            values.add(borrower);
+            values.add("%" + borrower.toUpperCase(java.util.Locale.ROOT) + "%");
         }
         sql.append(" ORDER BY l.borrowedAt DESC");
         try (var statement = connection.prepareStatement(sql.toString())) {

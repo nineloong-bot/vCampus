@@ -8,6 +8,7 @@ import edu.seu.vcampus.client.library.ui.LoanHistoryPanel;
 import edu.seu.vcampus.client.library.ui.LoanAdminPanel;
 import edu.seu.vcampus.client.library.ui.LibraryPolicyPanel;
 import edu.seu.vcampus.client.library.ui.BookManagementPanel;
+import edu.seu.vcampus.client.library.ui.BookSearchPanel;
 import edu.seu.vcampus.client.library.ui.CopyManagementPanel;
 import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.core.ui.MainFrame;
@@ -63,7 +64,7 @@ class LibraryUiTest {
                 service, Set.of("LIBRARY_ADMIN"));
 
         assertThat(tabTitles(workspace)).containsExactly("馆藏检索", "当前借阅", "借阅历史",
-                "书目管理", "副本管理", "借阅管理", "借阅策略");
+                "书目管理", "副本管理", "借阅管理", "设置");
         assertThat(named(workspace, "library.book-management")).isNotNull();
         assertThat(named(workspace, "library.copy-management")).isNotNull();
         assertThat(named(workspace, "library.loan-admin")).isNotNull();
@@ -83,7 +84,7 @@ class LibraryUiTest {
         assertThat(named(frame.content(), "page.library"))
                 .isInstanceOf(LibraryWorkspacePanel.class);
         assertThat(tabTitles((Container) named(frame.content(), "page.library")))
-                .contains("书目管理", "借阅策略");
+                .contains("书目管理", "设置");
         frame.dispose();
     }
 
@@ -142,6 +143,57 @@ class LibraryUiTest {
         assertThat(first(admin, JTable.class).getValueAt(0, 1)).isEqualTo("AS812");
         assertThat(first(admin, JTable.class).getValueAt(0, 2))
                 .isEqualTo("Java 核心技术 / LIB-0001");
+    }
+
+    @Test
+    void managementTablesUseSearchControlsAndNoMeaninglessActionColumn() {
+        BookManagementPanel books = new BookManagementPanel(service);
+        CopyManagementPanel copies = new CopyManagementPanel(service);
+        LoanAdminPanel loans = new LoanAdminPanel(service);
+
+        assertThat(button(books, "搜索书目")).isNotNull();
+        assertThat(button(copies, "搜索副本")).isNotNull();
+        assertThat(button(loans, "筛选借阅")).isNotNull();
+        assertThat(columnNames(first(books, JTable.class))).doesNotContain("操作");
+        assertThat(columnNames(first(copies, JTable.class))).doesNotContain("操作");
+    }
+
+    @Test
+    void openingCopyManagementLoadsAllCopies() throws Exception {
+        BookSummary summary = new BookSummary("book-1", "978", "Java 核心技术", "作者", "计算机", 1, 1);
+        BookCopyView copy = new BookCopyView("copy-1", "book-1", "LIB-0001", "A-01", CopyStatus.AVAILABLE, 0);
+        when(service.searchBooks(any())).thenReturn(CompletableFuture.completedFuture(
+                new PageResult<>(List.of(summary), 1, 100, 1)));
+        when(service.getBook("book-1")).thenReturn(CompletableFuture.completedFuture(
+                new BookDetail("book-1", "978", "Java 核心技术", "作者", "出版社",
+                        LocalDate.of(2026, 1, 1), "计算机", "", true, 0, List.of(copy))));
+        LibraryWorkspacePanel workspace = new LibraryWorkspacePanel(service, Set.of("LIBRARY_ADMIN"));
+        JTabbedPane tabs = (JTabbedPane) named(workspace, "library.tabs");
+
+        tabs.setSelectedIndex(4);
+        SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> { });
+
+        JTable table = first((Container) tabs.getSelectedComponent(), JTable.class);
+        assertThat(table.getRowCount()).isEqualTo(1);
+        assertThat(table.getValueAt(0, 0)).isEqualTo("LIB-0001");
+    }
+
+    @Test
+    void selectedCatalogBookClearsLoadingMessageAfterDetailArrives() throws Exception {
+        BookSummary summary = new BookSummary("book-1", "978", "Java 核心技术", "作者", "计算机", 1, 1);
+        when(service.searchBooks(any())).thenReturn(CompletableFuture.completedFuture(
+                new PageResult<>(List.of(summary), 1, 20, 1)));
+        when(service.getBook("book-1")).thenReturn(CompletableFuture.completedFuture(
+                new BookDetail("book-1", "978", "Java 核心技术", "作者", "出版社",
+                        LocalDate.of(2026, 1, 1), "计算机", "", true, 0, List.of())));
+        LibraryWorkspacePanel workspace = new LibraryWorkspacePanel(service, Set.of());
+        BookSearchPanel search = (BookSearchPanel) named(workspace, "library.book-search");
+        search.search(); SwingUtilities.invokeAndWait(() -> { });
+        first(search, JTable.class).setRowSelectionInterval(0, 0);
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(labels(search)).contains("图书详情已加载").doesNotContain("正在加载图书详情");
     }
 
     @Test
@@ -292,6 +344,11 @@ class LibraryUiTest {
         JTabbedPane tabs = (JTabbedPane) named(root, "library.tabs");
         return java.util.stream.IntStream.range(0, tabs.getTabCount())
                 .mapToObj(tabs::getTitleAt).toList();
+    }
+
+    private static java.util.List<String> columnNames(JTable table) {
+        return java.util.stream.IntStream.range(0, table.getColumnCount())
+                .mapToObj(table::getColumnName).toList();
     }
 
     private static Component named(Container root, String name) {

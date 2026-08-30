@@ -37,9 +37,10 @@ public final class LibraryWorkspacePanel extends JPanel {
             BookManagementPanel books = new BookManagementPanel(service);
             LoanAdminPanel loans = new LoanAdminPanel(service);
             addTab("书目管理", books, books::refresh);
-            addTab("副本管理", new CopyManagementPanel(service), null);
+            CopyManagementPanel copies = new CopyManagementPanel(service);
+            addTab("副本管理", copies, copies::loadCopies);
             addTab("借阅管理", loans, loans::refresh);
-            addTab("借阅策略", new LibraryPolicyPanel(service), null);
+            addTab("设置", new LibraryPolicyPanel(service), null);
         }
         tabs.addChangeListener(event -> refreshSelected());
         add(tabs, BorderLayout.CENTER);
