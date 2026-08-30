@@ -14,11 +14,14 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.math.BigDecimal;
 import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -105,6 +108,93 @@ class ShopAuthDemoDatabaseTest {
                     "SELECT COUNT(*) FROM (SELECT stockQuantity FROM tblProductSku "
                             + "GROUP BY stockQuantity) AS stockValues"))
                     .isGreaterThan(1);
+        }
+    }
+
+    @Test
+    void seedsDeterministicPaidAndPendingOrdersWithCanonicalCatalogAmounts() throws Exception {
+        Path database = temp.resolve("orders.accdb");
+
+        ShopAuthDemoDatabase.initialize(database, schemaDir(), seedDir());
+
+        try (Connection connection = open(database)) {
+            assertThat(count(connection,
+                    "SELECT COUNT(*) FROM tblUser WHERE userId='demo-other-buyer' "
+                            + "AND loginId='DEMO_OTHER_BUYER' AND accountStatus='ACTIVE'"))
+                    .isEqualTo(1);
+            assertThat(count(connection,
+                    "SELECT COUNT(*) FROM tblOrderGroup WHERE buyerUserId='demo-buyer' "
+                            + "AND groupStatus='PAID'"))
+                    .isEqualTo(2);
+            assertThat(count(connection,
+                    "SELECT COUNT(*) FROM tblOrderGroup WHERE buyerUserId='demo-buyer' "
+                            + "AND groupStatus='PENDING_PAYMENT'"))
+                    .isEqualTo(1);
+            assertThat(count(connection,
+                    "SELECT COUNT(*) FROM tblOrderGroup WHERE buyerUserId='demo-other-buyer' "
+                            + "AND groupStatus='PAID'"))
+                    .isEqualTo(1);
+            assertThat(strings(connection,
+                    "SELECT orderId FROM tblOrder WHERE orderStatus='PAID' "
+                            + "ORDER BY paidAt DESC, orderId"))
+                    .containsExactly("demo-order-buyer-paid-new",
+                            "demo-order-other-paid", "demo-order-buyer-paid-old");
+            assertThat(instant(connection,
+                    "SELECT paidAt FROM tblOrder WHERE orderId=?",
+                    "demo-order-buyer-paid-new"))
+                    .isEqualTo(Instant.parse("2026-08-29T09:05:00Z"));
+            assertThat(instant(connection,
+                    "SELECT paidAt FROM tblOrder WHERE orderId=?",
+                    "demo-order-buyer-paid-old"))
+                    .isEqualTo(Instant.parse("2026-08-25T08:05:00Z"));
+            assertThat(money(connection,
+                    "SELECT totalAmount FROM tblOrderGroup WHERE orderGroupId=?",
+                    "demo-group-buyer-paid-new"))
+                    .isEqualByComparingTo("20.46");
+            assertThat(money(connection,
+                    "SELECT totalAmount FROM tblOrderGroup WHERE orderGroupId=?",
+                    "demo-group-buyer-paid-old"))
+                    .isEqualByComparingTo("6.70");
+            assertThat(money(connection,
+                    "SELECT totalAmount FROM tblOrderGroup WHERE orderGroupId=?",
+                    "demo-group-other-paid"))
+                    .isEqualByComparingTo("32.70");
+            assertThat(money(connection,
+                    "SELECT totalAmount FROM tblOrderGroup WHERE orderGroupId=?",
+                    "demo-group-buyer-pending"))
+                    .isEqualByComparingTo("7.61");
+            assertThat(count(connection,
+                    "SELECT COUNT(*) FROM (((tblOrderGroup g INNER JOIN tblOrder o "
+                            + "ON g.orderGroupId=o.orderGroupId) INNER JOIN tblOrderItem i "
+                            + "ON o.orderId=i.orderId) INNER JOIN tblProductSku k "
+                            + "ON i.skuId=k.skuId) INNER JOIN tblProduct p "
+                            + "ON k.productId=p.productId WHERE i.productNameSnapshot=p.productName "
+                            + "AND i.skuNameSnapshot=k.skuName AND i.unitPrice=k.unitPrice "
+                            + "AND i.lineAmount=i.unitPrice*i.quantity "
+                            + "AND o.orderAmount=i.lineAmount AND g.totalAmount=o.orderAmount"))
+                    .isEqualTo(4);
+            assertThat(count(connection,
+                    "SELECT COUNT(*) FROM (tblPayment p INNER JOIN tblOrderGroup g "
+                            + "ON p.orderGroupId=g.orderGroupId) INNER JOIN tblOrder o "
+                            + "ON g.orderGroupId=o.orderGroupId WHERE g.groupStatus='PAID' "
+                            + "AND o.orderStatus='PAID' AND o.paidAt IS NOT NULL "
+                            + "AND p.paymentStatus='SUCCEEDED' AND p.completedAt IS NOT NULL "
+                            + "AND p.amount=g.totalAmount AND p.amount=o.orderAmount"))
+                    .isEqualTo(3);
+            assertThat(count(connection,
+                    "SELECT COUNT(*) FROM tblPaymentAttempt WHERE attemptStatus='SUCCEEDED' "
+                            + "AND completedAt IS NOT NULL"))
+                    .isEqualTo(3);
+            assertThat(count(connection,
+                    "SELECT COUNT(*) FROM (tblPayment p INNER JOIN tblOrderGroup g "
+                            + "ON p.orderGroupId=g.orderGroupId) INNER JOIN tblOrder o "
+                            + "ON g.orderGroupId=o.orderGroupId "
+                            + "WHERE g.orderGroupId='demo-group-buyer-pending' "
+                            + "AND g.groupStatus='PENDING_PAYMENT' "
+                            + "AND o.orderStatus='PENDING_PAYMENT' AND o.paidAt IS NULL "
+                            + "AND p.paymentStatus='PENDING' AND p.completedAt IS NULL "
+                            + "AND p.amount=g.totalAmount AND p.amount=o.orderAmount"))
+                    .isEqualTo(1);
         }
     }
 
@@ -240,6 +330,30 @@ class ShopAuthDemoDatabaseTest {
                 values.add(result.getString(1));
             }
             return values;
+        }
+    }
+
+    private static Instant instant(Connection connection, String sql, String parameter)
+            throws Exception {
+        try (var statement = connection.prepareStatement(sql)) {
+            statement.setString(1, parameter);
+            try (var result = statement.executeQuery()) {
+                assertThat(result.next()).isTrue();
+                Timestamp timestamp = result.getTimestamp(1);
+                assertThat(timestamp).isNotNull();
+                return timestamp.toInstant();
+            }
+        }
+    }
+
+    private static BigDecimal money(Connection connection, String sql, String parameter)
+            throws Exception {
+        try (var statement = connection.prepareStatement(sql)) {
+            statement.setString(1, parameter);
+            try (var result = statement.executeQuery()) {
+                assertThat(result.next()).isTrue();
+                return result.getBigDecimal(1);
+            }
         }
     }
 

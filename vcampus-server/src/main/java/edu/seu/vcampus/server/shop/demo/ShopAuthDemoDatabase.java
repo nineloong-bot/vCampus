@@ -2,11 +2,13 @@ package edu.seu.vcampus.server.shop.demo;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 
 import edu.seu.vcampus.server.shop.demo.ShopDemoCatalog.ProductSeed;
@@ -44,6 +46,7 @@ public final class ShopAuthDemoDatabase {
             executeScript(connection, schemas.resolve("050_shop.sql"));
             seedUsers(connection);
             seedCatalog(connection);
+            seedOrders(connection);
         }
     }
 
@@ -59,6 +62,7 @@ public final class ShopAuthDemoDatabase {
 
     private static void seedUsers(Connection connection) throws Exception {
         insertUser(connection, "demo-buyer", "DEMO_BUYER");
+        insertUser(connection, "demo-other-buyer", "DEMO_OTHER_BUYER");
         insertUser(connection, "demo-owner-stationery", "DEMO_OWNER_STATIONERY");
         insertUser(connection, "demo-owner-books", "DEMO_OWNER_BOOKS");
         insertUser(connection, "demo-owner-daily", "DEMO_OWNER_DAILY");
@@ -147,5 +151,138 @@ public final class ShopAuthDemoDatabase {
             statement.setLong(5, sku.stock());
             statement.executeUpdate();
         }
+    }
+
+    private static void seedOrders(Connection connection) throws Exception {
+        List<DemoOrderSeed> orders = List.of(
+                new DemoOrderSeed("demo-group-buyer-paid-new",
+                        "demo-order-buyer-paid-new", "DEMO-B-PAID-002",
+                        "demo-item-buyer-paid-new", "demo-payment-buyer-paid-new",
+                        "DEMO-PAY-B-002", "demo-attempt-buyer-paid-new",
+                        "demo-buyer", "demo-daily-001", "demo-daily-001-sku-1", 3,
+                        Instant.parse("2026-08-29T09:00:00Z"),
+                        Instant.parse("2026-08-29T09:05:00Z"), "WECHAT"),
+                new DemoOrderSeed("demo-group-buyer-paid-old",
+                        "demo-order-buyer-paid-old", "DEMO-B-PAID-001",
+                        "demo-item-buyer-paid-old", "demo-payment-buyer-paid-old",
+                        "DEMO-PAY-B-001", "demo-attempt-buyer-paid-old",
+                        "demo-buyer", "demo-stationery-002",
+                        "demo-stationery-002-sku-1", 2,
+                        Instant.parse("2026-08-25T08:00:00Z"),
+                        Instant.parse("2026-08-25T08:05:00Z"), "ALIPAY"),
+                new DemoOrderSeed("demo-group-other-paid",
+                        "demo-order-other-paid", "DEMO-O-PAID-001",
+                        "demo-item-other-paid", "demo-payment-other-paid",
+                        "DEMO-PAY-O-001", "demo-attempt-other-paid",
+                        "demo-other-buyer", "demo-books-001", "demo-books-001-sku-1", 1,
+                        Instant.parse("2026-08-27T10:00:00Z"),
+                        Instant.parse("2026-08-27T10:05:00Z"), "BANK_CARD"),
+                new DemoOrderSeed("demo-group-buyer-pending",
+                        "demo-order-buyer-pending", "DEMO-B-PENDING-001",
+                        "demo-item-buyer-pending", "demo-payment-buyer-pending",
+                        "DEMO-PAY-B-PENDING-001", null,
+                        "demo-buyer", "demo-medicine-001", "demo-medicine-001-sku-1", 1,
+                        Instant.parse("2026-08-30T07:00:00Z"), null, null));
+        for (DemoOrderSeed order : orders) {
+            insertOrderFixture(connection, order);
+        }
+    }
+
+    private static void insertOrderFixture(Connection connection, DemoOrderSeed seed)
+            throws Exception {
+        ProductSeed product = ShopDemoCatalog.products().stream()
+                .filter(candidate -> candidate.id().equals(seed.productId()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                        "Unknown demo product " + seed.productId()));
+        SkuSeed sku = product.skus().stream()
+                .filter(candidate -> candidate.id().equals(seed.skuId()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Unknown demo SKU " + seed.skuId()));
+        BigDecimal amount = sku.price().multiply(BigDecimal.valueOf(seed.quantity()));
+        boolean paid = seed.paidAt() != null;
+        String status = paid ? "PAID" : "PENDING_PAYMENT";
+
+        try (PreparedStatement statement = connection.prepareStatement(
+                "INSERT INTO tblOrderGroup (orderGroupId, buyerUserId, totalAmount, "
+                        + "groupStatus, createdAt, rowVersion) VALUES (?, ?, ?, ?, ?, 0)")) {
+            statement.setString(1, seed.groupId());
+            statement.setString(2, seed.buyerId());
+            statement.setBigDecimal(3, amount);
+            statement.setString(4, status);
+            statement.setTimestamp(5, Timestamp.from(seed.createdAt()));
+            statement.executeUpdate();
+        }
+        try (PreparedStatement statement = connection.prepareStatement(
+                "INSERT INTO tblOrder (orderId, orderGroupId, shopId, orderNumber, "
+                        + "orderAmount, orderStatus, createdAt, paidAt, rowVersion) "
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)")) {
+            statement.setString(1, seed.orderId());
+            statement.setString(2, seed.groupId());
+            statement.setString(3, product.shopId());
+            statement.setString(4, seed.orderNumber());
+            statement.setBigDecimal(5, amount);
+            statement.setString(6, status);
+            statement.setTimestamp(7, Timestamp.from(seed.createdAt()));
+            statement.setTimestamp(8, paid ? Timestamp.from(seed.paidAt()) : null);
+            statement.executeUpdate();
+        }
+        try (PreparedStatement statement = connection.prepareStatement(
+                "INSERT INTO tblOrderItem (orderItemId, orderId, skuId, "
+                        + "productNameSnapshot, skuNameSnapshot, shopNameSnapshot, "
+                        + "unitPrice, quantity, lineAmount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
+            statement.setString(1, seed.itemId());
+            statement.setString(2, seed.orderId());
+            statement.setString(3, sku.id());
+            statement.setString(4, product.name());
+            statement.setString(5, sku.name());
+            statement.setString(6, shopName(product.shopId()));
+            statement.setBigDecimal(7, sku.price());
+            statement.setInt(8, seed.quantity());
+            statement.setBigDecimal(9, amount);
+            statement.executeUpdate();
+        }
+        try (PreparedStatement statement = connection.prepareStatement(
+                "INSERT INTO tblPayment (paymentId, orderGroupId, paymentNumber, "
+                        + "successfulChannel, amount, paymentStatus, completedAt, rowVersion) "
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?, 0)")) {
+            statement.setString(1, seed.paymentId());
+            statement.setString(2, seed.groupId());
+            statement.setString(3, seed.paymentNumber());
+            statement.setString(4, seed.channel());
+            statement.setBigDecimal(5, amount);
+            statement.setString(6, paid ? "SUCCEEDED" : "PENDING");
+            statement.setTimestamp(7, paid ? Timestamp.from(seed.paidAt()) : null);
+            statement.executeUpdate();
+        }
+        if (paid) {
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "INSERT INTO tblPaymentAttempt (attemptId, paymentId, channel, "
+                            + "attemptStatus, createdAt, completedAt) "
+                            + "VALUES (?, ?, ?, 'SUCCEEDED', ?, ?)")) {
+                statement.setString(1, seed.attemptId());
+                statement.setString(2, seed.paymentId());
+                statement.setString(3, seed.channel());
+                statement.setTimestamp(4, Timestamp.from(seed.paidAt().minusSeconds(30)));
+                statement.setTimestamp(5, Timestamp.from(seed.paidAt()));
+                statement.executeUpdate();
+            }
+        }
+    }
+
+    private static String shopName(String shopId) {
+        return switch (shopId) {
+            case "demo-shop-stationery" -> "校园文具店";
+            case "demo-shop-books" -> "校园书店";
+            case "demo-shop-daily" -> "校园生活超市";
+            case "demo-shop-medicine" -> "校园药店";
+            default -> throw new IllegalStateException("Unknown demo shop " + shopId);
+        };
+    }
+
+    private record DemoOrderSeed(String groupId, String orderId, String orderNumber,
+            String itemId, String paymentId, String paymentNumber, String attemptId,
+            String buyerId, String productId, String skuId, int quantity,
+            Instant createdAt, Instant paidAt, String channel) {
     }
 }

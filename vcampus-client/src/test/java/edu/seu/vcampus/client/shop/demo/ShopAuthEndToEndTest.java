@@ -19,6 +19,7 @@ import edu.seu.vcampus.common.shop.PaymentAttemptStatus;
 import edu.seu.vcampus.common.shop.PaymentChannel;
 import edu.seu.vcampus.common.shop.PaymentStatus;
 import edu.seu.vcampus.common.shop.PaymentView;
+import edu.seu.vcampus.common.shop.PaidOrderHistory;
 import edu.seu.vcampus.common.shop.SimulatePaymentCommand;
 import edu.seu.vcampus.common.user.LoginResult;
 import edu.seu.vcampus.common.user.LoginCommand;
@@ -40,6 +41,7 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -163,6 +165,71 @@ class ShopAuthEndToEndTest {
             LoginResult login = users.login(
                     "DEMO_BUYER", "DemoPassword7".toCharArray()).join();
             ShopClientService shop = new ShopClientService(connection, TIMEOUT);
+
+            PaidOrderHistory buyerHistory = shop.getPaidOrders().join();
+            assertThat(buyerHistory.orders()).extracting(order -> order.orderId())
+                    .containsExactly("demo-order-buyer-paid-new",
+                            "demo-order-buyer-paid-old");
+            var newest = buyerHistory.orders().getFirst();
+            assertThat(newest.orderNumber()).isEqualTo("DEMO-B-PAID-002");
+            assertThat(newest.shopId()).isEqualTo("demo-shop-daily");
+            assertThat(newest.shopName()).isEqualTo("校园生活超市");
+            assertThat(newest.totalAmount()).isEqualByComparingTo("20.46");
+            assertThat(newest.paidAt())
+                    .isEqualTo(Instant.parse("2026-08-29T09:05:00Z"));
+            assertThat(newest.items()).singleElement().satisfies(item -> {
+                assertThat(item.productId()).isEqualTo("demo-daily-001");
+                assertThat(item.productName()).isEqualTo("纸巾 便携装");
+                assertThat(item.skuId()).isEqualTo("demo-daily-001-sku-1");
+                assertThat(item.skuName()).isEqualTo("便携装");
+                assertThat(item.quantity()).isEqualTo(3);
+                assertThat(item.unitPrice()).isEqualByComparingTo("6.82");
+                assertThat(item.lineAmount()).isEqualByComparingTo("20.46");
+            });
+            var oldest = buyerHistory.orders().get(1);
+            assertThat(oldest.orderNumber()).isEqualTo("DEMO-B-PAID-001");
+            assertThat(oldest.shopId()).isEqualTo("demo-shop-stationery");
+            assertThat(oldest.totalAmount()).isEqualByComparingTo("6.70");
+            assertThat(oldest.paidAt())
+                    .isEqualTo(Instant.parse("2026-08-25T08:05:00Z"));
+            assertThat(oldest.items()).singleElement().satisfies(item -> {
+                assertThat(item.productId()).isEqualTo("demo-stationery-002");
+                assertThat(item.productName()).isEqualTo("方格活页笔记本");
+                assertThat(item.skuId()).isEqualTo("demo-stationery-002-sku-1");
+                assertThat(item.skuName()).isEqualTo("标准规格");
+                assertThat(item.quantity()).isEqualTo(2);
+                assertThat(item.unitPrice()).isEqualByComparingTo("3.35");
+                assertThat(item.lineAmount()).isEqualByComparingTo("6.70");
+            });
+
+            try (ClientConnection otherConnection = new ClientConnection(
+                    "127.0.0.1", runtime.localPort())) {
+                otherConnection.connect(TIMEOUT);
+                UserClientService otherUsers = new UserClientService(
+                        otherConnection, "other-e2e-client", TIMEOUT);
+                otherUsers.login("DEMO_OTHER_BUYER",
+                        "DemoPassword7".toCharArray()).join();
+                PaidOrderHistory otherHistory = new ShopClientService(
+                        otherConnection, TIMEOUT).getPaidOrders().join();
+
+                assertThat(otherHistory.orders()).extracting(order -> order.orderId())
+                        .containsExactly("demo-order-other-paid");
+                assertThat(otherHistory.orders().getFirst().totalAmount())
+                        .isEqualByComparingTo("32.70");
+                assertThat(otherHistory.orders().getFirst().items())
+                        .singleElement().satisfies(item -> {
+                            assertThat(item.productId()).isEqualTo("demo-books-001");
+                            assertThat(item.skuId()).isEqualTo("demo-books-001-sku-1");
+                            assertThat(item.quantity()).isEqualTo(1);
+                            assertThat(item.lineAmount()).isEqualByComparingTo("32.70");
+                        });
+                assertThat(otherHistory.orders()).extracting(order -> order.orderId())
+                        .doesNotContain("demo-order-buyer-paid-new",
+                                "demo-order-buyer-paid-old");
+                assertThat(buyerHistory.orders()).extracting(order -> order.orderId())
+                        .doesNotContain("demo-order-other-paid",
+                                "demo-order-buyer-pending");
+            }
 
             CartView cart = shop.addToCart(
                     new AddCartItemCommand("demo-stationery-001-sku-1", 2)).join();
