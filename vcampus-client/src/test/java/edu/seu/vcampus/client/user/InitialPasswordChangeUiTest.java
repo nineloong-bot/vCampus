@@ -3,6 +3,9 @@ package edu.seu.vcampus.client.user;
 import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.core.network.ConnectionState;
 import edu.seu.vcampus.client.core.ui.MainFrame;
+import edu.seu.vcampus.client.student.service.StudentClientService;
+import edu.seu.vcampus.client.student.service.StudentRequestClient;
+import edu.seu.vcampus.client.student.ui.MyStudentProfilePanel;
 import edu.seu.vcampus.client.user.service.UserClientService;
 import edu.seu.vcampus.client.user.ui.InitialPasswordChangeDialog;
 import edu.seu.vcampus.client.user.ui.LoginFrame;
@@ -22,12 +25,15 @@ import java.awt.Container;
 import java.awt.Frame;
 import java.awt.Window;
 import java.time.LocalDateTime;
+import java.time.Duration;
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 import static edu.seu.vcampus.common.user.AccountStatus.ACTIVE;
 import static edu.seu.vcampus.common.user.UserRole.ADMIN;
+import static edu.seu.vcampus.common.user.UserRole.STUDENT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -53,7 +59,7 @@ class InitialPasswordChangeUiTest {
                 .when(users).login(anyString(), any(char[].class));
         doReturn(CompletableFuture.completedFuture(null))
                 .when(users).changePassword(any(char[].class), any(char[].class));
-        UserUiCoordinator coordinator = new UserUiCoordinator(users, connection);
+        UserUiCoordinator coordinator = new UserUiCoordinator(users, students(), connection);
         SwingUtilities.invokeAndWait(coordinator::start);
 
         submitLogin(showing(LoginFrame.class), "DEMO_ADMIN", "InitialPassword7");
@@ -120,6 +126,25 @@ class InitialPasswordChangeUiTest {
         assertThat(showingFrames(MainFrame.class)).isEmpty();
     }
 
+    @Test
+    void unrestrictedStudentLoginShowsTheRealProfileWhenStudentServiceIsAvailable()
+            throws Exception {
+        UserClientService users = mock(UserClientService.class);
+        ClientConnection connection = mock(ClientConnection.class);
+        when(connection.state()).thenReturn(ConnectionState.CONNECTED);
+        doReturn(CompletableFuture.completedFuture(loginResult(STUDENT, false)))
+                .when(users).login(anyString(), any(char[].class));
+        UserUiCoordinator coordinator = new UserUiCoordinator(users, students(), connection);
+        SwingUtilities.invokeAndWait(coordinator::start);
+
+        submitLogin(showing(LoginFrame.class), "STUDENT_1", "StudentPassword7");
+        flushEdt();
+
+        MainFrame main = showing(MainFrame.class);
+        assertThat(component(main.content(), "student.profile", MyStudentProfilePanel.class)
+                .isVisible()).isTrue();
+    }
+
     private static void submitLogin(LoginFrame frame, String id, String password)
             throws Exception {
         SwingUtilities.invokeAndWait(() -> {
@@ -167,9 +192,24 @@ class InitialPasswordChangeUiTest {
     }
 
     private static LoginResult loginResult(boolean restricted) {
+        return loginResult(ADMIN, restricted);
+    }
+
+    private static LoginResult loginResult(edu.seu.vcampus.common.user.UserRole role,
+                                           boolean restricted) {
         LocalDateTime now = LocalDateTime.of(2026, 8, 29, 12, 0);
-        UserView user = new UserView("demo", "DEMO_ADMIN", ADMIN, ACTIVE,
+        UserView user = new UserView("demo", "DEMO_" + role, role, ACTIVE,
                 restricted, now, 0, now, now);
         return new LoginResult("session-token", user, Set.of(), restricted);
+    }
+
+    private static StudentClientService students() {
+        return new StudentClientService(new StudentRequestClient() {
+            @Override
+            public <T extends Serializable> CompletableFuture<edu.seu.vcampus.common.protocol.ResponseBody<T>>
+            send(String command, Serializable body, Duration timeout) {
+                return CompletableFuture.failedFuture(new IllegalStateException("not displayed"));
+            }
+        }, Duration.ofSeconds(1));
     }
 }

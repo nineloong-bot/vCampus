@@ -5,6 +5,9 @@ import edu.seu.vcampus.client.core.network.ConnectionState;
 import edu.seu.vcampus.client.core.ui.theme.UiBorders;
 import edu.seu.vcampus.client.core.ui.theme.UiColors;
 import edu.seu.vcampus.client.core.ui.theme.UiDimensions;
+import edu.seu.vcampus.client.student.service.StudentClientService;
+import edu.seu.vcampus.client.student.service.StudentRequestClient;
+import edu.seu.vcampus.client.student.ui.MyStudentProfilePanel;
 import edu.seu.vcampus.common.user.UserView;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -22,11 +25,16 @@ import java.awt.Insets;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 import java.time.LocalDateTime;
+import java.time.Duration;
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 import static edu.seu.vcampus.common.user.AccountStatus.ACTIVE;
 import static edu.seu.vcampus.common.user.UserRole.ADMIN;
+import static edu.seu.vcampus.common.user.UserRole.STUDENT;
+import static edu.seu.vcampus.common.user.UserRole.TEACHER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -171,10 +179,52 @@ class MainFrameShellTest {
         }
     }
 
+    @Test
+    void dependencyAwareStudentShellStartsOnTheRealProfilePage() throws Exception {
+        MainFrame[] frame = new MainFrame[1];
+        SwingUtilities.invokeAndWait(() -> frame[0] = new MainFrame(
+                user(STUDENT), connected(), students()));
+
+        MyStudentProfilePanel profile = component(frame[0].content(), "student.profile",
+                MyStudentProfilePanel.class);
+        assertThat(profile.isVisible()).isTrue();
+        assertThat(component(frame[0], "navigation.student", AbstractButton.class).isSelected())
+                .isTrue();
+    }
+
+    @Test
+    void dependencyAwareTeacherAndAdminShellsKeepStudentPlaceholder() throws Exception {
+        MainFrame[] teacher = new MainFrame[1];
+        MainFrame[] admin = new MainFrame[1];
+        SwingUtilities.invokeAndWait(() -> {
+            teacher[0] = new MainFrame(user(TEACHER), connected(), students());
+            admin[0] = new MainFrame(user(ADMIN), connected(), students());
+        });
+
+        assertThat(component(teacher[0].content(), "page.student", JPanel.class).isVisible())
+                .isTrue();
+        assertThat(component(admin[0].content(), "page.student", JPanel.class).isVisible())
+                .isTrue();
+    }
+
     private static UserView user() {
+        return user(ADMIN);
+    }
+
+    private static UserView user(edu.seu.vcampus.common.user.UserRole role) {
         LocalDateTime now = LocalDateTime.of(2026, 8, 29, 12, 0);
-        return new UserView("demo", "DEMO_ADMIN", ADMIN, ACTIVE,
+        return new UserView("demo", "DEMO_" + role, role, ACTIVE,
                 false, now, 0, now, now);
+    }
+
+    private static StudentClientService students() {
+        return new StudentClientService(new StudentRequestClient() {
+            @Override
+            public <T extends Serializable> CompletableFuture<edu.seu.vcampus.common.protocol.ResponseBody<T>>
+            send(String command, Serializable body, Duration timeout) {
+                return CompletableFuture.failedFuture(new IllegalStateException("not displayed"));
+            }
+        }, Duration.ofSeconds(1));
     }
 
     private static ClientConnection connected() {
