@@ -138,6 +138,7 @@ class StudentProfileUiTest {
         final ClientConnection connection = new ClientConnection("localhost", 1); final StudentClientService students;
         final CompletableFuture<ResponseBody<StudentView>>[] responses;
         final AtomicInteger sendCount = new AtomicInteger();
+        final AtomicInteger responseIndex = new AtomicInteger();
         final CountDownLatch[] dispatches = {new CountDownLatch(1), new CountDownLatch(1)};
         MyStudentProfilePanel panel;
         StudentUiFixture(CompletableFuture<ResponseBody<StudentView>> response, ConnectionState state) { this(response, new CompletableFuture[0]); setState(state); }
@@ -146,11 +147,10 @@ class StudentProfileUiTest {
             connections.add(connection);
             this.responses = new CompletableFuture[next.length + 1]; this.responses[0] = response; System.arraycopy(next, 0, responses, 1, next.length);
             StudentRequestClient client = new StudentRequestClient() {
-                @SuppressWarnings("unchecked") public <T extends java.io.Serializable> CompletableFuture<ResponseBody<T>> send(String command, java.io.Serializable body, Duration timeout) { int call = sendCount.incrementAndGet(); if (call <= dispatches.length) dispatches[call - 1].countDown(); return (CompletableFuture<ResponseBody<T>>) (CompletableFuture<?>) responses[Math.min(index++, responses.length - 1)]; }
+                @SuppressWarnings("unchecked") public <T extends java.io.Serializable> CompletableFuture<ResponseBody<T>> send(String command, java.io.Serializable body, Duration timeout) { var selected = responses[Math.min(responseIndex.getAndIncrement(), responses.length - 1)]; int call = sendCount.incrementAndGet(); if (call <= dispatches.length) dispatches[call - 1].countDown(); return (CompletableFuture<ResponseBody<T>>) (CompletableFuture<?>) selected; }
             }; students = new StudentClientService(client, Duration.ofSeconds(1));
         }
         void setState(ConnectionState state) { try { var f = ClientConnection.class.getDeclaredField("state"); f.setAccessible(true); f.set(connection, state); } catch (ReflectiveOperationException e) { throw new AssertionError(e); } }
-        int index;
         void awaitDispatch(int count) throws InterruptedException { assertThat(count).isBetween(1, dispatches.length); assertThat(dispatches[count - 1].await(2, TimeUnit.SECONDS)).isTrue(); }
         void showProfile() { panel = new MyStudentProfilePanel(students, connection); panel.addNotify(); }
         void flushEdt() throws Exception { SwingUtilities.invokeAndWait(() -> {}); }
