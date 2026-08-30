@@ -10,9 +10,11 @@ import edu.seu.vcampus.common.shop.PaidOrderItemView;
 import edu.seu.vcampus.common.shop.PaidOrderView;
 import edu.seu.vcampus.common.user.UserView;
 
+import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
@@ -89,12 +91,16 @@ public final class MyShopPanel extends JPanel {
         JPanel normal = uiKit.filterPanel("my.normal", new BorderLayout(4, 4));
         normal.add(uiKit.stateView("my.state", ShopPageState.NORMAL, "", null),
                 BorderLayout.NORTH);
-        JPanel orders = uiKit.filterPanel("my.orders",
-                new GridLayout(0, 1, 0, 6));
+        JPanel orders = uiKit.filterPanel("my.orders", new FlowLayout());
+        orders.setLayout(new BoxLayout(orders, BoxLayout.Y_AXIS));
         for (PaidOrderView order : history.orders()) {
             orders.add(order(order));
         }
-        normal.add(orders, BorderLayout.CENTER);
+        JScrollPane scroll = named(new JScrollPane(orders,
+                JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+                JScrollPane.HORIZONTAL_SCROLLBAR_NEVER), "my.orders.scroll");
+        scroll.getVerticalScrollBar().setUnitIncrement(16);
+        normal.add(scroll, BorderLayout.CENTER);
         content.add(normal, BorderLayout.CENTER);
         refresh();
     }
@@ -130,6 +136,14 @@ public final class MyShopPanel extends JPanel {
             boolean expanded = !details.isVisible();
             details.setVisible(expanded);
             toggle.setText(expanded ? "收起" : "展开");
+            details.revalidate();
+            card.revalidate();
+            if (card.getParent() instanceof JPanel orders) {
+                orders.invalidate();
+                orders.revalidate();
+                orders.repaint();
+            }
+            content.revalidate();
             revalidate();
             repaint();
         });

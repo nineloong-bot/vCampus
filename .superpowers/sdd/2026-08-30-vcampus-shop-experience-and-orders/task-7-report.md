@@ -44,3 +44,32 @@
 
 - 无已知功能性疑虑。
 - Maven 仍输出 Mockito 动态 agent 的未来兼容性警告，以及工作区 LF/CRLF 转换提示；本次测试结果未受影响。
+
+## Fix Round 1：已支付订单滚动布局
+
+### 修复
+
+- `my.orders` 改为按 preferred height 纵向排列的 `BoxLayout.Y_AXIS` 内容容器，并置于稳定命名 `my.orders.scroll` 的仅垂直 `JScrollPane` 中。
+- 展开或折叠订单时失效并重算订单容器布局，随后 revalidate/repaint，使 viewport 与滚动条采用最新 preferred height。
+- 现有订单、详情、状态视图组件名与异步状态流保持稳定。
+
+### 测试文件
+
+- `vcampus-client/src/test/java/edu/seu/vcampus/client/shop/ui/ShopUiTest.java`
+- 新增 `myPageKeepsEveryOrderAndExpandedLastItemReachableInASmallViewport`：使用 360×180 小视口、6 笔订单和末单 8 行明细，验证列表实际高度不小于 preferred height、滚动范围大于 viewport、展开后范围增长、滚到底可覆盖最后订单与最后明细行。
+
+### RED / GREEN
+
+- RED：`mvn -pl vcampus-client -am '-Dtest=ShopUiTest#myPageKeepsEveryOrderAndExpandedLastItemReachableInASmallViewport' '-Dsurefire.failIfNoSpecifiedTests=false' test`
+  - 结果：1 个测试失败；现有列表实际高度 122，小于 preferred height 270。
+- 聚焦 GREEN：同一命令，1/1 通过，0 failures/errors/skips。
+- Shop UI：`mvn -pl vcampus-client -am '-Dtest=ShopUiTest' '-Dsurefire.failIfNoSpecifiedTests=false' test`
+  - 结果：30/30 通过，0 failures/errors/skips。
+- 完整回归：`mvn -pl vcampus-client -am test`
+  - 结果：common 5、server 160、client 115，共 280 个测试通过，0 failures/errors/skips；reactor `BUILD SUCCESS`。
+
+### 自查
+
+- 小视口下折叠态列表保留完整 preferred height，垂直滚动条可到达底部。
+- 展开末单多行明细后滚动 maximum 增长，viewport 底边覆盖末单和最后明细行。
+- `git diff --check` 无空白错误；`logs/` 保持未跟踪。

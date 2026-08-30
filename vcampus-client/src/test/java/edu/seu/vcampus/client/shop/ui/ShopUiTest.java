@@ -57,12 +57,16 @@ import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
+import javax.swing.SwingUtilities;
 import javax.swing.WindowConstants;
 import java.awt.Component;
+import java.awt.Container;
 import java.awt.GraphicsEnvironment;
 import java.awt.LayoutManager;
+import java.awt.Rectangle;
 import java.awt.event.WindowEvent;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -85,6 +89,49 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 class ShopUiTest {
+    @Test
+    void myPageKeepsEveryOrderAndExpandedLastItemReachableInASmallViewport()
+            throws Exception {
+        MyShopPanel panel = onEdt(() -> new MyShopPanel(buyer(),
+                paidOrdersClient(CompletableFuture.completedFuture(scrollingPaidOrders())),
+                new DefaultShopUiKit(), () -> { }));
+        onEdt(panel::load);
+        flushEdt();
+
+        JPanel orders = component(panel, "my.orders", JPanel.class);
+        onEdt(() -> layoutAt(panel, 360, 180));
+        assertThat(orders.getHeight()).isGreaterThanOrEqualTo(
+                orders.getPreferredSize().height);
+
+        JScrollPane scroll = component(panel, "my.orders.scroll", JScrollPane.class);
+        JScrollBar vertical = scroll.getVerticalScrollBar();
+        int collapsedMaximum = vertical.getMaximum();
+        int collapsedExtent = vertical.getVisibleAmount();
+        assertThat(collapsedMaximum).isGreaterThan(collapsedExtent);
+        assertThat(scroll.getViewport().getViewSize().height)
+                .isGreaterThan(scroll.getViewport().getExtentSize().height);
+
+        onEdt(() -> component(panel, "my.order.toggle.order-scroll-5", JButton.class)
+                .doClick());
+        onEdt(() -> layoutAt(panel, 360, 180));
+        assertThat(vertical.getMaximum()).isGreaterThan(collapsedMaximum);
+        assertThat(vertical.getMaximum()).isGreaterThan(vertical.getVisibleAmount());
+
+        onEdt(() -> vertical.setValue(vertical.getMaximum()));
+        JLabel lastItem = component(panel,
+                "my.order.item.order-scroll-5.sku-scroll-5-7", JLabel.class);
+        JPanel lastOrder = component(panel, "my.order.order-scroll-5", JPanel.class);
+        Rectangle visible = scroll.getViewport().getViewRect();
+        Rectangle lastOrderBounds = SwingUtilities.convertRectangle(
+                lastOrder.getParent(), lastOrder.getBounds(), orders);
+        Rectangle lastItemBounds = SwingUtilities.convertRectangle(
+                lastItem.getParent(), lastItem.getBounds(), orders);
+        assertThat(visible.getMaxY()).isGreaterThanOrEqualTo(lastOrderBounds.getMaxY());
+        assertThat(visible.getMaxY()).isGreaterThanOrEqualTo(lastItemBounds.getMaxY());
+        assertThat(vertical.getValue())
+                .isEqualTo(vertical.getMaximum() - vertical.getVisibleAmount());
+    }
+
     @Test
     void myPageShowsReadOnlyIdentityAndExpandsPaidOrdersInServerOrder() throws Exception {
         PaidOrderHistory history = paidOrders();
@@ -967,6 +1014,44 @@ class ShopUiTest {
                         "product-old", "习题册", "sku-old", "高数", 1,
                         new BigDecimal("12.00"), new BigDecimal("12.00"))));
         return new PaidOrderHistory(List.of(newest, older));
+    }
+
+    private static PaidOrderHistory scrollingPaidOrders() {
+        return new PaidOrderHistory(IntStream.range(0, 6).mapToObj(orderIndex -> {
+            int itemCount = orderIndex == 5 ? 8 : 2;
+            List<PaidOrderItemView> items = IntStream.range(0, itemCount)
+                    .mapToObj(itemIndex -> new PaidOrderItemView(
+                            "product-scroll-" + orderIndex + "-" + itemIndex,
+                            "商品" + itemIndex,
+                            "sku-scroll-" + orderIndex + "-" + itemIndex,
+                            "规格" + itemIndex,
+                            1, new BigDecimal("2.00"), new BigDecimal("2.00")))
+                    .toList();
+            return new PaidOrderView(
+                    "order-scroll-" + orderIndex,
+                    "O-SCROLL-" + orderIndex,
+                    "shop-scroll-" + orderIndex,
+                    "店铺" + orderIndex,
+                    new BigDecimal(itemCount == 8 ? "16.00" : "4.00"),
+                    Instant.parse("2026-08-30T02:00:00Z").minusSeconds(orderIndex * 60L),
+                    OrderStatus.PAID, items);
+        }).toList());
+    }
+
+    private static void layoutAt(Container root, int width, int height) {
+        root.setSize(width, height);
+        for (int pass = 0; pass < 3; pass++) {
+            layoutRecursively(root);
+        }
+    }
+
+    private static void layoutRecursively(Container root) {
+        root.doLayout();
+        for (Component child : root.getComponents()) {
+            if (child instanceof Container nested) {
+                layoutRecursively(nested);
+            }
+        }
     }
 
     @SafeVarargs
