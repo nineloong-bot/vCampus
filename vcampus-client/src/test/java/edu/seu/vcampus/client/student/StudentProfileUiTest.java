@@ -15,6 +15,7 @@ import java.awt.*;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,20 +29,27 @@ class StudentProfileUiTest {
         SwingUtilities.invokeAndWait(fixture::showProfile);
         assertThat(fixture.button("student.profile.edit").isEnabled()).isFalse();
         assertThat(fixture.label("student.profile.status").getText()).contains("正在加载");
-        response.complete(ResponseBody.success(profile(7, "zhangsan@seu.edu.cn", "13800000000")));
+        var updatedOnEdt = new AtomicBoolean();
+        fixture.label("student.profile.email").addPropertyChangeListener("text", e -> updatedOnEdt.set(SwingUtilities.isEventDispatchThread()));
+        Thread completion = new Thread(() -> response.complete(ResponseBody.success(profile(7, "zhangsan@seu.edu.cn", "13800000000"))));
+        completion.start(); completion.join();
         fixture.flushEdt();
         assertThat(fixture.visibleText()).contains("我的学籍档案", "张三", "213240001", "09024101", "正常",
                 "本科生", "2024-09-01", "major-1", "class-1", "zhangsan@seu.edu.cn", "13800000000");
         assertThat(fixture.button("student.profile.edit").isEnabled()).isTrue();
-        assertThat(fixture.updatedOnEdt()).isTrue();
+        assertThat(updatedOnEdt).isTrue();
     }
 
     @Test void nullContactValuesRenderAsNotFilled() throws Exception {
         var response = new CompletableFuture<ResponseBody<StudentView>>();
         var fixture = new StudentUiFixture(response, ConnectionState.CONNECTED);
         SwingUtilities.invokeAndWait(fixture::showProfile);
-        response.complete(ResponseBody.success(profile(1, null, null))); fixture.flushEdt();
-        assertThat(fixture.visibleText()).contains("未填写");
+        response.complete(ResponseBody.success(profileWithNulls())); fixture.flushEdt();
+        assertThat(fixture.label("student.profile.email").getText()).isEqualTo("未填写");
+        assertThat(fixture.label("student.profile.phone").getText()).isEqualTo("未填写");
+        assertThat(fixture.label("student.profile.type").getText()).isEqualTo("未填写");
+        assertThat(fixture.label("student.profile.lifecycle").getText()).isEqualTo("未填写");
+        assertThat(fixture.label("student.profile.enrollment").getText()).isEqualTo("未填写");
     }
 
     @Test void lifecycleStatusesRenderChineseLabels() throws Exception {
@@ -65,6 +73,17 @@ class StudentProfileUiTest {
         assertThat(fixture.button("student.profile.edit").isEnabled()).isFalse();
     }
 
+    @Test void newerRefreshWinsOverStaleResponse() throws Exception {
+        var first = new CompletableFuture<ResponseBody<StudentView>>();
+        var second = new CompletableFuture<ResponseBody<StudentView>>();
+        var fixture = new StudentUiFixture(first, second, ConnectionState.CONNECTED);
+        SwingUtilities.invokeAndWait(fixture::showProfile); fixture.flushEdt();
+        SwingUtilities.invokeAndWait(() -> fixture.panel.refreshProfile());
+        second.complete(ResponseBody.success(profile(2, "new@seu.edu.cn", "new-phone"))); fixture.flushEdt();
+        first.complete(ResponseBody.success(profile(1, "stale@seu.edu.cn", "stale-phone"))); fixture.flushEdt();
+        assertThat(fixture.visibleText()).contains("new@seu.edu.cn", "new-phone").doesNotContain("stale@");
+    }
+
     @Test void failedFutureUsesSafeGenericMessage() throws Exception {
         var response = new CompletableFuture<ResponseBody<StudentView>>();
         var fixture = new StudentUiFixture(response, ConnectionState.CONNECTED);
@@ -73,10 +92,13 @@ class StudentProfileUiTest {
     }
 
     @Test void failedBodyShowsBusinessMessageAndRetry() throws Exception {
-        var response = CompletableFuture.completedFuture(ResponseBody.<StudentView>failure("DENIED", "没有权限", null));
-        var fixture = new StudentUiFixture(response, ConnectionState.CONNECTED);
+        var initial = CompletableFuture.completedFuture(ResponseBody.success(profile(1, "loaded@seu.edu.cn", "phone")));
+        var failed = CompletableFuture.completedFuture(ResponseBody.<StudentView>failure("DENIED", "没有权限", null));
+        var fixture = new StudentUiFixture(initial, failed, ConnectionState.CONNECTED);
         SwingUtilities.invokeAndWait(fixture::showProfile); fixture.flushEdt();
+        SwingUtilities.invokeAndWait(() -> fixture.panel.refreshProfile()); fixture.flushEdt();
         assertThat(fixture.visibleText()).contains("没有权限");
+        assertThat(fixture.button("student.profile.refresh").getText()).isEqualTo("重试");
         assertThat(fixture.button("student.profile.refresh").isEnabled()).isTrue();
     }
 
@@ -103,6 +125,7 @@ class StudentProfileUiTest {
                 "张三", "MALE", email, phone, "major-1", "class-1", LocalDate.of(2024, 9, 1), StudentStatus.ACTIVE, version);
     }
     private static StudentView profile(StudentStatus status) { var p = profile(1, "a", "b"); return new StudentView(p.studentId(), p.userId(), p.campusCardNumber(), p.studentNumber(), p.studentType(), p.studentName(), p.gender(), p.email(), p.phone(), p.majorId(), p.classId(), p.enrollmentDate(), status, p.rowVersion()); }
+    private static StudentView profileWithNulls() { var p = profile(1, null, null); return new StudentView(p.studentId(), p.userId(), p.campusCardNumber(), p.studentNumber(), null, p.studentName(), p.gender(), null, null, p.majorId(), p.classId(), null, null, p.rowVersion()); }
 
     private static final class StudentUiFixture {
         final ClientConnection connection = new ClientConnection("localhost", 1); final StudentClientService students;
@@ -121,7 +144,6 @@ class StudentProfileUiTest {
         int index;
         void showProfile() { panel = new MyStudentProfilePanel(students, connection); panel.addNotify(); }
         void flushEdt() throws Exception { SwingUtilities.invokeAndWait(() -> {}); }
-        boolean updatedOnEdt() { return true; }
         String visibleText() { return text(panel); }
         <T extends Component> T component(String name, Class<T> type) { return type.cast(find(panel, name)); }
         JButton button(String name) { return component(name, JButton.class); }

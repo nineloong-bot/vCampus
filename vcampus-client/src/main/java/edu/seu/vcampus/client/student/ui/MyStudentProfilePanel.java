@@ -79,7 +79,7 @@ public final class MyStudentProfilePanel extends JPanel {
     private void renderError(String message) { statusLabel.setText("加载失败"); errorLabel.setText(message); refreshButton.setText("重试"); refreshButton.setEnabled(true); editButton.setEnabled(false); }
     private void renderProfile(StudentView p) {
         statusLabel.setText(connection.state() == ConnectionState.CONNECTED ? "已加载" : "已断开连接"); errorLabel.setText(""); refreshButton.setText("刷新"); refreshButton.setEnabled(true);
-        String[] values = {p.studentName(), p.studentNumber(), p.campusCardNumber(), studentType(p.studentType()), status(p.status()), p.majorId(), p.classId(), String.valueOf(p.enrollmentDate()), filled(p.email()), filled(p.phone())};
+        String[] values = {p.studentName(), p.studentNumber(), p.campusCardNumber(), studentType(p.studentType()), status(p.status()), p.majorId(), p.classId(), p.enrollmentDate() == null ? null : p.enrollmentDate().toString(), p.email(), p.phone()};
         for (int i = 0; i < values.length; i++) valueLabels.get(i).setText(filled(values[i]));
         editButton.setEnabled(connection.state() == ConnectionState.CONNECTED);
     }
@@ -87,6 +87,6 @@ public final class MyStudentProfilePanel extends JPanel {
     private static void onEdt(Runnable task) { if (SwingUtilities.isEventDispatchThread()) task.run(); else SwingUtilities.invokeLater(task); }
     private static String filled(String value) { return value == null || value.isBlank() ? "未填写" : value; }
     private static String safeMessage(ResponseBody<?> body) { return body != null && body.message() != null && !body.message().isBlank() ? body.message() : "档案加载失败，请稍后重试"; }
-    private static String studentType(StudentType type) { return switch (type) { case UNDERGRADUATE -> "本科生"; case MASTER -> "硕士生"; case DOCTORATE -> "博士生"; }; }
-    private static String status(StudentStatus value) { return switch (value) { case ACTIVE -> "正常"; case SUSPENDED -> "休学"; case GRADUATED -> "已毕业"; case WITHDRAWN -> "已退学"; }; }
+    private static String studentType(StudentType type) { return type == null ? null : switch (type) { case UNDERGRADUATE -> "本科生"; case MASTER -> "硕士生"; case DOCTORATE -> "博士生"; }; }
+    private static String status(StudentStatus value) { return value == null ? null : switch (value) { case ACTIVE -> "正常"; case SUSPENDED -> "休学"; case GRADUATED -> "已毕业"; case WITHDRAWN -> "已退学"; }; }
 }
