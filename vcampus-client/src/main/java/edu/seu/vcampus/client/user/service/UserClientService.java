@@ -1,11 +1,15 @@
 package edu.seu.vcampus.client.user.service;
 
 import edu.seu.vcampus.client.core.network.ClientConnection;
+import edu.seu.vcampus.common.protocol.EmptyRequest;
+import edu.seu.vcampus.common.protocol.EmptyResponse;
 import edu.seu.vcampus.common.protocol.ResponseBody;
+import edu.seu.vcampus.common.user.ChangePasswordCommand;
 import edu.seu.vcampus.common.user.LoginCommand;
 import edu.seu.vcampus.common.user.LoginResult;
 
 import java.time.Duration;
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -13,6 +17,8 @@ import java.util.concurrent.CompletableFuture;
 /** Sends user requests through the shared client connection. */
 public class UserClientService {
     private static final String USER_LOGIN = "USER_LOGIN";
+    private static final String USER_CHANGE_PASSWORD = "USER_CHANGE_PASSWORD";
+    private static final String USER_LOGOUT = "USER_LOGOUT";
 
     private final ClientConnection connection;
     private final String clientInstanceId;
@@ -35,16 +41,64 @@ public class UserClientService {
         } finally {
             Arrays.fill(password, '\0');
         }
-        return connection.<LoginResult>send(USER_LOGIN, command, timeout)
-                .thenApply(this::requireSuccess);
+        return this.<LoginResult>sendAsync(USER_LOGIN, command, command::clearPassword)
+                .thenApply(this::requireLoginSuccess);
     }
 
-    private LoginResult requireSuccess(ResponseBody<LoginResult> response) {
+    /** Changes the password and clears the revoked local session after success. */
+    public CompletableFuture<Void> changePassword(char[] oldPassword, char[] newPassword) {
+        Objects.requireNonNull(oldPassword, "oldPassword");
+        Objects.requireNonNull(newPassword, "newPassword");
+        ChangePasswordCommand command;
+        try {
+            command = new ChangePasswordCommand(oldPassword, newPassword);
+        } finally {
+            Arrays.fill(oldPassword, '\0');
+            Arrays.fill(newPassword, '\0');
+        }
+        return this.<EmptyResponse>sendAsync(
+                        USER_CHANGE_PASSWORD, command, command::clearPasswords)
+                .thenApply(UserClientService::requireSuccess)
+                .thenRun(this::clearSession);
+    }
+
+    /** Logs out asynchronously and clears local credentials even if the server is unavailable. */
+    public CompletableFuture<Void> logout() {
+        return this.<EmptyResponse>sendAsync(USER_LOGOUT, EmptyRequest.INSTANCE, () -> { })
+                .thenApply(UserClientService::requireSuccess)
+                .thenAccept(ignored -> { })
+                .whenComplete((ignored, failure) -> clearSession());
+    }
+
+    /** Removes the in-memory session token without logging or persisting it. */
+    public void clearSession() {
+        connection.setSessionToken(null);
+    }
+
+    private <T extends Serializable> CompletableFuture<ResponseBody<T>> sendAsync(
+            String command, Serializable body, Runnable cleanup) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return connection.<T>send(command, body, timeout);
+            } finally {
+                cleanup.run();
+            }
+        }).thenCompose(response -> response);
+    }
+
+    private LoginResult requireLoginSuccess(ResponseBody<LoginResult> response) {
         if (!response.success() || response.data() == null) {
             throw new IllegalArgumentException(response.code());
         }
         LoginResult result = response.data();
         connection.setSessionToken(result.sessionToken());
         return result;
+    }
+
+    private static <T extends java.io.Serializable> T requireSuccess(ResponseBody<T> response) {
+        if (!response.success() || response.data() == null) {
+            throw new IllegalArgumentException(response.code());
+        }
+        return response.data();
     }
 }

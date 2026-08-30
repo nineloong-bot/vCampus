@@ -5,6 +5,8 @@ import edu.seu.vcampus.client.core.ui.MainFrame;
 import edu.seu.vcampus.client.user.service.UserClientService;
 import edu.seu.vcampus.client.user.ui.LoginFrame;
 import edu.seu.vcampus.common.protocol.ResponseBody;
+import edu.seu.vcampus.common.protocol.EmptyResponse;
+import edu.seu.vcampus.common.user.ChangePasswordCommand;
 import edu.seu.vcampus.common.user.LoginCommand;
 import edu.seu.vcampus.common.user.LoginResult;
 import edu.seu.vcampus.common.user.UserView;
@@ -25,6 +27,8 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -35,6 +39,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
@@ -64,8 +69,72 @@ class LoginDemoUiTest {
         verify(connection).setSessionToken("demo-session-token");
         assertThat(command.getValue().loginId()).isEqualTo("demo_admin");
         assertThat(command.getValue().clientInstanceId()).isEqualTo("demo-client");
+        assertThat(command.getValue().password()).containsOnly('\0');
         assertThat(submitted).containsOnly('\0');
         assertThat(actual).isEqualTo(expected);
+    }
+
+    @Test
+    void loginNeverPerformsPotentiallyBlockingSocketSendOnEdt() throws Exception {
+        ClientConnection connection = mock(ClientConnection.class);
+        CountDownLatch sendEntered = new CountDownLatch(1);
+        CountDownLatch releaseSend = new CountDownLatch(1);
+        CountDownLatch loginReturned = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            sendEntered.countDown();
+            releaseSend.await(2, TimeUnit.SECONDS);
+            return CompletableFuture.completedFuture(ResponseBody.success(loginResult()));
+        }).when(connection).send(eq("USER_LOGIN"), any(LoginCommand.class), eq(TIMEOUT));
+        UserClientService service = new UserClientService(connection, "demo-client", TIMEOUT);
+
+        SwingUtilities.invokeLater(() -> {
+            service.login("DEMO_ADMIN", "DemoPassword7".toCharArray());
+            loginReturned.countDown();
+        });
+
+        assertThat(sendEntered.await(1, TimeUnit.SECONDS)).isTrue();
+        boolean returnedBeforeSocketReleased = loginReturned.await(200, TimeUnit.MILLISECONDS);
+        releaseSend.countDown();
+        assertThat(returnedBeforeSocketReleased).isTrue();
+    }
+
+    @Test
+    void userClientChangesPasswordClearsSecretsAndClearsRevokedSession() {
+        ClientConnection connection = mock(ClientConnection.class);
+        doReturn(CompletableFuture.completedFuture(ResponseBody.success(EmptyResponse.INSTANCE)))
+                .when(connection).send(eq("USER_CHANGE_PASSWORD"),
+                        any(ChangePasswordCommand.class), eq(TIMEOUT));
+        UserClientService service = new UserClientService(
+                connection, "demo-client", TIMEOUT);
+        char[] oldPassword = "InitialPassword7".toCharArray();
+        char[] newPassword = "Replacement8".toCharArray();
+
+        service.changePassword(oldPassword, newPassword).join();
+
+        ArgumentCaptor<ChangePasswordCommand> command =
+                ArgumentCaptor.forClass(ChangePasswordCommand.class);
+        verify(connection).send(eq("USER_CHANGE_PASSWORD"), command.capture(), eq(TIMEOUT));
+        verify(connection).setSessionToken(null);
+        assertThat(oldPassword).containsOnly('\0');
+        assertThat(newPassword).containsOnly('\0');
+        assertThat(command.getValue().oldPassword()).containsOnly('\0');
+        assertThat(command.getValue().newPassword()).containsOnly('\0');
+    }
+
+    @Test
+    void loginShowsExactDemoHintWithoutPrefillingCredentials() throws Exception {
+        UserClientService service = mock(UserClientService.class);
+        LoginFrame[] login = new LoginFrame[1];
+
+        SwingUtilities.invokeAndWait(() ->
+                login[0] = new LoginFrame(service, result -> { }));
+
+        assertThat(component(login[0], "login.demoHint", JLabel.class).getText())
+                .isEqualTo("演示账号：DEMO_ADMIN / admin123456");
+        assertThat(component(login[0], "login.loginId", JTextField.class).getText())
+                .isEmpty();
+        assertThat(component(login[0], "login.password", JPasswordField.class).getPassword())
+                .isEmpty();
     }
 
     @Test
@@ -98,8 +167,8 @@ class LoginDemoUiTest {
         assertThat(main.get().isShowing()).isTrue();
         assertThat(handoffOnEdt).isTrue();
         String text = visibleText(main.get());
-        assertThat(text).contains("DEMO_ADMIN", "ADMIN", "学籍", "选课",
-                "图书馆", "商城", "建设中");
+        assertThat(text).contains("DEMO_ADMIN", "管理员", "学籍档案", "课程中心",
+                "图书借阅", "校园商城", "账户设置", "功能建设中");
     }
 
     @Test
