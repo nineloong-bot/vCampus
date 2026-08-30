@@ -28,8 +28,11 @@ import java.time.LocalDateTime;
 import java.time.Duration;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static edu.seu.vcampus.common.user.AccountStatus.ACTIVE;
 import static edu.seu.vcampus.common.user.UserRole.ADMIN;
@@ -50,22 +53,28 @@ class InitialPasswordChangeUiTest {
     }
 
     @Test
-    void restrictedLoginShowsOnlyPasswordDialogThenReturnsForRelogin() throws Exception {
+    void restrictedStudentLoginConstructsNoShellOrProfileThenReturnsForRelogin()
+            throws Exception {
         UserClientService users = mock(UserClientService.class);
         ClientConnection connection = mock(ClientConnection.class);
+        AtomicInteger studentRequests = new AtomicInteger();
         when(connection.state()).thenReturn(ConnectionState.CONNECTED);
-        doReturn(CompletableFuture.completedFuture(loginResult(true)),
+        doReturn(CompletableFuture.completedFuture(loginResult(STUDENT, true)),
                 CompletableFuture.completedFuture(loginResult(false)))
                 .when(users).login(anyString(), any(char[].class));
         doReturn(CompletableFuture.completedFuture(null))
                 .when(users).changePassword(any(char[].class), any(char[].class));
-        UserUiCoordinator coordinator = new UserUiCoordinator(users, students(), connection);
+        UserUiCoordinator coordinator = new UserUiCoordinator(users,
+                students(studentRequests), connection);
         SwingUtilities.invokeAndWait(coordinator::start);
+        List<MainFrame> framesBeforeLogin = onEdt(InitialPasswordChangeUiTest::mainFrames);
 
-        submitLogin(showing(LoginFrame.class), "DEMO_ADMIN", "InitialPassword7");
+        submitLogin(showing(LoginFrame.class), "STUDENT_1", "InitialPassword7");
         flushEdt();
 
-        assertThat(showingFrames(MainFrame.class)).isEmpty();
+        assertThat(onEdt(InitialPasswordChangeUiTest::mainFrames))
+                .containsExactlyElementsOf(framesBeforeLogin);
+        assertThat(studentRequests).hasValue(0);
         InitialPasswordChangeDialog dialog = showing(InitialPasswordChangeDialog.class);
         assertThat(text(dialog)).contains("首次修改密码", "退出登录")
                 .doesNotContain("学籍档案", "课程中心", "session-token");
@@ -169,6 +178,23 @@ class InitialPasswordChangeUiTest {
                 .toList();
     }
 
+    private static List<MainFrame> mainFrames() {
+        return Arrays.stream(Frame.getFrames()).filter(MainFrame.class::isInstance)
+                .map(MainFrame.class::cast).toList();
+    }
+
+    private static <T> T onEdt(Callable<T> action) throws Exception {
+        CompletableFuture<T> result = new CompletableFuture<>();
+        SwingUtilities.invokeAndWait(() -> {
+            try {
+                result.complete(action.call());
+            } catch (Throwable failure) {
+                result.completeExceptionally(failure);
+            }
+        });
+        return result.get();
+    }
+
     private static <T extends Component> T component(
             Container root, String name, Class<T> type) {
         for (Component child : root.getComponents()) {
@@ -204,10 +230,15 @@ class InitialPasswordChangeUiTest {
     }
 
     private static StudentClientService students() {
+        return students(new AtomicInteger());
+    }
+
+    private static StudentClientService students(AtomicInteger requests) {
         return new StudentClientService(new StudentRequestClient() {
             @Override
             public <T extends Serializable> CompletableFuture<edu.seu.vcampus.common.protocol.ResponseBody<T>>
             send(String command, Serializable body, Duration timeout) {
+                requests.incrementAndGet();
                 return CompletableFuture.failedFuture(new IllegalStateException("not displayed"));
             }
         }, Duration.ofSeconds(1));
