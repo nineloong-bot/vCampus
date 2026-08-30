@@ -95,3 +95,39 @@ PowerShell 中必须用单引号保护 `-Dsurefire.failIfNoSpecifiedTests=false`
 - 简报给出的两个聚焦 Maven 原样命令在当前 `-am` reactor 下会被上游模块的 Surefire “无匹配测试”阻断；报告保留原样失败证据，并使用不会改变目标测试选择的 `-Dsurefire.failIfNoSpecifiedTests=false` 等效入口完成真实 RED/GREEN。
 - 全量测试仍输出项目既有的 Mockito/Byte Buddy 动态 agent 未来 JDK 警告，客户端测试编译仍有既有 unchecked 提示；所有测试均通过，本任务未扩大范围修改测试基础设施。
 - 未发现 Task 8 功能性疑虑。
+
+## Fix Round 1
+
+### 覆盖加固
+
+- 将原先互相独立的“3 个成功 Payment”与“3 个成功 attempt”宽泛数量断言替换为真实 Access 联结：`tblPaymentAttempt → tblPayment → tblOrderGroup → tblOrder`。按 `attemptId` 精确断言以下三条固定归属和渠道映射：
+  - `demo-attempt-buyer-paid-new → demo-payment-buyer-paid-new → demo-group-buyer-paid-new → demo-order-buyer-paid-new → WECHAT/WECHAT`
+  - `demo-attempt-buyer-paid-old → demo-payment-buyer-paid-old → demo-group-buyer-paid-old → demo-order-buyer-paid-old → ALIPAY/ALIPAY`
+  - `demo-attempt-other-paid → demo-payment-other-paid → demo-group-other-paid → demo-order-other-paid → BANK_CARD/BANK_CARD`
+- 同一联结同时要求 attempt/payment 均成功且有完成时间、group/order 均 PAID、order 有 paidAt，并继续验证 payment amount 与 group/order amount 相等。
+- 对 `demo-group-buyer-pending` 与 `demo-order-buyer-pending` 使用完整 attempt→payment→group→order 联结，精确断言 SUCCEEDED attempt 为 0。
+- 重复初始化测试在第一次初始化后将 `demo-order-buyer-paid-new` 合法篡改为 `PREPARING` 并把 paidAt 改为 `2026-08-30T11:12:13Z`；另插入约束合法、可识别的 `demo-attempt-extra-stale` 成功 attempt。
+- 第二次初始化后不只做宽泛计数，而是精确断言四笔 `OrderFixtureSnapshot`：groupId、buyer、group/order 状态、group/order 金额、orderId、paidAt 全部恢复。这四条记录本身锁定了 `demo-buyer` 2 PAID + 1 PENDING 与 `demo-other-buyer` 1 PAID 的分布。
+- 重复初始化后再次精确断言三条成功 attempt/payment/group/order/channel 映射，并断言全部 attempt ID 只有三条固定值，`demo-attempt-extra-stale` 已消失。
+- 最终没有修改生产代码；所有受控 mutation 均在取得 RED 后用 `apply_patch` 原样恢复，`git diff --exit-code -- ShopAuthDemoDatabase.java` 为 0。
+
+### RED 证据
+
+1. Payment/attempt 错归属 mutation：临时让 `demo-attempt-buyer-paid-old` 指向 `demo-payment-buyer-paid-new`。原先 3/3 数量仍成立。
+   - 命令：`mvn -pl vcampus-server -am '-Dtest=ShopAuthDemoDatabaseTest#seedsDeterministicPaidAndPendingOrdersWithCanonicalCatalogAmounts' '-Dsurefire.failIfNoSpecifiedTests=false' test`
+   - 结果：1 test，1 failure。实际旧 attempt 映射到 new payment/group/order，Payment 渠道 WECHAT、attempt 渠道 ALIPAY；期望旧 payment/group/order 与 ALIPAY/ALIPAY。新增精确映射断言拒绝该 mutation。
+2. 重复初始化恢复 mutation：临时将初始化器中 buyer newest 的固定 paidAt 从 `09:05Z` 改为 `09:06Z`。
+   - 命令：`mvn -pl vcampus-server -am '-Dtest=ShopAuthDemoDatabaseTest#replacesPriorDemoStateWhenInitializedAgain' '-Dsurefire.failIfNoSpecifiedTests=false' test`
+   - 结果：1 test，1 failure。第二次 initialize 后实际快照 paidAt 为 `2026-08-29T09:06:00Z`，期望 `2026-08-29T09:05:00Z`；新增精确恢复断言拒绝该 mutation。
+3. PENDING 成功 attempt mutation：临时给 PENDING Payment 插入一个约束合法的 SUCCEEDED attempt；三条 PAID 精确映射仍成立。
+   - 命令：`mvn -pl vcampus-server -am '-Dtest=ShopAuthDemoDatabaseTest#seedsDeterministicPaidAndPendingOrdersWithCanonicalCatalogAmounts' '-Dsurefire.failIfNoSpecifiedTests=false' test`
+   - 结果：1 test，1 failure；PENDING 联结期望 0，实际 1。新增零成功 attempt 断言独立捕获该 mutation。
+
+### GREEN 与回归
+
+- 所有 mutation 恢复后：`git diff --exit-code -- vcampus-server/src/main/java/edu/seu/vcampus/server/shop/demo/ShopAuthDemoDatabase.java`，exit 0。
+- `mvn -pl vcampus-server -am -Dtest=ShopAuthDemoDatabaseTest '-Dsurefire.failIfNoSpecifiedTests=false' test`
+  - 最终重跑：5 tests，0 failures，0 errors，0 skipped；BUILD SUCCESS。
+- `mvn -pl vcampus-server -am test`
+  - 最终重跑：Common 5 tests、Server 161 tests；全部 0 failures，0 errors，0 skipped；BUILD SUCCESS。
+- 既有 Mockito/Byte Buddy 动态 agent 警告仍存在，为测试基础设施提示；本轮没有新增功能性疑虑。

@@ -173,18 +173,25 @@ class ShopAuthDemoDatabaseTest {
                             + "AND i.lineAmount=i.unitPrice*i.quantity "
                             + "AND o.orderAmount=i.lineAmount AND g.totalAmount=o.orderAmount"))
                     .isEqualTo(4);
+            assertThat(successfulPaymentAttemptMappings(connection)).containsExactly(
+                    new PaymentAttemptMapping("demo-attempt-buyer-paid-new",
+                            "demo-payment-buyer-paid-new", "demo-group-buyer-paid-new",
+                            "demo-order-buyer-paid-new", "WECHAT", "WECHAT"),
+                    new PaymentAttemptMapping("demo-attempt-buyer-paid-old",
+                            "demo-payment-buyer-paid-old", "demo-group-buyer-paid-old",
+                            "demo-order-buyer-paid-old", "ALIPAY", "ALIPAY"),
+                    new PaymentAttemptMapping("demo-attempt-other-paid",
+                            "demo-payment-other-paid", "demo-group-other-paid",
+                            "demo-order-other-paid", "BANK_CARD", "BANK_CARD"));
             assertThat(count(connection,
-                    "SELECT COUNT(*) FROM (tblPayment p INNER JOIN tblOrderGroup g "
+                    "SELECT COUNT(*) FROM ((tblPaymentAttempt a INNER JOIN tblPayment p "
+                            + "ON a.paymentId=p.paymentId) INNER JOIN tblOrderGroup g "
                             + "ON p.orderGroupId=g.orderGroupId) INNER JOIN tblOrder o "
-                            + "ON g.orderGroupId=o.orderGroupId WHERE g.groupStatus='PAID' "
-                            + "AND o.orderStatus='PAID' AND o.paidAt IS NOT NULL "
-                            + "AND p.paymentStatus='SUCCEEDED' AND p.completedAt IS NOT NULL "
-                            + "AND p.amount=g.totalAmount AND p.amount=o.orderAmount"))
-                    .isEqualTo(3);
-            assertThat(count(connection,
-                    "SELECT COUNT(*) FROM tblPaymentAttempt WHERE attemptStatus='SUCCEEDED' "
-                            + "AND completedAt IS NOT NULL"))
-                    .isEqualTo(3);
+                            + "ON g.orderGroupId=o.orderGroupId "
+                            + "WHERE g.orderGroupId='demo-group-buyer-pending' "
+                            + "AND o.orderId='demo-order-buyer-pending' "
+                            + "AND a.attemptStatus='SUCCEEDED'"))
+                    .isZero();
             assertThat(count(connection,
                     "SELECT COUNT(*) FROM (tblPayment p INNER JOIN tblOrderGroup g "
                             + "ON p.orderGroupId=g.orderGroupId) INNER JOIN tblOrder o "
@@ -242,10 +249,29 @@ class ShopAuthDemoDatabaseTest {
     void replacesPriorDemoStateWhenInitializedAgain() throws Exception {
         Path database = temp.resolve("repeatable.accdb");
         ShopAuthDemoDatabase.initialize(database, schemaDir(), seedDir());
-        try (Connection connection = open(database);
-                var statement = connection.createStatement()) {
-            statement.executeUpdate("UPDATE tblProductSku SET stockQuantity=2 "
-                    + "WHERE skuId='demo-stationery-001-sku-1'");
+        try (Connection connection = open(database)) {
+            try (var statement = connection.createStatement()) {
+                statement.executeUpdate("UPDATE tblProductSku SET stockQuantity=2 "
+                        + "WHERE skuId='demo-stationery-001-sku-1'");
+            }
+            try (var statement = connection.prepareStatement(
+                    "UPDATE tblOrder SET orderStatus='PREPARING', paidAt=? WHERE orderId=?")) {
+                statement.setTimestamp(1,
+                        Timestamp.from(Instant.parse("2026-08-30T11:12:13Z")));
+                statement.setString(2, "demo-order-buyer-paid-new");
+                assertThat(statement.executeUpdate()).isEqualTo(1);
+            }
+            try (var statement = connection.prepareStatement(
+                    "INSERT INTO tblPaymentAttempt (attemptId, paymentId, channel, "
+                            + "attemptStatus, createdAt, completedAt) "
+                            + "VALUES ('demo-attempt-extra-stale', "
+                            + "'demo-payment-buyer-paid-new', 'ALIPAY', 'SUCCEEDED', ?, ?)")) {
+                statement.setTimestamp(1,
+                        Timestamp.from(Instant.parse("2026-08-30T11:13:00Z")));
+                statement.setTimestamp(2,
+                        Timestamp.from(Instant.parse("2026-08-30T11:14:00Z")));
+                assertThat(statement.executeUpdate()).isEqualTo(1);
+            }
         }
 
         ShopAuthDemoDatabase.initialize(database, schemaDir(), seedDir());
@@ -260,6 +286,34 @@ class ShopAuthDemoDatabaseTest {
                             + "WHERE skuId='demo-stationery-001-sku-1' "
                             + "AND stockQuantity=10"))
                     .isEqualTo(1);
+            assertThat(orderFixtureSnapshots(connection)).containsExactly(
+                    new OrderFixtureSnapshot("demo-group-buyer-paid-new", "demo-buyer",
+                            "PAID", "20.46", "demo-order-buyer-paid-new", "PAID", "20.46",
+                            Instant.parse("2026-08-29T09:05:00Z")),
+                    new OrderFixtureSnapshot("demo-group-buyer-paid-old", "demo-buyer",
+                            "PAID", "6.70", "demo-order-buyer-paid-old", "PAID", "6.70",
+                            Instant.parse("2026-08-25T08:05:00Z")),
+                    new OrderFixtureSnapshot("demo-group-buyer-pending", "demo-buyer",
+                            "PENDING_PAYMENT", "7.61", "demo-order-buyer-pending",
+                            "PENDING_PAYMENT", "7.61", null),
+                    new OrderFixtureSnapshot("demo-group-other-paid", "demo-other-buyer",
+                            "PAID", "32.70", "demo-order-other-paid", "PAID", "32.70",
+                            Instant.parse("2026-08-27T10:05:00Z")));
+            assertThat(successfulPaymentAttemptMappings(connection)).containsExactly(
+                    new PaymentAttemptMapping("demo-attempt-buyer-paid-new",
+                            "demo-payment-buyer-paid-new", "demo-group-buyer-paid-new",
+                            "demo-order-buyer-paid-new", "WECHAT", "WECHAT"),
+                    new PaymentAttemptMapping("demo-attempt-buyer-paid-old",
+                            "demo-payment-buyer-paid-old", "demo-group-buyer-paid-old",
+                            "demo-order-buyer-paid-old", "ALIPAY", "ALIPAY"),
+                    new PaymentAttemptMapping("demo-attempt-other-paid",
+                            "demo-payment-other-paid", "demo-group-other-paid",
+                            "demo-order-other-paid", "BANK_CARD", "BANK_CARD"));
+            assertThat(strings(connection,
+                    "SELECT attemptId FROM tblPaymentAttempt ORDER BY attemptId"))
+                    .containsExactly("demo-attempt-buyer-paid-new",
+                            "demo-attempt-buyer-paid-old", "demo-attempt-other-paid")
+                    .doesNotContain("demo-attempt-extra-stale");
         }
     }
 
@@ -357,6 +411,54 @@ class ShopAuthDemoDatabaseTest {
         }
     }
 
+    private static List<PaymentAttemptMapping> successfulPaymentAttemptMappings(
+            Connection connection) throws Exception {
+        String sql = "SELECT a.attemptId, p.paymentId, g.orderGroupId, o.orderId, "
+                + "p.successfulChannel, a.channel "
+                + "FROM ((tblPaymentAttempt a INNER JOIN tblPayment p "
+                + "ON a.paymentId=p.paymentId) INNER JOIN tblOrderGroup g "
+                + "ON p.orderGroupId=g.orderGroupId) INNER JOIN tblOrder o "
+                + "ON g.orderGroupId=o.orderGroupId "
+                + "WHERE a.attemptStatus='SUCCEEDED' AND a.completedAt IS NOT NULL "
+                + "AND p.paymentStatus='SUCCEEDED' AND p.completedAt IS NOT NULL "
+                + "AND g.groupStatus='PAID' AND o.orderStatus='PAID' "
+                + "AND o.paidAt IS NOT NULL AND p.amount=g.totalAmount "
+                + "AND p.amount=o.orderAmount ORDER BY a.attemptId";
+        try (var statement = connection.createStatement();
+                var result = statement.executeQuery(sql)) {
+            List<PaymentAttemptMapping> mappings = new ArrayList<>();
+            while (result.next()) {
+                mappings.add(new PaymentAttemptMapping(result.getString("attemptId"),
+                        result.getString("paymentId"), result.getString("orderGroupId"),
+                        result.getString("orderId"), result.getString("successfulChannel"),
+                        result.getString("channel")));
+            }
+            return mappings;
+        }
+    }
+
+    private static List<OrderFixtureSnapshot> orderFixtureSnapshots(Connection connection)
+            throws Exception {
+        String sql = "SELECT g.orderGroupId, g.buyerUserId, g.groupStatus, g.totalAmount, "
+                + "o.orderId, o.orderStatus, o.orderAmount, o.paidAt "
+                + "FROM tblOrderGroup g INNER JOIN tblOrder o "
+                + "ON g.orderGroupId=o.orderGroupId ORDER BY o.orderId";
+        try (var statement = connection.createStatement();
+                var result = statement.executeQuery(sql)) {
+            List<OrderFixtureSnapshot> snapshots = new ArrayList<>();
+            while (result.next()) {
+                Timestamp paidAt = result.getTimestamp("paidAt");
+                snapshots.add(new OrderFixtureSnapshot(result.getString("orderGroupId"),
+                        result.getString("buyerUserId"), result.getString("groupStatus"),
+                        result.getBigDecimal("totalAmount").setScale(2).toPlainString(),
+                        result.getString("orderId"), result.getString("orderStatus"),
+                        result.getBigDecimal("orderAmount").setScale(2).toPlainString(),
+                        paidAt == null ? null : paidAt.toInstant()));
+            }
+            return snapshots;
+        }
+    }
+
     private static Map<String, Long> skuCounts(Connection connection) throws Exception {
         try (var statement = connection.createStatement();
                 var result = statement.executeQuery(
@@ -367,6 +469,16 @@ class ShopAuthDemoDatabaseTest {
             }
             return counts;
         }
+    }
+
+    private record PaymentAttemptMapping(String attemptId, String paymentId,
+            String orderGroupId, String orderId, String paymentChannel,
+            String attemptChannel) {
+    }
+
+    private record OrderFixtureSnapshot(String orderGroupId, String buyerUserId,
+            String groupStatus, String groupAmount, String orderId, String orderStatus,
+            String orderAmount, Instant paidAt) {
     }
 
     private static ProductSearchQuery query(
