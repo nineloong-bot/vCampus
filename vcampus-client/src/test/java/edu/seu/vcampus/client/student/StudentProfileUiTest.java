@@ -15,6 +15,9 @@ import java.awt.*;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -44,7 +47,8 @@ class StudentProfileUiTest {
         var response = new CompletableFuture<ResponseBody<StudentView>>();
         var fixture = new StudentUiFixture(response, ConnectionState.CONNECTED);
         SwingUtilities.invokeAndWait(fixture::showProfile);
-        response.complete(ResponseBody.success(profileWithNulls())); fixture.flushEdt();
+        fixture.awaitDispatch(1); response.complete(ResponseBody.success(profileWithNulls())); fixture.flushEdt();
+        assertThat(fixture.label("student.profile.name").getText()).isEqualTo("张三");
         assertThat(fixture.label("student.profile.email").getText()).isEqualTo("未填写");
         assertThat(fixture.label("student.profile.phone").getText()).isEqualTo("未填写");
         assertThat(fixture.label("student.profile.type").getText()).isEqualTo("未填写");
@@ -77,8 +81,9 @@ class StudentProfileUiTest {
         var first = new CompletableFuture<ResponseBody<StudentView>>();
         var second = new CompletableFuture<ResponseBody<StudentView>>();
         var fixture = new StudentUiFixture(first, second, ConnectionState.CONNECTED);
-        SwingUtilities.invokeAndWait(fixture::showProfile); fixture.flushEdt();
+        SwingUtilities.invokeAndWait(fixture::showProfile); fixture.awaitDispatch(1); fixture.flushEdt();
         SwingUtilities.invokeAndWait(() -> fixture.panel.refreshProfile());
+        fixture.awaitDispatch(2);
         second.complete(ResponseBody.success(profile(2, "new@seu.edu.cn", "new-phone"))); fixture.flushEdt();
         first.complete(ResponseBody.success(profile(1, "stale@seu.edu.cn", "stale-phone"))); fixture.flushEdt();
         assertThat(fixture.visibleText()).contains("new@seu.edu.cn", "new-phone").doesNotContain("stale@");
@@ -95,8 +100,10 @@ class StudentProfileUiTest {
         var initial = CompletableFuture.completedFuture(ResponseBody.success(profile(1, "loaded@seu.edu.cn", "phone")));
         var failed = CompletableFuture.completedFuture(ResponseBody.<StudentView>failure("DENIED", "没有权限", null));
         var fixture = new StudentUiFixture(initial, failed, ConnectionState.CONNECTED);
-        SwingUtilities.invokeAndWait(fixture::showProfile); fixture.flushEdt();
-        SwingUtilities.invokeAndWait(() -> fixture.panel.refreshProfile()); fixture.flushEdt();
+        SwingUtilities.invokeAndWait(fixture::showProfile); fixture.awaitDispatch(1); fixture.flushEdt();
+        assertThat(fixture.label("student.profile.email").getText()).isEqualTo("loaded@seu.edu.cn");
+        assertThat(fixture.button("student.profile.refresh").getText()).isEqualTo("刷新");
+        SwingUtilities.invokeAndWait(() -> fixture.panel.refreshProfile()); fixture.awaitDispatch(2); fixture.flushEdt();
         assertThat(fixture.visibleText()).contains("没有权限");
         assertThat(fixture.button("student.profile.refresh").getText()).isEqualTo("重试");
         assertThat(fixture.button("student.profile.refresh").isEnabled()).isTrue();
@@ -130,6 +137,8 @@ class StudentProfileUiTest {
     private static final class StudentUiFixture {
         final ClientConnection connection = new ClientConnection("localhost", 1); final StudentClientService students;
         final CompletableFuture<ResponseBody<StudentView>>[] responses;
+        final AtomicInteger sendCount = new AtomicInteger();
+        final CountDownLatch[] dispatches = {new CountDownLatch(1), new CountDownLatch(1)};
         MyStudentProfilePanel panel;
         StudentUiFixture(CompletableFuture<ResponseBody<StudentView>> response, ConnectionState state) { this(response, new CompletableFuture[0]); setState(state); }
         StudentUiFixture(CompletableFuture<ResponseBody<StudentView>> response, CompletableFuture<ResponseBody<StudentView>> next, ConnectionState state) { this(response, next); setState(state); }
@@ -137,11 +146,12 @@ class StudentProfileUiTest {
             connections.add(connection);
             this.responses = new CompletableFuture[next.length + 1]; this.responses[0] = response; System.arraycopy(next, 0, responses, 1, next.length);
             StudentRequestClient client = new StudentRequestClient() {
-                @SuppressWarnings("unchecked") public <T extends java.io.Serializable> CompletableFuture<ResponseBody<T>> send(String command, java.io.Serializable body, Duration timeout) { return (CompletableFuture<ResponseBody<T>>) (CompletableFuture<?>) responses[Math.min(index++, responses.length - 1)]; }
+                @SuppressWarnings("unchecked") public <T extends java.io.Serializable> CompletableFuture<ResponseBody<T>> send(String command, java.io.Serializable body, Duration timeout) { int call = sendCount.incrementAndGet(); if (call <= dispatches.length) dispatches[call - 1].countDown(); return (CompletableFuture<ResponseBody<T>>) (CompletableFuture<?>) responses[Math.min(index++, responses.length - 1)]; }
             }; students = new StudentClientService(client, Duration.ofSeconds(1));
         }
         void setState(ConnectionState state) { try { var f = ClientConnection.class.getDeclaredField("state"); f.setAccessible(true); f.set(connection, state); } catch (ReflectiveOperationException e) { throw new AssertionError(e); } }
         int index;
+        void awaitDispatch(int count) throws InterruptedException { assertThat(count).isBetween(1, dispatches.length); assertThat(dispatches[count - 1].await(2, TimeUnit.SECONDS)).isTrue(); }
         void showProfile() { panel = new MyStudentProfilePanel(students, connection); panel.addNotify(); }
         void flushEdt() throws Exception { SwingUtilities.invokeAndWait(() -> {}); }
         String visibleText() { return text(panel); }
