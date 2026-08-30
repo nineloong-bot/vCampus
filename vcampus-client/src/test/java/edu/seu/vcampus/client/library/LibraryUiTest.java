@@ -11,6 +11,7 @@ import edu.seu.vcampus.client.library.ui.BookManagementPanel;
 import edu.seu.vcampus.client.library.ui.CopyManagementPanel;
 import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.core.ui.MainFrame;
+import edu.seu.vcampus.client.core.ui.theme.UiColors;
 import edu.seu.vcampus.common.user.*;
 import org.junit.jupiter.api.Test;
 
@@ -246,8 +247,10 @@ class LibraryUiTest {
         JTable table = first(workspace, JTable.class);
 
         assertThat(table.getBackground()).isEqualTo(java.awt.Color.decode("#FFFFFF"));
-        assertThat(table.getSelectionBackground()).isEqualTo(java.awt.Color.decode("#DBEAFE"));
-        assertThat(table.getTableHeader().getBackground()).isEqualTo(java.awt.Color.decode("#EEF2F7"));
+        assertThat(table.getSelectionBackground()).isEqualTo(UiColors.BACKGROUND_SUBTLE);
+        assertThat(table.getTableHeader().getBackground()).isEqualTo(UiColors.BACKGROUND_SUBTLE);
+        assertThat(((JButton) button(workspace, "查询馆藏")).getBackground())
+                .isEqualTo(UiColors.PRIMARY);
         assertThat(table.getShowHorizontalLines()).isTrue();
         assertThat(table.getShowVerticalLines()).isFalse();
     }
