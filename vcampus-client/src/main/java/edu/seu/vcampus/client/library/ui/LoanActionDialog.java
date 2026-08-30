@@ -16,6 +16,8 @@ public final class LoanActionDialog extends JDialog {
         add(actions, BorderLayout.SOUTH); getRootPane().setDefaultButton(confirm);
         getRootPane().registerKeyboardAction(e -> dispose(), KeyStroke.getKeyStroke("ESCAPE"),
                 JComponent.WHEN_IN_FOCUSED_WINDOW);
+        getContentPane().setBackground(LibraryPalette.SURFACE);
+        LibraryUiStyle.apply(getContentPane());
         setSize(420, 180); setLocationRelativeTo(owner);
     }
 }

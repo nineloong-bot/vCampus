@@ -16,13 +16,17 @@ public final class LibraryWorkspacePanel extends JPanel {
         Objects.requireNonNull(service, "service");
         Objects.requireNonNull(permissions, "permissions");
         setName("page.library");
+        setBackground(LibraryPalette.PAGE);
         tabs.setName("library.tabs");
         BookSearchPanel search = new BookSearchPanel(service);
         BookDetailPanel detail = new BookDetailPanel(service);
         search.connectDetail(detail);
         JSplitPane catalog = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, search, detail);
-        catalog.setResizeWeight(0.6); catalog.setDividerLocation(0.6);
+        catalog.setResizeWeight(0.58); catalog.setDividerLocation(0.58);
+        catalog.setDividerSize(8); catalog.setBorder(BorderFactory.createEmptyBorder());
+        catalog.setBackground(LibraryPalette.PAGE);
         JPanel catalogPage = new JPanel(new BorderLayout());
+        catalogPage.setBackground(LibraryPalette.PAGE);
         catalogPage.setName("library.catalog"); catalogPage.add(catalog);
         addTab("馆藏检索", catalogPage, search::search);
         CurrentLoansPanel currentLoans = new CurrentLoansPanel(service);
@@ -39,6 +43,8 @@ public final class LibraryWorkspacePanel extends JPanel {
         }
         tabs.addChangeListener(event -> refreshSelected());
         add(tabs, BorderLayout.CENTER);
+        LibraryUiStyle.styleTabs(tabs);
+        LibraryUiStyle.apply(this);
     }
 
     private void addTab(String title, JComponent component, Runnable refresh) {

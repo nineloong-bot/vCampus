@@ -240,6 +240,18 @@ class LibraryUiTest {
         assertThat(labels(panel)).contains("数据已被其他操作修改，请刷新后重试。");
     }
 
+    @Test
+    void libraryTablesUseModernSurfaceSelectionAndLightweightGrid() {
+        LibraryWorkspacePanel workspace = new LibraryWorkspacePanel(service, Set.of());
+        JTable table = first(workspace, JTable.class);
+
+        assertThat(table.getBackground()).isEqualTo(java.awt.Color.decode("#FFFFFF"));
+        assertThat(table.getSelectionBackground()).isEqualTo(java.awt.Color.decode("#DBEAFE"));
+        assertThat(table.getTableHeader().getBackground()).isEqualTo(java.awt.Color.decode("#EEF2F7"));
+        assertThat(table.getShowHorizontalLines()).isTrue();
+        assertThat(table.getShowVerticalLines()).isFalse();
+    }
+
     private static Component button(Container root, String text) {
         for (Component child : root.getComponents()) {
             if (child instanceof JButton button && text.equals(button.getText())) return button;

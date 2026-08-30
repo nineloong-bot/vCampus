@@ -22,7 +22,10 @@ public final class BookSearchPanel extends LibraryDataPanel {
                 "书名", "作者", "分类", "可借/总数");
         this.service = Objects.requireNonNull(service, "service");
         JPanel filters = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        filters.setBackground(edu.seu.vcampus.client.core.ui.theme.UiColors.BACKGROUND_SUBTLE);
+        filters.setBackground(LibraryPalette.SURFACE);
+        filters.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(LibraryPalette.BORDER),
+                BorderFactory.createEmptyBorder(8, 10, 8, 10)));
         filters.add(new JLabel("关键词"));
         filters.add(keyword);
         filters.add(search);
