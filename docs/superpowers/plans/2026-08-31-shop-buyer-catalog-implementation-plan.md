@@ -47,7 +47,7 @@ Expected: production code passes the authenticated `UserView` and active `Client
 Run:
 
 ```powershell
-mvn -pl vcampus-client -am -Dtest=ShopAuthDemoClientMainTest,ShopAuthEndToEndTest test
+mvn -pl vcampus-client -am '-Dtest=ShopAuthDemoClientMainTest,ShopAuthEndToEndTest' '-Dsurefire.failIfNoSpecifiedTests=false' test
 ```
 
 Expected: PASS with no User module source modification.
@@ -163,7 +163,7 @@ git commit -m "feat(shop): define product catalog contract"
 
 - [ ] **Step 2: Run focused server tests and verify red**
 
-Run: `mvn -pl vcampus-server -am -Dtest=ProductServiceTest,AccessShopRepositoryTest test`
+Run: `mvn -pl vcampus-server -am '-Dtest=ProductServiceTest,AccessShopRepositoryTest' '-Dsurefire.failIfNoSpecifiedTests=false' test`
 
 Expected: FAIL on missing schema field and grouping checks.
 
@@ -189,7 +189,7 @@ Use `ShopCategories.requireSupported(shop.category())` and always persist the ow
 Run:
 
 ```powershell
-mvn -pl vcampus-server -am -Dtest=ProductServiceTest,AccessShopRepositoryTest test
+mvn -pl vcampus-server -am '-Dtest=ProductServiceTest,AccessShopRepositoryTest' '-Dsurefire.failIfNoSpecifiedTests=false' test
 mvn -pl vcampus-server -am test
 ```
 
@@ -236,7 +236,7 @@ Also assert the combo box visible values are `黑色 0.5mm` rather than SKU IDs.
 
 - [ ] **Step 2: Run focused client tests and verify red**
 
-Run: `mvn -pl vcampus-client -am -Dtest=PurchasePanelsTest,ShopNavigatorTest test`
+Run: `mvn -pl vcampus-client -am '-Dtest=PurchasePanelsTest,ShopNavigatorTest' '-Dsurefire.failIfNoSpecifiedTests=false' test`
 
 Expected: FAIL on history reset, SKU display, and uncommitted editor text.
 
@@ -257,7 +257,7 @@ Before reading the spinner value, call `quantity.commitEdit()`, catch `ParseExce
 Run:
 
 ```powershell
-mvn -pl vcampus-client -am -Dtest=PurchasePanelsTest,ShopNavigatorTest test
+mvn -pl vcampus-client -am '-Dtest=PurchasePanelsTest,ShopNavigatorTest' '-Dsurefire.failIfNoSpecifiedTests=false' test
 mvn -pl vcampus-client -am test
 ```
 
@@ -316,7 +316,7 @@ Use the existing Swing component-name helpers and fake client to implement them 
 
 - [ ] **Step 2: Run focused tests and verify red**
 
-Run: `mvn -pl vcampus-client -am -Dtest=CatalogPanelsTest,ShopNavigatorTest test`
+Run: `mvn -pl vcampus-client -am '-Dtest=CatalogPanelsTest,ShopNavigatorTest' '-Dsurefire.failIfNoSpecifiedTests=false' test`
 
 Expected: FAIL because `filterToggle` still collapses and sort has no direct listener.
 
@@ -380,7 +380,7 @@ Use an injected `ImageSource` seam so tests do not access the Internet. Assert H
 
 - [ ] **Step 3: Run focused tests and verify red**
 
-Run: `mvn -pl vcampus-client -am -Dtest=ProductGridPanelTest,HttpsProductImageLoaderTest,CatalogPanelsTest test`
+Run: `mvn -pl vcampus-client -am '-Dtest=ProductGridPanelTest,HttpsProductImageLoaderTest,CatalogPanelsTest' '-Dsurefire.failIfNoSpecifiedTests=false' test`
 
 Expected: FAIL because the catalog package does not exist.
 
@@ -397,7 +397,7 @@ Inject the same renderer/loader factory through `ShopPageCoordinator.BuyerPageFa
 Run:
 
 ```powershell
-mvn -pl vcampus-client -am -Dtest=ProductGridPanelTest,HttpsProductImageLoaderTest,CatalogPanelsTest,ShopUiTest test
+mvn -pl vcampus-client -am '-Dtest=ProductGridPanelTest,HttpsProductImageLoaderTest,CatalogPanelsTest,ShopUiTest' '-Dsurefire.failIfNoSpecifiedTests=false' test
 mvn -pl vcampus-client -am test
 ```
 
@@ -455,7 +455,7 @@ git commit -m "feat(shop): render catalog as image card grid"
 
 - [ ] **Step 2: Run tests and verify red**
 
-Run: `mvn -pl vcampus-server -am -Dtest=CartServiceTest,CheckoutServiceTest,SimulatedPaymentServiceTest test`
+Run: `mvn -pl vcampus-server -am '-Dtest=CartServiceTest,CheckoutServiceTest,SimulatedPaymentServiceTest' '-Dsurefire.failIfNoSpecifiedTests=false' test`
 
 Expected: FAIL because active administrators currently pass buyer checks.
 

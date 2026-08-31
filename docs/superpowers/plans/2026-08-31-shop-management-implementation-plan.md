@@ -80,7 +80,7 @@ Seed two products with multiple SKU rows and reservations. Assert SKU count, `MI
 
 - [ ] **Step 2: Run repository tests and verify red**
 
-Run: `mvn -pl vcampus-server -am -Dtest=AccessShopRepositoryTest test`
+Run: `mvn -pl vcampus-server -am '-Dtest=AccessShopRepositoryTest' '-Dsurefire.failIfNoSpecifiedTests=false' test`
 
 - [ ] **Step 3: Implement Access-compatible aggregate SQL**
 
@@ -88,7 +88,7 @@ Group by every non-aggregate selected product column. Load seller order headers 
 
 - [ ] **Step 4: Run repository tests and commit**
 
-Run: `mvn -pl vcampus-server -am -Dtest=AccessShopRepositoryTest test`
+Run: `mvn -pl vcampus-server -am '-Dtest=AccessShopRepositoryTest' '-Dsurefire.failIfNoSpecifiedTests=false' test`
 
 ```powershell
 git add -- vcampus-server/src/main/java/edu/seu/vcampus/server/shop/repository vcampus-server/src/test/java/edu/seu/vcampus/server/shop/repository/AccessShopRepositoryTest.java
@@ -116,7 +116,7 @@ Assert shop profile rename rechecks global normalized-name uniqueness; profile c
 
 - [ ] **Step 2: Run service tests and verify red**
 
-Run: `mvn -pl vcampus-server -am -Dtest=ProductServiceTest,ShopOwnershipTest,SellerOrderServiceTest test`
+Run: `mvn -pl vcampus-server -am '-Dtest=ProductServiceTest,ShopOwnershipTest,SellerOrderServiceTest' '-Dsurefire.failIfNoSpecifiedTests=false' test`
 
 - [ ] **Step 3: Split read and write shop lookup paths**
 
@@ -127,7 +127,7 @@ Run: `mvn -pl vcampus-server -am -Dtest=ProductServiceTest,ShopOwnershipTest,Sel
 Run:
 
 ```powershell
-mvn -pl vcampus-server -am -Dtest=ProductServiceTest,ShopOwnershipTest,SellerOrderServiceTest test
+mvn -pl vcampus-server -am '-Dtest=ProductServiceTest,ShopOwnershipTest,SellerOrderServiceTest' '-Dsurefire.failIfNoSpecifiedTests=false' test
 mvn -pl vcampus-server -am test
 ```
 
@@ -158,7 +158,7 @@ Assert active admin may manage each selected shop, category is inherited from ta
 
 - [ ] **Step 2: Run focused tests and verify red**
 
-Run: `mvn -pl vcampus-server -am -Dtest=AdminProductServiceTest,ShopBusinessLoggerTest test`
+Run: `mvn -pl vcampus-server -am '-Dtest=AdminProductServiceTest,ShopBusinessLoggerTest' '-Dsurefire.failIfNoSpecifiedTests=false' test`
 
 - [ ] **Step 3: Implement shared Shop-only mutation policy**
 
@@ -198,8 +198,8 @@ For every command assert session propagation, body type, typed response, dedupli
 Run:
 
 ```powershell
-mvn -pl vcampus-server -am -Dtest=SellerShopHandlersTest,AdminShopHandlersTest test
-mvn -pl vcampus-client -am -Dtest=ShopClientServiceTest test
+mvn -pl vcampus-server -am '-Dtest=SellerShopHandlersTest,AdminShopHandlersTest' '-Dsurefire.failIfNoSpecifiedTests=false' test
+mvn -pl vcampus-client -am '-Dtest=ShopClientServiceTest' '-Dsurefire.failIfNoSpecifiedTests=false' test
 ```
 
 - [ ] **Step 3: Register and implement mappings**
@@ -244,7 +244,7 @@ Assert profile category is read-only; suspension reason is shown; suspended writ
 
 - [ ] **Step 2: Run focused tests and verify red**
 
-Run: `mvn -pl vcampus-client -am -Dtest=SellerWorkspacePanelTest,ProductManagementPanelTest,SellerOrdersPanelTest test`
+Run: `mvn -pl vcampus-client -am '-Dtest=SellerWorkspacePanelTest,ProductManagementPanelTest,SellerOrdersPanelTest' '-Dsurefire.failIfNoSpecifiedTests=false' test`
 
 - [ ] **Step 3: Implement small panels with shared state seams**
 
@@ -278,7 +278,7 @@ Assert no product request before selecting a shop; selecting a shop loads its pr
 
 - [ ] **Step 2: Run focused tests and verify red**
 
-Run: `mvn -pl vcampus-client -am -Dtest=AdminProductManagementPanelTest,ShopUiTest test`
+Run: `mvn -pl vcampus-client -am '-Dtest=AdminProductManagementPanelTest,ShopUiTest' '-Dsurefire.failIfNoSpecifiedTests=false' test`
 
 - [ ] **Step 3: Implement selection-fenced admin management**
 

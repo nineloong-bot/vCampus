@@ -92,7 +92,7 @@ Assert statement text survives insert/update; normalized name lookup treats `Cam
 
 - [ ] **Step 2: Run the repository test and verify red**
 
-Run: `mvn -pl vcampus-server -am -Dtest=AccessShopRepositoryTest test`
+Run: `mvn -pl vcampus-server -am '-Dtest=AccessShopRepositoryTest' '-Dsurefire.failIfNoSpecifiedTests=false' test`
 
 Expected: FAIL on missing columns and methods.
 
@@ -102,7 +102,7 @@ Add `applicationStatement MEMO NOT NULL` to `tblSellerApplication` and `normaliz
 
 - [ ] **Step 4: Run repository and schema consumers**
 
-Run: `mvn -pl vcampus-server -am -Dtest=AccessShopRepositoryTest,ShopAuthDemoDatabaseTest test`
+Run: `mvn -pl vcampus-server -am '-Dtest=AccessShopRepositoryTest,ShopAuthDemoDatabaseTest' '-Dsurefire.failIfNoSpecifiedTests=false' test`
 
 Expected: PASS after Demo inserts supply `applicationStatement = "Demo 经营计划"` and `normalizedShopName = shopName.strip().toLowerCase(Locale.ROOT)`.
 
@@ -142,7 +142,7 @@ git commit -m "feat(shop): persist application governance data"
 
 - [ ] **Step 2: Run adapter tests and verify red**
 
-Run: `mvn -pl vcampus-server -am -Dtest=FoundationShopUserAdapterTest test`
+Run: `mvn -pl vcampus-server -am '-Dtest=FoundationShopUserAdapterTest' '-Dsurefire.failIfNoSpecifiedTests=false' test`
 
 Expected: FAIL because the adapter has a parameterless method that always rejects.
 
@@ -185,7 +185,7 @@ Cover student and teacher eligibility, administrator rejection, statement requir
 
 - [ ] **Step 2: Run focused tests and verify red**
 
-Run: `mvn -pl vcampus-server -am -Dtest=SellerApplicationServiceTest,ShopOwnershipTest test`
+Run: `mvn -pl vcampus-server -am '-Dtest=SellerApplicationServiceTest,ShopOwnershipTest' '-Dsurefire.failIfNoSpecifiedTests=false' test`
 
 Expected: FAIL on statement, category, collision, and optional no-application behavior.
 
@@ -198,7 +198,7 @@ Lock `USER:<actorId>`, `SELLER_APPLICATION:<applicationId>` when present, and `S
 Run:
 
 ```powershell
-mvn -pl vcampus-server -am -Dtest=SellerApplicationServiceTest,ShopOwnershipTest test
+mvn -pl vcampus-server -am '-Dtest=SellerApplicationServiceTest,ShopOwnershipTest' '-Dsurefire.failIfNoSpecifiedTests=false' test
 mvn -pl vcampus-server -am test
 ```
 
@@ -227,7 +227,7 @@ Assert only an active admin session can search/review/suspend/resume; approval r
 
 - [ ] **Step 2: Run focused tests and verify red**
 
-Run: `mvn -pl vcampus-server -am -Dtest=ShopStatusServiceTest,ShopBusinessLoggerTest test`
+Run: `mvn -pl vcampus-server -am '-Dtest=ShopStatusServiceTest,ShopBusinessLoggerTest' '-Dsurefire.failIfNoSpecifiedTests=false' test`
 
 Expected: FAIL because methods use parameterless admin authorization and do not expose search/log seams.
 
@@ -264,7 +264,7 @@ For each command assert body type, session propagation, success DTO, stable Shop
 
 - [ ] **Step 2: Run focused tests and verify red**
 
-Run: `mvn -pl vcampus-server -am -Dtest=SellerShopHandlersTest,AdminShopHandlersTest,BuyerShopHandlersTest test`
+Run: `mvn -pl vcampus-server -am '-Dtest=SellerShopHandlersTest,AdminShopHandlersTest,BuyerShopHandlersTest' '-Dsurefire.failIfNoSpecifiedTests=false' test`
 
 Expected: FAIL because new handlers and commands are unregistered.
 
@@ -277,7 +277,7 @@ Expected: FAIL because new handlers and commands are unregistered.
 Run:
 
 ```powershell
-mvn -pl vcampus-server -am -Dtest=SellerShopHandlersTest,AdminShopHandlersTest,BuyerShopHandlersTest test
+mvn -pl vcampus-server -am '-Dtest=SellerShopHandlersTest,AdminShopHandlersTest,BuyerShopHandlersTest' '-Dsurefire.failIfNoSpecifiedTests=false' test
 mvn -pl vcampus-server -am test
 ```
 
@@ -306,7 +306,7 @@ Assert every method sends the exact command and body, uses the configured timeou
 
 - [ ] **Step 2: Run test and verify red**
 
-Run: `mvn -pl vcampus-client -am -Dtest=ShopClientServiceTest test`
+Run: `mvn -pl vcampus-client -am '-Dtest=ShopClientServiceTest' '-Dsurefire.failIfNoSpecifiedTests=false' test`
 
 - [ ] **Step 3: Implement the two interfaces on `ShopClientService`**
 
@@ -314,7 +314,7 @@ Reuse the existing private generic `send(String, Serializable)` method. Return a
 
 - [ ] **Step 4: Run client service tests and commit**
 
-Run: `mvn -pl vcampus-client -am -Dtest=ShopClientServiceTest test`
+Run: `mvn -pl vcampus-client -am '-Dtest=ShopClientServiceTest' '-Dsurefire.failIfNoSpecifiedTests=false' test`
 
 ```powershell
 git add -- vcampus-client/src/main/java/edu/seu/vcampus/client/shop/service vcampus-client/src/test/java/edu/seu/vcampus/client/shop/service
@@ -349,7 +349,7 @@ Assert status filtering and table selection, full material details, approve conf
 
 - [ ] **Step 3: Run focused client tests and verify red**
 
-Run: `mvn -pl vcampus-client -am -Dtest=SellerApplicationPanelTest,ApplicationReviewPanelTest,ShopUiTest test`
+Run: `mvn -pl vcampus-client -am '-Dtest=SellerApplicationPanelTest,ApplicationReviewPanelTest,ShopUiTest' '-Dsurefire.failIfNoSpecifiedTests=false' test`
 
 - [ ] **Step 4: Implement focused panels and coordinator routing**
 

@@ -51,7 +51,7 @@ Also assert five active shops, every product has a valid HTTPS URL, every produc
 
 - [ ] **Step 2: Run Demo database tests and verify red**
 
-Run: `mvn -pl vcampus-server -am -Dtest=ShopDemoTest,ShopAuthDemoDatabaseTest test`
+Run: `mvn -pl vcampus-server -am '-Dtest=ShopDemoTest,ShopAuthDemoDatabaseTest' '-Dsurefire.failIfNoSpecifiedTests=false' test`
 
 Expected: FAIL because current distribution is four categories and variant-like names remain product rows.
 
@@ -65,7 +65,7 @@ Keep the 100 generic names in reviewed immutable lists. Use deterministic IDs, p
 
 - [ ] **Step 5: Run focused tests and commit**
 
-Run: `mvn -pl vcampus-server -am -Dtest=ShopDemoTest,ShopAuthDemoDatabaseTest test`
+Run: `mvn -pl vcampus-server -am '-Dtest=ShopDemoTest,ShopAuthDemoDatabaseTest' '-Dsurefire.failIfNoSpecifiedTests=false' test`
 
 ```powershell
 git add -- vcampus-server/src/main/java/edu/seu/vcampus/server/shop/demo vcampus-server/src/test/java/edu/seu/vcampus/server/shop/demo
@@ -90,7 +90,7 @@ Assert exactly four fixed login IDs with expected roles; authenticate each with 
 
 - [ ] **Step 2: Run focused tests and verify red**
 
-Run: `mvn -pl vcampus-server -am -Dtest=ShopAuthDemoDatabaseTest test`
+Run: `mvn -pl vcampus-server -am '-Dtest=ShopAuthDemoDatabaseTest' '-Dsurefire.failIfNoSpecifiedTests=false' test`
 
 - [ ] **Step 3: Update deterministic seed data**
 
@@ -101,8 +101,8 @@ Use the existing User `PasswordHasher` format or the same known encoded fixture 
 Run:
 
 ```powershell
-mvn -pl vcampus-server -am -Dtest=ShopAuthDemoDatabaseTest test
-mvn -pl vcampus-client -am -Dtest=ShopAuthEndToEndTest test
+mvn -pl vcampus-server -am '-Dtest=ShopAuthDemoDatabaseTest' '-Dsurefire.failIfNoSpecifiedTests=false' test
+mvn -pl vcampus-client -am '-Dtest=ShopAuthEndToEndTest' '-Dsurefire.failIfNoSpecifiedTests=false' test
 ```
 
 - [ ] **Step 5: Commit**
@@ -133,7 +133,7 @@ After login, send one command from each surface and assert it is registered: buy
 
 - [ ] **Step 2: Run focused tests and verify red**
 
-Run: `mvn -pl vcampus-client -am -Dtest=ShopAuthDemoClientMainTest,ShopAuthEndToEndTest,ShopUiTest test`
+Run: `mvn -pl vcampus-client -am '-Dtest=ShopAuthDemoClientMainTest,ShopAuthEndToEndTest,ShopUiTest' '-Dsurefire.failIfNoSpecifiedTests=false' test`
 
 - [ ] **Step 3: Wire services and handlers**
 
@@ -180,7 +180,7 @@ Implement independent database-per-test scenarios:
 
 - [ ] **Step 2: Run each scenario while developing**
 
-Run: `mvn -pl vcampus-client -am -Dtest=ShopSellerAdminEndToEndTest test`
+Run: `mvn -pl vcampus-client -am '-Dtest=ShopSellerAdminEndToEndTest' '-Dsurefire.failIfNoSpecifiedTests=false' test`
 
 Expected: each new scenario fails before its missing wiring/fix and passes after the smallest scoped correction.
 
