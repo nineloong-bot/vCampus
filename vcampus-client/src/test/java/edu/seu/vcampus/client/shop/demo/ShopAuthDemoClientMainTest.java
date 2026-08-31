@@ -1,5 +1,7 @@
 package edu.seu.vcampus.client.shop.demo;
 
+import edu.seu.vcampus.client.core.network.ClientConnection;
+import edu.seu.vcampus.client.core.network.ConnectionState;
 import edu.seu.vcampus.client.core.ui.MainFrame;
 import edu.seu.vcampus.client.shop.service.ShopClientPort;
 import edu.seu.vcampus.common.shop.PaidOrderHistory;
@@ -28,12 +30,15 @@ import static org.mockito.Mockito.when;
 
 class ShopAuthDemoClientMainTest {
     @Test
-    void authenticatedCompositionPassesTheLoginUserIntoTheMyPage() throws Exception {
+    void authenticatedCompositionPassesSharedLoginStateIntoTheShellAndMyPage() throws Exception {
         assumeFalse(GraphicsEnvironment.isHeadless());
         LocalDateTime now = LocalDateTime.of(2026, 8, 30, 0, 0);
         UserView user = new UserView("buyer-main", "DEMO_BUYER", UserRole.STUDENT,
                 AccountStatus.ACTIVE, false, now, 0, now, now);
-        MainFrame main = onEdt(() -> ShopAuthDemoClientMain.authenticatedMain(user));
+        ClientConnection connection = mock(ClientConnection.class);
+        when(connection.state()).thenReturn(ConnectionState.CONNECTED);
+        MainFrame main = onEdt(() ->
+                ShopAuthDemoClientMain.authenticatedMain(user, connection));
         ShopClientPort shop = mock(ShopClientPort.class);
         when(shop.getPaidOrders()).thenReturn(
                 CompletableFuture.completedFuture(new PaidOrderHistory(List.of())));
@@ -47,6 +52,10 @@ class ShopAuthDemoClientMainTest {
                 .isEqualTo("buyer-main");
         assertThat(component(main.content(), "my.login-id", JLabel.class).getText())
                 .isEqualTo("DEMO_BUYER");
+        assertThat(component(main.header(), "identity.summary", JLabel.class).getText())
+                .contains("DEMO_BUYER");
+        assertThat(component(main.header(), "connection.status", JLabel.class).getText())
+                .isEqualTo("服务器已连接");
         onEdt(main::dispose);
     }
 

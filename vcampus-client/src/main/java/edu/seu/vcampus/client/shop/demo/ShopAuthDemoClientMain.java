@@ -11,9 +11,7 @@ import edu.seu.vcampus.client.user.ui.LoginFrame;
 import edu.seu.vcampus.common.user.LoginResult;
 import edu.seu.vcampus.common.user.UserView;
 
-import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
-import java.awt.BorderLayout;
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowListener;
 import java.time.Duration;
@@ -108,7 +106,7 @@ public final class ShopAuthDemoClientMain {
             ShopClientService shop,
             ClientConnection connection) {
         requireEdt();
-        MainFrame main = authenticatedMain(result.user());
+        MainFrame main = authenticatedMain(result.user(), connection);
         Runnable sessionTransition = oneShotSessionTransition(
                 () -> fireWindowClosing(main),
                 main::dispose,
@@ -123,15 +121,11 @@ public final class ShopAuthDemoClientMain {
         ShopUiInstaller.install(main, user, shop, new DefaultShopUiKit(), sessionExpired);
     }
 
-    static MainFrame authenticatedMain(UserView user) {
+    static MainFrame authenticatedMain(UserView user, ClientConnection connection) {
         requireEdt();
-        Objects.requireNonNull(user, "user");
-        MainFrame main = new MainFrame();
-        JLabel identity = new JLabel(
-                "当前用户：" + user.loginId() + "（" + user.role().name() + "）");
-        identity.setName("shop-demo.identity");
-        main.header().add(identity, BorderLayout.CENTER);
-        return main;
+        return new MainFrame(
+                Objects.requireNonNull(user, "user"),
+                Objects.requireNonNull(connection, "connection"));
     }
 
     static Runnable oneShotSessionTransition(

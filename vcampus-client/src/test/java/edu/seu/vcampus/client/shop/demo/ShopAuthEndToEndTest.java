@@ -1,6 +1,7 @@
 package edu.seu.vcampus.client.shop.demo;
 
 import edu.seu.vcampus.client.core.network.ClientConnection;
+import edu.seu.vcampus.client.core.network.ConnectionState;
 import edu.seu.vcampus.client.core.ui.MainFrame;
 import edu.seu.vcampus.client.shop.service.ShopClientService;
 import edu.seu.vcampus.client.shop.service.ShopClientPort;
@@ -126,8 +127,10 @@ class ShopAuthEndToEndTest {
     void authenticatedDemoShellKeepsTheShopCardHostAndVisibleIdentity() throws Exception {
         assumeFalse(GraphicsEnvironment.isHeadless());
         LoginResult login = loginResult();
+        ClientConnection connection = mock(ClientConnection.class);
+        when(connection.state()).thenReturn(ConnectionState.CONNECTED);
         MainFrame main = edu.seu.vcampus.client.shop.ShopSwingTestSupport.onEdt(
-                () -> ShopAuthDemoClientMain.authenticatedMain(login.user()));
+                () -> ShopAuthDemoClientMain.authenticatedMain(login.user(), connection));
         ShopClientPort client = mock(ShopClientPort.class);
         when(client.home(any())).thenReturn(new CompletableFuture<>());
         int navigationCount = main.navigation().getComponentCount();
@@ -145,8 +148,11 @@ class ShopAuthEndToEndTest {
         assertThat(shop.getText()).isEqualTo("校园商城");
         verify(client).home(any());
         assertThat(edu.seu.vcampus.client.shop.ShopSwingTestSupport.component(
-                main.header(), "shop-demo.identity", JLabel.class).getText())
-                .isEqualTo("当前用户：DEMO_BUYER（STUDENT）");
+                main.header(), "identity.summary", JLabel.class).getText())
+                .isEqualTo("DEMO_BUYER · 学生");
+        assertThat(edu.seu.vcampus.client.shop.ShopSwingTestSupport.component(
+                main.header(), "connection.status", JLabel.class).getText())
+                .isEqualTo("服务器已连接");
         edu.seu.vcampus.client.shop.ShopSwingTestSupport.onEdt(main::dispose);
     }
 
