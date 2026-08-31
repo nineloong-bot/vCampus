@@ -104,10 +104,10 @@ class ShopAuthEndToEndTest {
                     sendRanOnEdt.set(javax.swing.SwingUtilities.isEventDispatchThread());
                     LoginCommand command = invocation.getArgument(1);
                     assertThat(command.password()).containsExactly(
-                            'D', 'e', 'm', 'o', 'P', 'a', 's', 's', 'w', 'o', 'r', 'd', '7');
+                            '1', '2', '3', '4', '5', '6');
                     return CompletableFuture.completedFuture(ResponseBody.success(expected));
                 });
-        char[] password = "DemoPassword7".toCharArray();
+        char[] password = "123456".toCharArray();
 
         CompletableFuture<LoginResult> response =
                 edu.seu.vcampus.client.shop.ShopSwingTestSupport.onEdt(
@@ -169,7 +169,7 @@ class ShopAuthEndToEndTest {
             UserClientService users = new UserClientService(
                     connection, "e2e-client", TIMEOUT);
             LoginResult login = users.login(
-                    "DEMO_BUYER", "DemoPassword7".toCharArray()).join();
+                    "DEMO_BUYER", "123456".toCharArray()).join();
             ShopClientService shop = new ShopClientService(connection, TIMEOUT);
 
             PaidOrderHistory buyerHistory = shop.getPaidOrders().join();
@@ -185,9 +185,9 @@ class ShopAuthEndToEndTest {
                     .isEqualTo(Instant.parse("2026-08-29T09:05:00Z"));
             assertThat(newest.items()).singleElement().satisfies(item -> {
                 assertThat(item.productId()).isEqualTo("demo-daily-001");
-                assertThat(item.productName()).isEqualTo("纸巾 便携装");
+                assertThat(item.productName()).isEqualTo("抽纸");
                 assertThat(item.skuId()).isEqualTo("demo-daily-001-sku-1");
-                assertThat(item.skuName()).isEqualTo("便携装");
+                assertThat(item.skuName()).isEqualTo("标准款");
                 assertThat(item.quantity()).isEqualTo(3);
                 assertThat(item.unitPrice()).isEqualByComparingTo("6.82");
                 assertThat(item.lineAmount()).isEqualByComparingTo("20.46");
@@ -215,7 +215,7 @@ class ShopAuthEndToEndTest {
                 UserClientService otherUsers = new UserClientService(
                         otherConnection, "other-e2e-client", TIMEOUT);
                 otherUsers.login("DEMO_OTHER_BUYER",
-                        "DemoPassword7".toCharArray()).join();
+                        "123456".toCharArray()).join();
                 PaidOrderHistory otherHistory = new ShopClientService(
                         otherConnection, TIMEOUT).getPaidOrders().join();
 

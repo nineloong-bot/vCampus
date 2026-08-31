@@ -8,6 +8,7 @@ import edu.seu.vcampus.common.shop.ProductSortMode;
 import edu.seu.vcampus.common.shop.ProductSummary;
 import edu.seu.vcampus.common.user.LoginCommand;
 import edu.seu.vcampus.common.user.LoginResult;
+import edu.seu.vcampus.common.user.UserRole;
 import edu.seu.vcampus.server.shop.repository.AccessShopRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -34,6 +35,43 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ShopAuthDemoDatabaseTest {
     @TempDir
     Path temp;
+
+    @Test
+    void seedsFourPublicRoleAccountsAndRejectedTeacherApplication() throws Exception {
+        Path database = temp.resolve("roles.accdb");
+        ShopAuthDemoDatabase.initialize(database, schemaDir(), seedDir());
+
+        try (Connection connection = open(database)) {
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblUser WHERE "
+                    + "loginId IN ('DEMO_BUYER','DEMO_OTHER_BUYER','DEMO_TEACHER','DEMO_ADMIN')"))
+                    .isEqualTo(4);
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblUser WHERE "
+                    + "loginId IN ('DEMO_BUYER','DEMO_OTHER_BUYER') AND roleCode='STUDENT'"))
+                    .isEqualTo(2);
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblUser "
+                    + "WHERE loginId='DEMO_TEACHER' AND roleCode='TEACHER'"))
+                    .isEqualTo(1);
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblUser "
+                    + "WHERE loginId='DEMO_ADMIN' AND roleCode='ADMIN'"))
+                    .isEqualTo(1);
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblSellerApplication a "
+                    + "INNER JOIN tblUser u ON a.applicantUserId=u.userId "
+                    + "WHERE u.loginId='DEMO_TEACHER' AND a.applicationStatus='REJECTED' "
+                    + "AND a.reviewReason IS NOT NULL AND a.applicationStatement IS NOT NULL"))
+                    .isEqualTo(1);
+        }
+
+        try (ShopAuthDemoRuntime runtime = ShopAuthDemoRuntime.start(database, 0)) {
+            assertThat(login(runtime.localPort(), "DEMO_BUYER").user().role())
+                    .isEqualTo(UserRole.STUDENT);
+            assertThat(login(runtime.localPort(), "DEMO_OTHER_BUYER").user().role())
+                    .isEqualTo(UserRole.STUDENT);
+            assertThat(login(runtime.localPort(), "DEMO_TEACHER").user().role())
+                    .isEqualTo(UserRole.TEACHER);
+            assertThat(login(runtime.localPort(), "DEMO_ADMIN").user().role())
+                    .isEqualTo(UserRole.ADMIN);
+        }
+    }
 
     @Test
     void createsFiveCategoryShopsAndOneHundredProductsWithPlaceholderCovers() throws Exception {
@@ -338,7 +376,8 @@ class ShopAuthDemoDatabaseTest {
 
         try (ShopAuthDemoRuntime runtime = ShopAuthDemoRuntime.start(database, 0)) {
             assertThat(runtime.localPort()).isPositive();
-            assertThat(login(runtime.localPort()).user().loginId()).isEqualTo("DEMO_BUYER");
+            assertThat(login(runtime.localPort(), "DEMO_BUYER").user().loginId())
+                    .isEqualTo("DEMO_BUYER");
         }
 
         try (Connection connection = open(database)) {
@@ -350,7 +389,7 @@ class ShopAuthDemoDatabaseTest {
         }
     }
 
-    private static LoginResult login(int port) throws Exception {
+    private static LoginResult login(int port, String loginId) throws Exception {
         try (Socket socket = new Socket("127.0.0.1", port)) {
             socket.setSoTimeout(5_000);
             ObjectOutputStream output = new ObjectOutputStream(socket.getOutputStream());
@@ -358,7 +397,7 @@ class ShopAuthDemoDatabaseTest {
             try (output; ObjectInputStream input = new ObjectInputStream(socket.getInputStream())) {
                 Message request = new Message(UUID.randomUUID().toString(), MessageType.REQUEST,
                         "USER_LOGIN", null,
-                        new LoginCommand("DEMO_BUYER", "DemoPassword7".toCharArray(), "demo-test"),
+                        new LoginCommand(loginId, "123456".toCharArray(), "demo-test"),
                         System.currentTimeMillis());
                 output.writeObject(request);
                 output.flush();

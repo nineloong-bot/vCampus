@@ -17,7 +17,7 @@ import edu.seu.vcampus.server.shop.demo.ShopDemoCatalog.SkuSeed;
 /** Creates the disposable Access database used by the authenticated Shop demo. */
 public final class ShopAuthDemoDatabase {
     private static final String DEMO_PASSWORD_HASH =
-            "7FUgpmUKRTM7k5BqyJmwQrxgmA/3uSQ3C8yhryadIAA=";
+            "jolpzq3YokNtH5OvKaaTwkTrbGWTkJMPxIMvhsqrMw4=";
     private static final String DEMO_PASSWORD_SALT = "AAECAwQFBgcICQoLDA0ODw==";
 
     private ShopAuthDemoDatabase() {
@@ -46,6 +46,7 @@ public final class ShopAuthDemoDatabase {
             executeScript(connection, schemas.resolve("050_shop.sql"));
             seedUsers(connection);
             seedCatalog(connection);
+            seedApplications(connection);
             seedOrders(connection);
         }
     }
@@ -61,27 +62,53 @@ public final class ShopAuthDemoDatabase {
     }
 
     private static void seedUsers(Connection connection) throws Exception {
-        insertUser(connection, "demo-buyer", "DEMO_BUYER");
-        insertUser(connection, "demo-other-buyer", "DEMO_OTHER_BUYER");
-        insertUser(connection, "demo-owner-stationery", "DEMO_OWNER_STATIONERY");
-        insertUser(connection, "demo-owner-books", "DEMO_OWNER_BOOKS");
-        insertUser(connection, "demo-owner-daily", "DEMO_OWNER_DAILY");
-        insertUser(connection, "demo-owner-medicine", "DEMO_OWNER_MEDICINE");
-        insertUser(connection, "demo-owner-other", "DEMO_OWNER_OTHER");
+        insertUser(connection, "demo-buyer", "DEMO_BUYER", "STUDENT", "ACTIVE");
+        insertUser(connection, "demo-other-buyer", "DEMO_OTHER_BUYER", "STUDENT", "ACTIVE");
+        insertUser(connection, "demo-teacher", "DEMO_TEACHER", "TEACHER", "ACTIVE");
+        insertUser(connection, "demo-admin", "DEMO_ADMIN", "ADMIN", "ACTIVE");
+        insertUser(connection, "demo-owner-stationery", "DEMO_OWNER_STATIONERY",
+                "STUDENT", "DISABLED");
+        insertUser(connection, "demo-owner-books", "DEMO_OWNER_BOOKS",
+                "STUDENT", "DISABLED");
+        insertUser(connection, "demo-owner-daily", "DEMO_OWNER_DAILY",
+                "STUDENT", "DISABLED");
+        insertUser(connection, "demo-owner-medicine", "DEMO_OWNER_MEDICINE",
+                "STUDENT", "DISABLED");
+        insertUser(connection, "demo-owner-other", "DEMO_OWNER_OTHER",
+                "STUDENT", "DISABLED");
     }
 
-    private static void insertUser(Connection connection, String userId, String loginId)
-            throws Exception {
+    private static void insertUser(Connection connection, String userId, String loginId,
+            String role, String status) throws Exception {
         try (PreparedStatement statement = connection.prepareStatement(
                 "INSERT INTO tblUser (userId, loginId, passwordHash, passwordSalt, "
                         + "passwordIterations, roleCode, accountStatus, mustChangePassword, "
                         + "failedLoginCount, rowVersion, createdAt, updatedAt) "
-                        + "VALUES (?, ?, ?, ?, 120000, 'STUDENT', 'ACTIVE', FALSE, 0, 0, "
+                        + "VALUES (?, ?, ?, ?, 120000, ?, ?, FALSE, 0, 0, "
                         + "NOW(), NOW())")) {
             statement.setString(1, userId);
             statement.setString(2, loginId);
             statement.setString(3, DEMO_PASSWORD_HASH);
             statement.setString(4, DEMO_PASSWORD_SALT);
+            statement.setString(5, role);
+            statement.setString(6, status);
+            statement.executeUpdate();
+        }
+    }
+
+    private static void seedApplications(Connection connection) throws Exception {
+        Instant submitted = Instant.parse("2026-08-20T08:00:00Z");
+        Instant reviewed = Instant.parse("2026-08-21T09:30:00Z");
+        try (PreparedStatement statement = connection.prepareStatement(
+                "INSERT INTO tblSellerApplication (applicationId, applicantUserId, shopName, "
+                        + "description, category, contact, applicationStatement, applicationStatus, "
+                        + "reviewReason, reviewerUserId, submittedAt, reviewedAt, rowVersion) "
+                        + "VALUES ('demo-teacher-application', 'demo-teacher', "
+                        + "'教师创意用品店', '课程创意材料与教学辅助用品', '其他', "
+                        + "'teacher@demo.local', '为师生提供课程项目材料与教学辅助服务', "
+                        + "'REJECTED', '请补充经营时间与售后安排', 'demo-admin', ?, ?, 2)")) {
+            statement.setTimestamp(1, Timestamp.from(submitted));
+            statement.setTimestamp(2, Timestamp.from(reviewed));
             statement.executeUpdate();
         }
     }
