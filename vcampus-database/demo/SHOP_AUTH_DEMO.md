@@ -4,6 +4,8 @@
 
 需要让其他组员拉取分支并通过 Tailscale 或各自本地验收时，请参阅 [Shop 认证买家 Demo 团队测试指南](SHOP_AUTH_DEMO_TEAM_TESTING.md)。
 
+便携包的生成、分发和双击启动步骤参见 [vCampus Shop Demo 便携包使用说明](../../vcampus-distribution/SHOP_AUTH_DEMO_PACKAGE_USAGE.md)。
+
 ## Windows 便携包
 
 开发者在仓库根目录运行：
