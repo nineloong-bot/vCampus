@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -164,5 +165,44 @@ class ShopClientServiceTest {
         verify(connection).send("SHOP_CART_REMOVE", "cart-item-1", TIMEOUT);
         verify(connection).send("SHOP_CHECKOUT", checkout, TIMEOUT);
         verify(connection).send("SHOP_SIMULATE_PAYMENT", payment, TIMEOUT);
+    }
+
+    @Test
+    void sendsSellerApplicationCommandsAndMapsMissingApplicationToEmptyOptional() {
+        ClientConnection connection = mock(ClientConnection.class);
+        SellerShopClientPort service = new ShopClientService(connection, TIMEOUT);
+        SaveSellerDraftCommand draft = new SaveSellerDraftCommand(null, "文具店", "简介", "文具",
+                "contact", "经营计划", 0);
+        when(connection.<SellerApplicationView>send(eq("SHOP_SELLER_GET_APPLICATION"),
+                eq(EmptyRequest.INSTANCE), eq(TIMEOUT)))
+                .thenReturn(CompletableFuture.completedFuture(ResponseBody.success(null)));
+        when(connection.<SellerApplicationView>send(eq("SHOP_SELLER_SAVE_APPLICATION"),
+                eq(draft), eq(TIMEOUT)))
+                .thenReturn(CompletableFuture.completedFuture(ResponseBody.success(mock(SellerApplicationView.class))));
+
+        assertThat(service.getMyApplication().join()).isEqualTo(Optional.empty());
+        service.saveApplication(draft).join();
+        verify(connection).send("SHOP_SELLER_GET_APPLICATION", EmptyRequest.INSTANCE, TIMEOUT);
+        verify(connection).send("SHOP_SELLER_SAVE_APPLICATION", draft, TIMEOUT);
+    }
+
+    @Test
+    void sendsAdministrativeSearchAndStatusCommands() {
+        ClientConnection connection = mock(ClientConnection.class);
+        AdminShopClientPort service = new ShopClientService(connection, TIMEOUT);
+        SellerApplicationQuery applications = new SellerApplicationQuery(null, null, 0, 20);
+        SuspendShopCommand suspend = new SuspendShopCommand("shop-1", "违规", 2);
+        when(connection.<PageResult<SellerApplicationView>>send(eq("SHOP_ADMIN_SEARCH_APPLICATIONS"),
+                eq(applications), eq(TIMEOUT))).thenReturn(CompletableFuture.completedFuture(
+                        ResponseBody.success(new PageResult<>(List.of(), 0, 20, 0))));
+        when(connection.<edu.seu.vcampus.common.protocol.EmptyResponse>send(eq("SHOP_ADMIN_SUSPEND_SHOP"),
+                eq(suspend), eq(TIMEOUT))).thenReturn(CompletableFuture.completedFuture(
+                        ResponseBody.success(edu.seu.vcampus.common.protocol.EmptyResponse.INSTANCE)));
+
+        assertThat(service.searchApplications(applications).join().items()).isEmpty();
+        assertThat(service.suspendShop(suspend).join())
+                .isEqualTo(edu.seu.vcampus.common.protocol.EmptyResponse.INSTANCE);
+        verify(connection).send("SHOP_ADMIN_SEARCH_APPLICATIONS", applications, TIMEOUT);
+        verify(connection).send("SHOP_ADMIN_SUSPEND_SHOP", suspend, TIMEOUT);
     }
 }
