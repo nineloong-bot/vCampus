@@ -41,6 +41,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -88,6 +89,65 @@ class CatalogPanelsTest {
                 new ProductSearchQuery("铅笔", "文具", new BigDecimal("2.50"),
                         new BigDecimal("9.00"), ProductSortMode.PRICE_DESC, 0, 20),
                 false, false, 0)));
+    }
+
+    @Test
+    void successfulSearchKeepsFilterControlsVisible() throws Exception {
+        ShopClientPort client = mock(ShopClientPort.class);
+        when(client.search(any())).thenReturn(pageFuture(summary("p", "中性笔", "2.80")));
+        ProductSearchPanel panel = onEdt(() -> new ProductSearchPanel(client,
+                new ShopNavigator(route -> { }), new DefaultShopUiKit(), () -> { }));
+
+        onEdt(() -> panel.search(new SearchViewState(query("笔"), false, false, 0)));
+        flushEdt();
+
+        assertThat(component(panel, "search.filters", javax.swing.JPanel.class).isVisible()).isTrue();
+    }
+
+    @Test
+    void categoryAndPricesApplyOnlyWhenFilterButtonClicked() throws Exception {
+        ShopClientPort client = mock(ShopClientPort.class);
+        when(client.search(any())).thenReturn(pageFuture(summary("p", "中性笔", "2.80")));
+        ProductSearchPanel[] holder = new ProductSearchPanel[1];
+        ShopNavigator navigator = new ShopNavigator(route -> {
+            if (route instanceof ShopRoute.Search search) holder[0].search(search.state());
+        });
+        holder[0] = onEdt(() -> new ProductSearchPanel(client, navigator,
+                new DefaultShopUiKit(), () -> { }));
+        onEdt(() -> holder[0].search(query("笔")));
+        flushEdt();
+        onEdt(() -> {
+            component(holder[0], "category", JComboBox.class).setSelectedItem("文具");
+            component(holder[0], "min-price", JTextField.class).setText("2.00");
+        });
+        verify(client, times(1)).search(any());
+
+        onEdt(() -> component(holder[0], "search.filter", JButton.class).doClick());
+        ArgumentCaptor<ProductSearchQuery> queries = ArgumentCaptor.forClass(ProductSearchQuery.class);
+        verify(client, times(2)).search(queries.capture());
+        assertThat(queries.getAllValues().getLast().category()).isEqualTo("文具");
+        assertThat(queries.getAllValues().getLast().minPrice()).isEqualByComparingTo("2.00");
+    }
+
+    @Test
+    void changingSortImmediatelySearchesFirstPage() throws Exception {
+        ShopClientPort client = mock(ShopClientPort.class);
+        when(client.search(any())).thenReturn(pageFuture(summary("p", "中性笔", "2.80")));
+        ProductSearchPanel[] holder = new ProductSearchPanel[1];
+        ShopNavigator navigator = new ShopNavigator(route -> {
+            if (route instanceof ShopRoute.Search search) holder[0].search(search.state());
+        });
+        holder[0] = onEdt(() -> new ProductSearchPanel(client, navigator,
+                new DefaultShopUiKit(), () -> { }));
+        onEdt(() -> holder[0].search(new ProductSearchQuery("笔", null, null, null,
+                ProductSortMode.SALES_DESC, 3, 20)));
+        flushEdt();
+
+        onEdt(() -> component(holder[0], "sort", JComboBox.class)
+                .setSelectedItem(ProductSortMode.PRICE_DESC));
+        ArgumentCaptor<ProductSearchQuery> queries = ArgumentCaptor.forClass(ProductSearchQuery.class);
+        verify(client, times(2)).search(queries.capture());
+        assertThat(queries.getAllValues().getLast().pageNumber()).isZero();
     }
 
     @Test

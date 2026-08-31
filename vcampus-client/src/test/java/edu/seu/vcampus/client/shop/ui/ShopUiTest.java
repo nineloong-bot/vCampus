@@ -340,9 +340,9 @@ class ShopUiTest {
                 navigator, new DefaultShopUiKit(), payment()));
         onEdt(() -> component(ordersExit, "payment-result.orders", JButton.class).doClick());
         assertThat(navigator.current()).contains(new ShopRoute.My());
-        assertThat(navigator.history()).isEmpty();
+        assertThat(navigator.history()).containsExactly(home);
         navigator.back();
-        assertThat(navigator.current()).contains(new ShopRoute.My());
+        assertThat(navigator.current()).contains(home);
     }
 
     @Test
@@ -362,7 +362,8 @@ class ShopUiTest {
 
         assertThat(client.paidOrderLoads).isEqualTo(1);
         assertThat(coordinator.navigator().current()).contains(new ShopRoute.My());
-        assertThat(coordinator.navigator().history()).isEmpty();
+        assertThat(coordinator.navigator().history()).containsExactly(
+                new ShopRoute.Home(defaultHome()));
         assertVisible(content, "shop.my");
         assertThat(component(content, "my.order.order-new", JPanel.class).isVisible()).isTrue();
         onEdt(coordinator::dispose);

@@ -46,8 +46,10 @@ public final class ProductSearchPanel extends JPanel {
     private final JComboBox<ProductSortMode> sort = named(new JComboBox<>(ProductSortMode.values()), "sort");
     private final JButton searchButton;
     private final JButton filterToggle;
+    private final JButton filterButton;
     private final JPanel filters;
     private boolean searched;
+    private boolean restoring;
 
     public ProductSearchPanel(ShopClientPort client, ShopNavigator navigator, ShopUiKit uiKit,
             Runnable sessionExpired) {
@@ -63,6 +65,7 @@ public final class ProductSearchPanel extends JPanel {
         });
         this.searchButton = uiKit.primaryButton("search", "搜索");
         this.filterToggle = uiKit.secondaryButton("search.filters.toggle", "筛选");
+        this.filterButton = uiKit.secondaryButton("search.filter", "应用筛选");
         this.filters = uiKit.filterPanel("search.filters", new FlowLayout(FlowLayout.LEFT));
         filters.add(label("分类", "search.category.label", category));
         filters.add(category);
@@ -72,8 +75,15 @@ public final class ProductSearchPanel extends JPanel {
         filters.add(maxPrice);
         filters.add(label("排序方式", "search.sort.label", sort));
         filters.add(sort);
+        filters.add(filterButton);
         searchButton.addActionListener(event -> submit());
-        filterToggle.addActionListener(event -> filters.setVisible(!filters.isVisible()));
+        filterToggle.addActionListener(event -> submit());
+        filterButton.addActionListener(event -> submit());
+        sort.addItemListener(event -> {
+            if (!restoring && event.getStateChange() == java.awt.event.ItemEvent.SELECTED && searched) {
+                submit();
+            }
+        });
         JPanel primary = uiKit.filterPanel("search.primary", new FlowLayout(FlowLayout.LEFT));
         primary.add(keyword); primary.add(searchButton); primary.add(filterToggle);
         JPanel controls = new JPanel(new BorderLayout(0, 4));
@@ -103,7 +113,7 @@ public final class ProductSearchPanel extends JPanel {
 
     public SearchViewState capture(SearchViewState state) {
         SearchViewState captured = new SearchViewState(state.query(), searched,
-                filters.isVisible(), scroll.getVerticalScrollBar().getValue());
+                true, scroll.getVerticalScrollBar().getValue());
         latest.begin();
         return captured;
     }
@@ -141,6 +151,7 @@ public final class ProductSearchPanel extends JPanel {
             else {
                 searched = true;
                 filterToggle.setVisible(true);
+                filters.setVisible(true);
                 if (result.items().isEmpty()) {
                     showState(ShopPageState.EMPTY, "暂无商品", () -> search(state));
                     pagination.showPage(result, page -> openPage(state, page));
@@ -171,16 +182,21 @@ public final class ProductSearchPanel extends JPanel {
         ProductSearchQuery paged = new ProductSearchQuery(query.keyword(), query.category(),
                 query.minPrice(), query.maxPrice(), query.sortMode(), page, query.pageSize());
         navigator.replaceCurrent(new ShopRoute.Search(new SearchViewState(
-                paged, true, filters.isVisible(), 0)));
+                paged, true, true, 0)));
     }
 
     private void restoreFilters(SearchViewState state) {
         ProductSearchQuery query = state.query();
-        keyword.setText(text(query.keyword()));
-        category.setSelectedItem(query.category() == null ? "全部" : query.category());
-        minPrice.setText(text(query.minPrice())); maxPrice.setText(text(query.maxPrice()));
-        sort.setSelectedItem(query.sortMode());
-        filters.setVisible(state.searched() && state.filtersExpanded());
+        restoring = true;
+        try {
+            keyword.setText(text(query.keyword()));
+            category.setSelectedItem(query.category() == null ? "全部" : query.category());
+            minPrice.setText(text(query.minPrice())); maxPrice.setText(text(query.maxPrice()));
+            sort.setSelectedItem(query.sortMode());
+        } finally {
+            restoring = false;
+        }
+        filters.setVisible(state.searched());
     }
 
     private void showFailure(Throwable failure, Runnable retry) {
