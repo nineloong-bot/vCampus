@@ -9,10 +9,10 @@
 - 一个应用级 `ResourceLockManager`，由用户服务和 `CourseComposition` 共用；
 - 一个用户模块 `SessionRegistry`，登录、登出、用户授权和选课授权都以其中的实时会话为准。
 
-会话空闲过期时间由 `config/server.properties` 的 `session.timeoutMinutes` 控制；生产启动会把该值传入
+会话空闲过期时间由 `config/server-with-data.properties` 的 `session.timeoutMinutes` 控制；发行启动会把该值传入
 `ApplicationRuntime`，未显式配置组合参数的兼容入口仍使用 30 分钟默认值。
 
-`ServerMain` 使用 `ApplicationRuntime` 的路由创建生产 `SocketServer`。客户端也只创建一个
+带数据服务端入口使用 `ApplicationRuntime` 的路由创建生产 `SocketServer`。客户端也只创建一个
 `ClientConnection`，`UserClientService` 与 `CourseClientService` 共用该连接；登录成功后写入的会话令牌
 因此会自动附在后续选课请求上。客户端页面过滤只是减少误操作，服务端角色检查始终是安全边界。
 
@@ -24,9 +24,9 @@ UCanAccess JDBC URL 必须保持安全默认值，**禁止设置
 jdbc:ucanaccess:///absolute/path/to/vcampus.accdb
 ```
 
-发行配置把 `database.path`（Access 文件）和 `database.resourceRoot`（`schema/`、`seed/` 所在目录）分开解析。
+带数据发行配置把 `database.path`（Access 文件）和 `database.resourceRoot`（`schema/`、`seed/` 所在目录）分开解析。
 只有显式设置 `database.createIfMissing=true` 时才会创建缺失的数据库及其父目录；已有数据库永远不会被覆盖。
-默认发行配置使用 `data/vCampus.accdb` 和 `database/` 资源根，因此全新解压后可以初始化标准数据库。
+发行配置使用 `data/course-user-demo.accdb` 和 `database/` 资源根，因此全新解压后可以初始化带演示数据的独立数据库。
 
 ## 登录、页面与会话生命周期
 
@@ -80,21 +80,24 @@ CourseStudentGateway students = CourseRuntimeAdapters.students(
 `ApplicationRuntime` 组合；已有用户/学生 ID 已校验并迁移；活动学籍查询覆盖现有数据；真实 socket 集成测试改用彼此独立的
 `userId`/`studentId` 并通过。导入修读结果的活动学生校验也必须同时切换，不能留下半套临时规则。
 
-## 可直接运行的三角色认证 Demo
+## 可直接运行的带数据 Demo
 
 > **以下账号和固定密码只用于本地演示。不要把 Demo 数据库、账号或密码用于部署；正式上线前必须删除
 > `data/course-user-demo.accdb`，并通过正式建号流程初始化账户。**
 
 Demo 使用独立的 `data/course-user-demo.accdb`，调用生产 `ApplicationRuntime`、生产登录会话、路由、角色校验和
 选课服务。它不会使用旧课程 Demo 的明文 token，也不会向正式 `010_roles_permissions.sql` 添加学生或教师账号。
-Demo 入口在任何建库或写入前都会校验数据库文件名必须为 `course-user-demo.accdb`；即使误把
-`config/server.properties` 传给 Demo，也会直接拒绝，避免向标准 `data/vCampus.accdb` 写入固定演示账号。
+带数据服务端入口在任何建库或写入前都会校验数据库文件名必须为 `course-user-demo.accdb`；如果传入指向
+`data/vCampus.accdb` 的其他配置，会直接拒绝，避免向非 Demo 数据库写入固定演示账号。
+
+数据文件、初始化和演示种子都只属于服务端。客户端不携带数据，因此始终共用同一个
+`start-client`，不再提供容易误解的 `integrated-demo-client` 或旧的模拟 token 选课 Demo 入口。
 
 先在第一个终端启动服务端，再在第二个终端启动客户端：
 
 ```bash
-vcampus-distribution/scripts/start-integrated-demo-server.sh
-vcampus-distribution/scripts/start-integrated-demo-client.sh
+vcampus-distribution/scripts/start-server-with-data.sh
+vcampus-distribution/scripts/start-client.sh
 ```
 
 Windows 使用对应的 `.bat` 文件。登录账号如下：
@@ -105,7 +108,7 @@ Windows 使用对应的 `.bat` 文件。登录账号如下：
 | 学生 | `213000001` | `Student1234` | 直接进入学生五个选课页面，临时映射 `studentId=userId=213000001` |
 | 教师 | `TEACHER_DEMO` | `Teacher1234` | 直接进入教学班查询和教师课表 |
 
-首次启动会幂等创建一个当前开放的演示学期、`MATH101 高等数学（集成演示）` 和指派给
+首次启动会幂等创建一个当前开放的演示学期、`MATH101 高等数学（带数据演示）` 和指派给
 `teacher-demo-001` 的 `Demo-01` 教学班。建议按以下顺序验收：
 
 1. 学生登录，查询 `MATH101`，选择 `Demo-01`，再到“我的选课”和“我的课表”确认结果；
@@ -116,11 +119,11 @@ Windows 使用对应的 `.bat` 文件。登录账号如下：
 要恢复初始账号、密码和空选课记录，先停止 Demo 服务端，再运行：
 
 ```bash
-vcampus-distribution/scripts/reset-integrated-demo.sh
+vcampus-distribution/scripts/reset-data.sh
 ```
 
 该脚本只删除精确的 `data/course-user-demo.accdb`，不会触碰 `data/vCampus.accdb`。Windows 使用
-`reset-integrated-demo.bat`。
+`reset-data.bat`。
 
 ## 运行、测试与打包验证
 
@@ -138,13 +141,9 @@ mvn -pl vcampus-client -am \
 # 从干净 target 重建、测试并重建两端发行 JAR
 mvn clean verify
 
-# 从发行目录运行标准服务（首次启动创建 data/vCampus.accdb）
-vcampus-distribution/scripts/start-server.sh
+# 运行唯一发行入口：带数据服务端 + 共用客户端
+vcampus-distribution/scripts/start-server-with-data.sh
 vcampus-distribution/scripts/start-client.sh
-
-# 或运行隔离的三角色认证 Demo
-vcampus-distribution/scripts/start-integrated-demo-server.sh
-vcampus-distribution/scripts/start-integrated-demo-client.sh
 ```
 
 打包后验证当前 HEAD 的代码、schema 和文档均进入发行目录：

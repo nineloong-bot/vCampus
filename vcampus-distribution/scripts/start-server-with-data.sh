@@ -8,4 +8,5 @@ if [ "$JAVA_VERSION" -lt 21 ] 2>/dev/null; then
   echo "需要 Java 21 或更高版本。" >&2
   exit 1
 fi
-exec java -Dlogback.configurationFile=config/logback.xml -jar lib/vCampusServer.jar config/server.properties
+exec java -Dlogback.configurationFile=config/logback.xml \
+  -jar lib/vCampusServer.jar config/server-with-data.properties

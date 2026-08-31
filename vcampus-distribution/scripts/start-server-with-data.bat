@@ -11,4 +11,4 @@ if %JAVA_MAJOR% LSS 21 (
   exit /b 1
 )
 cd /d "%~dp0.."
-java -Dlogback.configurationFile=config\logback.xml -jar lib\vCampusClient.jar config\client.properties
+java -Dlogback.configurationFile=config\logback.xml -jar lib\vCampusServer.jar config\server-with-data.properties

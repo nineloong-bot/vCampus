@@ -41,7 +41,7 @@ public final class IntegratedDemoServerMain {
     /** Starts the isolated demo with an optional path to its server properties. */
     public static void main(String[] args) {
         Path configFile = Path.of(args.length == 0
-                ? "config/integrated-demo-server.properties" : args[0])
+                ? "config/server-with-data.properties" : args[0])
                 .toAbsolutePath().normalize();
         Path configDirectory = configFile.getParent();
         Path baseDirectory = configDirectory == null ? Path.of(".").toAbsolutePath()
@@ -58,12 +58,12 @@ public final class IntegratedDemoServerMain {
             SocketServer running = server;
             Runtime.getRuntime().addShutdownHook(new Thread(
                     () -> shutdown(running), "integrated-demo-shutdown"));
-            System.out.println("认证选课 Demo 已启动，端口 " + server.localPort());
+            System.out.println("带数据服务端已启动，端口 " + server.localPort());
             System.out.println("账号：ADMIN / 213000001 / TEACHER_DEMO（详见 docs/course-runtime-integration.md）");
             server.serve();
         } catch (Exception failure) {
             if (server != null) shutdown(server);
-            System.err.println("认证选课 Demo 启动失败：" + failure.getMessage());
+            System.err.println("带数据服务端启动失败：" + failure.getMessage());
             System.exit(2);
         }
     }
@@ -161,7 +161,7 @@ public final class IntegratedDemoServerMain {
         var catalog = courses.searchCatalog(new CourseCatalogQuery("MATH101", null, 0, 20)).items();
         var course = catalog.stream().filter(item -> "MATH101".equals(item.courseCode()))
                 .findFirst().orElseGet(() -> courses.createCourse(new CreateCourseCommand(
-                        "MATH101", "高等数学（集成演示）", new BigDecimal("5.0"), 80,
+                        "MATH101", "高等数学（带数据演示）", new BigDecimal("5.0"), 80,
                         "用于验证登录后的真实查询、选课和课表", true)));
         var offerings = courses.searchOfferings(new OfferingSearchQuery(
                 term.termId(), "MATH101", null, false, 0, 20)).items();
