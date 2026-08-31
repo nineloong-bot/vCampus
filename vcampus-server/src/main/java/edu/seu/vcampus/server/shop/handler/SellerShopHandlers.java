@@ -44,6 +44,8 @@ public final class SellerShopHandlers {
                 products::updateShop));
         router.register("SHOP_SELLER_SEARCH_PRODUCTS", support.read(ProductManagementQuery.class,
                 products::searchOwnedProducts));
+        router.register("SHOP_SELLER_GET_PRODUCT", support.read(String.class,
+                products::getOwnedProduct));
         router.register("SHOP_SELLER_CREATE_PRODUCT", support.write(CreateProductCommand.class,
                 products::createProduct));
         router.register("SHOP_SELLER_UPDATE_PRODUCT", support.write(UpdateProductCommand.class,

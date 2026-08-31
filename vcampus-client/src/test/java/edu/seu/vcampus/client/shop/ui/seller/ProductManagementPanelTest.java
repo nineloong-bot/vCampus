@@ -7,7 +7,9 @@ import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.shop.*;
 import org.junit.jupiter.api.Test;
 
+import javax.swing.JButton;
 import javax.swing.JTable;
+import javax.swing.JTextField;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -36,5 +38,43 @@ class ProductManagementPanelTest {
         assertThat(table.getValueAt(0, 2)).isEqualTo(2L);
         assertThat(table.getValueAt(0, 5)).isEqualTo(4L);
         assertThat(table.getValueAt(0, 6)).isEqualTo(99L);
+    }
+
+    @Test
+    void selectingExistingProductLoadsStableSkuIdentityAndUpdatesIt() throws Exception {
+        SellerShopClientPort port = mock(SellerShopClientPort.class);
+        ProductManagementSummary summary = new ProductManagementSummary("product-1", "签字笔",
+                ProductStatus.DRAFT, 1, new BigDecimal("2.50"), 10, 4, 0, 7);
+        ProductView detail = new ProductView("product-1", "签字笔", "文具", "说明", null,
+                ProductStatus.DRAFT, 0, 7, List.of(new ProductSkuView("sku-1", "黑色",
+                        new BigDecimal("2.50"), 6, 10, 4, true, 3)));
+        when(port.searchOwnedProducts(any())).thenReturn(CompletableFuture.completedFuture(
+                new PageResult<>(List.of(summary), 0, 50, 1)));
+        when(port.getOwnedProduct("product-1")).thenReturn(
+                CompletableFuture.completedFuture(detail));
+        when(port.updateOwnedProduct(any())).thenReturn(CompletableFuture.completedFuture(detail));
+        ProductManagementPanel panel = ShopSwingTestSupport.onEdt(() ->
+                new ProductManagementPanel(port, new DefaultShopUiKit(), () -> { }));
+
+        ShopSwingTestSupport.onEdt(panel::load);
+        ShopSwingTestSupport.flushEdt();
+        JTable products = ShopSwingTestSupport.component(panel, "seller.products.table", JTable.class);
+        ShopSwingTestSupport.onEdt(() -> products.setRowSelectionInterval(0, 0));
+        ShopSwingTestSupport.flushEdt();
+
+        verify(port).getOwnedProduct("product-1");
+        assertThat(ShopSwingTestSupport.component(panel, "seller.editor.name",
+                JTextField.class).getText()).isEqualTo("签字笔");
+        JTable skus = ShopSwingTestSupport.component(panel, "seller.editor.skus", JTable.class);
+        assertThat(skus.getValueAt(0, 0)).isEqualTo("sku-1");
+        assertThat(skus.getValueAt(0, 3)).isEqualTo(10L);
+        assertThat(skus.getValueAt(0, 5)).isEqualTo(3L);
+
+        JButton update = ShopSwingTestSupport.component(panel, "seller.products.update", JButton.class);
+        ShopSwingTestSupport.onEdt(() -> { update.doClick(); });
+        ShopSwingTestSupport.flushEdt();
+        verify(port).updateOwnedProduct(new UpdateProductCommand("product-1", "签字笔", "文具",
+                "说明", null, List.of(new UpsertSkuCommand("sku-1", "黑色",
+                        new BigDecimal("2.50"), 10, true, 3)), 7));
     }
 }

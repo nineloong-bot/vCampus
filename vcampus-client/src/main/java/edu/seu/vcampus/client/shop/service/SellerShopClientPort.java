@@ -18,6 +18,7 @@ public interface SellerShopClientPort {
     CompletableFuture<ShopView> updateOwnedShop(UpdateShopCommand command);
     CompletableFuture<PageResult<ProductManagementSummary>> searchOwnedProducts(
             ProductManagementQuery query);
+    CompletableFuture<ProductView> getOwnedProduct(String productId);
     CompletableFuture<ProductView> createOwnedProduct(CreateProductCommand command);
     CompletableFuture<ProductView> updateOwnedProduct(UpdateProductCommand command);
     CompletableFuture<EmptyResponse> changeOwnedProductStatus(ChangeProductStatusCommand command);

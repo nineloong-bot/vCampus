@@ -215,6 +215,9 @@ class ShopClientServiceTest {
         CreateProductCommand create = new CreateProductCommand("签字笔", "文具", "说明",
                 List.of(new CreateSkuCommand("黑色", new java.math.BigDecimal("3.00"), 5, true)));
         AdminCreateProductCommand adminCreate = new AdminCreateProductCommand("shop-1", create);
+        AdminProductRef adminRef = new AdminProductRef("shop-1", "product-1");
+        ProductView sellerProduct = mock(ProductView.class);
+        ProductView adminProduct = mock(ProductView.class);
         when(connection.<PageResult<ProductManagementSummary>>send(
                 eq("SHOP_SELLER_SEARCH_PRODUCTS"), eq(sellerQuery), eq(TIMEOUT)))
                 .thenReturn(CompletableFuture.completedFuture(ResponseBody.success(
@@ -222,10 +225,20 @@ class ShopClientServiceTest {
         when(connection.<ProductView>send(eq("SHOP_ADMIN_CREATE_PRODUCT"),
                 eq(adminCreate), eq(TIMEOUT))).thenReturn(CompletableFuture.completedFuture(
                         ResponseBody.success(mock(ProductView.class))));
+        when(connection.<ProductView>send(eq("SHOP_SELLER_GET_PRODUCT"),
+                eq("product-1"), eq(TIMEOUT))).thenReturn(CompletableFuture.completedFuture(
+                        ResponseBody.success(sellerProduct)));
+        when(connection.<ProductView>send(eq("SHOP_ADMIN_GET_PRODUCT"),
+                eq(adminRef), eq(TIMEOUT))).thenReturn(CompletableFuture.completedFuture(
+                        ResponseBody.success(adminProduct)));
 
         assertThat(seller.searchOwnedProducts(sellerQuery).join().items()).isEmpty();
         admin.createProduct(adminCreate).join();
+        assertThat(seller.getOwnedProduct("product-1").join()).isSameAs(sellerProduct);
+        assertThat(admin.getProduct(adminRef).join()).isSameAs(adminProduct);
         verify(connection).send("SHOP_SELLER_SEARCH_PRODUCTS", sellerQuery, TIMEOUT);
         verify(connection).send("SHOP_ADMIN_CREATE_PRODUCT", adminCreate, TIMEOUT);
+        verify(connection).send("SHOP_SELLER_GET_PRODUCT", "product-1", TIMEOUT);
+        verify(connection).send("SHOP_ADMIN_GET_PRODUCT", adminRef, TIMEOUT);
     }
 }

@@ -111,6 +111,10 @@ public final class ShopClientService implements ShopClientPort, SellerShopClient
         return send("SHOP_SELLER_SEARCH_PRODUCTS", query);
     }
 
+    @Override public CompletableFuture<ProductView> getOwnedProduct(String productId) {
+        return send("SHOP_SELLER_GET_PRODUCT", productId);
+    }
+
     @Override public CompletableFuture<ProductView> createOwnedProduct(CreateProductCommand command) {
         return send("SHOP_SELLER_CREATE_PRODUCT", command);
     }
@@ -156,6 +160,10 @@ public final class ShopClientService implements ShopClientPort, SellerShopClient
     @Override public CompletableFuture<PageResult<ProductManagementSummary>> searchProducts(
             ProductManagementQuery query) {
         return send("SHOP_ADMIN_SEARCH_PRODUCTS", query);
+    }
+
+    @Override public CompletableFuture<ProductView> getProduct(AdminProductRef request) {
+        return send("SHOP_ADMIN_GET_PRODUCT", request);
     }
 
     @Override public CompletableFuture<ProductView> createProduct(AdminCreateProductCommand command) {

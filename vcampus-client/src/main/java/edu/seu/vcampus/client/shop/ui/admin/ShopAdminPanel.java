@@ -11,18 +11,23 @@ import java.awt.BorderLayout;
 public final class ShopAdminPanel extends JPanel {
     private final ApplicationReviewPanel applications;
     private final ShopStatusPanel shops;
+    private final AdminProductManagementPanel products;
 
     public ShopAdminPanel(AdminShopClientPort port, ShopUiKit uiKit, Runnable sessionExpired) {
         super(new BorderLayout());
         applications = new ApplicationReviewPanel(port, uiKit, sessionExpired);
         shops = new ShopStatusPanel(port, uiKit, sessionExpired);
+        products = new AdminProductManagementPanel(port, uiKit, sessionExpired);
         JTabbedPane tabs = new JTabbedPane();
         tabs.setName("admin.workspace.tabs");
         tabs.addTab("开店审核", applications);
         tabs.addTab("店铺治理", shops);
+        tabs.addTab("商品管理", products);
         add(tabs, BorderLayout.CENTER);
     }
 
-    public void load() { applications.load(); shops.load(); }
-    public void disposePage() { applications.disposePage(); shops.disposePage(); }
+    public void load() { applications.load(); shops.load(); products.load(); }
+    public void disposePage() {
+        applications.disposePage(); shops.disposePage(); products.disposePage();
+    }
 }

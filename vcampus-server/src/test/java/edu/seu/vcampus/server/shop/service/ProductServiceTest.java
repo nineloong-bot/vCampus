@@ -130,6 +130,22 @@ class ProductServiceTest {
     }
 
     @Test
+    void ownerLoadsCompleteProductForSafeEditingWhileShopIsSuspended() {
+        var created = products.createProduct("owner-token", product("待编辑商品", null));
+        var shop = sellers.getOwnedShop("owner-token");
+        admin.suspendShop("admin-token", new SuspendShopCommand(
+                shop.shopId(), "例行停业", shop.rowVersion()));
+
+        var loaded = products.getOwnedProduct("owner-token", created.productId());
+
+        assertThat(loaded.productId()).isEqualTo(created.productId());
+        assertThat(loaded.skus()).singleElement().satisfies(sku -> {
+            assertThat(sku.stockQuantity()).isEqualTo(20);
+            assertThat(sku.reservedQuantity()).isZero();
+        });
+    }
+
+    @Test
     void profileKeepsApprovedCategoryAndRechecksNormalizedShopName() {
         var owned = sellers.getOwnedShop("owner-token");
         var updated = products.updateShop("owner-token", new UpdateShopCommand(

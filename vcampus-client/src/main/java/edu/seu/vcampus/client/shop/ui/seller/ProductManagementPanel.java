@@ -18,6 +18,7 @@ public final class ProductManagementPanel extends JPanel {
     private final SellerShopClientPort port;
     private final Runnable sessionExpired;
     private final LatestRequest requests = new LatestRequest();
+    private final LatestRequest detailRequests = new LatestRequest();
     private final DefaultTableModel model = new DefaultTableModel(new Object[]{
             "商品名", "状态", "SKU 数", "最低价", "总库存", "预留库存", "销量"}, 0) {
         @Override public boolean isCellEditable(int row, int column) { return false; }
@@ -26,6 +27,7 @@ public final class ProductManagementPanel extends JPanel {
     private final ProductEditorPanel editor;
     private final JLabel status = named(new JLabel(), "seller.products.status");
     private final JButton create;
+    private final JButton update;
     private final JButton toggle;
     private final List<ProductManagementSummary> rows = new ArrayList<>();
     private boolean writable = true;
@@ -37,11 +39,17 @@ public final class ProductManagementPanel extends JPanel {
         this.port = Objects.requireNonNull(port, "port");
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
         editor = new ProductEditorPanel(uiKit);
+        table.getSelectionModel().addListSelectionListener(event -> {
+            if (!event.getValueIsAdjusting()) selectProduct();
+        });
         create = uiKit.primaryButton("seller.products.create", "创建商品");
+        update = uiKit.primaryButton("seller.products.update", "更新所选商品");
         toggle = uiKit.secondaryButton("seller.products.toggle", "切换上架状态");
-        create.addActionListener(event -> create()); toggle.addActionListener(event -> toggle());
+        update.setEnabled(false);
+        create.addActionListener(event -> create()); update.addActionListener(event -> update());
+        toggle.addActionListener(event -> toggle());
         JPanel actions = uiKit.filterPanel("seller.products.actions", new java.awt.FlowLayout());
-        actions.add(create); actions.add(toggle); actions.add(status);
+        actions.add(create); actions.add(update); actions.add(toggle); actions.add(status);
         JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT, new JScrollPane(table), editor);
         split.setResizeWeight(0.55); add(split, BorderLayout.CENTER); add(actions, BorderLayout.SOUTH);
     }
@@ -53,6 +61,7 @@ public final class ProductManagementPanel extends JPanel {
                 .whenComplete((page, failure) -> SwingUtilities.invokeLater(() -> {
                     if (!requests.accepts(request)) return;
                     if (failure != null) { fail(failure); return; }
+                    table.clearSelection(); update.setEnabled(false);
                     rows.clear(); rows.addAll(page.items()); model.setRowCount(0);
                     for (ProductManagementSummary value : rows) model.addRow(new Object[]{
                             value.productName(), value.status().name(), value.skuCount(),
@@ -63,14 +72,45 @@ public final class ProductManagementPanel extends JPanel {
 
     public void setShop(ShopView shop) {
         writable = shop.status() == ShopStatus.ACTIVE; editor.clear(shop.category());
-        editor.setWritable(writable); create.setEnabled(writable); toggle.setEnabled(writable);
+        editor.setWritable(writable); create.setEnabled(writable); update.setEnabled(false);
+        toggle.setEnabled(writable);
     }
-    public void disposePage() { disposed = true; requests.dispose(); }
+    public void disposePage() {
+        disposed = true; requests.dispose(); detailRequests.dispose();
+    }
+
+    private void selectProduct() {
+        int selected = table.getSelectedRow();
+        if (selected < 0 || selected >= rows.size()) return;
+        String productId = rows.get(selected).productId();
+        update.setEnabled(false);
+        long request = detailRequests.begin();
+        port.getOwnedProduct(productId).whenComplete((product, failure) ->
+                SwingUtilities.invokeLater(() -> {
+                    if (!detailRequests.accepts(request) || !isSelected(productId)) return;
+                    if (failure != null) { fail(failure); return; }
+                    editor.load(product); editor.setWritable(writable);
+                    update.setEnabled(writable);
+                }));
+    }
+
+    private boolean isSelected(String productId) {
+        int selected = table.getSelectedRow();
+        return selected >= 0 && selected < rows.size()
+                && rows.get(selected).productId().equals(productId);
+    }
 
     private void create() {
         if (!writable) return;
         try {
             port.createOwnedProduct(editor.createCommand()).whenComplete((ignored, failure) ->
+                    SwingUtilities.invokeLater(() -> { if (failure != null) fail(failure); else load(); }));
+        } catch (RuntimeException failure) { status.setText("COMMON_VALIDATION_FAILED"); }
+    }
+    private void update() {
+        if (!writable) return;
+        try {
+            port.updateOwnedProduct(editor.updateCommand()).whenComplete((ignored, failure) ->
                     SwingUtilities.invokeLater(() -> { if (failure != null) fail(failure); else load(); }));
         } catch (RuntimeException failure) { status.setText("COMMON_VALIDATION_FAILED"); }
     }

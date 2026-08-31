@@ -49,6 +49,8 @@ public final class AdminShopHandlers {
         ShopHandlerSupport support = new ShopHandlerSupport(users, deduplicator, log);
         router.register("SHOP_ADMIN_SEARCH_PRODUCTS", support.read(ProductManagementQuery.class,
                 products::searchProducts));
+        router.register("SHOP_ADMIN_GET_PRODUCT", support.read(AdminProductRef.class,
+                products::getProduct));
         router.register("SHOP_ADMIN_CREATE_PRODUCT", support.write(AdminCreateProductCommand.class,
                 products::createProduct));
         router.register("SHOP_ADMIN_UPDATE_PRODUCT", support.write(AdminUpdateProductCommand.class,

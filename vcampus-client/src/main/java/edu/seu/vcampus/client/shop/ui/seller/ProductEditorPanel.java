@@ -45,7 +45,7 @@ public final class ProductEditorPanel extends JPanel {
         description.setText(product.description()); cover.setText(product.coverImageUrl() == null
                 ? "" : product.coverImageUrl()); skus.setRowCount(0);
         for (ProductSkuView sku : product.skus()) skus.addRow(new Object[]{sku.skuId(), sku.skuName(),
-                sku.unitPrice().toPlainString(), sku.availableQuantity(), sku.active(), sku.rowVersion()});
+                sku.unitPrice().toPlainString(), sku.stockQuantity(), sku.active(), sku.rowVersion()});
     }
 
     public CreateProductCommand createCommand() {

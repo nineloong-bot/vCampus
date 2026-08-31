@@ -47,6 +47,15 @@ public final class AdminProductService {
         });
     }
 
+    public ProductView getProduct(String sessionToken, AdminProductRef request) {
+        users.requireAdministrator(sessionToken);
+        Objects.requireNonNull(request, "request");
+        return transactions.inTransaction(connection -> {
+            Shop shop = requireShop(connection, request.shopId());
+            return toView(connection, requireProduct(connection, request.productId(), shop.shopId()));
+        });
+    }
+
     public ProductView createProduct(String sessionToken, AdminCreateProductCommand request) {
         var actor = users.requireAdministrator(sessionToken);
         Objects.requireNonNull(request, "request");

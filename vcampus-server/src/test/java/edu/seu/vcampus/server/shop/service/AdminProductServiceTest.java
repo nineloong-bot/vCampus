@@ -66,6 +66,22 @@ class AdminProductServiceTest {
     }
 
     @Test
+    void administratorLoadsCompleteProductFromExplicitlySelectedShop() {
+        ProductView created = products.createProduct("admin-token", new AdminCreateProductCommand(
+                shopId, new CreateProductCommand("可编辑商品", "其他", "说明", null, List.of(
+                        new CreateSkuCommand("标准", new BigDecimal("8.00"), 5, true)))));
+
+        ProductView loaded = products.getProduct("admin-token",
+                new AdminProductRef(shopId, created.productId()));
+
+        assertThat(loaded.productId()).isEqualTo(created.productId());
+        assertThat(loaded.skus()).singleElement().satisfies(sku -> {
+            assertThat(sku.skuId()).isNotBlank();
+            assertThat(sku.stockQuantity()).isEqualTo(5);
+        });
+    }
+
+    @Test
     void regularUserCannotManageAnotherShop() {
         assertThatThrownBy(() -> products.searchProducts("student-token",
                 new ProductManagementQuery(shopId, null, null, 0, 20)))

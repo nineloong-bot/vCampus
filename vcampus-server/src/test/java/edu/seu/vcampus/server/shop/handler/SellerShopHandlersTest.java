@@ -17,6 +17,7 @@ import edu.seu.vcampus.server.shop.service.SellerService;
 import edu.seu.vcampus.server.shop.service.ProductService;
 import edu.seu.vcampus.server.shop.service.SellerOrderService;
 import edu.seu.vcampus.common.shop.ProductManagementQuery;
+import edu.seu.vcampus.common.shop.ProductView;
 import edu.seu.vcampus.common.paging.PageResult;
 import org.junit.jupiter.api.Test;
 
@@ -44,6 +45,8 @@ class SellerShopHandlersTest {
         ProductManagementQuery query = new ProductManagementQuery("forged-shop", null, null, 0, 20);
         when(products.searchOwnedProducts("seller-token", query))
                 .thenReturn(new PageResult<>(java.util.List.of(), 0, 20, 0));
+        ProductView product = mock(ProductView.class);
+        when(products.getOwnedProduct("seller-token", "product-1")).thenReturn(product);
         new SellerShopHandlers(router, users, deduplicator, service, mock(SellerService.class),
                 products, mock(SellerOrderService.class), mock(ShopBusinessLogger.class));
 
@@ -54,14 +57,18 @@ class SellerShopHandlersTest {
         ResponseBody<?> save = router.route(request("save", "SHOP_SELLER_SAVE_APPLICATION", draft), context());
         ResponseBody<?> managed = router.route(request("managed", "SHOP_SELLER_SEARCH_PRODUCTS",
                 query), context());
+        ResponseBody<?> detail = router.route(request("detail", "SHOP_SELLER_GET_PRODUCT",
+                "product-1"), context());
 
         assertThat(get.code()).isEqualTo("SUCCESS");
         assertThat(get.data()).isNull();
         assertThat(save.code()).isEqualTo("SUCCESS");
         assertThat(managed.code()).isEqualTo("SUCCESS");
+        assertThat(detail.data()).isSameAs(product);
         verify(service).findMyApplication("seller-token");
         verify(service).saveDraft("seller-token", draft);
         verify(products).searchOwnedProducts("seller-token", query);
+        verify(products).getOwnedProduct("seller-token", "product-1");
         verify(deduplicator).executeOnce(any(), eq("seller-1"), eq("connection-1"), any());
     }
 

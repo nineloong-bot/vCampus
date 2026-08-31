@@ -13,6 +13,7 @@ public interface AdminShopClientPort {
     CompletableFuture<EmptyResponse> suspendShop(SuspendShopCommand command);
     CompletableFuture<EmptyResponse> resumeShop(ResumeShopCommand command);
     CompletableFuture<PageResult<ProductManagementSummary>> searchProducts(ProductManagementQuery query);
+    CompletableFuture<ProductView> getProduct(AdminProductRef request);
     CompletableFuture<ProductView> createProduct(AdminCreateProductCommand command);
     CompletableFuture<ProductView> updateProduct(AdminUpdateProductCommand command);
     CompletableFuture<EmptyResponse> changeProductStatus(AdminChangeProductStatusCommand command);

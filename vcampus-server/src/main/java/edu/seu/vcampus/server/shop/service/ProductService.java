@@ -91,6 +91,15 @@ public final class ProductService {
         });
     }
 
+    public ProductView getOwnedProduct(String sessionToken, String productId) {
+        ShopUser actor = users.requireUser(sessionToken);
+        Objects.requireNonNull(productId, "productId");
+        return transactions.inTransaction(connection -> {
+            Shop shop = requireOwnedShop(connection, actor.userId());
+            return toView(connection, requireOwnedProduct(connection, productId, shop.shopId()));
+        });
+    }
+
     public ProductView createProduct(String sessionToken, CreateProductCommand command) {
         Objects.requireNonNull(command, "command");
         validateProduct(command.productName(), command.category(), command.description());
@@ -232,7 +241,8 @@ public final class ProductService {
 
     static ProductSkuView toSkuView(ProductSku sku) {
         return new ProductSkuView(sku.skuId(), sku.skuName(), sku.unitPrice(),
-                sku.availableQuantity(), sku.active(), sku.rowVersion());
+                sku.availableQuantity(), sku.stockQuantity(), sku.reservedQuantity(),
+                sku.active(), sku.rowVersion());
     }
 
     private static ShopView toShopView(Shop shop) {

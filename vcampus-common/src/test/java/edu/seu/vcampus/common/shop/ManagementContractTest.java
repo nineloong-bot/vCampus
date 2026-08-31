@@ -31,6 +31,8 @@ class ManagementContractTest {
                 new ChangeProductStatusCommand("product-1", ProductStatus.INACTIVE, 5))))
                 .isEqualTo(new AdminChangeProductStatusCommand("shop-1",
                         new ChangeProductStatusCommand("product-1", ProductStatus.INACTIVE, 5)));
+        assertThat(roundTrip(new AdminProductRef("shop-1", "product-1")))
+                .isEqualTo(new AdminProductRef("shop-1", "product-1"));
     }
 
     @Test
@@ -59,6 +61,11 @@ class ManagementContractTest {
                 ProductStatus.ACTIVE, 2, new BigDecimal("2.50"), 30L, 4L, 99L, 7L);
         assertThat(roundTrip(summary)).isEqualTo(summary);
         assertThat(new SellerOrderQuery(OrderStatus.PAID, 0, 50).pageSize()).isEqualTo(50);
+        ProductSkuView managedSku = new ProductSkuView("sku-1", "黑色",
+                new BigDecimal("2.50"), 6, 10, 4, true, 3);
+        assertThat(managedSku.availableQuantity()).isEqualTo(6);
+        assertThat(managedSku.stockQuantity()).isEqualTo(10);
+        assertThat(managedSku.reservedQuantity()).isEqualTo(4);
     }
 
     private static SellerOrderItemView item(String productId, String skuId) {
