@@ -8,6 +8,7 @@ import edu.seu.vcampus.common.user.ChangePasswordCommand;
 import edu.seu.vcampus.common.user.ChangeUserStatusCommand;
 import edu.seu.vcampus.common.user.LoginCommand;
 import edu.seu.vcampus.common.user.LoginResult;
+import edu.seu.vcampus.common.user.ResetStudentPasswordCommand;
 import edu.seu.vcampus.common.user.SecurityAuditQuery;
 import edu.seu.vcampus.common.user.SecurityAuditView;
 import edu.seu.vcampus.common.user.TeacherAccountApplicationCommand;
@@ -33,6 +34,8 @@ public class UserClientService {
     private static final String USER_SEARCH = "USER_SEARCH";
     private static final String USER_UPDATE_ROLE = "USER_UPDATE_ROLE";
     private static final String USER_CHANGE_STATUS = "USER_CHANGE_STATUS";
+    private static final String USER_RESET_STUDENT_PASSWORD =
+            "USER_RESET_STUDENT_PASSWORD";
     private static final String SECURITY_AUDIT_SEARCH = "SECURITY_AUDIT_SEARCH";
 
     private final ClientConnection connection;
@@ -86,9 +89,16 @@ public class UserClientService {
                 .thenApply(UserClientService::requireSuccess);
     }
 
-    /** Updates a teacher or administrator role using optimistic locking. */
+    /** Retained compatibility call for the permanently retired role-change command. */
     public CompletableFuture<UserView> updateRole(UpdateUserRoleCommand command) {
         return this.<UserView>sendAsync(USER_UPDATE_ROLE, command, () -> { })
+                .thenApply(UserClientService::requireSuccess);
+    }
+
+    /** Requests administrator-controlled initialization of a student's password. */
+    public CompletableFuture<UserView> resetStudentPassword(
+            ResetStudentPasswordCommand command) {
+        return this.<UserView>sendAsync(USER_RESET_STUDENT_PASSWORD, command, () -> { })
                 .thenApply(UserClientService::requireSuccess);
     }
 
@@ -119,7 +129,7 @@ public class UserClientService {
         }
         return this.<EmptyResponse>sendAsync(
                         USER_CHANGE_PASSWORD, command, command::clearPasswords)
-                .thenApply(UserClientService::requireSuccess)
+                .thenApply(UserClientService::requireSessionSuccess)
                 .thenRun(this::clearSession);
     }
 
@@ -164,6 +174,10 @@ public class UserClientService {
     }
 
     private static UserView requireCurrentUserSuccess(ResponseBody<UserView> response) {
+        return requireSessionSuccess(response);
+    }
+
+    private static <T extends Serializable> T requireSessionSuccess(ResponseBody<T> response) {
         if (!response.success() && "AUTH_SESSION_EXPIRED".equals(response.code())) {
             throw new SessionExpiredClientException();
         }

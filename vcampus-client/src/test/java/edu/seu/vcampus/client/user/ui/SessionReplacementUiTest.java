@@ -170,24 +170,64 @@ class SessionReplacementUiTest {
         assertThat(showing(LoginFrame.class)).hasSize(1);
     }
 
+    @Test
+    void passwordChangeRejectedByAdministratorResetReturnsToLoginWithoutFreezing()
+            throws Exception {
+        AtomicReference<CompletableFuture<ResponseBody<UserView>>> current =
+                new AtomicReference<>(CompletableFuture.completedFuture(
+                        ResponseBody.success(loginResult().user())));
+        CompletableFuture<ResponseBody<EmptyResponse>> expired =
+                CompletableFuture.completedFuture(ResponseBody.failure(
+                        "AUTH_SESSION_EXPIRED", "会话已失效", null));
+        Fixture fixture = fixture(current, expired);
+        MainFrame main = login(fixture.coordinator());
+        SwingUtilities.invokeAndWait(() -> component(
+                main, "navigation.account", AbstractButton.class).doClick());
+        SwingUtilities.invokeLater(() -> component(
+                main, "account.password", AbstractButton.class).doClick());
+        JDialog dialog = awaitShowing(JDialog.class);
+
+        SwingUtilities.invokeAndWait(() -> {
+            component(dialog, "change.old", JPasswordField.class).setText("Password1");
+            component(dialog, "change.new", JPasswordField.class).setText("Replacement8");
+            component(dialog, "change.confirm", JPasswordField.class).setText("Replacement8");
+            component(dialog, "change.submit", AbstractButton.class).doClick();
+        });
+        awaitNoShowing(MainFrame.class);
+
+        assertThat(showing(JDialog.class)).isEmpty();
+        assertThat(showing(LoginFrame.class)).hasSize(1);
+        assertThat(text(showing(LoginFrame.class).getFirst()))
+                .contains("登录状态已失效，请重新登录")
+                .doesNotContain("AUTH_SESSION_EXPIRED", "session-token", "Exception");
+        verify(fixture.connection()).setSessionToken(null);
+    }
+
     private static Fixture fixture(
             AtomicReference<CompletableFuture<ResponseBody<UserView>>> current) {
+        return fixture(current, CompletableFuture.completedFuture(
+                ResponseBody.success(EmptyResponse.INSTANCE)));
+    }
+
+    private static Fixture fixture(
+            AtomicReference<CompletableFuture<ResponseBody<UserView>>> current,
+            CompletableFuture<ResponseBody<EmptyResponse>> passwordChange) {
         ClientConnection connection = mock(ClientConnection.class);
         when(connection.state()).thenReturn(ConnectionState.CONNECTED);
-        doAnswer(invocation -> response(invocation.getArgument(0), current))
+        doAnswer(invocation -> response(invocation.getArgument(0), current, passwordChange))
                 .when(connection).send(anyString(), any(Serializable.class), any(Duration.class));
         UserClientService users = new UserClientService(connection, "client", TIMEOUT);
         return new Fixture(connection, new UserUiCoordinator(users, connection));
     }
 
     private static CompletableFuture<?> response(
-            String command, AtomicReference<CompletableFuture<ResponseBody<UserView>>> current) {
+            String command, AtomicReference<CompletableFuture<ResponseBody<UserView>>> current,
+            CompletableFuture<ResponseBody<EmptyResponse>> passwordChange) {
         return switch (command) {
             case "USER_LOGIN" -> CompletableFuture.completedFuture(
                     ResponseBody.success(loginResult()));
             case "USER_GET_CURRENT" -> current.get();
-            case "USER_CHANGE_PASSWORD" -> CompletableFuture.completedFuture(
-                    ResponseBody.success(EmptyResponse.INSTANCE));
+            case "USER_CHANGE_PASSWORD" -> passwordChange;
             default -> CompletableFuture.failedFuture(
                     new IllegalArgumentException("Unexpected command"));
         };

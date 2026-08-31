@@ -6,6 +6,7 @@ import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.user.SecurityAuditQuery;
 import edu.seu.vcampus.common.user.SecurityAuditView;
+import edu.seu.vcampus.common.user.ResetStudentPasswordCommand;
 import edu.seu.vcampus.common.user.TeacherAccountApplicationCommand;
 import edu.seu.vcampus.common.user.UserView;
 import org.junit.jupiter.api.Test;
@@ -73,5 +74,20 @@ class UserClientServiceTask6Test {
                 .isInstanceOf(CompletionException.class)
                 .satisfies(error -> assertThat(error.getCause().getClass().getSimpleName())
                         .isEqualTo("SessionExpiredClientException"));
+    }
+
+    @Test
+    void studentPasswordResetSendsOnlyTargetAndVersion() {
+        ClientConnection connection = mock(ClientConnection.class);
+        ResetStudentPasswordCommand command =
+                new ResetStudentPasswordCommand("student", 7);
+        UserView expected = mock(UserView.class);
+        doReturn(CompletableFuture.completedFuture(ResponseBody.success(expected)))
+                .when(connection).send("USER_RESET_STUDENT_PASSWORD", command, TIMEOUT);
+        UserClientService users = new UserClientService(connection, "client", TIMEOUT);
+
+        assertThat(users.resetStudentPassword(command).join()).isSameAs(expected);
+        verify(connection).send("USER_RESET_STUDENT_PASSWORD", command, TIMEOUT);
+        assertThat(command.toString()).doesNotContain("12345678", "password", "hash", "salt");
     }
 }

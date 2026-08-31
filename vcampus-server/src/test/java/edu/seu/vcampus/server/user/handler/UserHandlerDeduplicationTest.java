@@ -10,6 +10,7 @@ import edu.seu.vcampus.common.user.ChangePasswordCommand;
 import edu.seu.vcampus.common.user.ChangeUserStatusCommand;
 import edu.seu.vcampus.common.user.LoginCommand;
 import edu.seu.vcampus.common.user.LoginResult;
+import edu.seu.vcampus.common.user.ResetStudentPasswordCommand;
 import edu.seu.vcampus.common.user.TeacherAccountApplicationCommand;
 import edu.seu.vcampus.common.user.UpdateUserRoleCommand;
 import edu.seu.vcampus.common.user.UserRole;
@@ -74,8 +75,11 @@ class UserHandlerDeduplicationTest {
         assertReplay("USER_LOGOUT", EmptyRequest.INSTANCE);
         assertReplay("USER_CHANGE_PASSWORD", new ChangePasswordCommand(
                 "OldPass123".toCharArray(), "NewPass123".toCharArray()));
-        assertReplay("USER_UPDATE_ROLE",
-                new UpdateUserRoleCommand("target", UserRole.TEACHER, 0));
+        assertThat(router.route(request(UUID.randomUUID().toString(), "USER_UPDATE_ROLE",
+                new UpdateUserRoleCommand("target", UserRole.TEACHER, 0)), CONTEXT).code())
+                .isEqualTo("COMMON_VALIDATION_FAILED");
+        assertReplay("USER_RESET_STUDENT_PASSWORD",
+                new ResetStudentPasswordCommand("target", 0));
         assertReplay("USER_CHANGE_STATUS", new ChangeUserStatusCommand(
                 "target", AccountStatus.DISABLED, "reviewed", 0));
     }
@@ -237,6 +241,11 @@ class UserHandlerDeduplicationTest {
         @Override public void changePassword(String sessionToken, ChangePasswordCommand command) { hit("USER_CHANGE_PASSWORD"); }
         @Override public PageResult<UserSummary> searchUsers(UserSearchQuery query) { return new PageResult<>(java.util.List.of(), 0, 10, 0); }
         @Override public UserView updateRole(UpdateUserRoleCommand command) { hit("USER_UPDATE_ROLE"); return VIEW; }
+        @Override public UserView resetStudentPassword(String actorUserId,
+                ResetStudentPasswordCommand command, ClientContext context) {
+            hit("USER_RESET_STUDENT_PASSWORD");
+            return VIEW;
+        }
         @Override public UserView changeStatus(ChangeUserStatusCommand command) {
             hit("USER_CHANGE_STATUS");
             if (failStatusChange) throw new IllegalStateException("USER_STATUS_CONFLICT");

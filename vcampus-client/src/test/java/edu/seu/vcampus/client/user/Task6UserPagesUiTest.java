@@ -5,7 +5,6 @@ import edu.seu.vcampus.client.user.ui.ChangePasswordDialog;
 import edu.seu.vcampus.client.user.ui.SecurityAuditPanel;
 import edu.seu.vcampus.client.user.ui.TeacherAccountApplicationDialog;
 import edu.seu.vcampus.client.user.ui.UserManagementPanel;
-import edu.seu.vcampus.client.user.ui.UserRoleDialog;
 import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.user.SecurityAuditQuery;
 import edu.seu.vcampus.common.user.SecurityAuditView;
@@ -149,12 +148,7 @@ class Task6UserPagesUiTest {
         verify(users).searchUsers(any(UserSearchQuery.class));
         verify(users).searchSecurityAudits(any(SecurityAuditQuery.class));
 
-        UserRoleDialog[] role = new UserRoleDialog[1];
-        SwingUtilities.invokeAndWait(() -> role[0] = new UserRoleDialog(
-                null, users, student, () -> { }));
-        assertThat(component(role[0], "role.submit", AbstractButton.class).isEnabled())
-                .isFalse();
-        assertThat(text(role[0])).contains("学生账户不能调整角色");
+        assertThat(find(management[0], "users.role")).isNull();
     }
 
     private static void fillPasswordDialog(ChangePasswordDialog dialog) throws Exception {

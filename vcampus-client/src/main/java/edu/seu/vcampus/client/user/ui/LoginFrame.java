@@ -194,7 +194,7 @@ public final class LoginFrame extends JFrame {
         panel.add(demoLabel("演示账号", "login.demoTitle"));
         panel.add(demoLabel("管理员：DEMO_ADMIN / admin123456", "login.demoAdmin"));
         panel.add(demoLabel("教师：DEMO_TEACHER / Teacher123456", "login.demoTeacher"));
-        panel.add(demoLabel("学生：213242478 / 12345678（首次登录需修改密码）",
+        panel.add(demoLabel("学生：213242478 / 12345678",
                 "login.demoStudent"));
         return panel;
     }

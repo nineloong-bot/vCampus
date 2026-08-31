@@ -43,7 +43,8 @@ class AccessPermissionRepositoryTest {
 
         assertThat(administratorPermissions)
                 .containsExactlyInAnyOrder("USER_READ_ALL", "USER_ROLE_WRITE",
-                        "USER_STATUS_WRITE", "USER_AUDIT_READ");
+                        "USER_STATUS_WRITE", "USER_AUDIT_READ",
+                        "USER_PASSWORD_RESET");
         assertThat(studentPermissions).isEmpty();
     }
 

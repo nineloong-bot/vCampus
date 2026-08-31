@@ -81,7 +81,7 @@ class UserAuditFailureIsolationTest {
 
         assertThatThrownBy(() -> subject.updateRole(ADMIN_ID,
                 new UpdateUserRoleCommand(ADMIN_ID, UserRole.TEACHER, 0), context))
-                .hasMessage("USER_LAST_ADMIN_PROTECTED");
+                .hasMessage("COMMON_VALIDATION_FAILED");
         assertThatThrownBy(() -> subject.changeStatus(ADMIN_ID,
                 new ChangeUserStatusCommand(ADMIN_ID, AccountStatus.PENDING, "invalid", 0),
                 context)).hasMessage("USER_STATUS_CONFLICT");

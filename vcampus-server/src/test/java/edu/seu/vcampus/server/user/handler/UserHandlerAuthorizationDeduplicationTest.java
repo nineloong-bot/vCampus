@@ -9,6 +9,7 @@ import edu.seu.vcampus.common.user.ChangePasswordCommand;
 import edu.seu.vcampus.common.user.ChangeUserStatusCommand;
 import edu.seu.vcampus.common.user.LoginCommand;
 import edu.seu.vcampus.common.user.LoginResult;
+import edu.seu.vcampus.common.user.ResetStudentPasswordCommand;
 import edu.seu.vcampus.common.user.TeacherAccountApplicationCommand;
 import edu.seu.vcampus.common.user.UpdateUserRoleCommand;
 import edu.seu.vcampus.common.user.UserRole;
@@ -66,7 +67,7 @@ class UserHandlerAuthorizationDeduplicationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"USER_UPDATE_ROLE", "USER_CHANGE_STATUS"})
+    @ValueSource(strings = {"USER_RESET_STUDENT_PASSWORD", "USER_CHANGE_STATUS"})
     void completedAdminRequestCannotReplayWithoutCurrentPermission(String command) {
         Serializable body = bodyFor(command);
         String requestId = UUID.randomUUID().toString();
@@ -104,8 +105,8 @@ class UserHandlerAuthorizationDeduplicationTest {
     @Test
     void authenticatedActorIsStoredOnProtectedClaim() {
         String requestId = UUID.randomUUID().toString();
-        assertThat(allowed.route(request(requestId, "USER_UPDATE_ROLE", "token",
-                bodyFor("USER_UPDATE_ROLE")), CONTEXT).success()).isTrue();
+        assertThat(allowed.route(request(requestId, "USER_RESET_STUDENT_PASSWORD", "token",
+                bodyFor("USER_RESET_STUDENT_PASSWORD")), CONTEXT).success()).isTrue();
 
         String actor = transactions.inTransaction(connection -> {
             try (var statement = connection.prepareStatement(
@@ -131,7 +132,8 @@ class UserHandlerAuthorizationDeduplicationTest {
                 new RequestDeduplicator(failing));
 
         ResponseBody<?> response = router.route(request(UUID.randomUUID().toString(),
-                "USER_UPDATE_ROLE", "token", bodyFor("USER_UPDATE_ROLE")), CONTEXT);
+                "USER_RESET_STUDENT_PASSWORD", "token",
+                bodyFor("USER_RESET_STUDENT_PASSWORD")), CONTEXT);
 
         assertThat(response.code()).isEqualTo("COMMON_INTERNAL_ERROR");
         assertThat(auditedUsers.rejectedActor).isEqualTo("admin");
@@ -150,8 +152,8 @@ class UserHandlerAuthorizationDeduplicationTest {
     }
 
     private static Serializable bodyFor(String command) {
-        return "USER_UPDATE_ROLE".equals(command)
-                ? new UpdateUserRoleCommand("target", UserRole.TEACHER, 0)
+        return "USER_RESET_STUDENT_PASSWORD".equals(command)
+                ? new ResetStudentPasswordCommand("target", 0)
                 : new ChangeUserStatusCommand("target", AccountStatus.DISABLED, "reviewed", 0);
     }
 
@@ -205,6 +207,11 @@ class UserHandlerAuthorizationDeduplicationTest {
         private void hit(String command) { counts.computeIfAbsent(command, key -> new AtomicInteger()).incrementAndGet(); }
         @Override public void changePassword(String token, ChangePasswordCommand command) { hit("USER_CHANGE_PASSWORD"); }
         @Override public UserView updateRole(UpdateUserRoleCommand command) { hit("USER_UPDATE_ROLE"); return VIEW; }
+        @Override public UserView resetStudentPassword(String actorUserId,
+                ResetStudentPasswordCommand command, ClientContext context) {
+            hit("USER_RESET_STUDENT_PASSWORD");
+            return VIEW;
+        }
         @Override public UserView changeStatus(ChangeUserStatusCommand command) { hit("USER_CHANGE_STATUS"); return VIEW; }
         @Override public UserView applyForTeacherAccount(TeacherAccountApplicationCommand command) { return VIEW; }
         @Override public LoginResult login(LoginCommand command, ClientContext context) { return new LoginResult("token", VIEW, Set.of(), false); }

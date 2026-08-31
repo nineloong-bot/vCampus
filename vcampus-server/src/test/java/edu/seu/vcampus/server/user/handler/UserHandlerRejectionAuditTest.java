@@ -80,14 +80,14 @@ class UserHandlerRejectionAuditTest {
     }
 
     @Test
-    void forbiddenRoleUpdateAuditsTargetButNoUnverifiedActor() {
-        ResponseBody<?> response = route(new ForbiddenAuthorization(),
+    void retiredRoleUpdateAuditsTargetWithoutRunningAuthorization() {
+        ResponseBody<?> response = route(new RejectingAuthorization(),
                 "USER_UPDATE_ROLE", new UpdateUserRoleCommand(
                         "target-user", UserRole.TEACHER, 0));
 
-        assertThat(response.code()).isEqualTo("AUTH_FORBIDDEN");
+        assertThat(response.code()).isEqualTo("COMMON_VALIDATION_FAILED");
         assertThat(onlyAudit("USER_UPDATE_ROLE")).isEqualTo(
-                new AuditRow(null, "target-user", "AUTH_FORBIDDEN", "10.0.0.7"));
+                new AuditRow(null, "target-user", "COMMON_VALIDATION_FAILED", "10.0.0.7"));
     }
 
     @Test

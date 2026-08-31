@@ -136,7 +136,7 @@ class LoginDemoUiTest {
         assertThat(component(login[0], "login.demoTeacher", JLabel.class).getText())
                 .isEqualTo("教师：DEMO_TEACHER / Teacher123456");
         assertThat(component(login[0], "login.demoStudent", JLabel.class).getText())
-                .isEqualTo("学生：213242478 / 12345678（首次登录需修改密码）");
+                .isEqualTo("学生：213242478 / 12345678");
         assertThat(component(login[0], "login.loginId", JTextField.class).getText())
                 .isEmpty();
         assertThat(component(login[0], "login.password", JPasswordField.class).getPassword())

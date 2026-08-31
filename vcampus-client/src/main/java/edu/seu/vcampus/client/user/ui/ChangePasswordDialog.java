@@ -5,6 +5,7 @@ import edu.seu.vcampus.client.core.ui.theme.UiColors;
 import edu.seu.vcampus.client.core.ui.theme.UiSpacing;
 import edu.seu.vcampus.client.core.ui.theme.UiTypography;
 import edu.seu.vcampus.client.user.service.UserClientService;
+import edu.seu.vcampus.client.user.service.SessionExpiredClientException;
 
 import javax.swing.JButton;
 import javax.swing.JDialog;
@@ -25,6 +26,8 @@ import java.util.concurrent.CompletableFuture;
 public final class ChangePasswordDialog extends JDialog {
     private final UserClientService users;
     private final Runnable onChanging;
+    private final Runnable onChangeFailed;
+    private final Runnable onSessionInvalid;
     private final Runnable onChanged;
     private final JPasswordField oldPassword = field("change.old", "当前密码");
     private final JPasswordField newPassword = field("change.new", "新密码");
@@ -34,14 +37,17 @@ public final class ChangePasswordDialog extends JDialog {
 
     /** Creates a modal password change dialog. */
     public ChangePasswordDialog(Window owner, UserClientService users, Runnable onChanged) {
-        this(owner, users, () -> { }, onChanged);
+        this(owner, users, () -> { }, () -> { }, () -> { }, onChanged);
     }
 
     ChangePasswordDialog(Window owner, UserClientService users,
-                         Runnable onChanging, Runnable onChanged) {
+                         Runnable onChanging, Runnable onChangeFailed,
+                         Runnable onSessionInvalid, Runnable onChanged) {
         super(owner, "修改密码", Dialog.ModalityType.APPLICATION_MODAL);
         this.users = Objects.requireNonNull(users, "users");
         this.onChanging = Objects.requireNonNull(onChanging, "onChanging");
+        this.onChangeFailed = Objects.requireNonNull(onChangeFailed, "onChangeFailed");
+        this.onSessionInvalid = Objects.requireNonNull(onSessionInvalid, "onSessionInvalid");
         this.onChanged = Objects.requireNonNull(onChanged, "onChanged");
         setContentPane(content());
         submit.addActionListener(event -> submit());
@@ -99,6 +105,12 @@ public final class ChangePasswordDialog extends JDialog {
     private void finish(Throwable failure) {
         setBusy(false);
         if (failure != null) {
+            if (isSessionExpired(failure)) {
+                dispose();
+                onSessionInvalid.run();
+                return;
+            }
+            onChangeFailed.run();
             error.setText(UserErrorMessages.operation(failure, "密码修改失败，请稍后重试"));
             return;
         }
@@ -138,6 +150,12 @@ public final class ChangePasswordDialog extends JDialog {
     }
     private static void clear(char[]... values) {
         for (char[] value : values) Arrays.fill(value, '\0');
+    }
+    private static boolean isSessionExpired(Throwable failure) {
+        for (Throwable current = failure; current != null; current = current.getCause()) {
+            if (current instanceof SessionExpiredClientException) return true;
+        }
+        return false;
     }
     private static void onEdt(Runnable action) {
         if (SwingUtilities.isEventDispatchThread()) action.run();

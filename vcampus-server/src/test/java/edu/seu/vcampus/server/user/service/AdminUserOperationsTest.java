@@ -71,12 +71,12 @@ class AdminUserOperationsTest {
     }
 
     @Test
-    void preventsDemotingTheOnlyActiveAdministrator() {
+    void permanentlyRejectsAdministratorDemotion() {
         assertThatThrownBy(() -> service.updateRole(ADMIN_ID, new UpdateUserRoleCommand(
                 ADMIN_ID, UserRole.TEACHER, 0), ADMIN_CONTEXT))
-                .hasMessage("USER_LAST_ADMIN_PROTECTED");
+                .hasMessage("COMMON_VALIDATION_FAILED");
 
-        assertAudit("USER_UPDATE_ROLE", "USER_LAST_ADMIN_PROTECTED", ADMIN_ID, ADMIN_ID);
+        assertAudit("USER_UPDATE_ROLE", "COMMON_VALIDATION_FAILED", ADMIN_ID, ADMIN_ID);
     }
 
     @Test
@@ -103,20 +103,20 @@ class AdminUserOperationsTest {
     }
 
     @Test
-    void demotingAdministratorRevokesTheTargetsExistingSession() {
+    void retiredRoleChangeLeavesTargetSessionAndRoleUntouched() {
         UserAccount target = account("SECOND_ADMIN", UserRole.ADMIN);
         insert(target);
         String token = service.login(new LoginCommand(target.loginId(), "Pass1234".toCharArray(),
                 "client"), new ClientContext("connection", "127.0.0.1")).sessionToken();
 
-        service.updateRole(ADMIN_ID,
-                new UpdateUserRoleCommand(target.userId(), UserRole.TEACHER, 1), ADMIN_CONTEXT);
+        assertThatThrownBy(() -> service.updateRole(ADMIN_ID,
+                new UpdateUserRoleCommand(target.userId(), UserRole.TEACHER, 1), ADMIN_CONTEXT))
+                .hasMessage("COMMON_VALIDATION_FAILED");
 
-        assertThatThrownBy(() -> sessions.requireSession(token))
-                .isInstanceOf(SessionExpiredException.class);
-        assertThat(service.login(new LoginCommand(target.loginId(), "Pass1234".toCharArray(),
-                "client"), new ClientContext("connection", "127.0.0.1")).permissions())
-                .isEmpty();
+        assertThat(sessions.requireSession(token).role()).isEqualTo(UserRole.ADMIN);
+        UserRole storedRole = transactions.inTransaction(connection -> repository.findById(
+                connection, target.userId()).orElseThrow().role());
+        assertThat(storedRole).isEqualTo(UserRole.ADMIN);
     }
 
     @Test

@@ -4,7 +4,11 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Objects;
 
-/** Requests a role change guarded by the account's current row version. */
+/**
+ * Retired compatibility contract for the permanently disabled role-change command.
+ * Servers retain the type and command name for binary compatibility but reject every
+ * request without changing account data.
+ */
 public record UpdateUserRoleCommand(String userId, UserRole newRole,
                                     long expectedVersion) implements Serializable {
     @Serial

@@ -89,7 +89,7 @@ class LoginLockoutCountdownUiTest {
         assertThat(visibleText(frame[0])).contains(
                 "演示账号", "管理员：DEMO_ADMIN / admin123456",
                 "教师：DEMO_TEACHER / Teacher123456",
-                "学生：213242478 / 12345678（首次登录需修改密码）");
+                "学生：213242478 / 12345678");
         assertThat(component(frame[0], "login.loginId", JTextField.class).getText()).isEmpty();
         assertThat(component(frame[0], "login.password", JPasswordField.class).getPassword())
                 .isEmpty();

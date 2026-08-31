@@ -8,6 +8,7 @@ import edu.seu.vcampus.client.user.service.UserClientService;
 import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.user.AccountStatus;
 import edu.seu.vcampus.common.user.ChangeUserStatusCommand;
+import edu.seu.vcampus.common.user.ResetStudentPasswordCommand;
 import edu.seu.vcampus.common.user.UserRole;
 import edu.seu.vcampus.common.user.UserSearchQuery;
 import edu.seu.vcampus.common.user.UserSummary;
@@ -38,8 +39,8 @@ public final class UserManagementPanel extends JPanel {
     private final JComboBox<Object> role = new JComboBox<>(filterValues(UserRole.values()));
     private final JComboBox<Object> status = new JComboBox<>(filterValues(AccountStatus.values()));
     private final JButton search = button("查询", "users.search");
-    private final JButton changeRole = button("调整角色", "users.role");
     private final JButton changeStatus = button("变更状态", "users.status");
+    private final JButton resetPassword = button("初始化密码", "users.resetPassword");
     private final JLabel state = new JLabel("准备查询");
     private final DefaultTableModel model = new DefaultTableModel(
             new Object[]{"登录标识", "角色", "状态", "最近登录", "版本"}, 0) {
@@ -48,6 +49,8 @@ public final class UserManagementPanel extends JPanel {
     private final JTable table = new JTable(model);
     private List<UserSummary> rows = List.of();
     private int page;
+    private boolean busy;
+    private boolean closed;
 
     /** Creates a paged management page using the authenticated permission snapshot. */
     public UserManagementPanel(UserClientService users, Set<String> permissions) {
@@ -62,8 +65,11 @@ public final class UserManagementPanel extends JPanel {
         add(new JScrollPane(table), BorderLayout.CENTER);
         add(actions(), BorderLayout.SOUTH);
         search.addActionListener(event -> { page = 0; load(); });
-        changeRole.addActionListener(event -> openRole());
         changeStatus.addActionListener(event -> changeStatus());
+        resetPassword.addActionListener(event -> confirmPasswordReset());
+        table.getSelectionModel().addListSelectionListener(
+                event -> updateResetVisibility());
+        resetPassword.setVisible(false);
         load();
     }
 
@@ -84,8 +90,8 @@ public final class UserManagementPanel extends JPanel {
     private JPanel actions() {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.RIGHT, UiSpacing.SPACE_2, 0));
         panel.setOpaque(false); panel.add(state);
-        if (permissions.contains("USER_ROLE_WRITE")) panel.add(changeRole);
         if (permissions.contains("USER_STATUS_WRITE")) panel.add(changeStatus);
+        if (permissions.contains("USER_PASSWORD_RESET")) panel.add(resetPassword);
         return panel;
     }
 
@@ -113,14 +119,6 @@ public final class UserManagementPanel extends JPanel {
         state.setText(result.total() == 0 ? "未找到符合条件的账户" : "共 " + result.total() + " 条");
     }
 
-    private void openRole() {
-        UserSummary selected = selectedRow();
-        if (selected == null) { state.setText("请先选择账户"); return; }
-        UserRoleDialog dialog = new UserRoleDialog(
-                SwingUtilities.getWindowAncestor(this), users, selected, this::load);
-        dialog.setVisible(true);
-    }
-
     private void changeStatus() {
         UserSummary selected = selectedRow();
         if (selected == null) { state.setText("请先选择账户"); return; }
@@ -136,13 +134,63 @@ public final class UserManagementPanel extends JPanel {
                 }));
     }
 
+    private void confirmPasswordReset() {
+        UserSummary selected = selectedRow();
+        if (selected == null || selected.role() != UserRole.STUDENT) return;
+        StudentPasswordResetConfirmationDialog dialog =
+                new StudentPasswordResetConfirmationDialog(
+                        SwingUtilities.getWindowAncestor(this),
+                        () -> resetStudentPassword(selected));
+        dialog.setVisible(true);
+    }
+
+    private void resetStudentPassword(UserSummary selected) {
+        if (busy || closed) return;
+        setBusy(true);
+        CompletableFuture<?> response;
+        try {
+            response = users.resetStudentPassword(new ResetStudentPasswordCommand(
+                    selected.userId(), selected.rowVersion()));
+        } catch (RuntimeException failure) {
+            response = CompletableFuture.failedFuture(failure);
+        }
+        response.whenComplete((ignored, failure) -> onEdt(() -> {
+            if (closed) return;
+            if (failure == null) load();
+            else {
+                setBusy(false);
+                state.setText(UserErrorMessages.operation(
+                        failure, "密码初始化失败，请稍后重试"));
+            }
+        }));
+    }
+
     private UserSummary selectedRow() {
         int index = table.getSelectedRow();
         return index < 0 || index >= rows.size() ? null : rows.get(index);
     }
     private void setBusy(boolean busy) {
-        search.setEnabled(!busy); changeRole.setEnabled(!busy); changeStatus.setEnabled(!busy);
+        this.busy = busy;
+        search.setEnabled(!busy);
+        changeStatus.setEnabled(!busy);
+        resetPassword.setEnabled(!busy);
+        updateResetVisibility();
         if (busy) state.setText("正在加载…");
+    }
+    private void updateResetVisibility() {
+        UserSummary selected = selectedRow();
+        resetPassword.setVisible(permissions.contains("USER_PASSWORD_RESET")
+                && selected != null && selected.role() == UserRole.STUDENT);
+    }
+
+    @Override public void addNotify() {
+        closed = false;
+        super.addNotify();
+    }
+
+    @Override public void removeNotify() {
+        closed = true;
+        super.removeNotify();
     }
     private static AccountStatus nextStatus(AccountStatus current) {
         return switch (current) {

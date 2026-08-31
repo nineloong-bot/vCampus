@@ -111,7 +111,11 @@ final class AuthenticationService {
             PasswordPolicy.validate(newPassword);
             String userId = identity.userId();
             boolean changed = locks.withLocks(List.of(new ResourceKey("USER", userId)),
-                    () -> updatePassword(userId, oldPassword, newPassword, address(context)));
+                    () -> {
+                        UserIdentity current = sessions.requireSession(token);
+                        if (!userId.equals(current.userId())) throw new SessionExpiredException();
+                        return updatePassword(userId, oldPassword, newPassword, address(context));
+                    });
             if (!changed) throw new InvalidCredentialsException();
             sessions.revokeAllForUser(userId);
         } catch (RuntimeException error) {

@@ -15,6 +15,7 @@ public final class UserUiCoordinator {
     private static final String PASSWORD_CHANGED = "密码修改成功，请使用新密码重新登录";
     private static final String LOGGED_OUT = "已退出登录";
     private static final String SESSION_REPLACED = "登录已在其他位置失效，请重新登录";
+    private static final String SESSION_INVALID = "登录状态已失效，请重新登录";
     private final UserClientService users;
     private final ClientConnection connection;
     private LoginFrame activeLogin;
@@ -59,7 +60,6 @@ public final class UserUiCoordinator {
         activeMain = main;
         sessionEnding = false;
         replaceAccountPage(main, result);
-        sessionMonitor = new SessionMonitor(users, () -> sessionExpired(main));
         main.addWindowListener(new WindowAdapter() {
             @Override public void windowClosed(WindowEvent event) {
                 if (activeMain == main && !sessionEnding) {
@@ -69,7 +69,7 @@ public final class UserUiCoordinator {
             }
         });
         main.setVisible(true);
-        sessionMonitor.start();
+        startSessionMonitor(main);
     }
 
     private void replaceAccountPage(MainFrame main, LoginResult result) {
@@ -83,7 +83,9 @@ public final class UserUiCoordinator {
                 users, result.user(), result.permissions(),
                 () -> returnToLogin(main, PASSWORD_CHANGED),
                 () -> returnToLogin(main, LOGGED_OUT),
-                () -> beginSessionEnd(main));
+                () -> beginSessionEnd(main),
+                () -> resumeSession(main),
+                () -> returnToLogin(main, SESSION_INVALID));
         main.content().add(account, "account");
         main.content().revalidate();
         main.content().repaint();
@@ -102,6 +104,18 @@ public final class UserUiCoordinator {
         if (activeMain != main || sessionEnding) return;
         sessionEnding = true;
         stopSessionMonitor();
+    }
+
+    private void resumeSession(MainFrame main) {
+        if (activeMain != main || !main.isShowing()) return;
+        sessionEnding = false;
+        startSessionMonitor(main);
+    }
+
+    private void startSessionMonitor(MainFrame main) {
+        if (sessionMonitor != null) return;
+        sessionMonitor = new SessionMonitor(users, () -> sessionExpired(main));
+        sessionMonitor.start();
     }
 
     private void sessionExpired(MainFrame main) {

@@ -39,6 +39,8 @@ public final class AccountPanel extends JPanel {
     private final Runnable onSessionEnded;
     private final Runnable onLoggedOut;
     private final Runnable onSessionEnding;
+    private final Runnable onSessionResume;
+    private final Runnable onSessionInvalid;
     private final AtomicBoolean logoutStarted = new AtomicBoolean();
     private final JPanel cards = new JPanel(new CardLayout());
     private final JPanel detail = new JPanel(new GridLayout(0, 2,
@@ -55,17 +57,21 @@ public final class AccountPanel extends JPanel {
     public AccountPanel(UserClientService users, UserView signedInUser,
                         Set<String> permissions, Runnable onSessionEnded,
                         Runnable onLoggedOut) {
-        this(users, signedInUser, permissions, onSessionEnded, onLoggedOut, () -> { });
+        this(users, signedInUser, permissions, onSessionEnded, onLoggedOut,
+                () -> { }, () -> { }, onSessionEnded);
     }
 
     AccountPanel(UserClientService users, UserView signedInUser,
                  Set<String> permissions, Runnable onSessionEnded,
-                 Runnable onLoggedOut, Runnable onSessionEnding) {
+                 Runnable onLoggedOut, Runnable onSessionEnding,
+                 Runnable onSessionResume, Runnable onSessionInvalid) {
         super(new BorderLayout(0, UiSpacing.SPACE_4));
         this.users = Objects.requireNonNull(users, "users");
         this.onSessionEnded = Objects.requireNonNull(onSessionEnded, "onSessionEnded");
         this.onLoggedOut = Objects.requireNonNull(onLoggedOut, "onLoggedOut");
         this.onSessionEnding = Objects.requireNonNull(onSessionEnding, "onSessionEnding");
+        this.onSessionResume = Objects.requireNonNull(onSessionResume, "onSessionResume");
+        this.onSessionInvalid = Objects.requireNonNull(onSessionInvalid, "onSessionInvalid");
         setName("page.account"); setBackground(UiColors.BACKGROUND_PAGE);
         setBorder(UiBorders.pageInset());
         boolean administrator = signedInUser.role() == UserRole.ADMIN;
@@ -165,7 +171,8 @@ public final class AccountPanel extends JPanel {
     }
     private void openPassword() {
         ChangePasswordDialog dialog = new ChangePasswordDialog(
-                SwingUtilities.getWindowAncestor(this), users, onSessionEnding, onSessionEnded);
+                SwingUtilities.getWindowAncestor(this), users, onSessionEnding,
+                onSessionResume, onSessionInvalid, onSessionEnded);
         dialog.setVisible(true);
     }
     private void confirmLogout(JButton button) {
