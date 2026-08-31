@@ -60,7 +60,7 @@ public final class ShopHomePanel extends JPanel {
         JPanel searchBar = uiKit.filterPanel("home.search-bar", new FlowLayout(FlowLayout.LEFT));
         searchBar.add(keyword); searchBar.add(search);
         JPanel categories = uiKit.filterPanel("home.categories", new FlowLayout(FlowLayout.LEFT));
-        for (String category : List.of("文具", "图书", "生活用品", "药品")) {
+        for (String category : List.of("文具", "图书", "生活用品", "药品", "其他")) {
             JButton button = uiKit.secondaryButton("home.category." + category, category);
             button.addActionListener(event -> navigator.open(new ShopRoute.Search(new SearchViewState(
                     new ProductSearchQuery(null, category, null, null,

@@ -39,7 +39,7 @@ public final class ProductSearchPanel extends JPanel {
     private final JScrollPane scroll = named(new JScrollPane(content), "search.scroll");
     private final JTextField keyword = new ShopSearchField(18, "keyword");
     private final JComboBox<String> category = named(new JComboBox<>(new String[] {
-            "全部", "文具", "图书", "生活用品", "药品"
+            "全部", "文具", "图书", "生活用品", "药品", "其他"
     }), "category");
     private final JTextField minPrice = named(new JTextField(6), "min-price");
     private final JTextField maxPrice = named(new JTextField(6), "max-price");

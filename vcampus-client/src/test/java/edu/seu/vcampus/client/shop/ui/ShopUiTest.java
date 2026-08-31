@@ -525,7 +525,7 @@ class ShopUiTest {
         JComboBox<?> categories = component(panel, "category", JComboBox.class);
         assertThat(IntStream.range(0, categories.getItemCount())
                 .mapToObj(index -> String.valueOf(categories.getItemAt(index))).toList())
-                .containsExactly("全部", "文具", "图书", "生活用品", "药品");
+                .containsExactly("全部", "文具", "图书", "生活用品", "药品", "其他");
         assertThat(component(panel, "min-price", JTextField.class)).isNotNull();
         assertThat(component(panel, "max-price", JTextField.class)).isNotNull();
         assertThat(component(panel, "sort", JComboBox.class)).isNotNull();
@@ -593,10 +593,12 @@ class ShopUiTest {
             component(home, "home.category.图书", JButton.class).doClick();
             component(home, "home.category.生活用品", JButton.class).doClick();
             component(home, "home.category.药品", JButton.class).doClick();
+            component(home, "home.category.其他", JButton.class).doClick();
         });
 
         assertThat(rendered).containsExactly(
-                categorySearch("文具"), categorySearch("图书"), categorySearch("生活用品"), categorySearch("药品"));
+                categorySearch("文具"), categorySearch("图书"), categorySearch("生活用品"),
+                categorySearch("药品"), categorySearch("其他"));
     }
 
     @Test
