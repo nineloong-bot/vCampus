@@ -10,6 +10,7 @@ import edu.seu.vcampus.common.user.UserRole;
 import edu.seu.vcampus.common.user.UserView;
 
 import javax.swing.ButtonGroup;
+import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JToggleButton;
@@ -18,6 +19,7 @@ import javax.swing.BorderFactory;
 import javax.swing.border.Border;
 import javax.swing.border.CompoundBorder;
 import javax.swing.plaf.basic.BasicToggleButtonUI;
+import javax.swing.plaf.basic.BasicButtonUI;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.FlowLayout;
@@ -27,6 +29,7 @@ import java.awt.event.FocusEvent;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Safe current-account detail page and permission-gated administrator workspace. */
 public final class AccountPanel extends JPanel {
@@ -34,6 +37,8 @@ public final class AccountPanel extends JPanel {
     private static final Border ACTION_BORDER = BorderFactory.createEmptyBorder(6, 12, 6, 12);
     private final UserClientService users;
     private final Runnable onSessionEnded;
+    private final Runnable onLoggedOut;
+    private final AtomicBoolean logoutStarted = new AtomicBoolean();
     private final JPanel cards = new JPanel(new CardLayout());
     private final JPanel detail = new JPanel(new GridLayout(0, 2,
             UiSpacing.SPACE_4, UiSpacing.SPACE_3));
@@ -42,9 +47,17 @@ public final class AccountPanel extends JPanel {
     /** Creates the account page from the login snapshot and current permissions. */
     public AccountPanel(UserClientService users, UserView signedInUser,
                         Set<String> permissions, Runnable onSessionEnded) {
+        this(users, signedInUser, permissions, onSessionEnded, onSessionEnded);
+    }
+
+    /** Creates the account page with separate password-change and logout handoffs. */
+    public AccountPanel(UserClientService users, UserView signedInUser,
+                        Set<String> permissions, Runnable onSessionEnded,
+                        Runnable onLoggedOut) {
         super(new BorderLayout(0, UiSpacing.SPACE_4));
         this.users = Objects.requireNonNull(users, "users");
         this.onSessionEnded = Objects.requireNonNull(onSessionEnded, "onSessionEnded");
+        this.onLoggedOut = Objects.requireNonNull(onLoggedOut, "onLoggedOut");
         setName("page.account"); setBackground(UiColors.BACKGROUND_PAGE);
         setBorder(UiBorders.pageInset());
         boolean administrator = signedInUser.role() == UserRole.ADMIN;
@@ -106,6 +119,9 @@ public final class AccountPanel extends JPanel {
                 button.addActionListener(event -> refreshStyles(actions));
             }
         }
+        JButton logout = logoutButton();
+        logout.addActionListener(event -> confirmLogout(logout));
+        actions.add(logout);
         panel.add(actions, BorderLayout.EAST); return panel;
     }
 
@@ -145,7 +161,39 @@ public final class AccountPanel extends JPanel {
                 SwingUtilities.getWindowAncestor(this), users, onSessionEnded);
         dialog.setVisible(true);
     }
+    private void confirmLogout(JButton button) {
+        LogoutConfirmationDialog dialog = new LogoutConfirmationDialog(
+                SwingUtilities.getWindowAncestor(this), () -> logout(button));
+        dialog.setVisible(true);
+    }
+    private void logout(JButton button) {
+        if (!logoutStarted.compareAndSet(false, true)) return;
+        button.setEnabled(false);
+        button.setText("正在退出…");
+        CompletableFuture<Void> response;
+        try { response = users.logout(); }
+        catch (RuntimeException failure) { response = CompletableFuture.failedFuture(failure); }
+        if (response == null) response = CompletableFuture.failedFuture(
+                new IllegalStateException("Logout did not return a result"));
+        response.whenComplete((ignored, failure) -> onEdt(this::finishLogout));
+    }
+    private void finishLogout() {
+        onLoggedOut.run();
+    }
     private void select(String card) { ((CardLayout) cards.getLayout()).show(cards, card); }
+    private static JButton logoutButton() {
+        JButton button = new JButton("退出登录");
+        button.setUI(new BasicButtonUI());
+        button.setName("account.logout");
+        button.getAccessibleContext().setAccessibleName("退出登录");
+        button.setBackground(UiColors.BACKGROUND_SUBTLE);
+        button.setForeground(UiColors.ERROR_FG);
+        button.setFocusPainted(false);
+        button.setBorder(ACTION_BORDER);
+        button.setOpaque(true);
+        button.setContentAreaFilled(true);
+        return button;
+    }
     private static JToggleButton button(String text, String name) {
         JToggleButton button = new JToggleButton(text); button.setUI(new BasicToggleButtonUI());
         button.setName(name); button.getAccessibleContext().setAccessibleName(text);

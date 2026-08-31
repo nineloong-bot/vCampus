@@ -11,6 +11,7 @@ import java.util.Objects;
 /** Coordinates authentication windows so restricted sessions never see the application shell. */
 public final class UserUiCoordinator {
     private static final String PASSWORD_CHANGED = "密码修改成功，请使用新密码重新登录";
+    private static final String LOGGED_OUT = "已退出登录";
     private final UserClientService users;
     private final ClientConnection connection;
 
@@ -52,14 +53,19 @@ public final class UserUiCoordinator {
                 break;
             }
         }
-        AccountPanel account = new AccountPanel(users, result.user(), result.permissions(), () -> {
-            users.clearSession();
-            main.dispose();
-            showLogin(PASSWORD_CHANGED);
-        });
+        AccountPanel account = new AccountPanel(
+                users, result.user(), result.permissions(),
+                () -> returnToLogin(main, PASSWORD_CHANGED),
+                () -> returnToLogin(main, LOGGED_OUT));
         main.content().add(account, "account");
         main.content().revalidate();
         main.content().repaint();
+    }
+
+    private void returnToLogin(MainFrame main, String notice) {
+        users.clearSession();
+        main.dispose();
+        showLogin(notice);
     }
 
     private static void onEdt(Runnable action) {
