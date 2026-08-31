@@ -86,7 +86,8 @@ class Task6UserPagesUiTest {
         flushEdt();
 
         assertThat(text(panel[0])).contains("DEMO_TEACHER", "教师", "正常", "最近登录")
-                .doesNotContain("passwordHash", "salt", "sessionToken", "失败次数");
+                .doesNotContain("passwordHash", "salt", "sessionToken", "失败次数",
+                        "是否首次改密");
         assertThat(find(panel[0], "account.users")).isNull();
         assertThat(find(panel[0], "account.audit")).isNull();
     }

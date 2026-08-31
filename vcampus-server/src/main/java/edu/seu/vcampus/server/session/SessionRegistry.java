@@ -81,8 +81,20 @@ public final class SessionRegistry {
 
     /** Revokes every session that belongs to the supplied user. */
     public void revokeAllForUser(String userId) {
-        sessions.entrySet().removeIf(entry ->
-                entry.getValue().snapshot.identity().userId().equals(userId));
+        revokeAllForUserAndCount(userId);
+    }
+
+    /** Revokes a user's sessions and returns the number actually removed. */
+    public int revokeAllForUserAndCount(String userId) {
+        Objects.requireNonNull(userId, "userId");
+        int removed = 0;
+        for (var entry : sessions.entrySet()) {
+            if (entry.getValue().snapshot.identity().userId().equals(userId)
+                    && sessions.remove(entry.getKey(), entry.getValue())) {
+                removed++;
+            }
+        }
+        return removed;
     }
 
     /** Immutable server-internal authorization state attached to one live session. */

@@ -14,8 +14,10 @@ import org.mockito.ArgumentCaptor;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
@@ -57,5 +59,19 @@ class UserClientServiceTask6Test {
 
         assertThat(users.searchSecurityAudits(query).join()).isEqualTo(expected);
         verify(connection).send("SECURITY_AUDIT_SEARCH", query, TIMEOUT);
+    }
+
+    @Test
+    void currentUserMapsOnlyExplicitSessionExpiryToAClientInternalException() {
+        ClientConnection connection = mock(ClientConnection.class);
+        doReturn(CompletableFuture.completedFuture(ResponseBody.failure(
+                "AUTH_SESSION_EXPIRED", "会话已失效", null)))
+                .when(connection).send(eq("USER_GET_CURRENT"), any(), eq(TIMEOUT));
+        UserClientService users = new UserClientService(connection, "client", TIMEOUT);
+
+        assertThatThrownBy(() -> users.getCurrentUser().join())
+                .isInstanceOf(CompletionException.class)
+                .satisfies(error -> assertThat(error.getCause().getClass().getSimpleName())
+                        .isEqualTo("SessionExpiredClientException"));
     }
 }

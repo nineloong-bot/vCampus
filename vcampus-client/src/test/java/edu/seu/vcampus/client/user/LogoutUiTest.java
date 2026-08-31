@@ -23,6 +23,7 @@ import javax.swing.JPasswordField;
 import javax.swing.JTextField;
 import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Frame;
@@ -30,8 +31,11 @@ import java.awt.Window;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.WindowEvent;
+import java.lang.reflect.Field;
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -89,6 +93,8 @@ class LogoutUiTest {
         flushEdt();
         flushEdt();
         MainFrame main = showing(MainFrame.class);
+        Timer sessionMonitor = timerInside(coordinator);
+        assertThat(sessionMonitor.isRunning()).isTrue();
         SwingUtilities.invokeAndWait(() -> component(
                 main, "navigation.account", AbstractButton.class).doClick());
         AbstractButton detail = component(main, "account.detail", AbstractButton.class);
@@ -126,6 +132,7 @@ class LogoutUiTest {
         verify(users, times(1)).clearSession();
         assertThat(showingFrames(MainFrame.class)).isEmpty();
         assertThat(showingFrames(LoginFrame.class)).hasSize(1);
+        assertThat(sessionMonitor.isRunning()).isFalse();
         LoginFrame login = showing(LoginFrame.class);
         assertThat(text(login)).contains("已退出登录")
                 .doesNotContain("IllegalStateException", "server-failure", "session-token");
@@ -148,6 +155,7 @@ class LogoutUiTest {
         flushEdt();
         flushEdt();
         MainFrame main = showing(MainFrame.class);
+        Timer sessionMonitor = timerInside(coordinator);
         SwingUtilities.invokeAndWait(() -> component(
                 main, "navigation.account", AbstractButton.class).doClick());
         AbstractButton detail = component(main, "account.detail", AbstractButton.class);
@@ -166,6 +174,7 @@ class LogoutUiTest {
         assertThat(showingFrames(LoginFrame.class)).isEmpty();
         assertThat(detail.isSelected()).isTrue();
         assertThat(logout.isEnabled()).isTrue();
+        assertThat(sessionMonitor.isRunning()).isTrue();
     }
 
     @Test
@@ -266,6 +275,30 @@ class LogoutUiTest {
             if (child instanceof Container nested) result.append(text(nested));
         }
         return result.toString();
+    }
+
+    private static Timer timerInside(Object owner) throws Exception {
+        return timerInside(owner, Collections.newSetFromMap(new IdentityHashMap<>()));
+    }
+
+    private static Timer timerInside(Object owner, Set<Object> visited) throws Exception {
+        if (!visited.add(owner)) {
+            throw new IllegalArgumentException("Already inspected UI helper");
+        }
+        for (Field field : owner.getClass().getDeclaredFields()) {
+            field.setAccessible(true);
+            Object value = field.get(owner);
+            if (value instanceof Timer timer) return timer;
+            if (value != null && value.getClass().getPackageName()
+                    .equals("edu.seu.vcampus.client.user.ui")) {
+                try {
+                    return timerInside(value, visited);
+                } catch (IllegalArgumentException ignored) {
+                    // Continue searching other coordinator-owned UI helpers.
+                }
+            }
+        }
+        throw new IllegalArgumentException("Missing session monitor timer");
     }
 
     private static LoginResult loginResult() {

@@ -24,6 +24,7 @@ import java.util.concurrent.CompletableFuture;
 /** Normal-session password change dialog that requires a fresh login after success. */
 public final class ChangePasswordDialog extends JDialog {
     private final UserClientService users;
+    private final Runnable onChanging;
     private final Runnable onChanged;
     private final JPasswordField oldPassword = field("change.old", "当前密码");
     private final JPasswordField newPassword = field("change.new", "新密码");
@@ -33,8 +34,14 @@ public final class ChangePasswordDialog extends JDialog {
 
     /** Creates a modal password change dialog. */
     public ChangePasswordDialog(Window owner, UserClientService users, Runnable onChanged) {
+        this(owner, users, () -> { }, onChanged);
+    }
+
+    ChangePasswordDialog(Window owner, UserClientService users,
+                         Runnable onChanging, Runnable onChanged) {
         super(owner, "修改密码", Dialog.ModalityType.APPLICATION_MODAL);
         this.users = Objects.requireNonNull(users, "users");
+        this.onChanging = Objects.requireNonNull(onChanging, "onChanging");
         this.onChanged = Objects.requireNonNull(onChanged, "onChanged");
         setContentPane(content());
         submit.addActionListener(event -> submit());
@@ -77,6 +84,7 @@ public final class ChangePasswordDialog extends JDialog {
             return;
         }
         setBusy(true);
+        onChanging.run();
         CompletableFuture<Void> response;
         try {
             response = users.changePassword(oldValue, newValue);

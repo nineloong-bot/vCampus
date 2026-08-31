@@ -21,6 +21,12 @@ final class UserAuditWriter {
     void failure(String actorUserId, String actionCode, String targetId,
                  RuntimeException error, String clientAddress) {
         String resultCode = UserAuditResultCodes.from(error);
+        bestEffort(actorUserId, actionCode, targetId, resultCode, clientAddress);
+    }
+
+    /** Writes a non-transactional security event without changing its business outcome. */
+    void bestEffort(String actorUserId, String actionCode, String targetId,
+                    String resultCode, String clientAddress) {
         try {
             transactions.inTransaction(connection -> {
                 audits.record(connection, actorUserId, actionCode, "USER", targetId,
@@ -28,9 +34,9 @@ final class UserAuditWriter {
                 return null;
             });
         } catch (RuntimeException auditFailure) {
-            // Never replace the already-established business failure. Deliberately
+            // Never replace the already-established business outcome. Deliberately
             // omit exception messages and request metadata because they may be sensitive.
-            LOGGER.warn("A user-operation failure audit could not be persisted");
+            LOGGER.warn("A best-effort user security audit could not be persisted");
         }
     }
 }

@@ -87,7 +87,7 @@ class PasswordChangeTest {
         String token = login("12345678").sessionToken();
         String secondToken = login("12345678").sessionToken();
 
-        service.changePassword(token,
+        service.changePassword(secondToken,
                 new ChangePasswordCommand("12345678".toCharArray(), "NewPass123".toCharArray()));
 
         assertThatThrownBy(() -> sessions.requireSession(token))
@@ -100,7 +100,7 @@ class PasswordChangeTest {
     }
 
     @Test
-    void passwordChangeRevokesSessionIssuedFromConcurrentOldPasswordLogin() throws Exception {
+    void successfulNewLoginRevokesOlderPasswordChangeTokenAtReplacementPoint() throws Exception {
         String changeToken = login("12345678").sessionToken();
         CoordinatingLockManager locks = new CoordinatingLockManager();
         UserService racingService = new UserServiceImpl(transactions, locks, users,
@@ -112,12 +112,13 @@ class PasswordChangeTest {
             assertThat(locks.awaitLoginAuthentication()).isTrue();
             var change = executor.submit(() -> racingService.changePassword(changeToken,
                     new ChangePasswordCommand("12345678".toCharArray(), "NewPass123".toCharArray())));
-            change.get(10, TimeUnit.SECONDS);
+            assertThatThrownBy(() -> change.get(10, TimeUnit.SECONDS))
+                    .hasCauseInstanceOf(SessionExpiredException.class);
             locks.releaseLogin();
             LoginResult result = login.get(10, TimeUnit.SECONDS);
 
-            assertThatThrownBy(() -> sessions.requireSession(result.sessionToken()))
-                    .isInstanceOf(SessionExpiredException.class);
+            assertThat(sessions.requireSession(result.sessionToken()).userId())
+                    .isEqualTo("student-id");
         }
     }
 

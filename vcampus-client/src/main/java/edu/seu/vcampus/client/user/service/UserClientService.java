@@ -77,7 +77,7 @@ public class UserClientService {
     /** Gets the current safe account projection. */
     public CompletableFuture<UserView> getCurrentUser() {
         return this.<UserView>sendAsync(USER_GET_CURRENT, EmptyRequest.INSTANCE, () -> { })
-                .thenApply(UserClientService::requireSuccess);
+                .thenApply(UserClientService::requireCurrentUserSuccess);
     }
 
     /** Searches safe user summaries using server-side paging and filters. */
@@ -161,5 +161,12 @@ public class UserClientService {
             throw new IllegalArgumentException(response.code());
         }
         return response.data();
+    }
+
+    private static UserView requireCurrentUserSuccess(ResponseBody<UserView> response) {
+        if (!response.success() && "AUTH_SESSION_EXPIRED".equals(response.code())) {
+            throw new SessionExpiredClientException();
+        }
+        return requireSuccess(response);
     }
 }
