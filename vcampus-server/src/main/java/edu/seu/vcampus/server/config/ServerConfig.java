@@ -13,6 +13,8 @@ public record ServerConfig(
         int maxConnections,
         int workerThreads,
         Path databasePath,
+        Path databaseResourceRoot,
+        boolean databaseCreateIfMissing,
         int sessionTimeoutMinutes,
         int inventoryReservationMinutes,
         int dedupRetentionHours) {
@@ -40,11 +42,22 @@ public record ServerConfig(
         int retention = integer(properties, "dedup.retentionHours", 1, 720);
         String database = required(properties, "database.path");
         Path databasePath = baseDirectory.resolve(database).normalize().toAbsolutePath();
-        if (!Files.isRegularFile(databasePath)) {
+        boolean createIfMissing = Boolean.parseBoolean(
+                properties.getProperty("database.createIfMissing", "false").trim());
+        if (!createIfMissing && !Files.isRegularFile(databasePath)) {
             throw new ConfigurationException(
                     "database.path 指向的 Access 数据库不存在: " + databasePath);
         }
+        String resourceRoot = properties.getProperty("database.resourceRoot", "").trim();
+        Path databaseResourceRoot = resourceRoot.isEmpty()
+                ? databasePath.getParent()
+                : baseDirectory.resolve(resourceRoot).normalize().toAbsolutePath();
+        if (!Files.isDirectory(databaseResourceRoot)) {
+            throw new ConfigurationException(
+                    "database.resourceRoot 不存在或不是目录: " + databaseResourceRoot);
+        }
         return new ServerConfig(port, maxConnections, workerThreads, databasePath,
+                databaseResourceRoot, createIfMissing,
                 sessionTimeout, reservation, retention);
     }
 

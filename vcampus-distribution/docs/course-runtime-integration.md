@@ -24,6 +24,10 @@ UCanAccess JDBC URL 必须保持安全默认值，**禁止设置
 jdbc:ucanaccess:///absolute/path/to/vcampus.accdb
 ```
 
+发行配置把 `database.path`（Access 文件）和 `database.resourceRoot`（`schema/`、`seed/` 所在目录）分开解析。
+只有显式设置 `database.createIfMissing=true` 时才会创建缺失的数据库及其父目录；已有数据库永远不会被覆盖。
+默认发行配置使用 `data/vCampus.accdb` 和 `database/` 资源根，因此全新解压后可以初始化标准数据库。
+
 ## 登录、页面与会话生命周期
 
 连接服务端后先显示 `LoginFrame`。普通登录成功后进入按角色创建的选课主窗口，页面集合精确如下：
@@ -76,6 +80,48 @@ CourseStudentGateway students = CourseRuntimeAdapters.students(
 `ApplicationRuntime` 组合；已有用户/学生 ID 已校验并迁移；活动学籍查询覆盖现有数据；真实 socket 集成测试改用彼此独立的
 `userId`/`studentId` 并通过。导入修读结果的活动学生校验也必须同时切换，不能留下半套临时规则。
 
+## 可直接运行的三角色认证 Demo
+
+> **以下账号和固定密码只用于本地演示。不要把 Demo 数据库、账号或密码用于部署；正式上线前必须删除
+> `data/course-user-demo.accdb`，并通过正式建号流程初始化账户。**
+
+Demo 使用独立的 `data/course-user-demo.accdb`，调用生产 `ApplicationRuntime`、生产登录会话、路由、角色校验和
+选课服务。它不会使用旧课程 Demo 的明文 token，也不会向正式 `010_roles_permissions.sql` 添加学生或教师账号。
+Demo 入口在任何建库或写入前都会校验数据库文件名必须为 `course-user-demo.accdb`；即使误把
+`config/server.properties` 传给 Demo，也会直接拒绝，避免向标准 `data/vCampus.accdb` 写入固定演示账号。
+
+先在第一个终端启动服务端，再在第二个终端启动客户端：
+
+```bash
+vcampus-distribution/scripts/start-integrated-demo-server.sh
+vcampus-distribution/scripts/start-integrated-demo-client.sh
+```
+
+Windows 使用对应的 `.bat` 文件。登录账号如下：
+
+| 角色 | 登录账号 | 初始密码 | 说明 |
+| --- | --- | --- | --- |
+| 管理员 | `ADMIN` | `Admin1234` | 首次登录强制修改密码；改密后返回登录页，使用新密码重新登录 |
+| 学生 | `213000001` | `Student1234` | 直接进入学生五个选课页面，临时映射 `studentId=userId=213000001` |
+| 教师 | `TEACHER_DEMO` | `Teacher1234` | 直接进入教学班查询和教师课表 |
+
+首次启动会幂等创建一个当前开放的演示学期、`MATH101 高等数学（集成演示）` 和指派给
+`teacher-demo-001` 的 `Demo-01` 教学班。建议按以下顺序验收：
+
+1. 学生登录，查询 `MATH101`，选择 `Demo-01`，再到“我的选课”和“我的课表”确认结果；
+2. 教师登录，在教学班查询和教师课表中确认同一教学班；
+3. 管理员登录完成首次改密，重新登录后检查学期、课程目录和教学班管理页面；
+4. 用学生账号尝试管理员功能时，服务端必须拒绝，不能只依赖页面隐藏。
+
+要恢复初始账号、密码和空选课记录，先停止 Demo 服务端，再运行：
+
+```bash
+vcampus-distribution/scripts/reset-integrated-demo.sh
+```
+
+该脚本只删除精确的 `data/course-user-demo.accdb`，不会触碰 `data/vCampus.accdb`。Windows 使用
+`reset-integrated-demo.bat`。
+
 ## 运行、测试与打包验证
 
 所有 Maven 命令显式使用 JDK 21：
@@ -92,9 +138,13 @@ mvn -pl vcampus-client -am \
 # 从干净 target 重建、测试并重建两端发行 JAR
 mvn clean verify
 
-# 从发行目录运行
+# 从发行目录运行标准服务（首次启动创建 data/vCampus.accdb）
 vcampus-distribution/scripts/start-server.sh
 vcampus-distribution/scripts/start-client.sh
+
+# 或运行隔离的三角色认证 Demo
+vcampus-distribution/scripts/start-integrated-demo-server.sh
+vcampus-distribution/scripts/start-integrated-demo-client.sh
 ```
 
 打包后验证当前 HEAD 的代码、schema 和文档均进入发行目录：

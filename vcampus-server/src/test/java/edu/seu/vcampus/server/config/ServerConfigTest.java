@@ -16,6 +16,7 @@ class ServerConfigTest {
     @BeforeEach
     void createDatabase() throws Exception {
         Files.createDirectories(baseDirectory.resolve("data"));
+        Files.createDirectories(baseDirectory.resolve("database"));
         Files.write(baseDirectory.resolve("data/vCampus.accdb"), new byte[] {1});
     }
 
@@ -27,6 +28,21 @@ class ServerConfigTest {
         assertThat(config.databasePath()).isEqualTo(
                 baseDirectory.resolve("data/vCampus.accdb").normalize());
         assertThat(config.workerThreads()).isEqualTo(8);
+        assertThat(config.databaseResourceRoot()).isEqualTo(baseDirectory.resolve("database"));
+        assertThat(config.databaseCreateIfMissing()).isFalse();
+    }
+
+    @Test
+    void permitsAnAbsentDatabaseOnlyWhenCreationIsExplicitlyEnabled() throws Exception {
+        Properties properties = validProperties();
+        properties.setProperty("database.path", "data/new-demo.accdb");
+        properties.setProperty("database.createIfMissing", "true");
+
+        ServerConfig config = ServerConfig.from(properties, baseDirectory);
+
+        assertThat(config.databasePath()).isEqualTo(baseDirectory.resolve("data/new-demo.accdb"));
+        assertThat(config.databaseResourceRoot()).isEqualTo(baseDirectory.resolve("database"));
+        assertThat(config.databaseCreateIfMissing()).isTrue();
     }
 
     @Test
@@ -55,6 +71,7 @@ class ServerConfigTest {
         properties.setProperty("server.maxConnections", "100");
         properties.setProperty("server.workerThreads", "8");
         properties.setProperty("database.path", "data/vCampus.accdb");
+        properties.setProperty("database.resourceRoot", "database");
         properties.setProperty("session.timeoutMinutes", "30");
         properties.setProperty("inventory.reservationMinutes", "15");
         properties.setProperty("dedup.retentionHours", "24");

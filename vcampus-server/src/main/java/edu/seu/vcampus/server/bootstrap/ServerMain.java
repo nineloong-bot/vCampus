@@ -7,6 +7,7 @@ import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.DriverManager;
 import java.time.Clock;
@@ -42,11 +43,15 @@ public final class ServerMain {
     }
 
     private static void run(ServerConfig config) throws Exception {
-        Path distributionDatabaseDirectory = config.databasePath().getParent();
-        String databaseUrl = "jdbc:ucanaccess://" + config.databasePath();
+        if (config.databaseCreateIfMissing()) {
+            Path parent = config.databasePath().getParent();
+            if (parent != null) Files.createDirectories(parent);
+        }
+        String databaseUrl = "jdbc:ucanaccess://" + config.databasePath()
+                + (config.databaseCreateIfMissing() ? ";newDatabaseVersion=V2010" : "");
         ConnectionProvider connections = () -> DriverManager.getConnection(databaseUrl);
         ApplicationRuntime runtime = ApplicationRuntime.create(connections,
-                distributionDatabaseDirectory, Clock.systemUTC(),
+                config.databaseResourceRoot(), Clock.systemUTC(),
                 Duration.ofMinutes(config.sessionTimeoutMinutes()));
         SocketServer server = new SocketServer(config.port(), config.workerThreads(),
                 config.maxConnections(), runtime.router());
