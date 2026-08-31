@@ -107,6 +107,9 @@ final class LibraryReadAdminOperations {
         Objects.requireNonNull(command, "command");
         return transactions.inTransaction(connection -> {
             BookCopy copy = books.requireCopy(connection, command.copyId());
+            if (loans.hasEffectiveLoanForCopy(connection, copy.copyId())) {
+                throw new CopyHasActiveLoanException(copy.copyId());
+            }
             books.updateCopyStatus(connection, copy.copyId(), command.status(),
                     command.expectedVersion());
             return toView(new BookCopy(copy.copyId(), copy.bookId(), copy.barcode(),

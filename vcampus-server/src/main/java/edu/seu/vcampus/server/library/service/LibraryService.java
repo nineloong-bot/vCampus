@@ -2,6 +2,7 @@ package edu.seu.vcampus.server.library.service;
 
 import edu.seu.vcampus.common.library.AddBookCopyCommand;
 import edu.seu.vcampus.common.library.AdminLoanSearchQuery;
+import edu.seu.vcampus.common.library.AdminResolveLoanCommand;
 import edu.seu.vcampus.common.library.BookCopyView;
 import edu.seu.vcampus.common.library.BookDetail;
 import edu.seu.vcampus.common.library.BookSearchQuery;
@@ -44,6 +45,8 @@ public interface LibraryService {
     BookCopyView addCopy(AddBookCopyCommand command);
 
     BookCopyView changeCopyStatus(ChangeCopyStatusCommand command);
+
+    LoanView resolveLoan(AdminResolveLoanCommand command);
 
     PageResult<LoanView> searchAllLoans(AdminLoanSearchQuery query);
 

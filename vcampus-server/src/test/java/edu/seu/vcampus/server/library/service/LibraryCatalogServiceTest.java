@@ -1,6 +1,7 @@
 package edu.seu.vcampus.server.library.service;
 
 import edu.seu.vcampus.common.library.AddBookCopyCommand;
+import edu.seu.vcampus.common.library.AdminResolveLoanCommand;
 import edu.seu.vcampus.common.library.BookSearchQuery;
 import edu.seu.vcampus.common.library.BorrowBookCommand;
 import edu.seu.vcampus.common.library.ChangeCopyStatusCommand;
@@ -17,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class LibraryCatalogServiceTest {
     private LibraryServiceFixture fixture;
@@ -68,5 +70,27 @@ class LibraryCatalogServiceTest {
         assertThat(changed.rowVersion()).isEqualTo(1);
         assertThat(policy.maxActiveLoans()).isEqualTo(6);
         assertThat(policy.rowVersion()).isEqualTo(1);
+    }
+
+    @Test
+    void activeLoanCannotBeBypassedByChangingOnlyTheCopyStatus() {
+        service.borrow("token", new BorrowBookCommand("copy-1"));
+
+        assertThatThrownBy(() -> service.changeCopyStatus(
+                new ChangeCopyStatusCommand("copy-1", CopyStatus.AVAILABLE, 1)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("active loan");
+    }
+
+    @Test
+    void administratorReturnSynchronizesLoanAndCopy() {
+        var borrowed = service.borrow("token", new BorrowBookCommand("copy-1"));
+
+        service.resolveLoan(new AdminResolveLoanCommand(
+                borrowed.loanId(), LoanStatus.RETURNED, borrowed.rowVersion()));
+
+        assertThat(service.getCurrentLoans("token")).isEmpty();
+        assertThat(service.getBook("book-1").copies()).singleElement()
+                .extracting(copy -> copy.status()).isEqualTo(CopyStatus.AVAILABLE);
     }
 }

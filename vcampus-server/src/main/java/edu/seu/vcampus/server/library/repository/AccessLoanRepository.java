@@ -49,6 +49,15 @@ public final class AccessLoanRepository implements LoanRepository {
     }
 
     @Override
+    public boolean hasEffectiveLoanForCopy(Connection connection, String copyId) throws SQLException {
+        try (var statement = connection.prepareStatement(
+                "SELECT COUNT(*) FROM tblBookLoan WHERE copyId = ? AND loanStatus IN ('ACTIVE', 'OVERDUE')")) {
+            statement.setString(1, copyId);
+            try (var result = statement.executeQuery()) { result.next(); return result.getLong(1) > 0; }
+        }
+    }
+
+    @Override
     public Loan insert(Connection connection, Loan loan) throws SQLException {
         String sql = "INSERT INTO tblBookLoan (loanId, copyId, borrowerUserId, borrowedAt, dueAt, "
                 + "returnedAt, renewCount, loanStatus, rowVersion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";

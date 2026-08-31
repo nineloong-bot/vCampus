@@ -60,6 +60,8 @@ public final class LibraryHandlers {
                 (token, body) -> service.addCopy(body));
         registerAdmin(router, "LIBRARY_CHANGE_COPY_STATUS", ChangeCopyStatusCommand.class, access, deduplicator,
                 (token, body) -> service.changeCopyStatus(body));
+        registerAdmin(router, "LIBRARY_RESOLVE_LOAN", AdminResolveLoanCommand.class, access, deduplicator,
+                (token, body) -> service.resolveLoan(body));
         router.register("LIBRARY_SEARCH_ALL_LOANS", (message, context) -> safely(() -> {
             access.requirePermission(message.sessionToken(), ADMIN_PERMISSION);
             return ResponseBody.success(service.searchAllLoans(requireBody(AdminLoanSearchQuery.class, message.body())));

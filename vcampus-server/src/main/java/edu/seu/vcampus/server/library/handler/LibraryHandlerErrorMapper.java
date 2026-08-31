@@ -23,6 +23,7 @@ final class LibraryHandlerErrorMapper {
 
     private static String code(RuntimeException error) {
         if (error instanceof CopyUnavailableException) return "LIBRARY_COPY_UNAVAILABLE";
+        if (error instanceof CopyHasActiveLoanException) return "LIBRARY_COPY_HAS_ACTIVE_LOAN";
         if (error instanceof UserHasOverdueLoansException) return "LIBRARY_USER_OVERDUE";
         if (error instanceof LoanLimitReachedException) return "LIBRARY_LOAN_LIMIT_REACHED";
         if (error instanceof RenewalLimitReachedException) return "LIBRARY_RENEWAL_LIMIT_REACHED";
@@ -42,6 +43,7 @@ final class LibraryHandlerErrorMapper {
     private static String message(String code) {
         return switch (code) {
             case "LIBRARY_COPY_UNAVAILABLE" -> "该馆藏副本当前不可借，请刷新后重试";
+            case "LIBRARY_COPY_HAS_ACTIVE_LOAN" -> "该副本仍有有效借阅，请到借阅管理中办理归还或标记遗失";
             case "LIBRARY_USER_OVERDUE" -> "存在逾期借阅，暂不能新增借阅";
             case "LIBRARY_LOAN_LIMIT_REACHED" -> "已达到当前角色的最大在借数量";
             case "LIBRARY_RENEWAL_LIMIT_REACHED" -> "该借阅已达到最大续借次数";

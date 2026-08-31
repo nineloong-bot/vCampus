@@ -69,6 +69,10 @@ public final class LibraryClientService {
         return request("LIBRARY_CHANGE_COPY_STATUS", command);
     }
 
+    public CompletableFuture<LoanView> resolveLoan(AdminResolveLoanCommand command) {
+        return request("LIBRARY_RESOLVE_LOAN", command);
+    }
+
     public CompletableFuture<PageResult<LoanView>> searchAllLoans(AdminLoanSearchQuery query) {
         return request("LIBRARY_SEARCH_ALL_LOANS", query);
     }

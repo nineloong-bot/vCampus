@@ -17,6 +17,8 @@ public interface LoanRepository {
 
     boolean hasOverdueLoan(Connection connection, String userId, Instant now) throws SQLException;
 
+    boolean hasEffectiveLoanForCopy(Connection connection, String copyId) throws SQLException;
+
     Loan insert(Connection connection, Loan loan) throws SQLException;
 
     Loan require(Connection connection, String loanId) throws SQLException;

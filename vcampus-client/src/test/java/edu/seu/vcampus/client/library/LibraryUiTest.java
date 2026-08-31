@@ -146,6 +146,26 @@ class LibraryUiTest {
     }
 
     @Test
+    void administratorCanResolveTheSelectedBorrowersLoan() throws Exception {
+        LoanView loan = new LoanView("loan-9", "copy-9", "book-9", "user-9",
+                Instant.parse("2026-08-01T00:00:00Z"), Instant.parse("2026-09-01T00:00:00Z"),
+                null, 0, LoanStatus.ACTIVE, 4, "AS812", "Java 核心技术", "LIB-0009");
+        when(service.searchAllLoans(any())).thenReturn(CompletableFuture.completedFuture(
+                new PageResult<>(List.of(loan), 1, 20, 1)));
+        when(service.resolveLoan(any())).thenReturn(CompletableFuture.completedFuture(loan));
+        LoanAdminPanel panel = new LoanAdminPanel(service);
+        panel.refresh(); SwingUtilities.invokeAndWait(() -> { });
+        first(panel, JTable.class).setRowSelectionInterval(0, 0);
+
+        panel.returnSelected();
+        SwingUtilities.invokeAndWait(() -> { });
+
+        verify(service).resolveLoan(new AdminResolveLoanCommand("loan-9", LoanStatus.RETURNED, 4));
+        assertThat(button(panel, "办理归还")).isNotNull();
+        assertThat(button(panel, "标记遗失")).isNotNull();
+    }
+
+    @Test
     void managementTablesUseSearchControlsAndNoMeaninglessActionColumn() {
         BookManagementPanel books = new BookManagementPanel(service);
         CopyManagementPanel copies = new CopyManagementPanel(service);

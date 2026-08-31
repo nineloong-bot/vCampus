@@ -175,6 +175,31 @@ public final class LibraryServiceImpl implements LibraryService {
     }
 
     @Override
+    public LoanView resolveLoan(AdminResolveLoanCommand command) {
+        Objects.requireNonNull(command, "command");
+        if (command.resolution() != LoanStatus.RETURNED && command.resolution() != LoanStatus.LOST) {
+            throw new IllegalArgumentException("Resolution must be RETURNED or LOST");
+        }
+        Loan snapshot = transactions.inTransaction(connection -> loans.require(connection, command.loanId()));
+        return locks.withLocks(List.of(new ResourceKey("LOAN", command.loanId()),
+                new ResourceKey("BOOK_COPY", snapshot.copyId())), () -> transactions.inTransaction(connection -> {
+            Loan loan = loans.require(connection, command.loanId());
+            if (loan.status() != LoanStatus.ACTIVE && loan.status() != LoanStatus.OVERDUE) {
+                throw new LoanNotActiveException(loan.loanId());
+            }
+            BookCopy copy = books.requireCopy(connection, loan.copyId());
+            Instant returnedAt = command.resolution() == LoanStatus.RETURNED ? clock.instant() : null;
+            Loan resolved = new Loan(loan.loanId(), loan.copyId(), loan.borrowerUserId(), loan.borrowedAt(),
+                    loan.dueAt(), returnedAt, loan.renewCount(), command.resolution(), loan.rowVersion() + 1);
+            loans.update(connection, resolved, command.expectedVersion());
+            CopyStatus copyStatus = command.resolution() == LoanStatus.RETURNED
+                    ? CopyStatus.AVAILABLE : CopyStatus.LOST;
+            books.updateCopyStatus(connection, copy.copyId(), copyStatus, copy.rowVersion());
+            return toView(resolved, copy.bookId());
+        }));
+    }
+
+    @Override
     public PageResult<LoanView> searchAllLoans(AdminLoanSearchQuery query) {
         return operations.searchAllLoans(query);
     }
