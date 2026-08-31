@@ -4,6 +4,7 @@ import edu.seu.vcampus.common.shop.SaveSellerDraftCommand;
 import edu.seu.vcampus.common.shop.SellerApplicationStatus;
 import edu.seu.vcampus.common.shop.SellerApplicationView;
 import edu.seu.vcampus.common.shop.ShopErrorCode;
+import edu.seu.vcampus.common.shop.ShopCategories;
 import edu.seu.vcampus.common.shop.SubmitSellerApplicationCommand;
 import edu.seu.vcampus.server.concurrency.ResourceKey;
 import edu.seu.vcampus.server.concurrency.ResourceLockManager;
@@ -17,6 +18,8 @@ import edu.seu.vcampus.server.shop.repository.ShopRepository;
 import java.time.Clock;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Locale;
 import java.util.UUID;
 
 /** Seller-owned application draft and submission workflow. */
@@ -52,7 +55,7 @@ public final class SellerApplicationService {
                         SellerApplication created = new SellerApplication(UUID.randomUUID().toString(),
                                 actor.userId(), command.shopName().strip(), command.description().strip(),
                                 command.category().strip(), command.contact().strip(),
-                                command.applicationStatement(),
+                                stripNullable(command.applicationStatement()),
                                 SellerApplicationStatus.DRAFT, null, null, null, null, 0);
                         return toView(repository.insertApplication(connection, created));
                     }
@@ -68,7 +71,7 @@ public final class SellerApplicationService {
                     SellerApplication edited = new SellerApplication(existing.applicationId(),
                             existing.applicantUserId(), command.shopName().strip(),
                             command.description().strip(), command.category().strip(),
-                            command.contact().strip(), command.applicationStatement(), SellerApplicationStatus.DRAFT,
+                            command.contact().strip(), stripNullable(command.applicationStatement()), SellerApplicationStatus.DRAFT,
                             null, null, existing.submittedAt(), null, existing.rowVersion());
                     return toView(repository.updateApplication(connection, edited,
                             command.expectedVersion()));
@@ -80,7 +83,12 @@ public final class SellerApplicationService {
         Objects.requireNonNull(command, "command");
         ShopUser actor = requireEligible(users.requireUser(sessionToken));
         requireId(command.applicationId(), "applicationId");
-        return locks.withLocks(List.of(key("SELLER_APPLICATION", command.applicationId())), () ->
+        SellerApplication snapshot = transactions.inTransaction(connection ->
+                requireApplication(connection, command.applicationId()));
+        String normalizedShopName = normalizeShopName(snapshot.shopName());
+        return locks.withLocks(List.of(key("USER", actor.userId()),
+                key("SELLER_APPLICATION", command.applicationId()),
+                key("SHOP_NAME", normalizedShopName)), () ->
                 transactions.inTransaction(connection -> {
                     SellerApplication existing = requireApplication(connection, command.applicationId());
                     if (!existing.applicantUserId().equals(actor.userId())) {
@@ -89,6 +97,12 @@ public final class SellerApplicationService {
                     if (existing.status() != SellerApplicationStatus.DRAFT
                             || existing.rowVersion() != command.expectedVersion()) {
                         throw invalidApplicationState();
+                    }
+                    requireProfile(existing.shopName(), existing.description(), existing.category(),
+                            existing.contact());
+                    requireText(existing.applicationStatement(), "applicationStatement");
+                    if (repository.findShopByNormalizedName(connection, normalizedShopName).isPresent()) {
+                        throw error(ShopErrorCode.SHOP_NAME_EXISTS, "Shop name already exists");
                     }
                     SellerApplication submitted = new SellerApplication(existing.applicationId(),
                             existing.applicantUserId(), existing.shopName(), existing.description(),
@@ -100,11 +114,14 @@ public final class SellerApplicationService {
     }
 
     public SellerApplicationView getMyApplication(String sessionToken) {
+        return findMyApplication(sessionToken).orElseThrow(() -> error(
+                ShopErrorCode.SHOP_SELLER_NOT_APPROVED, "Seller application does not exist"));
+    }
+
+    public Optional<SellerApplicationView> findMyApplication(String sessionToken) {
         ShopUser actor = users.requireUser(sessionToken);
-        return transactions.inTransaction(connection -> toView(repository
-                .findApplicationByApplicant(connection, actor.userId())
-                .orElseThrow(() -> error(ShopErrorCode.SHOP_SELLER_NOT_APPROVED,
-                        "Seller application does not exist"))));
+        return transactions.inTransaction(connection -> repository
+                .findApplicationByApplicant(connection, actor.userId()).map(SellerApplicationService::toView));
     }
 
     private SellerApplication requireApplication(java.sql.Connection connection,
@@ -132,8 +149,20 @@ public final class SellerApplicationService {
             String category, String contact) {
         requireText(shopName, "shopName");
         requireText(description, "description");
-        requireText(category, "category");
+        try {
+            ShopCategories.requireSupported(category);
+        } catch (RuntimeException error) {
+            throw error(ShopErrorCode.SHOP_CATEGORY_INVALID, "Unsupported shop category");
+        }
         requireText(contact, "contact");
+    }
+
+    private static String normalizeShopName(String shopName) {
+        return shopName.strip().toLowerCase(Locale.ROOT);
+    }
+
+    private static String stripNullable(String value) {
+        return value == null ? null : value.strip();
     }
 
     static void requireText(String value, String name) {

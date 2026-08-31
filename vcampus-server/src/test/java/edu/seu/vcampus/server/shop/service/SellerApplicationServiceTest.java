@@ -48,6 +48,7 @@ class SellerApplicationServiceTest {
         users.add("teacher-token", "teacher-1", ShopUserKind.TEACHER, true);
         users.add("inactive-token", "inactive-1", ShopUserKind.STUDENT, false);
         users.add("other-token", "other-1", ShopUserKind.OTHER, true);
+        users.add("admin-token", "admin-1", ShopUserKind.ADMINISTRATOR, true);
         var transactions = new TransactionManager(database.connections());
         var locks = new StripedResourceLockManager();
         var clock = Clock.fixed(Instant.parse("2026-08-28T05:00:00Z"), ZoneOffset.UTC);
@@ -129,6 +130,45 @@ class SellerApplicationServiceTest {
         assertThatThrownBy(() -> seller.saveDraft("student-token", draft("第二店铺")))
                 .isInstanceOfSatisfying(ShopException.class, error -> assertThat(error.code())
                         .isEqualTo(ShopErrorCode.SHOP_SELLER_APPLICATION_EXISTS));
+    }
+
+    @Test
+    void missingApplicationIsAnEmptyOptionalAndAdministratorCannotApply() {
+        assertThat(seller.findMyApplication("student-token")).isEmpty();
+        assertThatThrownBy(() -> seller.saveDraft("admin-token", draft("管理员店铺")))
+                .isInstanceOf(SecurityException.class);
+    }
+
+    @Test
+    void submissionRequiresStatementAndSupportedCategory() {
+        SaveSellerDraftCommand missingStatement = new SaveSellerDraftCommand(null, "无计划店铺",
+                "校园服务", "文具", "025-12345678", "  ", 0);
+        SellerApplicationView draft = seller.saveDraft("student-token", missingStatement);
+
+        assertThatThrownBy(() -> seller.submitApplication("student-token",
+                new SubmitSellerApplicationCommand(draft.applicationId(), draft.rowVersion())))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("applicationStatement");
+        assertThatThrownBy(() -> seller.saveDraft("teacher-token", new SaveSellerDraftCommand(
+                null, "非法类别店铺", "校园服务", "虚构类别", "025-12345678",
+                "经营计划", 0)))
+                .isInstanceOfSatisfying(ShopException.class,
+                        error -> assertThat(error.code()).isEqualTo(ShopErrorCode.SHOP_CATEGORY_INVALID));
+    }
+
+    @Test
+    void approvedNormalizedShopNameCannotBeSubmittedAgain() {
+        SellerApplicationView firstDraft = seller.saveDraft("student-token", draft("Campus Shop"));
+        SellerApplicationView firstPending = seller.submitApplication("student-token",
+                new SubmitSellerApplicationCommand(firstDraft.applicationId(), firstDraft.rowVersion()));
+        admin.reviewApplication(new ReviewSellerApplicationCommand(firstPending.applicationId(),
+                SellerReviewDecision.APPROVE, null, firstPending.rowVersion()));
+        SellerApplicationView duplicate = seller.saveDraft("teacher-token", draft("  campus shop  "));
+
+        assertThatThrownBy(() -> seller.submitApplication("teacher-token",
+                new SubmitSellerApplicationCommand(duplicate.applicationId(), duplicate.rowVersion())))
+                .isInstanceOfSatisfying(ShopException.class,
+                        error -> assertThat(error.code()).isEqualTo(ShopErrorCode.SHOP_NAME_EXISTS));
     }
 
     private static SaveSellerDraftCommand draft(String name) {
