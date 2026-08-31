@@ -1,10 +1,27 @@
 # vCampus Shop 认证买家 Demo
 
-此 Demo 使用真实 Socket、用户模块登录、完整 Shop 客户端 UI 和 Access 持久化。请安装 JDK 21 与 Maven，并从仓库根目录启动两个 PowerShell 终端。
+此 Demo 使用真实 Socket、用户模块登录、完整 Shop 客户端 UI 和 Access 持久化。开发者可以从源码启动；交给组员验收时，也可以生成无需 Maven 和源码的 Windows 便携包。
 
 需要让其他组员拉取分支并通过 Tailscale 或各自本地验收时，请参阅 [Shop 认证买家 Demo 团队测试指南](SHOP_AUTH_DEMO_TEAM_TESTING.md)。
 
-## 启动顺序
+## Windows 便携包
+
+开发者在仓库根目录运行：
+
+```powershell
+.\vcampus-distribution\scripts\build-shop-auth-demo-package.ps1
+```
+
+脚本会跳过自动化测试、构建两个可运行 JAR，并在 `target/shop-auth-demo-release/<时间戳>/` 下生成 `vCampus-Shop-Demo.zip`。每次生成使用独立目录，不覆盖旧包。ZIP 只包含运行所需的 JAR、日志配置、Demo 数据库、schema、seed、中文说明和两个 BAT，不包含源码、Maven 工程文件或运行日志。
+
+接收者只需安装 Java 21，将 ZIP 完整解压，然后依次双击：
+
+1. `启动服务端.bat`
+2. `启动客户端.bat`
+
+这两个 BAT 与现有 Maven 分发采用相同的“服务端 JAR + 客户端 JAR + 外置配置和数据库”结构，但入口固定为 Shop Auth Demo、端口固定为 `19090`。目标电脑不需要 Maven、Git 或项目源码。
+
+## 从源码启动
 
 终端一先启动组合服务端：
 

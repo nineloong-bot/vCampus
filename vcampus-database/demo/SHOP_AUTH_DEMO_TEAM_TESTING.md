@@ -5,9 +5,19 @@
 - **模式 A：完整本地测试。** 每位测试者都在自己的电脑上运行服务端和客户端，数据与其他测试者隔离。
 - **模式 B：Tailscale 联机测试。** 一人运行服务端，其他组员通过同一 Tailscale 内网只运行客户端，共同使用服务端主机上的 Demo 数据库。
 
+如果测试者只做单机验收，推荐直接使用维护者生成的 `vCampus-Shop-Demo.zip`。完整解压后依次双击 `启动服务端.bat` 和 `启动客户端.bat`；这种方式只要求 Java 21，不要求 Maven、Git 或源码。固定账号仍为 `DEMO_BUYER` / `DemoPassword7`。
+
+维护者生成便携包的命令为：
+
+```powershell
+.\vcampus-distribution\scripts\build-shop-auth-demo-package.ps1
+```
+
+成品位于 `target/shop-auth-demo-release/<时间戳>/vCampus-Shop-Demo.zip`。ZIP 内不含测试运行产生的 `logs/`；首次启动后，日志会在解压目录中自动创建。Tailscale 客户端需要传入远程地址，因此仍使用下文的源码 PowerShell 启动方式。
+
 ## 前置环境
 
-所有测试者需要：
+从源码测试的所有测试者需要：
 
 - Windows PowerShell
 - JDK 21
