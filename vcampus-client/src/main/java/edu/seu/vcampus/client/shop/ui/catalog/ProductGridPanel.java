@@ -6,7 +6,7 @@ import javax.swing.ImageIcon;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
-import java.awt.FlowLayout;
+import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,7 +24,7 @@ public final class ProductGridPanel extends JPanel {
 
     public ProductGridPanel(ProductImageLoader images, ProductCardRenderer renderer,
             Consumer<String> openDetail) {
-        super(new FlowLayout(FlowLayout.LEFT, 12, 12));
+        super(new WrappingGridLayout(200, 12, 12));
         this.images = Objects.requireNonNull(images, "images");
         this.renderer = Objects.requireNonNull(renderer, "renderer");
         this.openDetail = Objects.requireNonNull(openDetail, "openDetail");
@@ -36,7 +36,7 @@ public final class ProductGridPanel extends JPanel {
         long currentVersion = ++renderVersion;
         for (ProductSummary product : products) {
             names.add(product.productName());
-            JPanel slot = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+            JPanel slot = new JPanel(new BorderLayout());
             add(slot);
             renderInto(slot, product, null);
             images.load(product.coverImageUrl(), product.category(), IMAGE_SIZE)

@@ -26,6 +26,7 @@ import org.mockito.ArgumentCaptor;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
+import javax.swing.JPanel;
 import javax.swing.JSpinner;
 import javax.swing.JTextField;
 import java.math.BigDecimal;
@@ -46,6 +47,25 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class CatalogPanelsTest {
+    @Test
+    void productCardStacksCoverNameAndPriceVertically() throws Exception {
+        ProductCardsPanel cards = onEdt(() -> new ProductCardsPanel(
+                new ShopNavigator(route -> { }), new DefaultShopUiKit()));
+
+        onEdt(() -> cards.showProducts(List.of(summary("p1", "中性笔", "2.80"))));
+        JPanel card = component(cards, "product-p1", JPanel.class);
+        JLabel image = component(card, "product-p1.image", JLabel.class);
+        JLabel name = component(card, "product-p1.name", JLabel.class);
+        JLabel price = component(card, "product-p1.price", JLabel.class);
+        onEdt(() -> {
+            card.setSize(220, 300);
+            card.doLayout();
+        });
+
+        assertThat(name.getY()).isGreaterThan(image.getY());
+        assertThat(price.getY()).isGreaterThan(name.getY());
+    }
+
     @Test
     void rendersMinimumPriceAndIgnoresOlderSearchCompletion() throws Exception {
         ShopClientPort client = mock(ShopClientPort.class);

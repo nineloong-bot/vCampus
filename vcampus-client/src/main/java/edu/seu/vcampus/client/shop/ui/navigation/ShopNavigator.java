@@ -61,6 +61,16 @@ public final class ShopNavigator {
         publish();
     }
 
+    /** Opens a target with one explicit safe back destination in a single state change. */
+    public void openFromRoot(ShopRoute root, ShopRoute target) {
+        ShopRoute safeRoot = Objects.requireNonNull(root, "root");
+        ShopRoute destination = Objects.requireNonNull(target, "target");
+        history.clear();
+        addHistory(safeRoot);
+        current = destination;
+        publish();
+    }
+
     /** Publishes a receipt while removing every completed checkout route from history. */
     public void completeCheckout(ShopRoute.PaymentResult receipt) {
         Objects.requireNonNull(receipt, "receipt");

@@ -34,9 +34,8 @@ public final class PaymentResultPanel extends JPanel {
                 ProductSortMode.SALES_DESC, 0, 20)));
     }
     public void openPaidOrders() {
-        navigator.reset(new ShopRoute.Home(new HomeProductQuery(null, null,
-                ProductSortMode.SALES_DESC, 0, 20)));
-        navigator.open(new ShopRoute.My());
+        navigator.openFromRoot(new ShopRoute.Home(new HomeProductQuery(null, null,
+                ProductSortMode.SALES_DESC, 0, 20)), new ShopRoute.My());
     }
 
     private void render() {

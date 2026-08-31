@@ -283,8 +283,8 @@ class PurchasePanelsTest {
         onEdt(panel::openHome);
         onEdt(panel::openPaidOrders);
 
-        assertThat(routes).hasSize(3);
-        assertThat(routes.get(2)).isEqualTo(new ShopRoute.My());
+        assertThat(routes).hasSize(2);
+        assertThat(routes.get(1)).isEqualTo(new ShopRoute.My());
         assertThat(component(panel, "payment-number", JLabel.class).getText()).isEqualTo("P0001");
     }
 
@@ -980,8 +980,6 @@ class PurchasePanelsTest {
         onEdt(() -> component(panel, "payment-result.home", JButton.class).doClick());
         onEdt(() -> component(panel, "payment-result.orders", JButton.class).doClick());
         assertThat(routes).containsExactly(
-                new ShopRoute.Home(new HomeProductQuery(null, null,
-                        ProductSortMode.SALES_DESC, 0, 20)),
                 new ShopRoute.Home(new HomeProductQuery(null, null,
                         ProductSortMode.SALES_DESC, 0, 20)),
                 new ShopRoute.My());

@@ -61,6 +61,26 @@ class ProductGridPanelTest {
         assertThat(component(grid, "product-card.p1", JButton.class)).isNotNull();
     }
 
+    @Test
+    void preferredHeightIncludesWrappedRowsAtTheAvailableWidth() throws Exception {
+        ProductCardRenderer cards = (product, image, open) -> {
+            JButton card = new JButton(product.productName());
+            card.setPreferredSize(new Dimension(160, 180));
+            return card;
+        };
+        ProductGridPanel grid = onEdt(() -> new ProductGridPanel(images(), cards, id -> { }));
+
+        onEdt(() -> {
+            grid.setSize(380, 1000);
+            grid.showProducts(List.of(
+                    summary("p1", "一", "1.00"), summary("p2", "二", "2.00"),
+                    summary("p3", "三", "3.00"), summary("p4", "四", "4.00"),
+                    summary("p5", "五", "5.00")));
+        });
+
+        assertThat(onEdt(() -> grid.getPreferredSize().height)).isGreaterThan(500);
+    }
+
     private static ProductImageLoader images() {
         return (url, category, target) -> CompletableFuture.completedFuture(new ImageIcon(
                 new BufferedImage(target.width, target.height, BufferedImage.TYPE_INT_ARGB)));

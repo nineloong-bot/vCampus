@@ -156,4 +156,22 @@ class ShopNavigatorTest {
         assertThat(observedCurrent).containsExactly(home, product, home);
         assertThat(observedHistory).containsExactly(List.of(), List.of(home), List.of());
     }
+
+    @Test
+    void opensOrdersWithHomeHistoryBeforeRenderingTheTarget() {
+        ShopNavigator[] holder = new ShopNavigator[1];
+        List<List<ShopRoute>> historySeenByHost = new ArrayList<>();
+        ShopNavigator navigator = new ShopNavigator(route ->
+                historySeenByHost.add(holder[0].history()));
+        holder[0] = navigator;
+        ShopRoute.Home home = new ShopRoute.Home(new HomeProductQuery(
+                null, null, ProductSortMode.SALES_DESC, 0, 20));
+
+        navigator.openFromRoot(home, new ShopRoute.My());
+
+        assertThat(navigator.current()).contains(new ShopRoute.My());
+        assertThat(navigator.canGoBack()).isTrue();
+        assertThat(navigator.history()).containsExactly(home);
+        assertThat(historySeenByHost).containsExactly(List.of(home));
+    }
 }

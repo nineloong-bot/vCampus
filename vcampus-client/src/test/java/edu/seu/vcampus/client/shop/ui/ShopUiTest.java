@@ -366,6 +366,10 @@ class ShopUiTest {
                 new ShopRoute.Home(defaultHome()));
         assertVisible(content, "shop.my");
         assertThat(component(content, "my.order.order-new", JPanel.class).isVisible()).isTrue();
+        assertThat(component(content, "shop.back", JButton.class).isEnabled()).isTrue();
+        onEdt(() -> component(content, "shop.back", JButton.class).doClick());
+        assertThat(coordinator.navigator().current()).contains(new ShopRoute.Home(defaultHome()));
+        assertVisible(content, "shop.home");
         onEdt(coordinator::dispose);
     }
 

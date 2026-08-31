@@ -9,10 +9,11 @@ import edu.seu.vcampus.client.shop.ui.catalog.ProductGridPanel;
 import edu.seu.vcampus.common.shop.ProductSummary;
 
 import javax.swing.JButton;
+import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import java.awt.FlowLayout;
+import java.awt.Dimension;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -57,16 +58,21 @@ public final class ProductCardsPanel extends JPanel {
 
     private JPanel card(ProductSummary product, ImageIcon image, Runnable open) {
         String name = "product-" + product.productId();
-        JPanel card = uiKit.productCard(name, new FlowLayout(FlowLayout.LEFT));
-        card.add(named(new JLabel(image), name + ".image"));
+        JPanel card = uiKit.productCard(name, new java.awt.BorderLayout());
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        JLabel cover = named(new JLabel(image), name + ".image");
+        cover.setPreferredSize(new Dimension(160, 110));
+        cover.setMinimumSize(new Dimension(160, 110));
+        cover.setMaximumSize(new Dimension(Integer.MAX_VALUE, 110));
+        cover.setAlignmentX(CENTER_ALIGNMENT);
+        card.add(cover);
         card.add(named(new JLabel(product.productName()), name + ".name"));
         card.add(named(new JLabel(product.shopName()), name + ".shop"));
         card.add(named(new JLabel(product.category()), name + ".category"));
         card.add(named(new JLabel(formatPrice(product.minimumPrice())), name + ".price"));
         card.add(named(new JLabel("销量 " + product.salesCount()), name + ".sales"));
-        JButton action = uiKit.secondaryButton(name + ".open", "%s | %s | %s | 销量 %d | %s".formatted(
-                product.productName(), product.shopName(), product.category(), product.salesCount(),
-                formatPrice(product.minimumPrice())));
+        JButton action = uiKit.secondaryButton(name + ".open",
+                product.productName() + " | " + formatPrice(product.minimumPrice()));
         action.setName(name);
         action.addActionListener(event -> open.run());
         card.add(action);
