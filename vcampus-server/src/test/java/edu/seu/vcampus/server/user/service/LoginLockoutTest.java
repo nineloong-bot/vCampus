@@ -126,6 +126,31 @@ class LoginLockoutTest {
     }
 
     @Test
+    void wrongPasswordAfterExpiredLockStartsANewFiveAttemptCycle() {
+        for (int attempt = 0; attempt < 4; attempt++) {
+            assertThatThrownBy(() -> login("wrong"))
+                    .isInstanceOf(InvalidCredentialsException.class);
+        }
+        assertThatThrownBy(() -> login("wrong"))
+                .isInstanceOf(AccountLockedException.class);
+        clock.advance(Duration.ofSeconds(30));
+
+        assertThatThrownBy(() -> login("wrong"))
+                .isInstanceOf(InvalidCredentialsException.class);
+        UserAccount firstFailure = transactions.inTransaction(connection ->
+                users.findByNormalizedLoginId(connection, "ALICE").orElseThrow());
+        assertThat(firstFailure.failedLoginCount()).isEqualTo(1);
+        assertThat(firstFailure.lockedUntil()).isNull();
+
+        for (int attempt = 0; attempt < 3; attempt++) {
+            assertThatThrownBy(() -> login("wrong"))
+                    .isInstanceOf(InvalidCredentialsException.class);
+        }
+        assertThatThrownBy(() -> login("wrong"))
+                .isInstanceOf(AccountLockedException.class);
+    }
+
+    @Test
     void unknownLoginIdHasTheSameFiveAttemptLockoutWithoutCreatingUserData() {
         long usersBefore = count("tblUser", null);
 
@@ -144,6 +169,12 @@ class LoginLockoutTest {
 
         assertThatThrownBy(() -> login("missing_user", "Password1"))
                 .isInstanceOf(InvalidCredentialsException.class);
+        for (int attempt = 0; attempt < 3; attempt++) {
+            assertThatThrownBy(() -> login("missing_user", "wrong"))
+                    .isInstanceOf(InvalidCredentialsException.class);
+        }
+        assertThatThrownBy(() -> login("missing_user", "wrong"))
+                .isInstanceOf(AccountLockedException.class);
         assertThat(count("tblUser", null)).isEqualTo(usersBefore);
         java.util.Optional<UserAccount> unknown = transactions.inTransaction(connection ->
                 users.findByNormalizedLoginId(connection, "MISSING_USER"));

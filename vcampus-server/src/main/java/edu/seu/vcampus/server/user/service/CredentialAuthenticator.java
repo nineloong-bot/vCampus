@@ -44,6 +44,7 @@ final class CredentialAuthenticator {
             if (account == null) return Attempt.failure("AUTH_INVALID_CREDENTIALS");
             String blocked = lockedCode(account);
             if (blocked != null) return Attempt.failure(blocked);
+            account = clearExpiredLock(account);
             if (!hasher.verify(password, account.passwordHash(), account.passwordSalt(),
                     account.passwordIterations())) {
                 return Attempt.failure(recordFailure(connection, account));
@@ -85,6 +86,12 @@ final class CredentialAuthenticator {
         return account.lockedUntil() != null
                 && account.lockedUntil().isAfter(time(clock.instant()))
                 ? "AUTH_ACCOUNT_LOCKED" : null;
+    }
+
+    private UserAccount clearExpiredLock(UserAccount account) {
+        if (account.lockedUntil() == null) return account;
+        Instant now = clock.instant();
+        return authenticationUpdate(account, 0, null, account.lastLoginAt(), now);
     }
 
     private static UserAccount authenticationUpdate(UserAccount account, int failures,
