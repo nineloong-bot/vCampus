@@ -1,5 +1,7 @@
 package edu.seu.vcampus.client.student;
 
+import edu.seu.vcampus.client.core.ui.theme.UiBorders;
+import edu.seu.vcampus.client.core.ui.theme.UiColors;
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.client.student.service.StudentRequestClient;
 import edu.seu.vcampus.client.student.ui.UpdateContactDialog;
@@ -12,6 +14,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import javax.swing.*;
+import javax.swing.plaf.basic.BasicButtonUI;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
@@ -109,6 +112,20 @@ class UpdateContactDialogTest {
             assertThat(component(dialog, name, JComponent.class)
                     .getAccessibleContext().getAccessibleName()).isNotBlank();
         }
+    }
+
+    @Test
+    void primarySaveUsesTokenColorsWithPlatformIndependentPainting() throws Exception {
+        UpdateContactDialog dialog = dialog(new RecordingStudentClient(), profile(4, "old@seu.edu.cn", "130"));
+        JButton submit = button(dialog, "student.contact.submit");
+
+        assertThat(submit.getUI()).isInstanceOf(BasicButtonUI.class);
+        assertThat(submit.isOpaque()).isTrue();
+        assertThat(submit.isContentAreaFilled()).isTrue();
+        assertThat(submit.getBackground()).isEqualTo(UiColors.ACCENT);
+        assertThat(submit.getForeground()).isEqualTo(UiColors.TEXT_ON_PRIMARY);
+        assertThat(submit.getBorder()).isSameAs(UiBorders.LINE);
+        assertThat(submit.isFocusPainted()).isTrue();
     }
 
     @Test

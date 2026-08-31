@@ -10,6 +10,7 @@ import edu.seu.vcampus.common.student.StudentType;
 import edu.seu.vcampus.common.student.StudentView;
 
 import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
@@ -43,11 +44,20 @@ public final class MyStudentProfilePanel extends JPanel {
         statusLabel = label("正在加载", UiTypography.CAPTION); statusLabel.setName("student.profile.status"); heading.add(statusLabel, BorderLayout.SOUTH);
         add(heading, BorderLayout.NORTH);
 
-        JPanel fields = new JPanel(); fields.setOpaque(false); fields.setLayout(new BoxLayout(fields, BoxLayout.Y_AXIS));
+        JPanel fields = new FieldsPanel(); fields.setName("student.profile.fields");
         JPanel identity = group("身份信息"); addField(identity, "姓名", "student.profile.name"); addField(identity, "学号", "student.profile.studentNumber"); addField(identity, "校园卡号", "student.profile.card"); addField(identity, "学生类型", "student.profile.type"); addField(identity, "状态", "student.profile.lifecycle");
         JPanel academic = group("学籍信息"); addField(academic, "专业", "student.profile.major"); addField(academic, "班级", "student.profile.class"); addField(academic, "入学日期", "student.profile.enrollment");
         JPanel contact = group("联系方式"); addField(contact, "邮箱", "student.profile.email"); addField(contact, "电话", "student.profile.phone"); addField(contact, "数据版本", "student.profile.version");
-        fields.add(identity); fields.add(Box.createVerticalStrut(UiSpacing.SPACE_4)); fields.add(academic); fields.add(Box.createVerticalStrut(UiSpacing.SPACE_4)); fields.add(contact); add(fields, BorderLayout.CENTER);
+        fields.add(identity); fields.add(Box.createVerticalStrut(UiSpacing.SPACE_4)); fields.add(academic); fields.add(Box.createVerticalStrut(UiSpacing.SPACE_4)); fields.add(contact);
+        JScrollPane fieldScroll = new JScrollPane(fields,
+                ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        fieldScroll.setName("student.profile.fields.scroll");
+        fieldScroll.setOpaque(false);
+        fieldScroll.setBorder(new EmptyBorder(0, 0, 0, 0));
+        fieldScroll.getViewport().setOpaque(false);
+        fieldScroll.getVerticalScrollBar().setUnitIncrement(UiSpacing.SPACE_4);
+        add(fieldScroll, BorderLayout.CENTER);
 
         JPanel bottom = new JPanel(new BorderLayout(UiSpacing.SPACE_3, 0)); bottom.setOpaque(false);
         errorLabel = label("", UiTypography.CAPTION); errorLabel.setName("student.profile.error"); bottom.add(errorLabel, BorderLayout.CENTER);
@@ -95,4 +105,17 @@ public final class MyStudentProfilePanel extends JPanel {
     private static String safeMessage(ResponseBody<?> body) { return body != null && body.message() != null && !body.message().isBlank() ? body.message() : "档案加载失败，请稍后重试"; }
     private static String studentType(StudentType type) { return type == null ? null : switch (type) { case UNDERGRADUATE -> "本科生"; case MASTER -> "硕士生"; case DOCTORATE -> "博士生"; }; }
     private static String status(StudentStatus value) { return value == null ? null : switch (value) { case ACTIVE -> "正常"; case SUSPENDED -> "休学"; case GRADUATED -> "已毕业"; case WITHDRAWN -> "已退学"; }; }
+
+    private static final class FieldsPanel extends JPanel implements Scrollable {
+        FieldsPanel() {
+            setOpaque(false);
+            setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
+        }
+
+        @Override public Dimension getPreferredScrollableViewportSize() { return getPreferredSize(); }
+        @Override public int getScrollableUnitIncrement(Rectangle visible, int orientation, int direction) { return UiSpacing.SPACE_4; }
+        @Override public int getScrollableBlockIncrement(Rectangle visible, int orientation, int direction) { return Math.max(UiSpacing.SPACE_4, visible.height - UiSpacing.SPACE_4); }
+        @Override public boolean getScrollableTracksViewportWidth() { return true; }
+        @Override public boolean getScrollableTracksViewportHeight() { return false; }
+    }
 }

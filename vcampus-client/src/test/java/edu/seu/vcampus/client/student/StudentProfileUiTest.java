@@ -83,6 +83,30 @@ class StudentProfileUiTest {
         assertThat(fixture.panel.getBackground()).isEqualTo(UiColors.BACKGROUND_PAGE);
     }
 
+    @Test void minimumContentHeightScrollsContactFieldsIntoReachableView() throws Exception {
+        var response = new CompletableFuture<ResponseBody<StudentView>>();
+        var fixture = new StudentUiFixture(response, ConnectionState.CONNECTED);
+        SwingUtilities.invokeAndWait(fixture::showProfile);
+
+        JScrollPane scroll = onEdt(() -> fixture.component("student.profile.fields.scroll", JScrollPane.class));
+        SwingUtilities.invokeAndWait(() -> layout(fixture.panel, 1024, 568));
+
+        assertThat(scroll.getVerticalScrollBarPolicy()).isEqualTo(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
+        assertThat(scroll.getHorizontalScrollBarPolicy()).isEqualTo(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        assertThat(scroll.getVerticalScrollBar().getMaximum())
+                .isGreaterThan(scroll.getVerticalScrollBar().getVisibleAmount());
+
+        SwingUtilities.invokeAndWait(() -> {
+            scroll.getVerticalScrollBar().setValue(scroll.getVerticalScrollBar().getMaximum());
+            layoutTree(fixture.panel);
+        });
+        Rectangle email = onEdt(() -> boundsIn((Container) scroll.getViewport().getView(),
+                fixture.label("student.profile.email")));
+        assertThat(email.width).isPositive();
+        assertThat(email.height).isPositive();
+        assertThat(scroll.getViewport().getViewRect().intersects(email)).isTrue();
+    }
+
     @Test void lifecycleStatusesRenderChineseLabels() throws Exception {
         for (var status : new StudentStatus[]{StudentStatus.SUSPENDED, StudentStatus.GRADUATED, StudentStatus.WITHDRAWN}) {
             var response = new CompletableFuture<ResponseBody<StudentView>>();

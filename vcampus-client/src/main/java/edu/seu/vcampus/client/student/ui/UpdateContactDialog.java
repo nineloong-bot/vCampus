@@ -10,6 +10,7 @@ import edu.seu.vcampus.common.student.StudentView;
 import edu.seu.vcampus.common.student.UpdateStudentContactCommand;
 
 import javax.swing.*;
+import javax.swing.plaf.basic.BasicButtonUI;
 import java.awt.*;
 import java.awt.event.KeyEvent;
 import java.util.Objects;
@@ -89,6 +90,11 @@ public final class UpdateContactDialog extends JDialog {
         bottom.add(left, BorderLayout.WEST);
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         right.setOpaque(false);
+        submit.setUI(new BasicButtonUI());
+        submit.setOpaque(true);
+        submit.setContentAreaFilled(true);
+        submit.setBorder(UiBorders.LINE);
+        submit.setFocusPainted(true);
         submit.setBackground(UiColors.ACCENT);
         submit.setForeground(UiColors.TEXT_ON_PRIMARY);
         right.add(submit);
