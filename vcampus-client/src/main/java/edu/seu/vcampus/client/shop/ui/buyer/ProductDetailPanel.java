@@ -27,6 +27,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.text.ParseException;
 
 /** Product information, SKU selection, and isolated cart submission lifecycle. */
 public final class ProductDetailPanel extends JPanel {
@@ -38,7 +39,7 @@ public final class ProductDetailPanel extends JPanel {
     private final LatestRequest submissions = new LatestRequest();
     private final JLabel productName = named(new JLabel(), "product-name");
     private final CartCountModel cartCount;
-    private final JComboBox<String> sku = named(new JComboBox<>(), "sku");
+    private final JComboBox<SkuChoice> sku = named(new JComboBox<>(), "sku");
     private final JSpinner quantity = named(new JSpinner(new SpinnerNumberModel(1, 1, 1, 1)), "quantity");
     private final JButton store;
     private final JButton addToCart;
@@ -116,7 +117,8 @@ public final class ProductDetailPanel extends JPanel {
                 description.setAlignmentX(LEFT_ALIGNMENT);
                 skuDescriptions.add(description);
                 if (item.active() && item.availableQuantity() > 0) {
-                    availableSkus.put(item.skuId(), item); sku.addItem(item.skuId());
+                    availableSkus.put(item.skuId(), item);
+                    sku.addItem(new SkuChoice(item.skuId(), item.skuName()));
                 }
             }
             store.setEnabled(true);
@@ -127,16 +129,28 @@ public final class ProductDetailPanel extends JPanel {
     }
 
     private void addSelectedSku() {
-        String skuId = (String) sku.getSelectedItem();
-        ProductSkuView selected = availableSkus.get(skuId);
+        SkuChoice choice = (SkuChoice) sku.getSelectedItem();
+        ProductSkuView selected = choice == null ? null : availableSkus.get(choice.skuId());
         if (selected == null || displayedLoad == 0) return;
+        int requestedQuantity;
+        try {
+            quantity.commitEdit();
+            requestedQuantity = ((Number) quantity.getValue()).intValue();
+        } catch (ParseException exception) {
+            showDetail(ShopPageState.ERROR, "数量不能超过库存");
+            return;
+        }
+        if (requestedQuantity < 1 || requestedQuantity > selected.availableQuantity()) {
+            showDetail(ShopPageState.ERROR, "数量不能超过库存");
+            return;
+        }
         long request = submissions.begin();
         cartRevision = cartCount.beginUpdate();
         long submissionCartRevision = cartRevision;
         long loadAtSubmission = displayedLoad;
         addToCart.setEnabled(false);
         showDetail(ShopPageState.SUBMITTING, "正在加入购物车…");
-        client.addToCart(new AddCartItemCommand(selected.skuId(), (Integer) quantity.getValue()))
+        client.addToCart(new AddCartItemCommand(selected.skuId(), requestedQuantity))
                 .whenComplete((cart, failure) -> finishAdd(
                         request, loadAtSubmission, submissionCartRevision, cart, failure));
     }
@@ -159,7 +173,8 @@ public final class ProductDetailPanel extends JPanel {
     }
 
     private void updateQuantityLimit() {
-        ProductSkuView selected = availableSkus.get(sku.getSelectedItem());
+        SkuChoice choice = (SkuChoice) sku.getSelectedItem();
+        ProductSkuView selected = choice == null ? null : availableSkus.get(choice.skuId());
         if (selected == null) return;
         int maximum = (int) Math.min(Integer.MAX_VALUE, selected.availableQuantity());
         int current = Math.min((Integer) quantity.getValue(), maximum);
@@ -189,6 +204,9 @@ public final class ProductDetailPanel extends JPanel {
     }
 
     private void refresh() { content.revalidate(); content.repaint(); }
+    private record SkuChoice(String skuId, String label) {
+        @Override public String toString() { return label; }
+    }
     private static String failureCode(Throwable failure) { Throwable cause = failure; while (cause.getCause() != null) cause = cause.getCause(); return cause.getMessage() == null ? "COMMON_INTERNAL_ERROR" : cause.getMessage(); }
     private static <T extends Component> T named(T component, String name) { component.setName(name); return component; }
 }

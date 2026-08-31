@@ -22,14 +22,20 @@ import edu.seu.vcampus.common.shop.PaymentChannel;
 import edu.seu.vcampus.common.shop.PaymentStatus;
 import edu.seu.vcampus.common.shop.PaymentView;
 import edu.seu.vcampus.common.shop.ProductSortMode;
+import edu.seu.vcampus.common.shop.ProductDetail;
+import edu.seu.vcampus.common.shop.ProductSkuView;
+import edu.seu.vcampus.common.shop.ProductStatus;
 import edu.seu.vcampus.common.shop.SimulatePaymentCommand;
+import edu.seu.vcampus.common.shop.ShopSummary;
 import edu.seu.vcampus.common.shop.UpdateCartItemCommand;
 import org.junit.jupiter.api.Test;
 
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JSpinner;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Container;
@@ -277,9 +283,50 @@ class PurchasePanelsTest {
         onEdt(panel::openHome);
         onEdt(panel::openPaidOrders);
 
-        assertThat(routes).hasSize(2);
-        assertThat(routes.get(1)).isEqualTo(new ShopRoute.My());
+        assertThat(routes).hasSize(3);
+        assertThat(routes.get(2)).isEqualTo(new ShopRoute.My());
         assertThat(component(panel, "payment-number", JLabel.class).getText()).isEqualTo("P0001");
+    }
+
+    @Test
+    void paidOrdersLeavesHomeAsBackTarget() throws Exception {
+        ShopNavigator navigator = new ShopNavigator(route -> { });
+        ShopRoute.Home home = new ShopRoute.Home(new HomeProductQuery(null, null,
+                ProductSortMode.SALES_DESC, 0, 20));
+        navigator.open(home);
+        PaymentResultPanel panel = onEdt(() -> new PaymentResultPanel(navigator,
+                new RecordingKit(), payment(PaymentStatus.SUCCEEDED, PaymentChannel.WECHAT)));
+
+        onEdt(panel::openPaidOrders);
+        navigator.back();
+
+        assertThat(navigator.current()).contains(home);
+    }
+
+    @Test
+    void typedQuantityAboveStockDoesNotSendAddRequestAndSkuShowsName() throws Exception {
+        ShopClientPort client = mock(ShopClientPort.class);
+        CompletableFuture<ProductDetail> detail = new CompletableFuture<>();
+        when(client.getProduct("product-1")).thenReturn(detail);
+        ProductDetailPanel panel = onEdt(() -> new ProductDetailPanel(client,
+                new ShopNavigator(route -> { }), new RecordingKit(), () -> { }));
+
+        onEdt(() -> panel.load("product-1"));
+        detail.complete(new ProductDetail("product-1", "中性笔", "文具", "简介", null,
+                ProductStatus.ACTIVE, 0, new ShopSummary("shop-1", "文具店"), List.of(
+                        new ProductSkuView("sku-1", "黑色 0.5mm", new BigDecimal("2.80"), 9,
+                                true, 0)), Instant.EPOCH));
+        flushEdt();
+        onEdt(() -> ((JSpinner.DefaultEditor) component(panel, "quantity", JSpinner.class)
+                .getEditor()).getTextField().setText("999"));
+
+        assertThat(onEdt(() -> component(panel, "sku", JComboBox.class)
+                .getSelectedItem().toString())).isEqualTo("黑色 0.5mm");
+        onEdt(() -> component(panel, "add-to-cart", JButton.class).doClick());
+
+        verify(client, never()).addToCart(any());
+        assertThat(onEdt(() -> component(panel, "detail.state", JLabel.class).getText()))
+                .contains("库存");
     }
 
     @Test
@@ -933,6 +980,8 @@ class PurchasePanelsTest {
         onEdt(() -> component(panel, "payment-result.home", JButton.class).doClick());
         onEdt(() -> component(panel, "payment-result.orders", JButton.class).doClick());
         assertThat(routes).containsExactly(
+                new ShopRoute.Home(new HomeProductQuery(null, null,
+                        ProductSortMode.SALES_DESC, 0, 20)),
                 new ShopRoute.Home(new HomeProductQuery(null, null,
                         ProductSortMode.SALES_DESC, 0, 20)),
                 new ShopRoute.My());

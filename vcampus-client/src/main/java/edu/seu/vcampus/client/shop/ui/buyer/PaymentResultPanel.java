@@ -33,7 +33,11 @@ public final class PaymentResultPanel extends JPanel {
         navigator.reset(new ShopRoute.Home(new HomeProductQuery(null, null,
                 ProductSortMode.SALES_DESC, 0, 20)));
     }
-    public void openPaidOrders() { navigator.reset(new ShopRoute.My()); }
+    public void openPaidOrders() {
+        navigator.reset(new ShopRoute.Home(new HomeProductQuery(null, null,
+                ProductSortMode.SALES_DESC, 0, 20)));
+        navigator.open(new ShopRoute.My());
+    }
 
     private void render() {
         JPanel normal = uiKit.filterPanel("payment-result.normal", new BorderLayout(4, 4));
