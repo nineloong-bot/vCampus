@@ -6,4 +6,9 @@ import java.time.Instant;
 
 public record ProductSummary(String productId, String shopId, String shopName,
         String productName, String category, String coverImageUrl, BigDecimal minimumPrice,
-        long salesCount, Instant createdAt) implements Serializable { }
+        long salesCount, Instant createdAt) implements Serializable {
+    public ProductSummary(String productId, String shopId, String shopName, String productName,
+            String category, BigDecimal minimumPrice, long salesCount, Instant createdAt) {
+        this(productId, shopId, shopName, productName, category, null, minimumPrice, salesCount, createdAt);
+    }
+}
