@@ -72,9 +72,9 @@ class ShopServiceTest {
         transactions.inTransaction(connection -> {
             Timestamp now = Timestamp.from(Instant.parse("2026-08-24T09:00:00Z"));
             try (var shop = connection.prepareStatement(
-                    "INSERT INTO tblShop (shopId, ownerUserId, shopName, description, category, "
+                    "INSERT INTO tblShop (shopId, ownerUserId, shopName, normalizedShopName, description, category, "
                             + "contact, shopStatus, rowVersion, createdAt, updatedAt) "
-                            + "VALUES ('service-shop', 'owner-1', '服务测试店', '简介', '综合', "
+                            + "VALUES ('service-shop', 'owner-1', '服务测试店', '服务测试店', '简介', '综合', "
                             + "'contact', 'ACTIVE', 0, ?, ?)")) {
                 shop.setTimestamp(1, now);
                 shop.setTimestamp(2, now);

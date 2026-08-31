@@ -116,7 +116,7 @@ class ProductServiceTest {
 
     private void approve(String token, String shopName) {
         var draft = applications.saveDraft(token, new SaveSellerDraftCommand(
-                null, shopName, "简介", "文具", "contact@example.edu", 0));
+                null, shopName, "简介", "文具", "contact@example.edu", "经营计划", 0));
         var pending = applications.submitApplication(token,
                 new SubmitSellerApplicationCommand(draft.applicationId(), draft.rowVersion()));
         admin.reviewApplication(new ReviewSellerApplicationCommand(pending.applicationId(),

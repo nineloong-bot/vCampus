@@ -115,16 +115,17 @@ class BuyerShopServiceTest {
     private void seedShop(String shopId, String ownerId, String name, String status) {
         transactions.inTransaction(connection -> {
             try (var statement = connection.prepareStatement(
-                    "INSERT INTO tblShop (shopId, ownerUserId, shopName, description, category, "
+                    "INSERT INTO tblShop (shopId, ownerUserId, shopName, normalizedShopName, description, category, "
                             + "contact, shopStatus, rowVersion, createdAt, updatedAt) "
-                            + "VALUES (?, ?, ?, '简介', '综合', 'contact', ?, 0, ?, ?)")) {
+                            + "VALUES (?, ?, ?, ?, '简介', '综合', 'contact', ?, 0, ?, ?)")) {
                 statement.setString(1, shopId);
                 statement.setString(2, ownerId);
                 statement.setString(3, name);
-                statement.setString(4, status);
+                statement.setString(4, name.strip().toLowerCase(java.util.Locale.ROOT));
+                statement.setString(5, status);
                 Timestamp now = Timestamp.from(Instant.parse("2026-08-24T09:00:00Z"));
-                statement.setTimestamp(5, now);
                 statement.setTimestamp(6, now);
+                statement.setTimestamp(7, now);
                 statement.executeUpdate();
             }
             return null;

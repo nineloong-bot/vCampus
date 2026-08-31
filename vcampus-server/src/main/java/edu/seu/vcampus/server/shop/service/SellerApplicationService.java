@@ -52,6 +52,7 @@ public final class SellerApplicationService {
                         SellerApplication created = new SellerApplication(UUID.randomUUID().toString(),
                                 actor.userId(), command.shopName().strip(), command.description().strip(),
                                 command.category().strip(), command.contact().strip(),
+                                command.applicationStatement(),
                                 SellerApplicationStatus.DRAFT, null, null, null, null, 0);
                         return toView(repository.insertApplication(connection, created));
                     }
@@ -67,7 +68,7 @@ public final class SellerApplicationService {
                     SellerApplication edited = new SellerApplication(existing.applicationId(),
                             existing.applicantUserId(), command.shopName().strip(),
                             command.description().strip(), command.category().strip(),
-                            command.contact().strip(), SellerApplicationStatus.DRAFT,
+                            command.contact().strip(), command.applicationStatement(), SellerApplicationStatus.DRAFT,
                             null, null, existing.submittedAt(), null, existing.rowVersion());
                     return toView(repository.updateApplication(connection, edited,
                             command.expectedVersion()));
@@ -91,7 +92,7 @@ public final class SellerApplicationService {
                     }
                     SellerApplication submitted = new SellerApplication(existing.applicationId(),
                             existing.applicantUserId(), existing.shopName(), existing.description(),
-                            existing.category(), existing.contact(), SellerApplicationStatus.PENDING,
+                            existing.category(), existing.contact(), existing.applicationStatement(), SellerApplicationStatus.PENDING,
                             null, null, clock.instant(), null, existing.rowVersion());
                     return toView(repository.updateApplication(connection, submitted,
                             command.expectedVersion()));
@@ -115,7 +116,7 @@ public final class SellerApplicationService {
     static SellerApplicationView toView(SellerApplication application) {
         return new SellerApplicationView(application.applicationId(), application.applicantUserId(),
                 application.shopName(), application.description(), application.category(),
-                application.contact(), application.status(), application.reviewReason(),
+                application.contact(), application.applicationStatement(), application.status(), application.reviewReason(),
                 application.reviewerUserId(), application.submittedAt(), application.reviewedAt(),
                 application.rowVersion());
     }

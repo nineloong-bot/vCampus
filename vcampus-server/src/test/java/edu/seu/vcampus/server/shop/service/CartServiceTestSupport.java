@@ -27,9 +27,9 @@ abstract class CartServiceTestSupport {
         Timestamp now = Timestamp.from(Instant.parse("2026-08-28T08:00:00Z"));
         transactions.inTransaction(connection -> {
             try (var shop = connection.prepareStatement(
-                    "INSERT INTO tblShop (shopId, ownerUserId, shopName, description, category, "
+                    "INSERT INTO tblShop (shopId, ownerUserId, shopName, normalizedShopName, description, category, "
                             + "contact, shopStatus, rowVersion, createdAt, updatedAt) "
-                            + "VALUES ('shop-1', 'owner-1', '文具店', '简介', '文具', 'contact', "
+                            + "VALUES ('shop-1', 'owner-1', '文具店', '文具店', '简介', '文具', 'contact', "
                             + "'ACTIVE', 0, ?, ?)")) {
                 shop.setTimestamp(1, now);
                 shop.setTimestamp(2, now);

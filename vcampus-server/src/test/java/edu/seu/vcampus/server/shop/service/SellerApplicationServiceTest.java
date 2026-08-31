@@ -132,12 +132,13 @@ class SellerApplicationServiceTest {
     }
 
     private static SaveSellerDraftCommand draft(String name) {
-        return new SaveSellerDraftCommand(null, name, "校园服务", "文具", "025-12345678", 0);
+        return new SaveSellerDraftCommand(null, name, "校园服务", "文具", "025-12345678",
+                "诚信经营计划", 0);
     }
 
     private static SaveSellerDraftCommand edit(SellerApplicationView view, String name) {
         return new SaveSellerDraftCommand(view.applicationId(), name, view.description(),
-                view.category(), view.contact(), view.rowVersion());
+                view.category(), view.contact(), view.applicationStatement(), view.rowVersion());
     }
 
     private static List<Outcome> concurrently(Callable<?> action) throws Exception {

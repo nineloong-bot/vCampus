@@ -116,9 +116,9 @@ class BuyerOrderServiceTest {
         transactions.inTransaction(connection -> {
             Timestamp created = Timestamp.from(Instant.parse("2026-08-29T00:00:00Z"));
             try (var shop = connection.prepareStatement(
-                    "INSERT INTO tblShop (shopId, ownerUserId, shopName, description, category, "
+                    "INSERT INTO tblShop (shopId, ownerUserId, shopName, normalizedShopName, description, category, "
                             + "contact, shopStatus, rowVersion, createdAt, updatedAt) "
-                            + "VALUES (?, ?, ?, '简介', '综合', 'contact', 'ACTIVE', 0, ?, ?)")) {
+                            + "VALUES (?, ?, ?, ?, '简介', '综合', 'contact', 'ACTIVE', 0, ?, ?)")) {
                 insertShop(shop, "shop-1", "owner-1", "文具店", created);
                 insertShop(shop, "shop-2", "stranger-1", "书店", created);
             }
@@ -203,8 +203,9 @@ class BuyerOrderServiceTest {
         statement.setString(1, shopId);
         statement.setString(2, ownerId);
         statement.setString(3, name);
-        statement.setTimestamp(4, created);
+        statement.setString(4, name.strip().toLowerCase(java.util.Locale.ROOT));
         statement.setTimestamp(5, created);
+        statement.setTimestamp(6, created);
         statement.executeUpdate();
     }
 

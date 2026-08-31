@@ -14,6 +14,8 @@ import edu.seu.vcampus.common.shop.PaidOrderItemView;
 import edu.seu.vcampus.common.shop.PaidOrderView;
 import edu.seu.vcampus.common.shop.ShopErrorCode;
 import edu.seu.vcampus.common.shop.ShopStatus;
+import edu.seu.vcampus.common.shop.ShopAdminQuery;
+import edu.seu.vcampus.common.shop.ShopAdminSummary;
 import edu.seu.vcampus.server.shop.ShopException;
 import edu.seu.vcampus.server.shop.domain.SellerApplication;
 import edu.seu.vcampus.server.shop.domain.Shop;
@@ -61,8 +63,8 @@ public final class AccessShopRepository implements ShopRepository {
     public SellerApplication insertApplication(
             Connection connection, SellerApplication application) throws Exception {
         String sql = "INSERT INTO tblSellerApplication (applicationId, applicantUserId, shopName, "
-                + "description, category, contact, applicationStatus, reviewReason, reviewerUserId, "
-                + "submittedAt, reviewedAt, rowVersion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                + "description, category, contact, applicationStatement, applicationStatus, reviewReason, reviewerUserId, "
+                + "submittedAt, reviewedAt, rowVersion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             bindApplication(statement, application);
             statement.executeUpdate();
@@ -74,7 +76,7 @@ public final class AccessShopRepository implements ShopRepository {
     public SellerApplication updateApplication(Connection connection,
             SellerApplication application, long expectedVersion) throws Exception {
         String sql = "UPDATE tblSellerApplication SET shopName = ?, description = ?, category = ?, "
-                + "contact = ?, applicationStatus = ?, reviewReason = ?, reviewerUserId = ?, "
+                + "contact = ?, applicationStatement = ?, applicationStatus = ?, reviewReason = ?, reviewerUserId = ?, "
                 + "submittedAt = ?, reviewedAt = ?, rowVersion = rowVersion + 1 "
                 + "WHERE applicationId = ? AND rowVersion = ?";
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -82,13 +84,14 @@ public final class AccessShopRepository implements ShopRepository {
             statement.setString(2, application.description());
             statement.setString(3, application.category());
             statement.setString(4, application.contact());
-            statement.setString(5, application.status().name());
-            statement.setString(6, application.reviewReason());
-            statement.setString(7, application.reviewerUserId());
-            setInstant(statement, 8, application.submittedAt());
-            setInstant(statement, 9, application.reviewedAt());
-            statement.setString(10, application.applicationId());
-            statement.setLong(11, expectedVersion);
+            statement.setString(5, application.applicationStatement());
+            statement.setString(6, application.status().name());
+            statement.setString(7, application.reviewReason());
+            statement.setString(8, application.reviewerUserId());
+            setInstant(statement, 9, application.submittedAt());
+            setInstant(statement, 10, application.reviewedAt());
+            statement.setString(11, application.applicationId());
+            statement.setLong(12, expectedVersion);
             if (statement.executeUpdate() != 1) {
                 throw invalidApplicationState("Stale seller application version");
             }
@@ -139,6 +142,60 @@ public final class AccessShopRepository implements ShopRepository {
         return findShop(connection, "ownerUserId", ownerUserId);
     }
 
+    @Override
+    public Optional<Shop> findShopByNormalizedName(Connection connection,
+            String normalizedShopName) throws Exception {
+        return findShop(connection, "normalizedShopName", normalizedShopName);
+    }
+
+    @Override
+    public PageResult<ShopAdminSummary> searchShops(Connection connection,
+            ShopAdminQuery query) throws Exception {
+        if (query.pageNumber() < 0 || query.pageSize() <= 0) {
+            throw new IllegalArgumentException("Invalid page");
+        }
+        StringBuilder sql = new StringBuilder("SELECT * FROM tblShop WHERE 1 = 1");
+        List<String> values = new ArrayList<>();
+        if (query.keyword() != null && !query.keyword().isBlank()) {
+            sql.append(" AND shopName LIKE ?");
+            values.add("%" + query.keyword().strip() + "%");
+        }
+        if (query.status() != null) {
+            sql.append(" AND shopStatus = ?");
+            values.add(query.status().name());
+        }
+        sql.append(" ORDER BY shopName, shopId");
+        List<ShopAdminSummary> all = new ArrayList<>();
+        try (PreparedStatement statement = connection.prepareStatement(sql.toString())) {
+            for (int index = 0; index < values.size(); index++) {
+                statement.setString(index + 1, values.get(index));
+            }
+            try (ResultSet result = statement.executeQuery()) {
+                while (result.next()) {
+                    String shopId = result.getString("shopId");
+                    all.add(new ShopAdminSummary(shopId, result.getString("ownerUserId"),
+                            result.getString("shopName"), result.getString("category"),
+                            ShopStatus.valueOf(result.getString("shopStatus")),
+                            countProducts(connection, shopId), result.getLong("rowVersion")));
+                }
+            }
+        }
+        int from = Math.min(query.pageNumber() * query.pageSize(), all.size());
+        int to = Math.min(from + query.pageSize(), all.size());
+        return new PageResult<>(all.subList(from, to), query.pageNumber(), query.pageSize(), all.size());
+    }
+
+    private static long countProducts(Connection connection, String shopId) throws Exception {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT COUNT(*) FROM tblProduct WHERE shopId = ?")) {
+            statement.setString(1, shopId);
+            try (ResultSet result = statement.executeQuery()) {
+                result.next();
+                return result.getLong(1);
+            }
+        }
+    }
+
     private Optional<Shop> findShop(Connection connection, String column, String value) throws Exception {
         try (PreparedStatement statement = connection.prepareStatement(
                 "SELECT * FROM tblShop WHERE " + column + " = ?")) {
@@ -152,22 +209,23 @@ public final class AccessShopRepository implements ShopRepository {
     @Override
     public Shop insertShop(Connection connection, Shop shop) throws Exception {
         String sql = "INSERT INTO tblShop (shopId, ownerUserId, shopName, description, category, "
-                + "contact, shopStatus, suspensionReason, suspendedByUserId, suspendedAt, "
-                + "rowVersion, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                + "normalizedShopName, contact, shopStatus, suspensionReason, suspendedByUserId, suspendedAt, "
+                + "rowVersion, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, shop.shopId());
             statement.setString(2, shop.ownerUserId());
             statement.setString(3, shop.shopName());
             statement.setString(4, shop.description());
             statement.setString(5, shop.category());
-            statement.setString(6, shop.contact());
-            statement.setString(7, shop.status().name());
-            statement.setString(8, shop.suspensionReason());
-            statement.setString(9, shop.suspendedByUserId());
-            setInstant(statement, 10, shop.suspendedAt());
-            statement.setLong(11, shop.rowVersion());
-            setInstant(statement, 12, shop.createdAt());
-            setInstant(statement, 13, shop.updatedAt());
+            statement.setString(6, shop.normalizedShopName());
+            statement.setString(7, shop.contact());
+            statement.setString(8, shop.status().name());
+            statement.setString(9, shop.suspensionReason());
+            statement.setString(10, shop.suspendedByUserId());
+            setInstant(statement, 11, shop.suspendedAt());
+            statement.setLong(12, shop.rowVersion());
+            setInstant(statement, 13, shop.createdAt());
+            setInstant(statement, 14, shop.updatedAt());
             statement.executeUpdate();
             return shop;
         }
@@ -212,16 +270,17 @@ public final class AccessShopRepository implements ShopRepository {
 
     @Override
     public Shop updateShopProfile(Connection connection, Shop shop, long expectedVersion) throws Exception {
-        String sql = "UPDATE tblShop SET shopName = ?, description = ?, category = ?, contact = ?, "
+        String sql = "UPDATE tblShop SET shopName = ?, normalizedShopName = ?, description = ?, category = ?, contact = ?, "
                 + "updatedAt = ?, rowVersion = rowVersion + 1 WHERE shopId = ? AND rowVersion = ?";
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, shop.shopName());
-            statement.setString(2, shop.description());
-            statement.setString(3, shop.category());
-            statement.setString(4, shop.contact());
-            setInstant(statement, 5, shop.updatedAt());
-            statement.setString(6, shop.shopId());
-            statement.setLong(7, expectedVersion);
+            statement.setString(2, shop.normalizedShopName());
+            statement.setString(3, shop.description());
+            statement.setString(4, shop.category());
+            statement.setString(5, shop.contact());
+            setInstant(statement, 6, shop.updatedAt());
+            statement.setString(7, shop.shopId());
+            statement.setLong(8, expectedVersion);
             if (statement.executeUpdate() != 1) {
                 throw new ShopException(ShopErrorCode.SHOP_STATUS_INVALID, "Stale shop version");
             }
@@ -684,12 +743,13 @@ public final class AccessShopRepository implements ShopRepository {
         statement.setString(4, application.description());
         statement.setString(5, application.category());
         statement.setString(6, application.contact());
-        statement.setString(7, application.status().name());
-        statement.setString(8, application.reviewReason());
-        statement.setString(9, application.reviewerUserId());
-        setInstant(statement, 10, application.submittedAt());
-        setInstant(statement, 11, application.reviewedAt());
-        statement.setLong(12, application.rowVersion());
+        statement.setString(7, application.applicationStatement());
+        statement.setString(8, application.status().name());
+        statement.setString(9, application.reviewReason());
+        statement.setString(10, application.reviewerUserId());
+        setInstant(statement, 11, application.submittedAt());
+        setInstant(statement, 12, application.reviewedAt());
+        statement.setLong(13, application.rowVersion());
     }
 
     private static void bindSku(PreparedStatement statement, ProductSku sku) throws Exception {
@@ -707,7 +767,7 @@ public final class AccessShopRepository implements ShopRepository {
         return new SellerApplication(result.getString("applicationId"),
                 result.getString("applicantUserId"), result.getString("shopName"),
                 result.getString("description"), result.getString("category"),
-                result.getString("contact"), SellerApplicationStatus.valueOf(
+                result.getString("contact"), result.getString("applicationStatement"), SellerApplicationStatus.valueOf(
                         result.getString("applicationStatus")), result.getString("reviewReason"),
                 result.getString("reviewerUserId"), instant(result, "submittedAt"),
                 instant(result, "reviewedAt"), result.getLong("rowVersion"));
@@ -715,7 +775,7 @@ public final class AccessShopRepository implements ShopRepository {
 
     private static Shop mapShop(ResultSet result) throws Exception {
         return new Shop(result.getString("shopId"), result.getString("ownerUserId"),
-                result.getString("shopName"), result.getString("description"),
+                result.getString("shopName"), result.getString("normalizedShopName"), result.getString("description"),
                 result.getString("category"), result.getString("contact"),
                 ShopStatus.valueOf(result.getString("shopStatus")),
                 result.getString("suspensionReason"), result.getString("suspendedByUserId"),

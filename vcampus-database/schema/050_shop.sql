@@ -5,6 +5,7 @@ CREATE TABLE tblSellerApplication (
     description MEMO NOT NULL,
     category VARCHAR(64) NOT NULL,
     contact VARCHAR(128) NOT NULL,
+    applicationStatement MEMO NOT NULL,
     applicationStatus VARCHAR(16) NOT NULL,
     reviewReason VARCHAR(256),
     reviewerUserId VARCHAR(36),
@@ -20,7 +21,7 @@ ALTER TABLE tblSellerApplication ADD CONSTRAINT fk_seller_application_applicant
 ALTER TABLE tblSellerApplication ADD CONSTRAINT fk_seller_application_reviewer
     FOREIGN KEY (reviewerUserId) REFERENCES tblUser (userId);
 
-CREATE INDEX idx_tblSellerApplication_applicant
+CREATE UNIQUE INDEX uk_tblSellerApplication_applicant
     ON tblSellerApplication (applicantUserId);
 
 CREATE INDEX idx_tblSellerApplication_status
@@ -30,6 +31,7 @@ CREATE TABLE tblShop (
     shopId VARCHAR(36) PRIMARY KEY,
     ownerUserId VARCHAR(36) NOT NULL,
     shopName VARCHAR(128) NOT NULL,
+    normalizedShopName VARCHAR(128) NOT NULL,
     description MEMO NOT NULL,
     category VARCHAR(64) NOT NULL,
     contact VARCHAR(128) NOT NULL,
@@ -49,6 +51,9 @@ ALTER TABLE tblShop ADD CONSTRAINT fk_shop_owner
 
 ALTER TABLE tblShop ADD CONSTRAINT fk_shop_suspended_by
     FOREIGN KEY (suspendedByUserId) REFERENCES tblUser (userId);
+
+CREATE UNIQUE INDEX uk_tblShop_normalized_name
+    ON tblShop (normalizedShopName);
 
 CREATE TABLE tblProduct (
     productId VARCHAR(36) PRIMARY KEY,

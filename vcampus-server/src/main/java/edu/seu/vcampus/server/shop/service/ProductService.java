@@ -59,7 +59,7 @@ public final class ProductService {
                 transactions.inTransaction(connection -> {
                     Shop owned = requireOwnedActiveShop(connection, actor.userId());
                     Shop updated = new Shop(owned.shopId(), owned.ownerUserId(),
-                            command.shopName().strip(), command.description().strip(),
+                            command.shopName().strip(), command.shopName().strip().toLowerCase(Locale.ROOT), command.description().strip(),
                             command.category().strip(), command.contact().strip(), owned.status(),
                             owned.suspensionReason(), owned.suspendedByUserId(), owned.suspendedAt(),
                             owned.rowVersion(), owned.createdAt(), clock.instant());

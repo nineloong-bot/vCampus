@@ -58,9 +58,9 @@ abstract class PaymentServiceTestSupport {
         transactions.inTransaction(connection -> {
             Timestamp now = Timestamp.from(CHECKOUT_TIME.minusSeconds(3600));
             try (var shop = connection.prepareStatement(
-                    "INSERT INTO tblShop (shopId, ownerUserId, shopName, description, category, "
+                    "INSERT INTO tblShop (shopId, ownerUserId, shopName, normalizedShopName, description, category, "
                             + "contact, shopStatus, rowVersion, createdAt, updatedAt) "
-                            + "VALUES ('shop-1', 'owner-1', '文具店', '简介', '综合', "
+                            + "VALUES ('shop-1', 'owner-1', '文具店', '文具店', '简介', '综合', "
                             + "'contact', 'ACTIVE', 0, ?, ?)")) {
                 shop.setTimestamp(1, now);
                 shop.setTimestamp(2, now);

@@ -105,17 +105,18 @@ public final class ShopAuthDemoDatabase {
     private static void insertShop(Connection connection, String id, String owner,
             String name, String category, Instant now) throws Exception {
         try (PreparedStatement statement = connection.prepareStatement(
-                "INSERT INTO tblShop (shopId, ownerUserId, shopName, description, category, "
+                "INSERT INTO tblShop (shopId, ownerUserId, shopName, normalizedShopName, description, category, "
                         + "contact, shopStatus, rowVersion, createdAt, updatedAt) "
-                        + "VALUES (?, ?, ?, ?, ?, 'demo@example.com', "
+                        + "VALUES (?, ?, ?, ?, ?, ?, 'demo@example.com', "
                         + "'ACTIVE', 0, ?, ?)")) {
             statement.setString(1, id);
             statement.setString(2, owner);
             statement.setString(3, name);
-            statement.setString(4, name + "认证商城 Demo 店铺");
-            statement.setString(5, category);
-            statement.setTimestamp(6, Timestamp.from(now));
+            statement.setString(4, name.strip().toLowerCase(java.util.Locale.ROOT));
+            statement.setString(5, name + "认证商城 Demo 店铺");
+            statement.setString(6, category);
             statement.setTimestamp(7, Timestamp.from(now));
+            statement.setTimestamp(8, Timestamp.from(now));
             statement.executeUpdate();
         }
     }

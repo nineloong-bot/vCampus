@@ -52,7 +52,7 @@ class ShopOwnershipTest {
     @Test
     void onlyTheApprovedOwnerReceivesSellerCapability() {
         var draft = applications.saveDraft("owner-token", new SaveSellerDraftCommand(
-                null, "教师书屋", "教材与文具", "图书", "owner@example.edu", 0));
+                null, "教师书屋", "教材与文具", "图书", "owner@example.edu", "经营计划", 0));
         var pending = applications.submitApplication("owner-token",
                 new SubmitSellerApplicationCommand(draft.applicationId(), draft.rowVersion()));
         admin.reviewApplication(new ReviewSellerApplicationCommand(pending.applicationId(),

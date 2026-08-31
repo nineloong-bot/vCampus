@@ -9,6 +9,8 @@ import edu.seu.vcampus.common.shop.PaidOrderView;
 import edu.seu.vcampus.common.shop.SellerApplicationQuery;
 import edu.seu.vcampus.common.shop.SellerApplicationStatus;
 import edu.seu.vcampus.common.shop.ShopStatus;
+import edu.seu.vcampus.common.shop.ShopAdminQuery;
+import edu.seu.vcampus.common.shop.ShopAdminSummary;
 import edu.seu.vcampus.server.shop.domain.SellerApplication;
 import edu.seu.vcampus.server.shop.domain.Shop;
 import edu.seu.vcampus.server.shop.domain.Product;
@@ -37,6 +39,10 @@ public interface ShopRepository {
     Optional<Shop> findShopById(Connection connection, String shopId) throws Exception;
 
     Optional<Shop> findShopByOwner(Connection connection, String ownerUserId) throws Exception;
+
+    Optional<Shop> findShopByNormalizedName(Connection connection, String normalizedShopName) throws Exception;
+
+    PageResult<ShopAdminSummary> searchShops(Connection connection, ShopAdminQuery query) throws Exception;
 
     Shop insertShop(Connection connection, Shop shop) throws Exception;
 

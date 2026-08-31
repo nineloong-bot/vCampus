@@ -4,6 +4,12 @@ import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.shop.ProductSearchQuery;
 import edu.seu.vcampus.common.shop.ProductSortMode;
 import edu.seu.vcampus.common.shop.ProductSummary;
+import edu.seu.vcampus.common.shop.SellerApplicationStatus;
+import edu.seu.vcampus.common.shop.ShopAdminQuery;
+import edu.seu.vcampus.common.shop.ShopAdminSummary;
+import edu.seu.vcampus.common.shop.ShopStatus;
+import edu.seu.vcampus.server.shop.domain.SellerApplication;
+import edu.seu.vcampus.server.shop.domain.Shop;
 import edu.seu.vcampus.server.persistence.TransactionManager;
 import edu.seu.vcampus.server.shop.testutil.ShopTestDatabase;
 import org.junit.jupiter.api.AfterEach;
@@ -134,6 +140,43 @@ class AccessShopRepositoryTest {
                 ProductSortMode.PRICE_DESC, 2, 1), "p-zeta");
     }
 
+    @Test
+    void applicationStatementSurvivesInsertAndUpdate() {
+        SellerApplication inserted = transactions.inTransaction(connection -> repository.insertApplication(
+                connection, new SellerApplication("application-1", "student-1", "校园文具店",
+                        "服务师生", "文具", "13800000000", "初始经营计划",
+                        SellerApplicationStatus.DRAFT, null, null, null, null, 0)));
+
+        assertThat(inserted.applicationStatement()).isEqualTo("初始经营计划");
+
+        SellerApplication updated = transactions.inTransaction(connection -> repository.updateApplication(
+                connection, new SellerApplication(inserted.applicationId(), inserted.applicantUserId(),
+                        inserted.shopName(), inserted.description(), inserted.category(), inserted.contact(),
+                        "更新后的经营计划", inserted.status(), null, null, null, null,
+                        inserted.rowVersion()), inserted.rowVersion()));
+
+        assertThat(updated.applicationStatement()).isEqualTo("更新后的经营计划");
+    }
+
+    @Test
+    void normalizedShopNameLookupAndAdministrativePagingAreStable() {
+        insertShop(new Shop("shop-z", "student-1", "Campus Shop", "campus shop", "简介", "文具",
+                "contact", ShopStatus.ACTIVE, null, null, null, 0, Instant.EPOCH, Instant.EPOCH));
+        insertShop(new Shop("shop-b", "teacher-1", "同名店", "同名店-b", "简介", "图书",
+                "contact", ShopStatus.ACTIVE, null, null, null, 0, Instant.EPOCH, Instant.EPOCH));
+        insertShop(new Shop("shop-a", "owner-1", "同名店", "同名店-a", "简介", "生活用品",
+                "contact", ShopStatus.ACTIVE, null, null, null, 0, Instant.EPOCH, Instant.EPOCH));
+
+        Shop normalized = transactions.inTransaction(connection -> repository
+                .findShopByNormalizedName(connection, "campus shop").orElseThrow());
+        PageResult<ShopAdminSummary> page = transactions.inTransaction(connection -> repository
+                .searchShops(connection, new ShopAdminQuery(null, ShopStatus.ACTIVE, 0, 10)));
+
+        assertThat(normalized.shopId()).isEqualTo("shop-z");
+        assertThat(page.items()).extracting(ShopAdminSummary::shopId)
+                .containsExactly("shop-z", "shop-a", "shop-b");
+    }
+
     private PageResult<ProductSummary> search(String keyword, String category,
             BigDecimal minPrice, BigDecimal maxPrice, ProductSortMode sortMode,
             int pageNumber, int pageSize) {
@@ -146,18 +189,23 @@ class AccessShopRepositoryTest {
         assertThat(page.items()).extracting(ProductSummary::productId).containsExactly(ids);
     }
 
+    private void insertShop(Shop shop) {
+        transactions.inTransaction(connection -> repository.insertShop(connection, shop));
+    }
+
     private void seedShop(String shopId, String ownerId, String name) {
         transactions.inTransaction(connection -> {
             try (var statement = connection.prepareStatement(
-                    "INSERT INTO tblShop (shopId, ownerUserId, shopName, description, category, "
+                    "INSERT INTO tblShop (shopId, ownerUserId, shopName, normalizedShopName, description, category, "
                             + "contact, shopStatus, rowVersion, createdAt, updatedAt) "
-                            + "VALUES (?, ?, ?, '简介', '综合', 'contact', 'ACTIVE', 0, ?, ?)")) {
+                            + "VALUES (?, ?, ?, ?, '简介', '综合', 'contact', 'ACTIVE', 0, ?, ?)")) {
                 statement.setString(1, shopId);
                 statement.setString(2, ownerId);
                 statement.setString(3, name);
+                statement.setString(4, name.strip().toLowerCase(java.util.Locale.ROOT));
                 Timestamp now = Timestamp.from(Instant.parse("2026-08-24T09:00:00Z"));
-                statement.setTimestamp(4, now);
                 statement.setTimestamp(5, now);
+                statement.setTimestamp(6, now);
                 statement.executeUpdate();
             }
             return null;

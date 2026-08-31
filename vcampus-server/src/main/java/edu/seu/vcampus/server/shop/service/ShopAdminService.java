@@ -83,7 +83,7 @@ public final class ShopAdminService {
                     }
                     var now = clock.instant();
                     Shop shop = new Shop(UUID.randomUUID().toString(), pending.applicantUserId(),
-                            pending.shopName(), pending.description(), pending.category(), pending.contact(),
+                            pending.shopName(), normalizeShopName(pending.shopName()), pending.description(), pending.category(), pending.contact(),
                             ShopStatus.ACTIVE, null, null, null, 0, now, now);
                     repository.insertShop(connection, shop);
                     SellerApplication approved = reviewed(pending, SellerApplicationStatus.APPROVED,
@@ -136,6 +136,7 @@ public final class ShopAdminService {
             SellerApplicationStatus status, String reason, String reviewerId) {
         return new SellerApplication(pending.applicationId(), pending.applicantUserId(),
                 pending.shopName(), pending.description(), pending.category(), pending.contact(),
+                pending.applicationStatement(),
                 status, reason, reviewerId, pending.submittedAt(), clock.instant(),
                 pending.rowVersion());
     }
@@ -146,5 +147,9 @@ public final class ShopAdminService {
             throw new SecurityException("Active administrator required");
         }
         return administrator;
+    }
+
+    private static String normalizeShopName(String shopName) {
+        return shopName.strip().toLowerCase(java.util.Locale.ROOT);
     }
 }

@@ -64,14 +64,15 @@ abstract class CheckoutServiceTestSupport {
         transactions.inTransaction(connection -> {
             Timestamp now = Timestamp.from(Instant.parse("2026-08-28T09:00:00Z"));
             try (var statement = connection.prepareStatement(
-                    "INSERT INTO tblShop (shopId, ownerUserId, shopName, description, category, "
+                    "INSERT INTO tblShop (shopId, ownerUserId, shopName, normalizedShopName, description, category, "
                             + "contact, shopStatus, rowVersion, createdAt, updatedAt) "
-                            + "VALUES (?, ?, ?, '简介', '综合', 'contact', 'ACTIVE', 0, ?, ?)")) {
+                            + "VALUES (?, ?, ?, ?, '简介', '综合', 'contact', 'ACTIVE', 0, ?, ?)")) {
                 statement.setString(1, shopId);
                 statement.setString(2, ownerId);
                 statement.setString(3, shopName);
-                statement.setTimestamp(4, now);
+                statement.setString(4, shopName.strip().toLowerCase(java.util.Locale.ROOT));
                 statement.setTimestamp(5, now);
+                statement.setTimestamp(6, now);
                 statement.executeUpdate();
             }
             return null;
