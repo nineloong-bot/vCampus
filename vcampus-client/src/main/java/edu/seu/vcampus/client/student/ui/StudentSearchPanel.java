@@ -36,6 +36,7 @@ public final class StudentSearchPanel extends JPanel {
     private JComboBox<Object> statusCombo;
     private JButton searchButton;
     private JTable resultsTable;
+    private JScrollPane resultsScrollPane;
     private DefaultTableModel tableModel;
     private JLabel emptyLabel;
     private JLabel pageInfoLabel;
@@ -100,22 +101,22 @@ public final class StudentSearchPanel extends JPanel {
                 if (e.getClickCount() == 2) openSelectedStudent();
             }
         });
-        JScrollPane scrollPane = new JScrollPane(resultsTable,
+        resultsScrollPane = new JScrollPane(resultsTable,
                 ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
                 ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-        scrollPane.setName("student.search.table.scroll");
-        scrollPane.setBorder(UiBorders.LINE);
-        scrollPane.getViewport().setBackground(UiColors.BACKGROUND_PAGE);
+        resultsScrollPane.setName("student.search.table.scroll");
+        resultsScrollPane.setBorder(UiBorders.LINE);
+        resultsScrollPane.getViewport().setBackground(UiColors.BACKGROUND_PAGE);
         emptyLabel = new JLabel("输入关键词并点击搜索", SwingConstants.CENTER);
         emptyLabel.setFont(UiTypography.SECTION_TITLE);
         emptyLabel.setForeground(UiColors.TEXT_SECONDARY);
         emptyLabel.setName("student.search.empty");
         JPanel tableArea = new JPanel(new BorderLayout());
         tableArea.setOpaque(false);
-        tableArea.add(scrollPane, BorderLayout.CENTER);
+        tableArea.add(resultsScrollPane, BorderLayout.CENTER);
         tableArea.add(emptyLabel, BorderLayout.SOUTH);
         emptyLabel.setVisible(true);
-        scrollPane.setVisible(false);
+        resultsScrollPane.setVisible(false);
 
         JPanel paginationPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, UiSpacing.SPACE_3, UiSpacing.SPACE_2));
         paginationPanel.setOpaque(false);
@@ -430,10 +431,12 @@ public final class StudentSearchPanel extends JPanel {
         }
         currentResults.addAll(page.items());
         if (page.items().isEmpty()) {
+            resultsScrollPane.setVisible(false);
             resultsTable.setVisible(false);
             emptyLabel.setText("未找到匹配的学生");
             emptyLabel.setVisible(true);
         } else {
+            resultsScrollPane.setVisible(true);
             resultsTable.setVisible(true);
             emptyLabel.setVisible(false);
         }
@@ -448,6 +451,7 @@ public final class StudentSearchPanel extends JPanel {
     private void renderError(String message) {
         tableModel.setRowCount(0);
         currentResults.clear();
+        resultsScrollPane.setVisible(false);
         resultsTable.setVisible(false);
         emptyLabel.setText("搜索出错");
         emptyLabel.setVisible(true);

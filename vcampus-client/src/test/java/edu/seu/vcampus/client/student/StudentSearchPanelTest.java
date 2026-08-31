@@ -45,7 +45,9 @@ class StudentSearchPanelTest {
         flushEdt();
 
         JTable table = find(panel, "student.search.table");
+        JScrollPane scroll = find(panel, "student.search.table.scroll");
         assertThat(table.getRowCount()).isEqualTo(2);
+        assertThat(scroll.isVisible()).isTrue();
         assertThat(table.getValueAt(0, 0)).isEqualTo("09024101");
         assertThat(table.getValueAt(0, 1)).isEqualTo("213240001");
         assertThat(table.getValueAt(0, 2)).isEqualTo("张三");
