@@ -201,9 +201,9 @@ class MainFrameShellTest {
             admin[0] = new MainFrame(user(ADMIN), connected(), students());
         });
 
-        assertThat(component(teacher[0].content(), "page.student", JPanel.class).isVisible())
+        assertThat(component(teacher[0].content(), "student.module", JPanel.class).isVisible())
                 .isTrue();
-        assertThat(component(admin[0].content(), "page.student", JPanel.class).isVisible())
+        assertThat(component(admin[0].content(), "student.module", JPanel.class).isVisible())
                 .isTrue();
     }
 

@@ -4,15 +4,18 @@ import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.core.ui.shell.ModulePlaceholderPage;
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.client.student.ui.MyStudentProfilePanel;
+import edu.seu.vcampus.client.student.ui.OrganizationManagementPanel;
 import edu.seu.vcampus.client.student.ui.StudentModulePageFactory;
+import edu.seu.vcampus.client.student.ui.StudentSearchPanel;
+import edu.seu.vcampus.client.student.ui.StudentProfileReviewPanel;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.user.UserRole;
 import edu.seu.vcampus.common.user.UserView;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
-import javax.swing.JPanel;
-import javax.swing.SwingUtilities;
+import javax.swing.*;
+import java.awt.*;
 import java.io.Serializable;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -45,23 +48,43 @@ class StudentModulePageFactoryTest {
     }
 
     @Test
-    void teacherAndAdminReceiveTheStructuredStudentPlaceholderWithoutStudentRequests()
-            throws Exception {
+    void teacherReceivesTabbedPanelWithSearchOnly() throws Exception {
         AtomicInteger requests = new AtomicInteger();
         CountDownLatch requestStarted = new CountDownLatch(1);
         StudentClientService students = students(requests, requestStarted);
 
-        JPanel teacher = onEdt(() -> StudentModulePageFactory.create(
+        JPanel page = onEdt(() -> StudentModulePageFactory.create(
                 user(UserRole.TEACHER), students, connection()));
-        JPanel admin = onEdt(() -> StudentModulePageFactory.create(
+
+        assertThat(page.getName()).isEqualTo("student.module");
+        JTabbedPane tabs = findTabbedPane(page);
+        assertThat(tabs).isNotNull();
+        assertThat(tabs.getTabCount()).isEqualTo(1);
+        assertThat(tabs.getTitleAt(0)).isEqualTo("学生查询");
+        assertThat(tabs.getComponentAt(0)).isInstanceOf(StudentSearchPanel.class);
+        assertThat(requests).hasValue(0);
+    }
+
+    @Test
+    void adminReceivesSearchOrganizationAndProfileReviewTabs() throws Exception {
+        AtomicInteger requests = new AtomicInteger();
+        CountDownLatch requestStarted = new CountDownLatch(1);
+        StudentClientService students = students(requests, requestStarted);
+
+        JPanel page = onEdt(() -> StudentModulePageFactory.create(
                 user(UserRole.ADMIN), students, connection()));
 
-        assertThat(teacher).isInstanceOf(ModulePlaceholderPage.class);
-        assertThat(teacher.getName()).isEqualTo("page.student");
-        assertThat(admin).isInstanceOf(ModulePlaceholderPage.class);
-        assertThat(admin.getName()).isEqualTo("page.student");
+        assertThat(page.getName()).isEqualTo("student.module");
+        JTabbedPane tabs = findTabbedPane(page);
+        assertThat(tabs).isNotNull();
+        assertThat(tabs.getTabCount()).isEqualTo(3);
+        assertThat(tabs.getTitleAt(0)).isEqualTo("学生查询");
+        assertThat(tabs.getComponentAt(0)).isInstanceOf(StudentSearchPanel.class);
+        assertThat(tabs.getTitleAt(1)).isEqualTo("组织管理");
+        assertThat(tabs.getComponentAt(1)).isInstanceOf(OrganizationManagementPanel.class);
+        assertThat(tabs.getTitleAt(2)).isEqualTo("资料审核");
+        assertThat(tabs.getComponentAt(2)).isInstanceOf(StudentProfileReviewPanel.class);
         assertThat(requests).hasValue(0);
-        assertThat(requestStarted.getCount()).isOne();
     }
 
     @Test
@@ -106,6 +129,17 @@ class StudentModulePageFactoryTest {
         assertThat(requestStarted.await(2, TimeUnit.SECONDS)).isTrue();
         assertThat(requests).hasValue(1);
         onEdt(() -> page.removeNotify());
+    }
+
+    private static JTabbedPane findTabbedPane(Container root) {
+        for (Component c : root.getComponents()) {
+            if (c instanceof JTabbedPane tabs) return tabs;
+            if (c instanceof Container nested) {
+                JTabbedPane found = findTabbedPane(nested);
+                if (found != null) return found;
+            }
+        }
+        return null;
     }
 
     private ClientConnection connection() {

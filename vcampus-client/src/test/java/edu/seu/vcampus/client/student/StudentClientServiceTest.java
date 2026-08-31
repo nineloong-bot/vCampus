@@ -7,6 +7,7 @@ import edu.seu.vcampus.common.student.CreateStudentAdmissionCommand;
 import edu.seu.vcampus.common.student.StudentAdmissionResult;
 import edu.seu.vcampus.common.student.StudentType;
 import edu.seu.vcampus.common.student.SaveDepartmentCommand;
+import edu.seu.vcampus.common.student.*;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
@@ -64,6 +65,25 @@ class StudentClientServiceTest {
 
         assertThat(client.command).isEqualTo("STUDENT_SAVE_DEPARTMENT");
         assertThat(client.body).isSameAs(command);
+    }
+
+    @Test
+    void profileDraftReviewAndExportUseDedicatedMessageContracts() {
+        var client = new RecordingClient();
+        var service = new StudentClientService(client, Duration.ofSeconds(3));
+
+        service.getProfileWorkspace().join();
+        assertThat(client.command).isEqualTo("STUDENT_PROFILE_GET_WORKSPACE");
+        service.saveAttendanceDraft(new SaveStudentAttendanceDraftCommand(AttendanceMode.RESIDENT, 3)).join();
+        assertThat(client.command).isEqualTo("STUDENT_PROFILE_SAVE_ATTENDANCE_DRAFT");
+        service.submitProfile(new SubmitStudentProfileCommand(4)).join();
+        assertThat(client.command).isEqualTo("STUDENT_PROFILE_SUBMIT");
+        service.exportProfilePdf().join();
+        assertThat(client.command).isEqualTo("STUDENT_PROFILE_EXPORT_PDF");
+        service.listProfileReviews(new StudentProfileReviewQuery(1, 20)).join();
+        assertThat(client.command).isEqualTo("STUDENT_PROFILE_REVIEW_LIST");
+        service.rejectProfile(new ReviewStudentProfileCommand("app-1", "信息不完整")).join();
+        assertThat(client.command).isEqualTo("STUDENT_PROFILE_REJECT");
     }
 
     private static final class RecordingClient implements StudentRequestClient {

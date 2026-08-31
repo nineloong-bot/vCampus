@@ -37,4 +37,13 @@ public final class StudentClientService {
     public CompletableFuture<ResponseBody<DepartmentView>> saveDepartment(SaveDepartmentCommand value) { return sendAsync("STUDENT_SAVE_DEPARTMENT", value); }
     public CompletableFuture<ResponseBody<MajorView>> saveMajor(SaveMajorCommand value) { return sendAsync("STUDENT_SAVE_MAJOR", value); }
     public CompletableFuture<ResponseBody<ClassView>> saveClass(SaveClassCommand value) { return sendAsync("STUDENT_SAVE_CLASS", value); }
+    public CompletableFuture<ResponseBody<StudentProfileWorkspace>> getProfileWorkspace() { return sendAsync("STUDENT_PROFILE_GET_WORKSPACE", EmptyRequest.INSTANCE); }
+    public CompletableFuture<ResponseBody<StudentProfileWorkspace>> savePersonalDraft(SaveStudentPersonalDraftCommand value) { return sendAsync("STUDENT_PROFILE_SAVE_PERSONAL_DRAFT", value); }
+    public CompletableFuture<ResponseBody<StudentProfileWorkspace>> saveAttendanceDraft(SaveStudentAttendanceDraftCommand value) { return sendAsync("STUDENT_PROFILE_SAVE_ATTENDANCE_DRAFT", value); }
+    public CompletableFuture<ResponseBody<StudentProfileWorkspace>> submitProfile(SubmitStudentProfileCommand value) { return sendAsync("STUDENT_PROFILE_SUBMIT", value); }
+    public CompletableFuture<ResponseBody<PdfDocument>> exportProfilePdf() { return sendAsync("STUDENT_PROFILE_EXPORT_PDF", EmptyRequest.INSTANCE); }
+    public CompletableFuture<ResponseBody<PageResult<StudentProfileApplicationView>>> listProfileReviews(StudentProfileReviewQuery value) { return sendAsync("STUDENT_PROFILE_REVIEW_LIST", value); }
+    public CompletableFuture<ResponseBody<StudentProfileWorkspace>> getProfileReview(String applicationId) { return sendAsync("STUDENT_PROFILE_REVIEW_GET", new EntityIdRequest(applicationId)); }
+    public CompletableFuture<ResponseBody<StudentProfileApplicationView>> approveProfile(ReviewStudentProfileCommand value) { return sendAsync("STUDENT_PROFILE_APPROVE", value); }
+    public CompletableFuture<ResponseBody<StudentProfileApplicationView>> rejectProfile(ReviewStudentProfileCommand value) { return sendAsync("STUDENT_PROFILE_REJECT", value); }
 }
