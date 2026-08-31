@@ -1,6 +1,9 @@
 package edu.seu.vcampus.client.shop.ui;
 
 import edu.seu.vcampus.client.shop.service.ShopClientPort;
+import edu.seu.vcampus.client.shop.service.SellerShopClientPort;
+import edu.seu.vcampus.client.shop.service.AdminShopClientPort;
+import edu.seu.vcampus.client.shop.ui.admin.ShopAdminPanel;
 import edu.seu.vcampus.client.shop.ui.buyer.BuyerShopPanel;
 import edu.seu.vcampus.client.shop.ui.buyer.CartPanel;
 import edu.seu.vcampus.client.shop.ui.buyer.CheckoutPanel;
@@ -9,6 +12,7 @@ import edu.seu.vcampus.client.shop.ui.buyer.MyShopPanel;
 import edu.seu.vcampus.client.shop.ui.buyer.ProductDetailPanel;
 import edu.seu.vcampus.client.shop.ui.buyer.ProductSearchPanel;
 import edu.seu.vcampus.client.shop.ui.buyer.ShopHomePanel;
+import edu.seu.vcampus.client.shop.ui.seller.SellerApplicationPanel;
 import edu.seu.vcampus.client.shop.ui.async.LatestRequest;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopRoute;
@@ -25,6 +29,7 @@ import edu.seu.vcampus.common.user.UserView;
 
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.util.Objects;
@@ -40,6 +45,9 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
     static final String CHECKOUT = "shop.checkout";
     static final String PAYMENT_RESULT = "shop.payment-result";
     static final String MY = "shop.my";
+    static final String SELLER_APPLICATION = "shop.seller-application";
+    static final String SELLER_WORKSPACE = "shop.seller-workspace";
+    static final String ADMIN_WORKSPACE = "shop.admin-workspace";
 
     private final CardNavigator cards;
     private final PageSet pages;
@@ -80,6 +88,9 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         register(CHECKOUT, this.pages.checkout());
         register(PAYMENT_RESULT, this.pages.paymentResult());
         register(MY, this.pages.my());
+        register(SELLER_APPLICATION, this.pages.sellerApplication());
+        register(SELLER_WORKSPACE, this.pages.sellerWorkspace());
+        register(ADMIN_WORKSPACE, this.pages.adminWorkspace());
     }
 
     /** Returns the sole Shop history owner used by page actions and the sidebar entry. */
@@ -135,6 +146,9 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
             case ShopRoute.My ignored -> {
                 pages.loadMy();
             }
+            case ShopRoute.SellerApplication ignored -> pages.loadSellerApplication();
+            case ShopRoute.SellerWorkspace ignored -> pages.loadSellerWorkspace();
+            case ShopRoute.AdminWorkspace ignored -> pages.loadAdminWorkspace();
         }
         cards.show(pageId(requested));
     }
@@ -191,6 +205,9 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         JPanel checkout();
         JPanel paymentResult();
         JPanel my();
+        default JPanel sellerApplication() { return new JPanel(); }
+        default JPanel sellerWorkspace() { return new JPanel(); }
+        default JPanel adminWorkspace() { return new JPanel(); }
         void loadHome(HomeViewState state);
         void search(SearchViewState state);
         void loadProduct(String productId);
@@ -199,6 +216,9 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         void loadCheckout();
         void loadPaymentResult(PaymentView payment);
         void loadMy();
+        default void loadSellerApplication() { }
+        default void loadSellerWorkspace() { }
+        default void loadAdminWorkspace() { }
         default void syncCartCount() { }
         HomeViewState captureHome(HomeViewState state);
         SearchViewState captureSearch(SearchViewState state);
@@ -220,6 +240,9 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
             case ShopRoute.Checkout ignored -> CHECKOUT;
             case ShopRoute.PaymentResult ignored -> PAYMENT_RESULT;
             case ShopRoute.My ignored -> MY;
+            case ShopRoute.SellerApplication ignored -> SELLER_APPLICATION;
+            case ShopRoute.SellerWorkspace ignored -> SELLER_WORKSPACE;
+            case ShopRoute.AdminWorkspace ignored -> ADMIN_WORKSPACE;
         };
     }
 
@@ -279,6 +302,9 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         private final CheckoutPanel checkout;
         private final PaymentResultHost paymentResult;
         private final MyShopPanel my;
+        private final SellerApplicationPanel sellerApplication;
+        private final JPanel sellerWorkspace;
+        private final ShopAdminPanel adminWorkspace;
         private final CartCountModel cartCount;
         private final ShopClientPort client;
         private final Runnable cartSessionExpired;
@@ -312,7 +338,17 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
             checkout.setCartCountModel(cartCount);
             paymentResult = new PaymentResultHost(navigator, uiKit);
             callbackObserver.passedTo("my", mySessionExpired);
-            my = new MyShopPanel(user, client, uiKit, mySessionExpired);
+            SellerShopClientPort sellerPort = client instanceof SellerShopClientPort value
+                    ? value : null;
+            AdminShopClientPort adminPort = client instanceof AdminShopClientPort value
+                    ? value : null;
+            my = new MyShopPanel(user, client, sellerPort, navigator, uiKit, mySessionExpired);
+            sellerApplication = sellerPort == null ? null
+                    : new SellerApplicationPanel(sellerPort, uiKit, mySessionExpired);
+            sellerWorkspace = new JPanel(new BorderLayout());
+            sellerWorkspace.add(new JLabel("卖家商品与订单管理"), BorderLayout.NORTH);
+            adminWorkspace = adminPort == null ? null
+                    : new ShopAdminPanel(adminPort, uiKit, mySessionExpired);
         }
 
         @Override public JPanel home() { return home; }
@@ -323,6 +359,13 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         @Override public JPanel checkout() { return checkout; }
         @Override public JPanel paymentResult() { return paymentResult; }
         @Override public JPanel my() { return my; }
+        @Override public JPanel sellerApplication() {
+            return sellerApplication == null ? unavailable("当前客户端不支持开店申请") : sellerApplication;
+        }
+        @Override public JPanel sellerWorkspace() { return sellerWorkspace; }
+        @Override public JPanel adminWorkspace() {
+            return adminWorkspace == null ? unavailable("当前账号无商城管理权限") : adminWorkspace;
+        }
         @Override public void loadHome(HomeViewState state) { home.load(state); }
         @Override public void search(SearchViewState state) { search.search(state); }
         @Override public void loadProduct(String productId) { product.load(productId); }
@@ -333,6 +376,13 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
             paymentResult.load(payment);
         }
         @Override public void loadMy() { my.load(); }
+        @Override public void loadSellerApplication() {
+            if (sellerApplication != null) sellerApplication.load();
+        }
+        @Override public void loadSellerWorkspace() { }
+        @Override public void loadAdminWorkspace() {
+            if (adminWorkspace != null) adminWorkspace.load();
+        }
         @Override public void syncCartCount() {
             if (cartCountSynchronized || cartSyncInFlight) return;
             cartSyncInFlight = true;
@@ -362,6 +412,14 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
             cart.disposePage();
             checkout.disposePage();
             my.disposePage();
+            if (sellerApplication != null) sellerApplication.disposePage();
+            if (adminWorkspace != null) adminWorkspace.disposePage();
+        }
+
+        private static JPanel unavailable(String message) {
+            JPanel panel = new JPanel(new BorderLayout());
+            panel.add(new JLabel(message), BorderLayout.CENTER);
+            return panel;
         }
 
         private void finishCartSync(long request, long updateRevision, CartView result,

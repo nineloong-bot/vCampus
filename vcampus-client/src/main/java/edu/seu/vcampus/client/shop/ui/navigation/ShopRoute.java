@@ -11,7 +11,8 @@ import java.util.Objects;
 /** The complete set of buyer pages hosted by the Shop UI. */
 public sealed interface ShopRoute permits ShopRoute.Home, ShopRoute.Search,
         ShopRoute.Product, ShopRoute.Storefront, ShopRoute.Cart,
-        ShopRoute.Checkout, ShopRoute.PaymentResult, ShopRoute.My {
+        ShopRoute.Checkout, ShopRoute.PaymentResult, ShopRoute.My,
+        ShopRoute.SellerApplication, ShopRoute.SellerWorkspace, ShopRoute.AdminWorkspace {
     record Home(HomeViewState state) implements ShopRoute {
         public Home { Objects.requireNonNull(state, "state"); }
         public Home(HomeProductQuery query) { this(new HomeViewState(query, 0)); }
@@ -47,4 +48,10 @@ public sealed interface ShopRoute permits ShopRoute.Home, ShopRoute.Search,
     }
 
     record My() implements ShopRoute { }
+
+    record SellerApplication() implements ShopRoute { }
+
+    record SellerWorkspace() implements ShopRoute { }
+
+    record AdminWorkspace() implements ShopRoute { }
 }

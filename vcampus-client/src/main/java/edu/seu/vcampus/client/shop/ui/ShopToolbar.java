@@ -61,6 +61,9 @@ public final class ShopToolbar extends JPanel {
             case ShopRoute.Checkout ignored -> "确认订单";
             case ShopRoute.PaymentResult ignored -> "支付结果";
             case ShopRoute.My ignored -> "我的商城";
+            case ShopRoute.SellerApplication ignored -> "开店申请";
+            case ShopRoute.SellerWorkspace ignored -> "卖家工作区";
+            case ShopRoute.AdminWorkspace ignored -> "商城管理";
         };
     }
 

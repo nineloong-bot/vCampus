@@ -88,6 +88,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
+/** Cross-page navigation and lifecycle regression suite. */
 class ShopUiTest {
     @Test
     void myPageKeepsEveryOrderAndExpandedLastItemReachableInASmallViewport()
@@ -820,9 +821,10 @@ class ShopUiTest {
         assertThat(namedComponents(content, "shop.toolbar")).hasSize(1);
         JPanel cardHost = component(content, "shop.pages", JPanel.class);
         List<Component> fixedCards = Arrays.asList(cardHost.getComponents());
-        assertThat(fixedCards).hasSize(8).extracting(Component::getName).containsExactly(
+        assertThat(fixedCards).hasSize(11).extracting(Component::getName).containsExactly(
                 "shop.home", "shop.search", "shop.product", "shop.storefront", "shop.cart",
-                "shop.checkout", "shop.payment-result", "shop.my");
+                "shop.checkout", "shop.payment-result", "shop.my", "shop.seller-application",
+                "shop.seller-workspace", "shop.admin-workspace");
         HomeProductQuery home = new HomeProductQuery(new BigDecimal("1.00"), new BigDecimal("9.00"),
                 ProductSortMode.PRICE_DESC, 4, 8);
         ProductSearchQuery search = new ProductSearchQuery("本", "文具", new BigDecimal("1.00"),
@@ -869,6 +871,14 @@ class ShopUiTest {
 
         onEdt(() -> coordinator.navigator().open(new ShopRoute.My()));
         assertVisible(content, "shop.my");
+        assertFixedCards(cardHost, fixedCards);
+
+        onEdt(() -> coordinator.navigator().open(new ShopRoute.SellerApplication()));
+        assertVisible(content, "shop.seller-application");
+        onEdt(() -> coordinator.navigator().open(new ShopRoute.SellerWorkspace()));
+        assertVisible(content, "shop.seller-workspace");
+        onEdt(() -> coordinator.navigator().open(new ShopRoute.AdminWorkspace()));
+        assertVisible(content, "shop.admin-workspace");
         assertFixedCards(cardHost, fixedCards);
 
         HomeProductQuery refreshedHome = new HomeProductQuery(null, new BigDecimal("12.00"),
@@ -1303,6 +1313,9 @@ class ShopUiTest {
             case ShopRoute.Checkout ignored -> "shop.checkout";
             case ShopRoute.PaymentResult ignored -> "shop.payment-result";
             case ShopRoute.My ignored -> "shop.my";
+            case ShopRoute.SellerApplication ignored -> "shop.seller-application";
+            case ShopRoute.SellerWorkspace ignored -> "shop.seller-workspace";
+            case ShopRoute.AdminWorkspace ignored -> "shop.admin-workspace";
         };
     }
 
@@ -1320,6 +1333,9 @@ class ShopUiTest {
             case ShopRoute.Checkout ignored -> null;
             case ShopRoute.PaymentResult(var payment) -> payment;
             case ShopRoute.My ignored -> null;
+            case ShopRoute.SellerApplication ignored -> null;
+            case ShopRoute.SellerWorkspace ignored -> null;
+            case ShopRoute.AdminWorkspace ignored -> null;
         };
     }
 
