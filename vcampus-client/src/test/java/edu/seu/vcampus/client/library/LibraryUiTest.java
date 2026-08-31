@@ -109,7 +109,7 @@ class LibraryUiTest {
     void currentLoansRefreshRendersServerDataWithoutBlockingTheEdt() throws Exception {
         LoanView loan = new LoanView("loan-1", "copy-1", "book-1", "user-1",
                 Instant.parse("2026-08-01T00:00:00Z"), Instant.parse("2026-09-01T00:00:00Z"),
-                null, 0, LoanStatus.ACTIVE, 0);
+                null, 1, LoanStatus.ACTIVE, 0, "AS812", "Java 核心技术", "LIB-0001");
         when(service.getCurrentLoans()).thenReturn(
                 CompletableFuture.completedFuture(List.of(loan)));
         CurrentLoansPanel panel = new CurrentLoansPanel(service);
@@ -119,7 +119,12 @@ class LibraryUiTest {
 
         JTable table = first(panel, JTable.class);
         assertThat(table.getRowCount()).isEqualTo(1);
-        assertThat(table.getValueAt(0, 0)).isEqualTo("loan-1");
+        assertThat(columnNames(table)).containsExactly("借阅号", "书名", "馆藏条码", "借出时间",
+                "到期时间", "续借次数", "状态");
+        assertThat(table.getValueAt(0, 1)).isEqualTo("Java 核心技术");
+        assertThat(table.getValueAt(0, 2)).isEqualTo("LIB-0001");
+        assertThat(table.getValueAt(0, 5)).isEqualTo(1);
+        assertThat(table.getValueAt(0, 6)).isEqualTo("借阅中");
         assertThat(labels(panel)).contains("共 1 条当前借阅");
     }
 
@@ -143,6 +148,10 @@ class LibraryUiTest {
         assertThat(first(admin, JTable.class).getValueAt(0, 1)).isEqualTo("AS812");
         assertThat(first(admin, JTable.class).getValueAt(0, 2))
                 .isEqualTo("Java 核心技术 / LIB-0001");
+        assertThat(columnNames(first(history, JTable.class))).containsExactly("借阅号", "书名", "馆藏条码",
+                "借出时间", "到期时间", "归还时间", "续借次数", "状态");
+        assertThat(first(history, JTable.class).getValueAt(0, 1)).isEqualTo("Java 核心技术");
+        assertThat(first(history, JTable.class).getValueAt(0, 7)).isEqualTo("已归还");
     }
 
     @Test
@@ -173,7 +182,7 @@ class LibraryUiTest {
 
         assertThat(button(books, "搜索书目")).isNotNull();
         assertThat(button(copies, "搜索副本")).isNotNull();
-        assertThat(button(loans, "筛选借阅")).isNotNull();
+        assertThat(button(loans, "查询账号")).isNotNull();
         assertThat(columnNames(first(books, JTable.class))).doesNotContain("操作");
         assertThat(columnNames(first(copies, JTable.class))).doesNotContain("操作");
     }

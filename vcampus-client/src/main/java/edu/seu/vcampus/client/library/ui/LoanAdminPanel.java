@@ -14,11 +14,11 @@ public final class LoanAdminPanel extends LibraryDataPanel {
     public LoanAdminPanel(LibraryClientService service) {
         super("library.loan-admin", "借阅管理", "查询全校借阅及逾期记录。", "借阅号", "借阅人", "副本", "到期时间", "状态");
         this.service = Objects.requireNonNull(service, "service");
-        JButton refresh = new JButton("筛选借阅"); refresh.addActionListener(event -> refresh());
+        JButton refresh = new JButton("查询账号"); refresh.addActionListener(event -> refresh());
         JButton returnBook = new JButton("办理归还"); returnBook.addActionListener(event -> returnSelected());
         JButton markLost = new JButton("标记遗失"); markLost.addActionListener(event -> markLostSelected());
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT)); actions.setOpaque(false);
-        actions.add(new JLabel("借阅人账号或编号")); actions.add(borrower); actions.add(loanStatus);
+        actions.add(new JLabel("账号（精确查询）")); actions.add(borrower); actions.add(loanStatus);
         actions.add(refresh); actions.add(returnBook); actions.add(markLost); add(actions, BorderLayout.SOUTH);
         borrower.addActionListener(event -> refresh());
     }
@@ -36,8 +36,10 @@ public final class LoanAdminPanel extends LibraryDataPanel {
                     DefaultTableModel model = (DefaultTableModel) table.getModel(); model.setRowCount(0);
                     for (LoanView loan : loans) model.addRow(new Object[]{
                             loan.displayLoanNumber(), readable(loan.borrowerLoginId(), loan.borrowerUserId()),
-                            copyDescription(loan), loan.dueAt(), loan.status().name()});
-                    status.setText(page.items().isEmpty() ? "未找到借阅记录" : "共 " + page.total() + " 条借阅记录");
+                            copyDescription(loan), loan.dueAt(), LoanUiText.status(loan.status())});
+                    status.setText(page.items().isEmpty() ? "未找到借阅记录" : (user.isEmpty()
+                            ? "共 " + page.total() + " 条借阅记录"
+                            : "正在管理账号 " + user.toUpperCase(java.util.Locale.ROOT) + "，共 " + page.total() + " 条记录"));
                 }));
     }
 

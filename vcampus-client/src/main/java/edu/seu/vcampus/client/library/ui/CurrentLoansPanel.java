@@ -11,7 +11,7 @@ public final class CurrentLoansPanel extends LibraryDataPanel {
     private List<LoanView> loans = List.of();
     public CurrentLoansPanel(LibraryClientService service) {
         super("library.current-loans", "当前借阅", "归还或续借本人当前记录。",
-                "借阅号", "副本", "到期时间", "状态");
+                "借阅号", "书名", "馆藏条码", "借出时间", "到期时间", "续借次数", "状态");
         this.service = Objects.requireNonNull(service, "service");
         JButton refresh = new JButton("刷新借阅");
         JButton renew = new JButton("续借所选");
@@ -34,8 +34,9 @@ public final class CurrentLoansPanel extends LibraryDataPanel {
                     this.loans = List.copyOf(loans);
                     DefaultTableModel model = (DefaultTableModel) table.getModel();
                     model.setRowCount(0);
-                    for (LoanView loan : loans) model.addRow(new Object[]{loan.loanId(),
-                            loan.copyId(), loan.dueAt(), loan.status().name()});
+                    for (LoanView loan : loans) model.addRow(new Object[]{loan.displayLoanNumber(),
+                            LoanUiText.title(loan), LoanUiText.barcode(loan), loan.borrowedAt(),
+                            loan.dueAt(), loan.renewCount(), LoanUiText.status(loan.status())});
                     status.setText(loans.isEmpty() ? "当前没有在借图书"
                             : "共 " + loans.size() + " 条当前借阅");
                 }));
