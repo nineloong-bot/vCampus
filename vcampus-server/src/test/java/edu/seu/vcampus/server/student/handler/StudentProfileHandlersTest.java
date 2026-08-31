@@ -62,7 +62,8 @@ class StudentProfileHandlersTest {
         MessageRouter router = new MessageRouter(Map.of());
         new StudentHandlers((command, context) -> null, StudentHandlerFixtures.studentService(),
                 StudentHandlerFixtures.organizationQuery(), token -> principal,
-                (request, actor, action) -> action.get(), profiles).register(router);
+                (request, actor, action) -> action.get(), profiles,
+                (profile, generatedAt) -> null).register(router);
         return router;
     }
 

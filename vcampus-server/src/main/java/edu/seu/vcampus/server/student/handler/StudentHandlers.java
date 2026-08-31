@@ -16,6 +16,7 @@ import edu.seu.vcampus.server.student.service.StudentProfileApplicationException
 import edu.seu.vcampus.server.student.service.StudentProfileService;
 import edu.seu.vcampus.server.student.numbering.StudentNumberingException;
 import edu.seu.vcampus.server.student.repository.OrganizationHierarchyException;
+import edu.seu.vcampus.server.student.pdf.StudentProfilePdfGenerator;
 
 import java.io.Serializable;
 import java.util.List;
@@ -34,6 +35,7 @@ public final class StudentHandlers {
     public static final List<String> PROFILE_COMMANDS = List.of(
             "STUDENT_PROFILE_GET_WORKSPACE", "STUDENT_PROFILE_SAVE_PERSONAL_DRAFT",
             "STUDENT_PROFILE_SAVE_ATTENDANCE_DRAFT", "STUDENT_PROFILE_SUBMIT",
+            "STUDENT_PROFILE_EXPORT_PDF",
             "STUDENT_PROFILE_REVIEW_LIST", "STUDENT_PROFILE_REVIEW_GET",
             "STUDENT_PROFILE_APPROVE", "STUDENT_PROFILE_REJECT");
 
@@ -43,6 +45,7 @@ public final class StudentHandlers {
     private final StudentAuthorizationPort authorization;
     private final StudentWriteExecutor writes;
     private final StudentProfileService profiles;
+    private final StudentProfilePdfGenerator pdfs;
 
     StudentHandlers(StudentAdmissionService admissions, StudentService students,
             StudentOrganizationQuery organizations, StudentAuthorizationPort authorization) {
@@ -53,18 +56,26 @@ public final class StudentHandlers {
     public StudentHandlers(StudentAdmissionService admissions, StudentService students,
             StudentOrganizationQuery organizations, StudentAuthorizationPort authorization,
             StudentWriteExecutor writes) {
-        this(admissions, students, organizations, authorization, writes, null);
+        this(admissions, students, organizations, authorization, writes, null, null);
     }
 
     public StudentHandlers(StudentAdmissionService admissions, StudentService students,
             StudentOrganizationQuery organizations, StudentAuthorizationPort authorization,
             StudentWriteExecutor writes, StudentProfileService profiles) {
+        this(admissions, students, organizations, authorization, writes, profiles, null);
+    }
+
+    public StudentHandlers(StudentAdmissionService admissions, StudentService students,
+            StudentOrganizationQuery organizations, StudentAuthorizationPort authorization,
+            StudentWriteExecutor writes, StudentProfileService profiles,
+            StudentProfilePdfGenerator pdfs) {
         this.admissions = Objects.requireNonNull(admissions);
         this.students = Objects.requireNonNull(students);
         this.organizations = Objects.requireNonNull(organizations);
         this.authorization = Objects.requireNonNull(authorization);
         this.writes = Objects.requireNonNull(writes);
         this.profiles = profiles;
+        this.pdfs = pdfs;
     }
 
     public void register(MessageRouter router) {
@@ -138,6 +149,10 @@ public final class StudentHandlers {
         router.register("STUDENT_PROFILE_SUBMIT", typed(SubmitStudentProfileCommand.class,
                 (message, body) -> write(message, () -> student(message,
                         () -> profiles.submit(principal(message).userId(), body)))));
+        if (pdfs != null) router.register("STUDENT_PROFILE_EXPORT_PDF", typed(EmptyRequest.class,
+                (message, body) -> student(message, () -> pdfs.generate(
+                        profiles.getWorkspace(principal(message).userId()).formalProfile(),
+                        java.time.Instant.now()))));
         router.register("STUDENT_PROFILE_REVIEW_LIST", typed(StudentProfileReviewQuery.class,
                 (message, body) -> admin(message, () -> profiles.listPending(body))));
         router.register("STUDENT_PROFILE_REVIEW_GET", typed(EntityIdRequest.class,

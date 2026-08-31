@@ -31,6 +31,7 @@ import edu.seu.vcampus.server.student.service.StudentAdmissionCoordinator;
 import edu.seu.vcampus.server.student.service.StudentOrganizationAdminService;
 import edu.seu.vcampus.server.student.service.StudentServiceImpl;
 import edu.seu.vcampus.server.student.service.StudentProfileServiceImpl;
+import edu.seu.vcampus.server.student.pdf.StudentProfilePdfService;
 import edu.seu.vcampus.server.user.handler.UserHandlers;
 import edu.seu.vcampus.server.user.repository.AccessAuditRepository;
 import edu.seu.vcampus.server.user.repository.AccessPermissionRepository;
@@ -148,7 +149,8 @@ public final class ServerMain {
         };
         return new StudentHandlers(admissions, service,
                 new StudentOrganizationAdminService(transactions, locks, organizations),
-                authorization, new DeduplicatingStudentWriteExecutor(deduplicator), profiles);
+                authorization, new DeduplicatingStudentWriteExecutor(deduplicator), profiles,
+                new StudentProfilePdfService());
     }
 
     private static void shutdown(SocketServer server) {
