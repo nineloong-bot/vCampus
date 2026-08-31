@@ -25,10 +25,12 @@ import java.util.Objects;
 public final class BuyerShopPanel extends JPanel {
     private final ShopClientPort client;
     private final ShopUiKit uiKit;
+    private final ShopNavigator navigator;
     private final Runnable sessionExpired;
     private final LatestRequest latest = new LatestRequest();
     private final JLabel shopName = named(new JLabel(), "shop-name");
     private final ProductCardsPanel cards;
+    private final ShopPaginationPanel pagination;
     private final JPanel content = new JPanel(new BorderLayout());
     private final JScrollPane scroll = named(new JScrollPane(content), "storefront.scroll");
     private String currentShopId;
@@ -38,9 +40,11 @@ public final class BuyerShopPanel extends JPanel {
         super(new BorderLayout(8, 8));
         this.client = Objects.requireNonNull(client, "client");
         this.uiKit = Objects.requireNonNull(uiKit, "uiKit");
+        this.navigator = Objects.requireNonNull(navigator, "navigator");
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
-        ShopNavigator routes = Objects.requireNonNull(navigator, "navigator");
+        ShopNavigator routes = this.navigator;
         cards = new ProductCardsPanel(routes, uiKit);
+        pagination = new ShopPaginationPanel("storefront", uiKit);
         routes.addListener(route -> {
             if (!(route instanceof ShopRoute.Storefront)) latest.begin();
         });
@@ -91,18 +95,39 @@ public final class BuyerShopPanel extends JPanel {
             if (!latest.accepts(request)) return;
             if (failure != null) { showFailure(failure, () -> load(state)); return; }
             shopName.setText(shop.shopName());
-            if (products.items().isEmpty()) { showState(ShopPageState.EMPTY, "暂无商品", () -> load(state)); return; }
+            if (products.items().isEmpty()) {
+                showState(ShopPageState.EMPTY, "暂无商品", () -> load(state));
+                pagination.showPage(products, page -> openPage(state, page));
+                content.add(pagination, BorderLayout.SOUTH);
+                refresh();
+                restoreScroll(request, state);
+                return;
+            }
             cards.showProducts(products.items());
             content.removeAll();
             JPanel normal = uiKit.filterPanel("storefront.normal", new BorderLayout());
             normal.add(uiKit.stateView("storefront.state", ShopPageState.NORMAL, "", null), BorderLayout.NORTH);
             normal.add(cards, BorderLayout.CENTER);
+            pagination.showPage(products, page -> openPage(state, page));
+            normal.add(pagination, BorderLayout.SOUTH);
             content.add(normal, BorderLayout.CENTER); refresh();
-            SwingUtilities.invokeLater(() -> {
-                if (latest.accepts(request)) {
-                    scroll.getVerticalScrollBar().setValue(state.scrollY());
-                }
-            });
+            restoreScroll(request, state);
+        });
+    }
+
+    private void openPage(StorefrontViewState state, int page) {
+        ShopProductQuery query = state.query();
+        ShopProductQuery paged = new ShopProductQuery(query.shopId(), query.keyword(),
+                query.category(), query.minPrice(), query.maxPrice(), query.sortMode(),
+                page, query.pageSize());
+        navigator.replaceCurrent(new ShopRoute.Storefront(new StorefrontViewState(paged, 0)));
+    }
+
+    private void restoreScroll(long request, StorefrontViewState state) {
+        SwingUtilities.invokeLater(() -> {
+            if (latest.accepts(request)) {
+                scroll.getVerticalScrollBar().setValue(state.scrollY());
+            }
         });
     }
 

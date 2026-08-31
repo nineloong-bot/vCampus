@@ -38,17 +38,28 @@ public final class ShopUiInstaller {
         AbstractButton entry = requiredComponent(frame, "navigation.shop", AbstractButton.class);
         Container placeholder = requiredComponent(frame, "page.shop", Container.class);
         ShopModulePanel module = new ShopModulePanel();
-        placeholder.add(module, BorderLayout.CENTER);
         InstalledCoordinator coordinator = Objects.requireNonNull(factory, "factory")
                 .create(module, user, client, uiKit, sessionExpired);
+        placeholder.removeAll();
+        placeholder.add(module, BorderLayout.CENTER);
+        placeholder.revalidate();
+        placeholder.repaint();
         entry.addActionListener(event -> coordinator.enter());
         AtomicBoolean disposed = new AtomicBoolean();
+        Runnable disposeOnce = () -> {
+            if (disposed.compareAndSet(false, true)) {
+                coordinator.dispose();
+            }
+        };
         frame.addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent event) {
-                if (disposed.compareAndSet(false, true)) {
-                    coordinator.dispose();
-                }
+                disposeOnce.run();
+            }
+
+            @Override
+            public void windowClosed(WindowEvent event) {
+                disposeOnce.run();
             }
         });
     }

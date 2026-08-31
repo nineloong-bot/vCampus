@@ -118,6 +118,45 @@ class PaidOrderHistoryTest {
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
+    @Test
+    void rejectsLineAmountsThatDoNotEqualUnitPriceTimesQuantity() {
+        assertThatThrownBy(() -> new PaidOrderItemView(
+                "product-1", "签字笔", "sku-1", "黑色",
+                2, money("2.50"), money("4.99")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("lineAmount");
+    }
+
+    @Test
+    void rejectsOrderTotalsThatDoNotEqualTheSumOfItemAmounts() {
+        PaidOrderItemView first = new PaidOrderItemView(
+                "product-1", "签字笔", "sku-1", "黑色",
+                2, money("2.50"), money("5.00"));
+        PaidOrderItemView second = new PaidOrderItemView(
+                "product-2", "练习本", "sku-2", "A5",
+                1, money("2.00"), money("2.00"));
+
+        assertThatThrownBy(() -> new PaidOrderView(
+                "order-1", "O-1", "shop-1", "校园文具店",
+                money("6.99"), PAID_AT, OrderStatus.PAID,
+                List.of(first, second)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("totalAmount");
+    }
+
+    @Test
+    void acceptsMathematicallyEqualAmountsWithDifferentDecimalScales() {
+        PaidOrderItemView item = new PaidOrderItemView(
+                "product-1", "签字笔", "sku-1", "黑色",
+                2, money("2.5"), money("5.000"));
+
+        PaidOrderView order = new PaidOrderView(
+                "order-1", "O-1", "shop-1", "校园文具店",
+                money("5.00"), PAID_AT, OrderStatus.PAID, List.of(item));
+
+        assertThat(order.items()).containsExactly(item);
+    }
+
     private static PaidOrderHistory history() {
         return new PaidOrderHistory(List.of(order(List.of(item()))));
     }

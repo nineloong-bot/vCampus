@@ -107,6 +107,33 @@ class AccessShopRepositoryTest {
         assertIds(second, "p-middle");
     }
 
+    @Test
+    void productIdIsTheFinalStableSortKeyAcrossCatalogPages() {
+        seedShop("shop-ties", "owner-1", "稳定分页店");
+        seedProduct("p-zeta", "shop-ties", "并列商品 Z", "文具", "稳定分页", 10,
+                "2026-08-24T10:00:00Z");
+        seedProduct("p-alpha", "shop-ties", "并列商品 A", "文具", "稳定分页", 10,
+                "2026-08-24T10:00:00Z");
+        seedProduct("p-middle", "shop-ties", "并列商品 M", "文具", "稳定分页", 10,
+                "2026-08-24T10:00:00Z");
+        seedSku("sku-zeta", "p-zeta", "标准", "10.00");
+        seedSku("sku-alpha", "p-alpha", "标准", "10.00");
+        seedSku("sku-middle", "p-middle", "标准", "10.00");
+
+        assertIds(search("稳定分页", null, null, null,
+                ProductSortMode.SALES_DESC, 0, 1), "p-alpha");
+        assertIds(search("稳定分页", null, null, null,
+                ProductSortMode.SALES_DESC, 1, 1), "p-middle");
+        assertIds(search("稳定分页", null, null, null,
+                ProductSortMode.SALES_DESC, 2, 1), "p-zeta");
+        assertIds(search("稳定分页", null, null, null,
+                ProductSortMode.PRICE_DESC, 0, 1), "p-alpha");
+        assertIds(search("稳定分页", null, null, null,
+                ProductSortMode.PRICE_DESC, 1, 1), "p-middle");
+        assertIds(search("稳定分页", null, null, null,
+                ProductSortMode.PRICE_DESC, 2, 1), "p-zeta");
+    }
+
     private PageResult<ProductSummary> search(String keyword, String category,
             BigDecimal minPrice, BigDecimal maxPrice, ProductSortMode sortMode,
             int pageNumber, int pageSize) {

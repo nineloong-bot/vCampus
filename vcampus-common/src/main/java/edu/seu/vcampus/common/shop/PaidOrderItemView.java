@@ -23,5 +23,9 @@ public record PaidOrderItemView(String productId, String productName,
         if (lineAmount.signum() < 0) {
             throw new IllegalArgumentException("lineAmount must be non-negative");
         }
+        BigDecimal expectedLineAmount = unitPrice.multiply(BigDecimal.valueOf(quantity));
+        if (lineAmount.compareTo(expectedLineAmount) != 0) {
+            throw new IllegalArgumentException("lineAmount must equal unitPrice * quantity");
+        }
     }
 }

@@ -24,6 +24,8 @@ import java.util.Objects;
 
 /** Buyer-facing catalog and storefront queries. */
 public final class ShopService {
+    private static final int MAX_CATALOG_PAGE_SIZE = 100;
+    private static final long MAX_CATALOG_PAGE_OFFSET = 10_000_000L;
     private final ShopRepository repository;
     private final TransactionManager transactions;
 
@@ -105,8 +107,17 @@ public final class ShopService {
             throw SellerApplicationService.error(ShopErrorCode.SHOP_PRICE_FILTER_INVALID,
                     "Price range is invalid");
         }
-        if (pageNumber < 0 || pageSize <= 0) {
-            throw new IllegalArgumentException("Invalid page");
+        if (pageNumber < 0) {
+            throw new IllegalArgumentException("pageNumber must not be negative");
+        }
+        if (pageSize < 1 || pageSize > MAX_CATALOG_PAGE_SIZE) {
+            throw new IllegalArgumentException(
+                    "pageSize must be between 1 and " + MAX_CATALOG_PAGE_SIZE);
+        }
+        long offset = (long) pageNumber * (long) pageSize;
+        if (offset > MAX_CATALOG_PAGE_OFFSET) {
+            throw new IllegalArgumentException(
+                    "page offset must not exceed " + MAX_CATALOG_PAGE_OFFSET);
         }
     }
 }

@@ -34,9 +34,10 @@ public final class ShopHomePanel extends JPanel {
     private final Runnable sessionExpired;
     private final LatestRequest latest = new LatestRequest();
     private final ProductCardsPanel cards;
+    private final ShopPaginationPanel pagination;
     private final JPanel content = new JPanel();
     private final JScrollPane scroll = named(new JScrollPane(content), "home.scroll");
-    private final JTextField keyword = named(new JTextField(18), "home.keyword");
+    private final JTextField keyword = new ShopSearchField(18, "home.keyword");
     private final JPanel results = named(new JPanel(new BorderLayout()), "home.results");
 
     public ShopHomePanel(ShopClientPort client, ShopNavigator navigator, ShopUiKit uiKit,
@@ -47,6 +48,7 @@ public final class ShopHomePanel extends JPanel {
         this.uiKit = Objects.requireNonNull(uiKit, "uiKit");
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
         this.cards = new ProductCardsPanel(navigator, uiKit);
+        this.pagination = new ShopPaginationPanel("home", uiKit);
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
         navigator.addListener(route -> {
             if (!(route instanceof ShopRoute.Home)) latest.begin();
@@ -102,14 +104,20 @@ public final class ShopHomePanel extends JPanel {
         SwingUtilities.invokeLater(() -> {
             if (!latest.accepts(request)) return;
             if (failure != null) showFailure(failure, () -> load(state));
-            else if (result.items().isEmpty()) showState(ShopPageState.EMPTY, "暂无商品", () -> load(state));
-            else {
+            else if (result.items().isEmpty()) {
+                showState(ShopPageState.EMPTY, "暂无商品", () -> load(state));
+                pagination.showPage(result, page -> openPage(state, page));
+                results.add(pagination, BorderLayout.SOUTH);
+                refresh();
+            } else {
                 cards.showProducts(result.items());
                 results.removeAll();
                 JPanel normal = uiKit.filterPanel("home.normal", new BorderLayout());
                 normal.add(uiKit.stateView("home.state", ShopPageState.NORMAL, "", null),
                         BorderLayout.NORTH);
                 normal.add(cards, BorderLayout.CENTER);
+                pagination.showPage(result, page -> openPage(state, page));
+                normal.add(pagination, BorderLayout.SOUTH);
                 results.add(normal, BorderLayout.CENTER);
                 refresh();
             }
@@ -140,6 +148,13 @@ public final class ShopHomePanel extends JPanel {
     private static String value(JTextField field) {
         String value = field.getText().trim();
         return value.isEmpty() ? null : value;
+    }
+
+    private void openPage(HomeViewState state, int page) {
+        HomeProductQuery query = state.query();
+        HomeProductQuery paged = new HomeProductQuery(query.minPrice(), query.maxPrice(),
+                query.sortMode(), page, query.pageSize());
+        navigator.replaceCurrent(new ShopRoute.Home(new HomeViewState(paged, 0)));
     }
 
     private static String failureCode(Throwable failure) {

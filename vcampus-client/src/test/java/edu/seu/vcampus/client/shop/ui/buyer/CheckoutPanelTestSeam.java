@@ -20,7 +20,7 @@ public final class CheckoutPanelTestSeam {
         AtomicReference<Consumer<PaymentView>> terminalPayment = new AtomicReference<>();
         CheckoutPanel panel = new CheckoutPanel(client, navigator, uiKit, new NoopDialogs(),
                 sessionExpired, (owner, cashierClient, cashierNavigator, cashierKit, checkout,
-                        cashierExpired, terminal, closed) -> {
+                        cashierExpired, terminal, settled, closed) -> {
                     cashierSessionExpired.set(cashierExpired);
                     terminalPayment.set(terminal);
                     return new RecordingCashier(cashierDisposals, closed);

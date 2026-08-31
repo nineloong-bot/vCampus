@@ -26,11 +26,12 @@ public final class ShopToolbar extends JPanel {
         this.navigator = Objects.requireNonNull(navigator, "navigator");
         this.cartCount = Objects.requireNonNull(cartCount, "cartCount");
         Objects.requireNonNull(uiKit, "uiKit");
-        back = uiKit.secondaryButton("shop.back", "返回");
+        back = uiKit.secondaryButton("shop.back", "← 返回");
         cart = uiKit.secondaryButton("shop.cart", cartText(cartCount.totalQuantity()));
         my = uiKit.secondaryButton("shop.my", "我的");
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
-        actions.add(cart); actions.add(my);
+        JPanel actions = named(new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0)),
+                "shop.actions");
+        actions.add(my); actions.add(cart);
         add(back, BorderLayout.WEST); add(title, BorderLayout.CENTER); add(actions, BorderLayout.EAST);
         back.addActionListener(event -> navigator.back());
         cart.addActionListener(event -> navigator.open(new ShopRoute.Cart()));

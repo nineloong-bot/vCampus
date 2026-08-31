@@ -331,7 +331,8 @@ class PurchasePanelsTest {
     }
 
     @Test
-    void leavingCheckoutClosesCashierAndRejectsItsLaterTerminalPayment() throws Exception {
+    void acceptedPaymentSurvivesLeavingCheckoutAndRemovesCompletedCheckoutHistory()
+            throws Exception {
         ShopClientPort client = mock(ShopClientPort.class);
         RecordingCashierFactory factory = new RecordingCashierFactory();
         ShopNavigator navigator = new ShopNavigator(route -> { });
@@ -354,14 +355,16 @@ class PurchasePanelsTest {
         flushEdt();
         RecordingCashier cashier = factory.created.getFirst();
 
+        onEdt(cashier::beginPayment);
         onEdt(() -> component(toolbar, "shop.my", JButton.class).doClick());
-        assertThat(cashier.isClosed()).isTrue();
-        onEdt(() -> component(toolbar, "shop.back", JButton.class).doClick());
+        assertThat(cashier.isClosed()).isFalse();
         onEdt(() -> cashier.complete(payment(PaymentStatus.SUCCEEDED, PaymentChannel.ALIPAY)));
+        flushEdt();
 
-        assertThat(navigator.current()).contains(new ShopRoute.Checkout());
-        assertThat(navigator.history()).containsExactly(new ShopRoute.Home(
-                new HomeProductQuery(null, null, ProductSortMode.SALES_DESC, 0, 20)));
+        assertThat(navigator.current()).contains(new ShopRoute.PaymentResult(
+                payment(PaymentStatus.SUCCEEDED, PaymentChannel.ALIPAY)));
+        assertThat(navigator.history()).noneMatch(ShopRoute.Checkout.class::isInstance);
+        assertThat(cashier.isClosed()).isTrue();
     }
 
     @Test
@@ -370,7 +373,9 @@ class PurchasePanelsTest {
         RecordingCashierFactory factory = new RecordingCashierFactory();
         ShopNavigator navigator = new ShopNavigator(route -> { });
         CartCountModel count = new CartCountModel();
-        when(client.getCart()).thenReturn(CompletableFuture.completedFuture(ShopClientFixtures.cartView()));
+        when(client.getCart()).thenReturn(
+                CompletableFuture.completedFuture(ShopClientFixtures.cartView()),
+                CompletableFuture.completedFuture(emptyCart()));
         when(client.checkout(any())).thenReturn(
                 CompletableFuture.completedFuture(ShopClientFixtures.checkoutResult()));
         CheckoutPanel panel = onEdt(() -> new CheckoutPanel(client, navigator,
@@ -384,12 +389,79 @@ class PurchasePanelsTest {
         flushEdt();
         onEdt(panel::submit);
         flushEdt();
+        assertThat(count.totalQuantity()).isZero();
         PaymentView success = payment(PaymentStatus.SUCCEEDED, PaymentChannel.ALIPAY);
         onEdt(() -> factory.created.getFirst().complete(success));
+        flushEdt();
 
         assertThat(count.totalQuantity()).isZero();
         assertThat(navigator.current()).contains(new ShopRoute.PaymentResult(success));
         assertThat(navigator.history()).isEmpty();
+    }
+
+    @Test
+    void checkoutCountStaysEmptyAcrossFailedPendingCancelledAndClosedCashierOutcomes()
+            throws Exception {
+        ShopClientPort client = mock(ShopClientPort.class);
+        RecordingCashierFactory factory = new RecordingCashierFactory();
+        ShopNavigator navigator = new ShopNavigator(route -> { });
+        CartCountModel count = new CartCountModel();
+        when(client.getCart()).thenReturn(
+                CompletableFuture.completedFuture(ShopClientFixtures.cartView()),
+                CompletableFuture.completedFuture(emptyCart()));
+        when(client.checkout(any())).thenReturn(
+                CompletableFuture.completedFuture(ShopClientFixtures.checkoutResult()));
+        CheckoutPanel panel = onEdt(() -> new CheckoutPanel(client, navigator,
+                new RecordingKit(), new RecordingDialogs(), () -> { }, factory));
+        onEdt(() -> panel.setCartCountModel(count));
+
+        onEdt(() -> {
+            navigator.open(new ShopRoute.Checkout());
+            panel.load();
+        });
+        flushEdt();
+        onEdt(panel::submit);
+        flushEdt();
+        RecordingCashier cashier = factory.created.getFirst();
+        assertThat(count.totalQuantity()).isZero();
+
+        onEdt(cashier::failAttempt);
+        flushEdt();
+        assertThat(count.totalQuantity()).isZero();
+        onEdt(() -> cashier.resolve(payment(PaymentStatus.PENDING, null)));
+        flushEdt();
+        assertThat(navigator.current()).contains(new ShopRoute.Checkout());
+        assertThat(count.totalQuantity()).isZero();
+        PaymentView cancelled = payment(PaymentStatus.CANCELLED, null);
+        onEdt(() -> cashier.resolve(cancelled));
+        flushEdt();
+
+        assertThat(navigator.current()).contains(new ShopRoute.PaymentResult(cancelled));
+        assertThat(navigator.history()).noneMatch(ShopRoute.Checkout.class::isInstance);
+        assertThat(count.totalQuantity()).isZero();
+        verify(client, times(5)).getCart();
+
+        ShopClientPort closeClient = mock(ShopClientPort.class);
+        RecordingCashierFactory closeFactory = new RecordingCashierFactory();
+        CartCountModel closeCount = new CartCountModel();
+        when(closeClient.getCart()).thenReturn(
+                CompletableFuture.completedFuture(ShopClientFixtures.cartView()),
+                CompletableFuture.completedFuture(emptyCart()));
+        when(closeClient.checkout(any())).thenReturn(
+                CompletableFuture.completedFuture(ShopClientFixtures.checkoutResult()));
+        CheckoutPanel closePanel = onEdt(() -> new CheckoutPanel(closeClient,
+                new ShopNavigator(route -> { }), new RecordingKit(), new RecordingDialogs(),
+                () -> { }, closeFactory));
+        onEdt(() -> closePanel.setCartCountModel(closeCount));
+        onEdt(closePanel::load);
+        flushEdt();
+        onEdt(closePanel::submit);
+        flushEdt();
+        onEdt(closeFactory.created.getFirst()::close);
+        flushEdt();
+
+        assertThat(closeCount.totalQuantity()).isZero();
+        verify(closeClient, times(2)).getCart();
     }
 
     @Test
@@ -785,15 +857,16 @@ class PurchasePanelsTest {
                 ShopClientFixtures.checkoutResult(), () -> { }, lateClosed::incrementAndGet));
         onEdt(() -> paymentDispose.submit(PaymentChannel.WECHAT, PaymentAttemptStatus.SUCCEEDED));
         onEdt(paymentDispose::disposePage);
-        int stateCallsAtClose = paymentDisposeKit.stateCalls.size();
+        assertThat(paymentDispose.isClosed()).isFalse();
         Thread paymentWorker = new Thread(() -> pendingPayment.complete(
                 payment(PaymentStatus.SUCCEEDED, PaymentChannel.WECHAT)));
         paymentWorker.start();
         paymentWorker.join();
         flushEdt();
-        assertThat(lateRoutes).isEmpty();
+        assertThat(lateRoutes).containsExactly(new ShopRoute.PaymentResult(
+                payment(PaymentStatus.SUCCEEDED, PaymentChannel.WECHAT)));
         assertThat(lateClosed).hasValue(1);
-        assertThat(paymentDisposeKit.stateCalls).hasSize(stateCallsAtClose);
+        assertThat(paymentDispose.isClosed()).isTrue();
     }
 
     @Test
@@ -1067,6 +1140,10 @@ class PurchasePanelsTest {
         return new CartView("cart-authoritative", List.of(item), new BigDecimal("5.00"));
     }
 
+    private static CartView emptyCart() {
+        return new CartView("cart-empty", List.of(), BigDecimal.ZERO);
+    }
+
     private static final class RecordingDialogs implements ShopDialogs {
         private final List<String> errorCodes = new ArrayList<>();
         private String confirmationCode;
@@ -1117,9 +1194,9 @@ class PurchasePanelsTest {
         public CheckoutPanel.ActiveCashier create(java.awt.Window owner, ShopClientPort client,
                 ShopNavigator navigator, ShopUiKit uiKit, CheckoutResult checkout,
                 Runnable sessionExpired, java.util.function.Consumer<PaymentView> terminal,
-                Runnable closed) {
+                Runnable settled, Runnable closed) {
             RecordingCashier cashier = new RecordingCashier(owner, client, navigator, uiKit, checkout,
-                    sessionExpired, terminal, closed);
+                    sessionExpired, terminal, settled, closed);
             created.add(cashier);
             return cashier;
         }
@@ -1127,19 +1204,32 @@ class PurchasePanelsTest {
 
     private static final class RecordingCashier implements CheckoutPanel.ActiveCashier {
         private final Runnable closed;
+        private final Runnable settled;
         private final java.util.function.Consumer<PaymentView> terminal;
         private boolean closedState;
+        private boolean paymentInFlight;
 
         private RecordingCashier(java.awt.Window owner, ShopClientPort client, ShopNavigator navigator,
                 ShopUiKit uiKit, CheckoutResult checkout, Runnable sessionExpired,
-                java.util.function.Consumer<PaymentView> terminal, Runnable closed) {
+                java.util.function.Consumer<PaymentView> terminal, Runnable settled,
+                Runnable closed) {
             this.terminal = terminal;
+            this.settled = settled;
             this.closed = closed;
         }
         @Override public void open() { }
-        @Override public void disposePage() { close(); }
+        @Override public void disposePage() { if (!paymentInFlight) close(); }
         @Override public boolean isClosed() { return closedState; }
         void close() { if (!closedState) { closedState = true; closed.run(); } }
-        void complete(PaymentView payment) { terminal.accept(payment); }
+        void beginPayment() { paymentInFlight = true; }
+        void failAttempt() { paymentInFlight = false; settled.run(); }
+        void resolve(PaymentView payment) {
+            paymentInFlight = false;
+            settled.run();
+            if (payment.status() != PaymentStatus.PENDING) {
+                terminal.accept(payment);
+            }
+        }
+        void complete(PaymentView payment) { resolve(payment); }
     }
 }

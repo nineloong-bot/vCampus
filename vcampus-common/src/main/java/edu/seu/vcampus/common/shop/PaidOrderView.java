@@ -24,5 +24,11 @@ public record PaidOrderView(String orderId, String orderNumber, String shopId,
         if (status != OrderStatus.PAID) {
             throw new IllegalArgumentException("status must be PAID");
         }
+        BigDecimal expectedTotal = items.stream()
+                .map(PaidOrderItemView::lineAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (totalAmount.compareTo(expectedTotal) != 0) {
+            throw new IllegalArgumentException("totalAmount must equal the sum of item lineAmount values");
+        }
     }
 }

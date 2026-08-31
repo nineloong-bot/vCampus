@@ -19,10 +19,19 @@ import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.awt.GridLayout;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Objects;
 
 /** Read-only buyer identity and paid-order history. */
 public final class MyShopPanel extends JPanel {
+    private static final ZoneId DISPLAY_ZONE = ZoneId.of("Asia/Shanghai");
+    private static final DateTimeFormatter PAID_AT_FORMAT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(DISPLAY_ZONE);
+
     private final ShopClientPort client;
     private final ShopUiKit uiKit;
     private final Runnable sessionExpired;
@@ -61,11 +70,15 @@ public final class MyShopPanel extends JPanel {
     }
 
     private JPanel identity(UserView user) {
-        JPanel panel = uiKit.filterPanel("my.identity", new GridLayout(2, 4, 8, 4));
-        panel.add(named(new JLabel(user.userId()), "my.user-id"));
-        panel.add(named(new JLabel(user.loginId()), "my.login-id"));
-        panel.add(named(new JLabel(user.role().name()), "my.role"));
-        panel.add(named(new JLabel(user.accountStatus().name()), "my.account-status"));
+        JPanel panel = uiKit.filterPanel("my.identity", new GridLayout(4, 2, 8, 4));
+        addIdentity(panel, "my.user-id", "用户编号：", user.userId(),
+                "当前登录用户的编号");
+        addIdentity(panel, "my.login-id", "登录名：", user.loginId(),
+                "当前登录用户的登录名");
+        addIdentity(panel, "my.role", "角色：", user.role().name(),
+                "当前登录用户的角色");
+        addIdentity(panel, "my.account-status", "账户状态：", user.accountStatus().name(),
+                "当前登录用户的账户状态");
         return panel;
     }
 
@@ -107,7 +120,8 @@ public final class MyShopPanel extends JPanel {
 
     private JPanel order(PaidOrderView order) {
         String suffix = order.orderId();
-        JPanel card = uiKit.productCard("my.order." + suffix, new BorderLayout(4, 4));
+        JPanel card = uiKit.spacedProductCard("my.order." + suffix,
+                new BorderLayout(4, 4), 8);
         JPanel summary = uiKit.filterPanel("my.order.summary." + suffix,
                 new FlowLayout(FlowLayout.LEFT));
         summary.add(named(new JLabel(order.orderNumber()), "my.order.number." + suffix));
@@ -121,13 +135,13 @@ public final class MyShopPanel extends JPanel {
             details.add(named(new JLabel(
                     "商品 %s（%s） | SKU %s（%s） | 数量 %d | 单价 ¥%s | 行金额 ¥%s"
                     .formatted(item.productName(), item.productId(), item.skuName(), item.skuId(),
-                            item.quantity(), item.unitPrice().toPlainString(),
-                            item.lineAmount().toPlainString())),
+                            item.quantity(), money(item.unitPrice()),
+                            money(item.lineAmount()))),
                     "my.order.item." + suffix + "." + item.skuId()));
         }
-        details.add(named(new JLabel("总额 ¥" + order.totalAmount().toPlainString()),
+        details.add(named(new JLabel("总额 ¥" + money(order.totalAmount())),
                 "my.order.total." + suffix));
-        details.add(named(new JLabel("支付时间 " + order.paidAt()),
+        details.add(named(new JLabel("支付时间 " + paidAt(order.paidAt())),
                 "my.order.paid-at." + suffix));
         details.add(named(new JLabel("状态 " + order.status().name()),
                 "my.order.status." + suffix));
@@ -173,6 +187,25 @@ public final class MyShopPanel extends JPanel {
     private void refresh() {
         content.revalidate();
         content.repaint();
+    }
+
+    private static void addIdentity(JPanel panel, String name, String labelText,
+            String valueText, String description) {
+        JLabel value = named(new JLabel(valueText), name);
+        value.getAccessibleContext().setAccessibleName(labelText.replace("：", ""));
+        value.getAccessibleContext().setAccessibleDescription(description);
+        JLabel label = named(new JLabel(labelText), name + ".label");
+        label.setLabelFor(value);
+        panel.add(label);
+        panel.add(value);
+    }
+
+    private static String money(BigDecimal amount) {
+        return amount.setScale(2, RoundingMode.HALF_UP).toPlainString();
+    }
+
+    private static String paidAt(Instant instant) {
+        return PAID_AT_FORMAT.format(instant) + " " + DISPLAY_ZONE;
     }
 
     private static <T extends java.awt.Component> T named(T component, String name) {

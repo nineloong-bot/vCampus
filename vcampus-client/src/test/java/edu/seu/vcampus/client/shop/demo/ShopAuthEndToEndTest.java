@@ -189,6 +189,7 @@ class ShopAuthEndToEndTest {
             var oldest = buyerHistory.orders().get(1);
             assertThat(oldest.orderNumber()).isEqualTo("DEMO-B-PAID-001");
             assertThat(oldest.shopId()).isEqualTo("demo-shop-stationery");
+            assertThat(oldest.shopName()).isEqualTo("校园文具店");
             assertThat(oldest.totalAmount()).isEqualByComparingTo("6.70");
             assertThat(oldest.paidAt())
                     .isEqualTo(Instant.parse("2026-08-25T08:05:00Z"));

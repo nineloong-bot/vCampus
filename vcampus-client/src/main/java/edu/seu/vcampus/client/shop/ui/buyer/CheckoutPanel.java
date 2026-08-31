@@ -38,6 +38,7 @@ public final class CheckoutPanel extends JPanel {
     private final CashierFactory cashierFactory;
     private final LatestRequest loads = new LatestRequest();
     private final LatestRequest submissions = new LatestRequest();
+    private final LatestRequest cartRefreshes = new LatestRequest();
     private final JPanel content = new JPanel(new BorderLayout());
     private CartCountModel cartCount = new CartCountModel();
     private CartView cart;
@@ -53,9 +54,9 @@ public final class CheckoutPanel extends JPanel {
             ShopDialogs dialogs, Runnable sessionExpired) {
         this(client, navigator, uiKit, dialogs, sessionExpired,
                 (owner, cashierClient, cashierNavigator, cashierKit, checkout,
-                        cashierExpired, terminal, closed) -> new SimulatedCashierDialog(owner,
+                        cashierExpired, terminal, settled, closed) -> new SimulatedCashierDialog(owner,
                         cashierClient, cashierNavigator, cashierKit, checkout, cashierExpired,
-                        terminal, closed));
+                        terminal, settled, closed));
     }
 
     CheckoutPanel(ShopClientPort client, ShopNavigator navigator, ShopUiKit uiKit,
@@ -97,7 +98,7 @@ public final class CheckoutPanel extends JPanel {
     public void disposePage() {
         if (disposed) return;
         disposed = true;
-        loads.dispose(); submissions.dispose();
+        loads.dispose(); submissions.dispose(); cartRefreshes.dispose();
         if (cashier != null) cashier.disposePage();
         cashier = null;
     }
@@ -136,6 +137,7 @@ public final class CheckoutPanel extends JPanel {
             checkoutInFlight = false;
             if (failure == null) {
                 checkout = result;
+                cartCount.clear();
                 showCheckout(ShopPageState.NORMAL, "");
                 openCashier(result);
                 return;
@@ -156,11 +158,11 @@ public final class CheckoutPanel extends JPanel {
     private boolean activeCashier() { return cashier != null && !cashier.isClosed(); }
     private void openCashier(CheckoutResult result) {
         if (disposed || activeCashier()) return;
-        long checkoutLoad = activeLoad;
         ActiveCashier[] holder = new ActiveCashier[1];
         Runnable closed = () -> {
             if (cashier == holder[0]) {
                 cashier = null;
+                refreshCartCount();
                 if (!disposed && cart != null
                         && navigator.current().orElse(null) instanceof ShopRoute.Checkout) {
                     showCheckout(ShopPageState.NORMAL, "");
@@ -169,16 +171,11 @@ public final class CheckoutPanel extends JPanel {
         };
         Consumer<PaymentView> terminal = payment -> {
             if (disposed || cashier != holder[0] || holder[0].isClosed()
-                    || activeLoad != checkoutLoad
-                    || !(navigator.current().orElse(null) instanceof ShopRoute.Checkout)) return;
-            if (payment.status() == PaymentStatus.SUCCEEDED) {
-                long cartRevision = cartCount.beginUpdate();
-                cartCount.clear(cartRevision);
-            }
-            navigator.replaceCurrent(new ShopRoute.PaymentResult(payment));
+                    || payment.status() == PaymentStatus.PENDING) return;
+            navigator.completeCheckout(new ShopRoute.PaymentResult(payment));
         };
         holder[0] = cashierFactory.create(SwingUtilities.getWindowAncestor(this), client, navigator,
-                uiKit, result, sessionExpired, terminal, closed);
+                uiKit, result, sessionExpired, terminal, this::refreshCartCount, closed);
         cashier = holder[0];
         showCheckout(ShopPageState.NORMAL, "");
         if (isShowing()) cashier.open();
@@ -207,7 +204,7 @@ public final class CheckoutPanel extends JPanel {
     private void disconnect(String code) {
         if (disconnected) return;
         disconnected = true; checkoutInFlight = false;
-        loads.dispose(); submissions.dispose();
+        loads.dispose(); submissions.dispose(); cartRefreshes.dispose();
         showState(ShopPageState.DISCONNECTED, code, null); sessionExpired.run();
     }
 
@@ -218,8 +215,34 @@ public final class CheckoutPanel extends JPanel {
         cartCount.cancel(loadCartRevision);
         loadCartRevision = 0;
         checkoutInFlight = false;
-        if (cashier != null) cashier.disposePage();
-        cashier = null;
+        ActiveCashier active = cashier;
+        if (active != null) {
+            active.disposePage();
+            if (active.isClosed() && cashier == active) {
+                cashier = null;
+            }
+        }
+    }
+
+    private void refreshCartCount() {
+        if (disposed || disconnected) return;
+        long request = cartRefreshes.begin();
+        long cartRevision = cartCount.beginUpdate();
+        java.util.concurrent.CompletableFuture<CartView> response = client.getCart();
+        if (response == null) {
+            cartCount.cancel(cartRevision);
+            return;
+        }
+        response.whenComplete((result, failure) -> SwingUtilities.invokeLater(() -> {
+            if (disposed || !cartRefreshes.accepts(request)) return;
+            if (failure == null) {
+                cartCount.update(cartRevision, result);
+            } else {
+                cartCount.cancel(cartRevision);
+                String code = ShopUiErrors.code(failure);
+                if (ShopUiErrors.sessionExpired(code)) disconnect(code);
+            }
+        }));
     }
     private void showState(ShopPageState state, String message, Runnable retry) {
         content.removeAll(); content.add(uiKit.stateView("checkout.state", state, message, retry), BorderLayout.CENTER); refresh();
@@ -229,7 +252,7 @@ public final class CheckoutPanel extends JPanel {
     @FunctionalInterface interface CashierFactory {
         ActiveCashier create(Window owner, ShopClientPort client, ShopNavigator navigator, ShopUiKit uiKit,
                 CheckoutResult checkout, Runnable sessionExpired, Consumer<PaymentView> terminal,
-                Runnable closed);
+                Runnable settled, Runnable closed);
     }
     interface ActiveCashier {
         void open();

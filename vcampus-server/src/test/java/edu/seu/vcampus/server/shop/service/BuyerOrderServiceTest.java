@@ -64,6 +64,16 @@ class BuyerOrderServiceTest {
                 "O-NO-PAID-AT", "shop-1", "2.50", "PAID", null);
         seedItem("item-no-paid-at", "order-no-paid-at", "sku-1", "异常商品", "异常规格",
                 "文具店快照", "2.50", 1, "2.50");
+        seedOrder("group-paid-order-pending", "student-1", "PAID",
+                "order-status-pending", "O-ORDER-PENDING", "shop-1", "2.50",
+                "PENDING_PAYMENT", late.plusSeconds(120));
+        seedItem("item-status-pending", "order-status-pending", "sku-1",
+                "订单待支付商品", "订单待支付规格", "文具店快照", "2.50", 1, "2.50");
+        seedOrder("group-status-pending", "student-1", "PENDING_PAYMENT",
+                "order-paid", "O-GROUP-PENDING", "shop-1", "2.50",
+                "PAID", late.plusSeconds(180));
+        seedItem("item-group-pending", "order-paid", "sku-1",
+                "订单组待支付商品", "订单组待支付规格", "文具店快照", "2.50", 1, "2.50");
 
         var history = service.getPaidOrders("student-1");
 

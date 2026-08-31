@@ -16,6 +16,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ShopServiceTest {
     private ShopTestDatabase database;
@@ -52,6 +53,19 @@ class ShopServiceTest {
         assertThat(service.getHomeProducts(query).items())
                 .extracting(ProductSummary::productId)
                 .containsExactly("popular-product", "service-product");
+    }
+
+    @Test
+    void rejectsCatalogPagesThatExceedTheShopPagingSafetyBounds() {
+        assertThatThrownBy(() -> service.searchProducts(new ProductSearchQuery(
+                null, null, null, null, ProductSortMode.SALES_DESC, 0, 101)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("pageSize");
+        assertThatThrownBy(() -> service.searchProducts(new ProductSearchQuery(
+                null, null, null, null, ProductSortMode.SALES_DESC,
+                Integer.MAX_VALUE, 20)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("page offset");
     }
 
     private void seedCatalog() {

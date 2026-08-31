@@ -32,6 +32,8 @@ import java.util.Optional;
 
 /** JDBC repository for the Access shop tables. */
 public final class AccessShopRepository implements ShopRepository {
+    private static final int MAX_CATALOG_PAGE_SIZE = 100;
+    private static final long MAX_CATALOG_PAGE_OFFSET = 10_000_000L;
     @Override
     public Optional<SellerApplication> findApplicationById(
             Connection connection, String applicationId) throws Exception {
@@ -382,8 +384,8 @@ public final class AccessShopRepository implements ShopRepository {
         }
         ProductSortMode sort = query.sortMode() == null ? ProductSortMode.SALES_DESC : query.sortMode();
         sql.append(sort == ProductSortMode.PRICE_DESC
-                ? " ORDER BY MIN(k.unitPrice) DESC, p.createdAt DESC"
-                : " ORDER BY p.salesCount DESC, p.createdAt DESC");
+                ? " ORDER BY MIN(k.unitPrice) DESC, p.createdAt DESC, p.productId"
+                : " ORDER BY p.salesCount DESC, p.createdAt DESC, p.productId");
         List<ProductSummary> all = new ArrayList<>();
         try (PreparedStatement statement = connection.prepareStatement(sql.toString())) {
             for (int index = 0; index < values.size(); index++) {
@@ -404,9 +406,26 @@ public final class AccessShopRepository implements ShopRepository {
                 }
             }
         }
-        int from = Math.min(query.pageNumber() * query.pageSize(), all.size());
-        int to = Math.min(from + query.pageSize(), all.size());
+        long offset = validateCatalogPage(query.pageNumber(), query.pageSize());
+        int from = (int) Math.min(offset, (long) all.size());
+        int to = (int) Math.min(offset + (long) query.pageSize(), (long) all.size());
         return new PageResult<>(all.subList(from, to), query.pageNumber(), query.pageSize(), all.size());
+    }
+
+    private static long validateCatalogPage(int pageNumber, int pageSize) {
+        if (pageNumber < 0) {
+            throw new IllegalArgumentException("pageNumber must not be negative");
+        }
+        if (pageSize < 1 || pageSize > MAX_CATALOG_PAGE_SIZE) {
+            throw new IllegalArgumentException(
+                    "pageSize must be between 1 and " + MAX_CATALOG_PAGE_SIZE);
+        }
+        long offset = (long) pageNumber * (long) pageSize;
+        if (offset > MAX_CATALOG_PAGE_OFFSET) {
+            throw new IllegalArgumentException(
+                    "page offset must not exceed " + MAX_CATALOG_PAGE_OFFSET);
+        }
+        return offset;
     }
 
     @Override

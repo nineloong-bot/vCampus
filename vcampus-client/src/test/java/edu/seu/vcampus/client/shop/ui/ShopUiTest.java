@@ -142,6 +142,14 @@ class ShopUiTest {
         onEdt(panel::load);
         flushEdt();
 
+        assertThat(component(panel, "my.user-id.label", JLabel.class).getText())
+                .isEqualTo("用户编号：");
+        assertThat(component(panel, "my.login-id.label", JLabel.class).getText())
+                .isEqualTo("登录名：");
+        assertThat(component(panel, "my.role.label", JLabel.class).getText())
+                .isEqualTo("角色：");
+        assertThat(component(panel, "my.account-status.label", JLabel.class).getText())
+                .isEqualTo("账户状态：");
         assertThat(component(panel, "my.user-id", JLabel.class).getText())
                 .isEqualTo("buyer-7");
         assertThat(component(panel, "my.login-id", JLabel.class).getText())
@@ -150,6 +158,12 @@ class ShopUiTest {
                 .isEqualTo("STUDENT");
         assertThat(component(panel, "my.account-status", JLabel.class).getText())
                 .isEqualTo("ACTIVE");
+        for (String name : List.of("my.user-id", "my.login-id", "my.role",
+                "my.account-status")) {
+            JLabel value = component(panel, name, JLabel.class);
+            assertThat(value.getAccessibleContext().getAccessibleName()).isNotBlank();
+            assertThat(value.getAccessibleContext().getAccessibleDescription()).isNotBlank();
+        }
         JPanel orders = component(panel, "my.orders", JPanel.class);
         assertThat(Arrays.asList(orders.getComponents()))
                 .extracting(Component::getName)
@@ -163,11 +177,15 @@ class ShopUiTest {
                 .contains("product-new", "签字笔", "sku-new", "黑色",
                         "2", "3.00", "6.00");
         assertThat(component(panel, "my.order.total.order-new", JLabel.class).getText())
-                .contains("6.00");
+                .isEqualTo("总额 ¥6.00");
         assertThat(component(panel, "my.order.paid-at.order-new", JLabel.class).getText())
-                .contains("2026-08-30T02:00:00Z");
+                .isEqualTo("支付时间 2026-08-30 10:00:00 Asia/Shanghai");
         assertThat(component(panel, "my.order.status.order-new", JLabel.class).getText())
                 .contains("PAID");
+        JPanel newestCard = component(panel, "my.order.order-new", JPanel.class);
+        assertThat(newestCard.getBorder()).isNotNull();
+        assertThat(newestCard.getBorder().getBorderInsets(newestCard).bottom)
+                .isGreaterThanOrEqualTo(8);
     }
 
     @Test
@@ -328,11 +346,39 @@ class ShopUiTest {
     }
 
     @Test
+    void coordinatorOrdersReceiptButtonLoadsMyOrdersAndClearsHistory() throws Exception {
+        PaidOrdersCountingClient client = new PaidOrdersCountingClient();
+        ShopModulePanel content = onEdt(ShopModulePanel::new);
+        ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(
+                content, buyer(), client, new DefaultShopUiKit(), () -> { }));
+
+        onEdt(() -> {
+            coordinator.navigator().open(new ShopRoute.Home(defaultHome()));
+            coordinator.navigator().open(new ShopRoute.Checkout());
+            coordinator.navigator().replaceCurrent(new ShopRoute.PaymentResult(payment()));
+            component(content, "payment-result.orders", JButton.class).doClick();
+        });
+        flushEdt();
+
+        assertThat(client.paidOrderLoads).isEqualTo(1);
+        assertThat(coordinator.navigator().current()).contains(new ShopRoute.My());
+        assertThat(coordinator.navigator().history()).isEmpty();
+        assertVisible(content, "shop.my");
+        assertThat(component(content, "my.order.order-new", JPanel.class).isVisible()).isTrue();
+        onEdt(coordinator::dispose);
+    }
+
+    @Test
     void toolbarReflectsEveryRouteAndUsesTheAuthoritativeQuantitySum() throws Exception {
         ShopNavigator navigator = new ShopNavigator(route -> { });
         CartCountModel cartCount = new CartCountModel();
         ShopToolbar toolbar = onEdt(() -> new ShopToolbar(
                 navigator, cartCount, new DefaultShopUiKit()));
+        assertThat(component(toolbar, "shop.back", JButton.class).getText())
+                .isEqualTo("← 返回");
+        assertThat(Arrays.stream(component(toolbar, "shop.actions", JPanel.class)
+                .getComponents()).map(Component::getName).toList())
+                .containsExactly("shop.my", "shop.cart");
         List<ShopRoute> routes = List.of(
                 new ShopRoute.Home(defaultHome()),
                 new ShopRoute.Search(defaultSearch()),
@@ -587,6 +633,25 @@ class ShopUiTest {
     }
 
     @Test
+    void laterShopEntryRetriesAnInitialCartCountSyncFailure() throws Exception {
+        RetryingCartSyncClient client = new RetryingCartSyncClient();
+        ShopModulePanel content = onEdt(ShopModulePanel::new);
+        ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(
+                content, buyer(), client, new DefaultShopUiKit(), () -> { }));
+
+        onEdt(coordinator::enter);
+        flushEdt();
+        assertThat(component(content, "shop.cart", JButton.class).getText())
+                .isEqualTo("购物车（0）");
+        onEdt(coordinator::enter);
+        flushEdt();
+
+        assertThat(client.cartLoads).isEqualTo(2);
+        assertThat(component(content, "shop.cart", JButton.class).getText())
+                .isEqualTo("购物车（5）");
+    }
+
+    @Test
     void olderCartLoadCannotOverwriteACompletedNewerAddToCartTotal() throws Exception {
         CartRaceClient client = new CartRaceClient();
         CartCountModel count = new CartCountModel();
@@ -767,7 +832,7 @@ class ShopUiTest {
 
         onEdt(() -> coordinator.navigator().open(new ShopRoute.Search(search)));
         onEdt(() -> coordinator.navigator().open(new ShopRoute.Search(search)));
-        assertThat(client.searchQueries).containsExactly(search);
+        assertThat(client.searchQueries).containsExactly(search, search);
         assertThat(coordinator.navigator().history()).containsExactly(new ShopRoute.Home(home));
         assertVisible(content, "shop.search");
         assertFixedCards(cardHost, fixedCards);
@@ -852,6 +917,14 @@ class ShopUiTest {
         int navigationCount = frame.navigation().getComponentCount();
 
         onEdt(() -> ShopUiInstaller.install(frame, buyer(), client, uiKit, () -> { }));
+        Container placeholder = component(frame.content(), "page.shop", Container.class);
+        assertThat(Arrays.asList(placeholder.getComponents()))
+                .singleElement()
+                .isInstanceOf(ShopModulePanel.class);
+        assertThat(namedComponents(placeholder, "page.breadcrumb")).isEmpty();
+        assertThat(namedComponents(placeholder, "page.title")).isEmpty();
+        assertThat(namedComponents(placeholder, "page.description")).isEmpty();
+        assertThat(namedComponents(placeholder, "page.status")).isEmpty();
         AbstractButton shop = component(frame.navigation(), "navigation.shop", AbstractButton.class);
         onEdt(() -> shop.doClick());
         flushEdt();
@@ -904,6 +977,18 @@ class ShopUiTest {
         assertThatThrownBy(() -> onEdt(() -> ShopUiInstaller.install(ambiguousPage,
                 buyer(), new RecordingClient(), new DefaultShopUiKit(), () -> { })))
                 .hasCauseInstanceOf(IllegalStateException.class);
+
+        MainFrame failedCreation = onEdt((Callable<MainFrame>) MainFrame::new);
+        Container untouched = component(failedCreation.content(), "page.shop", Container.class);
+        List<Component> originalPlaceholderChildren = List.copyOf(
+                Arrays.asList(untouched.getComponents()));
+        assertThatThrownBy(() -> onEdt(() -> ShopUiInstaller.install(failedCreation,
+                buyer(), new RecordingClient(), new DefaultShopUiKit(), () -> { },
+                (module, user, client, uiKit, sessionExpired) -> {
+                    throw new IllegalStateException("coordinator creation failed");
+                }))).hasCauseInstanceOf(IllegalStateException.class);
+        assertThat(Arrays.asList(untouched.getComponents()))
+                .containsExactlyElementsOf(originalPlaceholderChildren);
     }
 
     @Test
@@ -922,6 +1007,23 @@ class ShopUiTest {
 
         assertThat(coordinator.disposals).hasValue(1);
         onEdt(frame::dispose);
+    }
+
+    @Test
+    void installerProgrammaticWindowDisposeAlsoReleasesTheCoordinatorOnce() throws Exception {
+        assumeFalse(GraphicsEnvironment.isHeadless());
+        MainFrame frame = onEdt((Callable<MainFrame>) MainFrame::new);
+        RecordingInstalledCoordinator coordinator = new RecordingInstalledCoordinator();
+
+        onEdt(() -> ShopUiInstaller.install(frame, buyer(), new RecordingClient(),
+                new DefaultShopUiKit(), () -> { },
+                (module, user, client, uiKit, sessionExpired) -> coordinator));
+        assertThat(frame.isDisplayable()).isFalse();
+        onEdt(frame::addNotify);
+        onEdt(frame::dispose);
+        flushEdt();
+
+        assertThat(coordinator.disposals).hasValue(1);
     }
 
     @Test
@@ -1003,16 +1105,16 @@ class ShopUiTest {
     private static PaidOrderHistory paidOrders() {
         PaidOrderView newest = new PaidOrderView(
                 "order-new", "O-NEW", "shop-1", "校园文具店",
-                new BigDecimal("6.00"), Instant.parse("2026-08-30T02:00:00Z"),
+                new BigDecimal("6"), Instant.parse("2026-08-30T02:00:00Z"),
                 OrderStatus.PAID, List.of(new PaidOrderItemView(
                         "product-new", "签字笔", "sku-new", "黑色", 2,
-                        new BigDecimal("3.00"), new BigDecimal("6.00"))));
+                        new BigDecimal("3"), new BigDecimal("6"))));
         PaidOrderView older = new PaidOrderView(
                 "order-old", "O-OLD", "shop-2", "校园书店",
-                new BigDecimal("12.00"), Instant.parse("2026-08-29T02:00:00Z"),
+                new BigDecimal("12"), Instant.parse("2026-08-29T02:00:00Z"),
                 OrderStatus.PAID, List.of(new PaidOrderItemView(
                         "product-old", "习题册", "sku-old", "高数", 1,
-                        new BigDecimal("12.00"), new BigDecimal("12.00"))));
+                        new BigDecimal("12"), new BigDecimal("12"))));
         return new PaidOrderHistory(List.of(newest, older));
     }
 
@@ -1341,6 +1443,28 @@ class ShopUiTest {
         @Override public CompletableFuture<CartView> removeCartItem(String cartItemId) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<CheckoutResult> checkout(CheckoutCommand command) { return new CompletableFuture<>(); }
         @Override public CompletableFuture<PaymentView> simulatePayment(SimulatePaymentCommand command) { return new CompletableFuture<>(); }
+    }
+
+    private static final class RetryingCartSyncClient extends RecordingClient {
+        private int cartLoads;
+
+        @Override public CompletableFuture<CartView> getCart() {
+            cartLoads++;
+            if (cartLoads == 1) {
+                return CompletableFuture.failedFuture(
+                        new IllegalStateException("SHOP_UNAVAILABLE"));
+            }
+            return CompletableFuture.completedFuture(cartWithQuantities(2, 3));
+        }
+    }
+
+    private static final class PaidOrdersCountingClient extends RecordingClient {
+        private int paidOrderLoads;
+
+        @Override public CompletableFuture<PaidOrderHistory> getPaidOrders() {
+            paidOrderLoads++;
+            return CompletableFuture.completedFuture(paidOrders());
+        }
     }
 
     private static final class ScrollRaceClient implements ShopClientPort {

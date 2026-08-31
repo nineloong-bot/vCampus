@@ -35,6 +35,7 @@ public final class SimulatedCashierDialog extends JDialog implements CheckoutPan
     private final CheckoutResult checkout;
     private final Runnable sessionExpired;
     private final Runnable closed;
+    private final Runnable settled;
     private final Consumer<PaymentView> terminal;
     private final LatestRequest submissions = new LatestRequest();
     private final JPanel content = new JPanel(new BorderLayout());
@@ -49,18 +50,20 @@ public final class SimulatedCashierDialog extends JDialog implements CheckoutPan
     public SimulatedCashierDialog(Window owner, ShopClientPort client, ShopNavigator navigator,
             ShopUiKit uiKit, CheckoutResult checkout, Runnable sessionExpired) {
         this(owner, client, navigator, uiKit, checkout, sessionExpired,
-                payment -> navigator.replaceCurrent(new ShopRoute.PaymentResult(payment)), () -> { });
+                payment -> navigator.replaceCurrent(new ShopRoute.PaymentResult(payment)),
+                () -> { }, () -> { });
     }
 
     SimulatedCashierDialog(Window owner, ShopClientPort client, ShopNavigator navigator,
             ShopUiKit uiKit, CheckoutResult checkout, Runnable sessionExpired, Runnable closed) {
         this(owner, client, navigator, uiKit, checkout, sessionExpired,
-                payment -> navigator.replaceCurrent(new ShopRoute.PaymentResult(payment)), closed);
+                payment -> navigator.replaceCurrent(new ShopRoute.PaymentResult(payment)),
+                () -> { }, closed);
     }
 
     SimulatedCashierDialog(Window owner, ShopClientPort client, ShopNavigator navigator,
             ShopUiKit uiKit, CheckoutResult checkout, Runnable sessionExpired,
-            Consumer<PaymentView> terminal, Runnable closed) {
+            Consumer<PaymentView> terminal, Runnable settled, Runnable closed) {
         super(owner, "模拟收银台", ModalityType.MODELESS);
         this.client = Objects.requireNonNull(client, "client");
         this.navigator = Objects.requireNonNull(navigator, "navigator");
@@ -68,6 +71,7 @@ public final class SimulatedCashierDialog extends JDialog implements CheckoutPan
         this.checkout = Objects.requireNonNull(checkout, "checkout");
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
         this.terminal = Objects.requireNonNull(terminal, "terminal");
+        this.settled = Objects.requireNonNull(settled, "settled");
         this.closed = Objects.requireNonNull(closed, "closed");
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         add(content); showCashier(ShopPageState.INITIAL, ""); pack();
@@ -90,7 +94,7 @@ public final class SimulatedCashierDialog extends JDialog implements CheckoutPan
 
     @Override
     public void dispose() {
-        if (disposed) return;
+        if (disposed || busy) return;
         disposed = true;
         submissions.dispose();
         super.dispose();
@@ -102,6 +106,7 @@ public final class SimulatedCashierDialog extends JDialog implements CheckoutPan
             if (!submissions.accepts(request)) return;
             busy = false;
             initiatingAttempt = null;
+            settled.run();
             if (failure != null) {
                 String code = ShopUiErrors.code(failure);
                 if (ShopUiErrors.sessionExpired(code)) disconnect(code);

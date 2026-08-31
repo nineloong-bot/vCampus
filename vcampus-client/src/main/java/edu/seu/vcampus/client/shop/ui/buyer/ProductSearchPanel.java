@@ -14,6 +14,7 @@ import edu.seu.vcampus.common.shop.ProductSummary;
 
 import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.JScrollPane;
@@ -33,9 +34,10 @@ public final class ProductSearchPanel extends JPanel {
     private final Runnable sessionExpired;
     private final LatestRequest latest = new LatestRequest();
     private final ProductCardsPanel cards;
+    private final ShopPaginationPanel pagination;
     private final JPanel content = new JPanel(new BorderLayout());
     private final JScrollPane scroll = named(new JScrollPane(content), "search.scroll");
-    private final JTextField keyword = named(new JTextField(10), "keyword");
+    private final JTextField keyword = new ShopSearchField(18, "keyword");
     private final JComboBox<String> category = named(new JComboBox<>(new String[] {
             "全部", "文具", "图书", "生活用品", "药品"
     }), "category");
@@ -55,13 +57,21 @@ public final class ProductSearchPanel extends JPanel {
         this.uiKit = Objects.requireNonNull(uiKit, "uiKit");
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
         this.cards = new ProductCardsPanel(navigator, uiKit);
+        this.pagination = new ShopPaginationPanel("search", uiKit);
         navigator.addListener(route -> {
             if (!(route instanceof ShopRoute.Search)) latest.begin();
         });
         this.searchButton = uiKit.primaryButton("search", "搜索");
         this.filterToggle = uiKit.secondaryButton("search.filters.toggle", "筛选");
         this.filters = uiKit.filterPanel("search.filters", new FlowLayout(FlowLayout.LEFT));
-        filters.add(category); filters.add(minPrice); filters.add(maxPrice); filters.add(sort);
+        filters.add(label("分类", "search.category.label", category));
+        filters.add(category);
+        filters.add(label("最低价", "search.min-price.label", minPrice));
+        filters.add(minPrice);
+        filters.add(label("最高价", "search.max-price.label", maxPrice));
+        filters.add(maxPrice);
+        filters.add(label("排序方式", "search.sort.label", sort));
+        filters.add(sort);
         searchButton.addActionListener(event -> submit());
         filterToggle.addActionListener(event -> filters.setVisible(!filters.isVisible()));
         JPanel primary = uiKit.filterPanel("search.primary", new FlowLayout(FlowLayout.LEFT));
@@ -104,10 +114,14 @@ public final class ProductSearchPanel extends JPanel {
 
     private void submit() {
         try {
+            int pageSize = navigator.current().orElse(null) instanceof ShopRoute.Search current
+                    ? current.state().query().pageSize()
+                    : 20;
             ProductSearchQuery query = new ProductSearchQuery(value(keyword), category(),
-                    decimal(minPrice), decimal(maxPrice), (ProductSortMode) sort.getSelectedItem(), 0, 20);
+                    decimal(minPrice), decimal(maxPrice), (ProductSortMode) sort.getSelectedItem(),
+                    0, pageSize);
             SearchViewState state = new SearchViewState(
-                    query, searched, filters.isVisible(), scroll.getVerticalScrollBar().getValue());
+                    query, searched, filters.isVisible(), 0);
             if (navigator.current().orElse(null) instanceof ShopRoute.Search) {
                 navigator.replaceCurrent(new ShopRoute.Search(state));
             } else {
@@ -129,12 +143,17 @@ public final class ProductSearchPanel extends JPanel {
                 filterToggle.setVisible(true);
                 if (result.items().isEmpty()) {
                     showState(ShopPageState.EMPTY, "暂无商品", () -> search(state));
+                    pagination.showPage(result, page -> openPage(state, page));
+                    content.add(pagination, BorderLayout.SOUTH);
+                    refresh();
                 } else {
                     cards.showProducts(result.items());
                     content.removeAll();
                     JPanel normal = uiKit.filterPanel("search.normal", new BorderLayout());
                     normal.add(uiKit.stateView("search.state", ShopPageState.NORMAL, "", null), BorderLayout.NORTH);
                     normal.add(cards, BorderLayout.CENTER);
+                    pagination.showPage(result, page -> openPage(state, page));
+                    normal.add(pagination, BorderLayout.SOUTH);
                     content.add(normal, BorderLayout.CENTER);
                     refresh();
                 }
@@ -145,6 +164,14 @@ public final class ProductSearchPanel extends JPanel {
                 }
             });
         });
+    }
+
+    private void openPage(SearchViewState state, int page) {
+        ProductSearchQuery query = state.query();
+        ProductSearchQuery paged = new ProductSearchQuery(query.keyword(), query.category(),
+                query.minPrice(), query.maxPrice(), query.sortMode(), page, query.pageSize());
+        navigator.replaceCurrent(new ShopRoute.Search(new SearchViewState(
+                paged, true, filters.isVisible(), 0)));
     }
 
     private void restoreFilters(SearchViewState state) {
@@ -181,6 +208,11 @@ public final class ProductSearchPanel extends JPanel {
         Throwable cause = failure;
         while (cause.getCause() != null) cause = cause.getCause();
         return cause.getMessage() == null ? "COMMON_INTERNAL_ERROR" : cause.getMessage();
+    }
+    private static JLabel label(String text, String name, Component target) {
+        JLabel label = named(new JLabel(text), name);
+        label.setLabelFor(target);
+        return label;
     }
     private static <T extends Component> T named(T component, String name) { component.setName(name); return component; }
 }

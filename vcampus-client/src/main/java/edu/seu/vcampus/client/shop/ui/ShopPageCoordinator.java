@@ -45,7 +45,6 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
     private final PageSet pages;
     private final ShopNavigator navigator;
     private final CartCountModel cartCount = new CartCountModel();
-    private boolean initialCartSyncStarted;
     private boolean disposed;
 
     /** Creates and registers every stable Shop page. This must run on the EDT. */
@@ -94,12 +93,9 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         if (disposed) {
             return;
         }
+        pages.syncCartCount();
         ShopRoute current = navigator.current().orElse(null);
         if (current == null) {
-            if (!initialCartSyncStarted) {
-                initialCartSyncStarted = true;
-                pages.syncCartCount();
-            }
             navigator.open(new ShopRoute.Home(defaultHome()));
             return;
         }
@@ -287,6 +283,8 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         private final ShopClientPort client;
         private final Runnable cartSessionExpired;
         private final LatestRequest cartSync = new LatestRequest();
+        private boolean cartSyncInFlight;
+        private boolean cartCountSynchronized;
 
         private BuyerPageSet(UserView user, ShopClientPort client, ShopNavigator navigator,
                 CartCountModel cartCount,
@@ -336,12 +334,17 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         }
         @Override public void loadMy() { my.load(); }
         @Override public void syncCartCount() {
+            if (cartCountSynchronized || cartSyncInFlight) return;
+            cartSyncInFlight = true;
             long request = cartSync.begin();
             long updateRevision = cartCount.beginUpdate();
             CompletableFuture<CartView> response = client.getCart();
             if (response != null) {
                 response.whenComplete((result, failure) -> finishCartSync(
                         request, updateRevision, result, failure));
+            } else {
+                cartSyncInFlight = false;
+                cartCount.cancel(updateRevision);
             }
         }
         @Override public HomeViewState captureHome(HomeViewState state) { return home.capture(state); }
@@ -351,6 +354,7 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         }
         @Override public void dispose() {
             cartSync.dispose();
+            cartSyncInFlight = false;
             home.dispose();
             search.dispose();
             product.dispose();
@@ -364,7 +368,9 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
                 Throwable failure) {
             SwingUtilities.invokeLater(() -> {
                 if (!cartSync.accepts(request)) return;
+                cartSyncInFlight = false;
                 if (failure == null) {
+                    cartCountSynchronized = true;
                     cartCount.update(updateRevision, result);
                 } else if (ShopUiErrors.sessionExpired(ShopUiErrors.code(failure))) {
                     cartSessionExpired.run();

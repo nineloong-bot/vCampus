@@ -23,15 +23,14 @@ public final class ShopNavigator {
 
     public void open(ShopRoute route) {
         Objects.requireNonNull(route, "route");
-        if (route.equals(current)) {
-            return;
-        }
         if (current != null) {
+            boolean sameRoute = route.equals(current);
             current = Objects.requireNonNull(host.capture(current), "captured route");
-            history.addLast(current);
-            if (history.size() > MAX_HISTORY) {
-                history.removeFirst();
+            if (sameRoute) {
+                publish();
+                return;
             }
+            addHistory(current);
         }
         current = route;
         publish();
@@ -62,6 +61,21 @@ public final class ShopNavigator {
         publish();
     }
 
+    /** Publishes a receipt while removing every completed checkout route from history. */
+    public void completeCheckout(ShopRoute.PaymentResult receipt) {
+        Objects.requireNonNull(receipt, "receipt");
+        ShopRoute captured = current == null
+                ? null
+                : Objects.requireNonNull(host.capture(current), "captured route");
+        history.removeIf(ShopRoute.Checkout.class::isInstance);
+        if (captured != null && !(captured instanceof ShopRoute.Checkout)
+                && !captured.equals(receipt)) {
+            addHistory(captured);
+        }
+        current = receipt;
+        publish();
+    }
+
     public void renderCurrent() {
         if (current != null) publish();
     }
@@ -77,5 +91,12 @@ public final class ShopNavigator {
     private void publish() {
         host.render(current);
         List.copyOf(listeners).forEach(listener -> listener.accept(current));
+    }
+
+    private void addHistory(ShopRoute route) {
+        history.addLast(route);
+        if (history.size() > MAX_HISTORY) {
+            history.removeFirst();
+        }
     }
 }

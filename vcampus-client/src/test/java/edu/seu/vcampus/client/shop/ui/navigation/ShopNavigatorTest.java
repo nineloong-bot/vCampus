@@ -26,7 +26,7 @@ class ShopNavigatorTest {
     }
 
     @Test
-    void ignoresCurrentRouteAndBoundsRestorableHistory() {
+    void republishesCurrentRouteAndBoundsRestorableHistory() {
         List<ShopRoute> rendered = new ArrayList<>();
         ShopNavigator navigator = new ShopNavigator(rendered::add);
         ProductSearchQuery pens = new ProductSearchQuery("笔", null, null, null,
@@ -47,13 +47,38 @@ class ShopNavigatorTest {
                 IntStream.rangeClosed(3, 22)
                         .mapToObj(i -> new ShopRoute.Product("product-" + i))
                         .toList());
-        assertThat(rendered).doesNotHaveDuplicates();
+        assertThat(rendered.stream()
+                .filter(new ShopRoute.Product("product-1")::equals))
+                .hasSize(2);
         navigator.back();
         assertThat(navigator.current()).contains(new ShopRoute.Product("product-22"));
         assertThat(navigator.history()).containsExactlyElementsOf(
                 IntStream.rangeClosed(3, 21)
                         .mapToObj(i -> new ShopRoute.Product("product-" + i))
                         .toList());
+    }
+
+    @Test
+    void sameRouteCapturesLiveStateBeforeRepublishingWithoutGrowingHistory() {
+        HomeProductQuery query = new HomeProductQuery(
+                null, null, ProductSortMode.SALES_DESC, 2, 20);
+        ShopRoute.Home requested = new ShopRoute.Home(query);
+        ShopRoute.Home captured = new ShopRoute.Home(new HomeViewState(query, 275));
+        List<ShopRoute> rendered = new ArrayList<>();
+        List<ShopRoute> changes = new ArrayList<>();
+        ShopNavigator navigator = new ShopNavigator(new ShopRouteHost() {
+            @Override public ShopRoute capture(ShopRoute route) { return captured; }
+            @Override public void render(ShopRoute route) { rendered.add(route); }
+        });
+        navigator.addListener(changes::add);
+
+        navigator.open(requested);
+        navigator.open(requested);
+
+        assertThat(navigator.current()).contains(captured);
+        assertThat(navigator.history()).isEmpty();
+        assertThat(rendered).containsExactly(requested, captured);
+        assertThat(changes).containsExactly(requested, captured);
     }
 
     @Test
