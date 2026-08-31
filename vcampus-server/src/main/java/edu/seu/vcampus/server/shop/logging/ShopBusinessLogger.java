@@ -38,6 +38,11 @@ public final class ShopBusinessLogger {
                 safe(actorId), targetType, targetId, oldStatus, newStatus, safe(reason));
     }
 
+    public void productChanged(String actorId, String shopId, String productId, String change) {
+        LOG.info("module=SHOP event=PRODUCT_CHANGE actorId={} shopId={} productId={} change={}",
+                safe(actorId), shopId, productId, change);
+    }
+
     private static String safe(String value) {
         return value == null ? "anonymous" : value;
     }
