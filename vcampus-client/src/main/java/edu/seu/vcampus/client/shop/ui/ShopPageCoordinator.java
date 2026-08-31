@@ -13,6 +13,7 @@ import edu.seu.vcampus.client.shop.ui.buyer.ProductDetailPanel;
 import edu.seu.vcampus.client.shop.ui.buyer.ProductSearchPanel;
 import edu.seu.vcampus.client.shop.ui.buyer.ShopHomePanel;
 import edu.seu.vcampus.client.shop.ui.seller.SellerApplicationPanel;
+import edu.seu.vcampus.client.shop.ui.seller.SellerWorkspacePanel;
 import edu.seu.vcampus.client.shop.ui.async.LatestRequest;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopRoute;
@@ -303,7 +304,7 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         private final PaymentResultHost paymentResult;
         private final MyShopPanel my;
         private final SellerApplicationPanel sellerApplication;
-        private final JPanel sellerWorkspace;
+        private final SellerWorkspacePanel sellerWorkspace;
         private final ShopAdminPanel adminWorkspace;
         private final CartCountModel cartCount;
         private final ShopClientPort client;
@@ -345,8 +346,8 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
             my = new MyShopPanel(user, client, sellerPort, navigator, uiKit, mySessionExpired);
             sellerApplication = sellerPort == null ? null
                     : new SellerApplicationPanel(sellerPort, uiKit, mySessionExpired);
-            sellerWorkspace = new JPanel(new BorderLayout());
-            sellerWorkspace.add(new JLabel("卖家商品与订单管理"), BorderLayout.NORTH);
+            sellerWorkspace = sellerPort == null ? null
+                    : new SellerWorkspacePanel(sellerPort, uiKit, mySessionExpired);
             adminWorkspace = adminPort == null ? null
                     : new ShopAdminPanel(adminPort, uiKit, mySessionExpired);
         }
@@ -362,7 +363,9 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         @Override public JPanel sellerApplication() {
             return sellerApplication == null ? unavailable("当前客户端不支持开店申请") : sellerApplication;
         }
-        @Override public JPanel sellerWorkspace() { return sellerWorkspace; }
+        @Override public JPanel sellerWorkspace() {
+            return sellerWorkspace == null ? unavailable("当前账号无卖家工作区") : sellerWorkspace;
+        }
         @Override public JPanel adminWorkspace() {
             return adminWorkspace == null ? unavailable("当前账号无商城管理权限") : adminWorkspace;
         }
@@ -379,7 +382,9 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         @Override public void loadSellerApplication() {
             if (sellerApplication != null) sellerApplication.load();
         }
-        @Override public void loadSellerWorkspace() { }
+        @Override public void loadSellerWorkspace() {
+            if (sellerWorkspace != null) sellerWorkspace.load();
+        }
         @Override public void loadAdminWorkspace() {
             if (adminWorkspace != null) adminWorkspace.load();
         }
@@ -413,6 +418,7 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
             checkout.disposePage();
             my.disposePage();
             if (sellerApplication != null) sellerApplication.disposePage();
+            if (sellerWorkspace != null) sellerWorkspace.disposePage();
             if (adminWorkspace != null) adminWorkspace.disposePage();
         }
 
