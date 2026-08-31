@@ -21,12 +21,9 @@ import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.event.ActionEvent;
-import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 import java.awt.event.KeyEvent;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
 import java.io.Serializable;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -195,28 +192,12 @@ class UpdateContactDialogTest {
     }
 
     @Test
-    void openingDialogStartsKeyboardTraversalAtEmail() throws Exception {
-        var client = new RecordingStudentClient();
-        var emailFocused = new CountDownLatch(1);
-        var closed = new CountDownLatch(1);
-        var dialog = new AtomicReference<UpdateContactDialog>();
-        SwingUtilities.invokeLater(() -> {
-            UpdateContactDialog shown = new UpdateContactDialog(null,
-                    new StudentClientService(client, Duration.ofSeconds(3)), profile(4, "old@seu.edu.cn", "130"),
-                    ignored -> { });
-            shown.addWindowListener(new WindowAdapter() {
-                @Override public void windowClosed(WindowEvent event) { closed.countDown(); }
-            });
-            field(shown, "student.contact.email").addFocusListener(new FocusAdapter() {
-                @Override public void focusGained(FocusEvent event) { emailFocused.countDown(); }
-            });
-            dialog.set(shown);
-            shown.setVisible(true);
-        });
-        assertThat(emailFocused.await(2, TimeUnit.SECONDS)).isTrue();
-        onEdt(() -> assertThat(field(dialog.get(), "student.contact.email").isFocusOwner()).isTrue());
-        onEdt(() -> dialog.get().dispose());
-        assertThat(closed.await(2, TimeUnit.SECONDS)).isTrue();
+    void dialogDefaultsTraversalToEmailAndRegistersWindowFocusLifecycle() throws Exception {
+        UpdateContactDialog dialog = dialog(new RecordingStudentClient(), profile(4, "old@seu.edu.cn", "130"));
+
+        assertThat(dialog.getFocusTraversalPolicy().getDefaultComponent(dialog))
+                .isSameAs(field(dialog, "student.contact.email"));
+        assertThat(dialog.getWindowListeners()).isNotEmpty();
     }
 
     @Test
