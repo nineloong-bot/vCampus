@@ -43,6 +43,19 @@ public final class ShopSwingTestSupport {
         throw new AssertionError("Missing component: " + name);
     }
 
+    public static <T extends Component> T awaitComponent(Container root, String name,
+            Class<T> type) throws Exception {
+        long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(2);
+        while (System.nanoTime() < deadline) {
+            T match = onEdt(() -> componentOrNull(root, name, type));
+            if (match != null) {
+                return match;
+            }
+            Thread.sleep(10);
+        }
+        throw new AssertionError("Timed out waiting for component: " + name);
+    }
+
     private static <T extends Component> T componentOrNull(Container root, String name,
             Class<T> type) {
         for (Component child : root.getComponents()) {

@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 import static edu.seu.vcampus.client.shop.ShopSwingTestSupport.component;
+import static edu.seu.vcampus.client.shop.ShopSwingTestSupport.awaitComponent;
 import static edu.seu.vcampus.client.shop.ShopSwingTestSupport.flushEdt;
 import static edu.seu.vcampus.client.shop.ShopSwingTestSupport.onEdt;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -312,10 +313,9 @@ class CatalogPanelsTest {
         flushEdt();
         assertThat(component(panel, "shop-name", JLabel.class).getText()).isEqualTo("店empty");
         onEdt(() -> panel.load("c"));
-        flushEdt();
-        flushEdt();
+        JButton product = awaitComponent(panel, "product-product-c", JButton.class);
         assertThat(component(panel, "shop-name", JLabel.class).getText()).isEqualTo("店c");
-        assertThat(component(panel, "product-product-c", JButton.class).getText()).contains("C");
+        assertThat(product.getText()).contains("C");
     }
 
     @Test
