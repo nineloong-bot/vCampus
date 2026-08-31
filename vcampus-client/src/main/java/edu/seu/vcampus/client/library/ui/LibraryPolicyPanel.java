@@ -15,6 +15,7 @@ public final class LibraryPolicyPanel extends JPanel {
     private final JLabel message = new JLabel("可分别调整学生和教师的借阅规则");
     private final JLabel serverStatus = new JLabel("检查中");
     private final JLabel databaseStatus = new JLabel("检查中");
+    private long refreshSequence;
 
     public LibraryPolicyPanel(LibraryClientService service) {
         super(new BorderLayout(0, 14));
@@ -39,20 +40,46 @@ public final class LibraryPolicyPanel extends JPanel {
     }
 
     public void refreshStatus() {
+        long request = ++refreshSequence;
+        student.setSaveEnabled(false); teacher.setSaveEnabled(false);
         serverStatus.setText("检查中"); databaseStatus.setText("检查中");
+        message.setText("正在读取服务端设置……");
         service.searchBooks(new BookSearchQuery("", null, false, 1, 1))
                 .whenComplete((page, failure) -> SwingUtilities.invokeLater(() -> {
+                    if (request != refreshSequence) return;
                     if (failure == null) { serverStatus.setText("已连接"); databaseStatus.setText("可访问"); }
                     else { serverStatus.setText("连接异常"); databaseStatus.setText("无法确认"); }
+                }));
+        service.getPolicies().whenComplete((policies, failure) ->
+                SwingUtilities.invokeLater(() -> {
+                    if (request != refreshSequence) return;
+                    if (failure != null) {
+                        LibraryFeedback.failure(this, message, failure,
+                                "设置读取失败，请检查服务端连接后重试。");
+                        return;
+                    }
+                    for (LibraryPolicyView policy : policies) {
+                        if ("STUDENT".equals(policy.roleCode())) student.apply(policy);
+                        if ("TEACHER".equals(policy.roleCode())) teacher.apply(policy);
+                    }
+                    message.setText("已读取最新借阅设置");
                 }));
     }
 
     public void save(UpdateLibraryPolicyCommand command) {
+        long request = ++refreshSequence;
+        student.setSaveEnabled(false); teacher.setSaveEnabled(false);
         message.setText("正在保存设置……");
         service.updatePolicy(command).whenComplete((policy, failure) -> SwingUtilities.invokeLater(() -> {
-            if (failure != null) { LibraryFeedback.failure(this, message, failure, "设置保存失败，请刷新后重试。"); return; }
+            if (request != refreshSequence) return;
+            if (failure != null) {
+                student.setSaveEnabled(true); teacher.setSaveEnabled(true);
+                LibraryFeedback.failure(this, message, failure, "设置保存失败，请刷新后重试。");
+                return;
+            }
             PolicyRow row = "STUDENT".equals(policy.roleCode()) ? student : teacher;
             row.apply(policy);
+            student.setSaveEnabled(true); teacher.setSaveEnabled(true);
             message.setText(("STUDENT".equals(policy.roleCode()) ? "学生" : "教师") + "借阅策略已保存");
         }));
     }
@@ -82,6 +109,7 @@ public final class LibraryPolicyPanel extends JPanel {
         private final String roleCode;
         private final String label;
         private final JSpinner maxLoans, loanDays, renewals, renewalDays;
+        private JButton saveButton;
         private long version;
 
         PolicyRow(String roleCode, String label, int max, int days, int renew, int renewal) {
@@ -94,16 +122,20 @@ public final class LibraryPolicyPanel extends JPanel {
             JPanel row = rowPanel(); row.setBorder(BorderFactory.createCompoundBorder(
                     BorderFactory.createLineBorder(LibraryPalette.BORDER), BorderFactory.createEmptyBorder(10, 10, 10, 10)));
             row.add(new JLabel(label)); row.add(maxLoans); row.add(loanDays); row.add(renewals); row.add(renewalDays);
-            JButton save = new JButton("保存" + label + "设置");
-            save.addActionListener(event -> save(new UpdateLibraryPolicyCommand(roleCode,
+            saveButton = new JButton("保存" + label + "设置");
+            saveButton.setEnabled(false);
+            saveButton.addActionListener(event -> save(new UpdateLibraryPolicyCommand(roleCode,
                     value(maxLoans), value(loanDays), value(renewals), value(renewalDays), version)));
-            row.add(save); return row;
+            row.add(saveButton); return row;
         }
 
         void apply(LibraryPolicyView policy) {
             maxLoans.setValue(policy.maxActiveLoans()); loanDays.setValue(policy.loanDays());
             renewals.setValue(policy.maxRenewals()); renewalDays.setValue(policy.renewalDays()); version = policy.rowVersion();
+            setSaveEnabled(true);
         }
+
+        void setSaveEnabled(boolean enabled) { if (saveButton != null) saveButton.setEnabled(enabled); }
     }
 
     private static JSpinner spinner(int value, int min, int max) { return new JSpinner(new SpinnerNumberModel(value, min, max, 1)); }

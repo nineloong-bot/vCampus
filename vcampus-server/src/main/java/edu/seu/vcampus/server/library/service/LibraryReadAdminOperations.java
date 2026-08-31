@@ -97,24 +97,11 @@ final class LibraryReadAdminOperations {
         BookCopy copy = new BookCopy(idGenerator.get(), command.bookId(), command.barcode(),
                 command.locationCode(), CopyStatus.AVAILABLE, 0);
         BookCopy inserted = transactions.inTransaction(connection -> {
-            books.requireBook(connection, command.bookId());
+            Book book = books.requireBook(connection, command.bookId());
+            if (!book.active()) throw new InactiveBookException(book.bookId());
             return books.insertCopy(connection, copy);
         });
         return toView(inserted);
-    }
-
-    BookCopyView changeCopyStatus(ChangeCopyStatusCommand command) {
-        Objects.requireNonNull(command, "command");
-        return transactions.inTransaction(connection -> {
-            BookCopy copy = books.requireCopy(connection, command.copyId());
-            if (loans.hasEffectiveLoanForCopy(connection, copy.copyId())) {
-                throw new CopyHasActiveLoanException(copy.copyId());
-            }
-            books.updateCopyStatus(connection, copy.copyId(), command.status(),
-                    command.expectedVersion());
-            return toView(new BookCopy(copy.copyId(), copy.bookId(), copy.barcode(),
-                    copy.locationCode(), command.status(), copy.rowVersion() + 1));
-        });
     }
 
     PageResult<LoanView> searchAllLoans(AdminLoanSearchQuery query) {
@@ -122,8 +109,20 @@ final class LibraryReadAdminOperations {
                 loans.searchAll(connection, query, clock.instant()));
     }
 
+    PageResult<BookSummary> searchManagedBooks(BookSearchQuery query) {
+        Objects.requireNonNull(query, "query");
+        return transactions.inTransaction(connection -> books.searchManaged(connection, query));
+    }
+
+    List<LibraryPolicyView> getPolicies() {
+        return transactions.inTransaction(connection -> List.of(
+                toView(policies.require(connection, "STUDENT")),
+                toView(policies.require(connection, "TEACHER"))));
+    }
+
     LibraryPolicyView updatePolicy(UpdateLibraryPolicyCommand command) {
         Objects.requireNonNull(command, "command");
+        validatePolicy(command);
         LoanPolicy existing = transactions.inTransaction(connection ->
                 policies.require(connection, command.roleCode()));
         LoanPolicy changed = new LoanPolicy(existing.policyId(), existing.roleCode(),
@@ -131,9 +130,20 @@ final class LibraryReadAdminOperations {
                 command.renewalDays(), command.expectedVersion() + 1);
         transactions.inTransaction(connection -> policies.update(
                 connection, changed, command.expectedVersion()));
-        return new LibraryPolicyView(changed.roleCode(), changed.maxActiveLoans(),
-                changed.loanDays(), changed.maxRenewals(), changed.renewalDays(),
-                changed.rowVersion());
+        return toView(changed);
+    }
+
+    private static void validatePolicy(UpdateLibraryPolicyCommand command) {
+        if (!"STUDENT".equals(command.roleCode()) && !"TEACHER".equals(command.roleCode())) {
+            throw new IllegalArgumentException("Only STUDENT and TEACHER policies are configurable");
+        }
+        if (command.maxActiveLoans() < 1 || command.maxActiveLoans() > 100
+                || command.loanDays() < 1 || command.loanDays() > 365
+                || command.maxRenewals() < 0 || command.maxRenewals() > 20
+                || command.renewalDays() < 1 || command.renewalDays() > 365
+                || command.expectedVersion() < 0) {
+            throw new IllegalArgumentException("Library policy values are outside supported limits");
+        }
     }
 
     private static BookView toView(Book book) {
@@ -144,5 +154,11 @@ final class LibraryReadAdminOperations {
     private static BookCopyView toView(BookCopy copy) {
         return new BookCopyView(copy.copyId(), copy.bookId(), copy.barcode(), copy.locationCode(),
                 copy.status(), copy.rowVersion());
+    }
+
+    private static LibraryPolicyView toView(LoanPolicy policy) {
+        return new LibraryPolicyView(policy.roleCode(), policy.maxActiveLoans(),
+                policy.loanDays(), policy.maxRenewals(), policy.renewalDays(),
+                policy.rowVersion());
     }
 }

@@ -14,7 +14,7 @@ public final class TransactionManager {
     }
 
     /** Executes one unit of work in a new transaction. */
-    public <T> T inTransaction(SqlWork<T> work) {
+    public synchronized <T> T inTransaction(SqlWork<T> work) {
         Objects.requireNonNull(work, "work");
         try (Connection connection = provider.open()) {
             connection.setAutoCommit(false);

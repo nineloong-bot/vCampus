@@ -191,7 +191,7 @@ class LibraryUiTest {
     void openingCopyManagementLoadsAllCopies() throws Exception {
         BookSummary summary = new BookSummary("book-1", "978", "Java 核心技术", "作者", "计算机", 1, 1);
         BookCopyView copy = new BookCopyView("copy-1", "book-1", "LIB-0001", "A-01", CopyStatus.AVAILABLE, 0);
-        when(service.searchBooks(any())).thenReturn(CompletableFuture.completedFuture(
+        when(service.searchManagedBooks(any())).thenReturn(CompletableFuture.completedFuture(
                 new PageResult<>(List.of(summary), 1, 100, 1)));
         when(service.getBook("book-1")).thenReturn(CompletableFuture.completedFuture(
                 new BookDetail("book-1", "978", "Java 核心技术", "作者", "出版社",
@@ -206,6 +206,31 @@ class LibraryUiTest {
         JTable table = first((Container) tabs.getSelectedComponent(), JTable.class);
         assertThat(table.getRowCount()).isEqualTo(1);
         assertThat(table.getValueAt(0, 0)).isEqualTo("LIB-0001");
+    }
+
+    @Test
+    void successfulCopyStateChangeRefreshesDisplayedStateAndCachedVersion() throws Exception {
+        BookSummary summary = new BookSummary("book-1", "978", "Java 核心技术",
+                "作者", "计算机", 0, 1, true);
+        BookCopyView lost = new BookCopyView("copy-1", "book-1", "LIB-0001", "A-01",
+                CopyStatus.LOST, 2);
+        BookCopyView found = new BookCopyView("copy-1", "book-1", "LIB-0001", "A-01",
+                CopyStatus.AVAILABLE, 3);
+        when(service.searchManagedBooks(any())).thenReturn(CompletableFuture.completedFuture(
+                new PageResult<>(List.of(summary), 1, 100, 1)));
+        when(service.getBook("book-1")).thenReturn(CompletableFuture.completedFuture(
+                new BookDetail("book-1", "978", "Java 核心技术", "作者", "出版社",
+                        LocalDate.of(2026, 1, 1), "计算机", "", true, 0, List.of(lost))));
+        ChangeCopyStatusCommand command = new ChangeCopyStatusCommand(
+                "copy-1", CopyStatus.AVAILABLE, 2);
+        when(service.changeCopyStatus(command)).thenReturn(CompletableFuture.completedFuture(found));
+        CopyManagementPanel panel = new CopyManagementPanel(service);
+
+        panel.loadCopies(); SwingUtilities.invokeAndWait(() -> { });
+        panel.changeStatus(command); SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(first(panel, JTable.class).getValueAt(0, 3)).isEqualTo(CopyStatus.AVAILABLE);
+        assertThat(labels(panel)).contains("副本状态已更新");
     }
 
     @Test
@@ -243,13 +268,23 @@ class LibraryUiTest {
     void settingsUsesFixedStudentTeacherRowsAndShowsLiveSystemStatus() throws Exception {
         when(service.searchBooks(any())).thenReturn(CompletableFuture.completedFuture(
                 new PageResult<>(List.of(), 1, 1, 0)));
+        when(service.getPolicies()).thenReturn(CompletableFuture.completedFuture(List.of(
+                new LibraryPolicyView("STUDENT", 7, 35, 2, 18, 4),
+                new LibraryPolicyView("TEACHER", 12, 70, 3, 32, 7))));
+        UpdateLibraryPolicyCommand saved = new UpdateLibraryPolicyCommand(
+                "STUDENT", 7, 35, 2, 18, 4);
+        when(service.updatePolicy(saved)).thenReturn(CompletableFuture.completedFuture(
+                new LibraryPolicyView("STUDENT", 7, 35, 2, 18, 5)));
         LibraryPolicyPanel panel = new LibraryPolicyPanel(service);
 
         panel.refreshStatus();
         SwingUtilities.invokeAndWait(() -> { });
+        ((JButton) button(panel, "保存学生设置")).doClick();
+        SwingUtilities.invokeAndWait(() -> { });
 
         assertThat(first(panel, JTable.class)).isNull();
         assertThat(labels(panel)).contains("学生", "教师", "服务端状态", "数据库状态", "已连接", "可访问");
+        verify(service).updatePolicy(saved);
     }
 
     @Test
@@ -301,6 +336,8 @@ class LibraryUiTest {
     void selectingAQueryTabAutomaticallyRefreshesItsData() throws Exception {
         when(service.searchBooks(any())).thenReturn(CompletableFuture.completedFuture(
                 new PageResult<>(List.of(), 1, 20, 0)));
+        when(service.searchManagedBooks(any())).thenReturn(CompletableFuture.completedFuture(
+                new PageResult<>(List.of(), 1, 100, 0)));
         when(service.getCurrentLoans()).thenReturn(CompletableFuture.completedFuture(List.of()));
         when(service.getLoanHistory(any())).thenReturn(CompletableFuture.completedFuture(
                 new PageResult<>(List.of(), 1, 20, 0)));
@@ -317,7 +354,8 @@ class LibraryUiTest {
 
         verify(service).getCurrentLoans();
         verify(service).getLoanHistory(new LoanHistoryQuery(null, 1, 20));
-        verify(service, atLeastOnce()).searchBooks(new BookSearchQuery("", null, false, 1, 100));
+        verify(service, atLeastOnce()).searchManagedBooks(
+                new BookSearchQuery("", null, false, 1, 100));
         verify(service).searchAllLoans(new AdminLoanSearchQuery(null, null, 1, 20));
     }
 

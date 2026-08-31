@@ -26,6 +26,8 @@ import java.util.List;
 public interface LibraryService {
     PageResult<BookSummary> searchBooks(BookSearchQuery query);
 
+    PageResult<BookSummary> searchManagedBooks(BookSearchQuery query);
+
     BookDetail getBook(String bookId);
 
     LoanView borrow(String sessionToken, BorrowBookCommand command);
@@ -49,6 +51,8 @@ public interface LibraryService {
     LoanView resolveLoan(AdminResolveLoanCommand command);
 
     PageResult<LoanView> searchAllLoans(AdminLoanSearchQuery query);
+
+    List<LibraryPolicyView> getPolicies();
 
     LibraryPolicyView updatePolicy(UpdateLibraryPolicyCommand command);
 }

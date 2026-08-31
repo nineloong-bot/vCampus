@@ -39,6 +39,10 @@ public final class LibraryClientService {
         return request("LIBRARY_SEARCH_BOOKS", query);
     }
 
+    public CompletableFuture<PageResult<BookSummary>> searchManagedBooks(BookSearchQuery query) {
+        return request("LIBRARY_SEARCH_MANAGED_BOOKS", query);
+    }
+
     public CompletableFuture<BookDetail> getBook(String bookId) {
         return request("LIBRARY_GET_BOOK", bookId);
     }
@@ -75,6 +79,12 @@ public final class LibraryClientService {
 
     public CompletableFuture<PageResult<LoanView>> searchAllLoans(AdminLoanSearchQuery query) {
         return request("LIBRARY_SEARCH_ALL_LOANS", query);
+    }
+
+    public CompletableFuture<List<LibraryPolicyView>> getPolicies() {
+        CompletableFuture<ArrayList<LibraryPolicyView>> response = request(
+                "LIBRARY_GET_POLICIES", EmptyRequest.INSTANCE);
+        return response.thenApply(List::copyOf);
     }
 
     public CompletableFuture<LibraryPolicyView> updatePolicy(

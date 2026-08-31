@@ -19,6 +19,9 @@ public interface BookRepository {
 
     PageResult<BookSummary> search(Connection connection, BookSearchQuery query) throws SQLException;
 
+    PageResult<BookSummary> searchManaged(Connection connection, BookSearchQuery query)
+            throws SQLException;
+
     BookDetail requireDetail(Connection connection, String bookId) throws SQLException;
 
     void updateBook(Connection connection, Book book, long expectedVersion) throws SQLException;

@@ -18,6 +18,19 @@ final class LibraryFeedback {
             if ("COMMON_CONCURRENT_MODIFICATION".equals(request.code())) {
                 title = "数据冲突";
                 message = "数据已被其他操作修改，请刷新后重试。";
+            } else if (request.code().endsWith("_STALE")) {
+                title = "数据冲突";
+                message = request.getMessage() == null || request.getMessage().isBlank()
+                        ? "数据已被其他操作修改，请刷新后重试。" : request.getMessage();
+            } else if ("LIBRARY_DUPLICATE_ISBN".equals(request.code())
+                    || "LIBRARY_DUPLICATE_BARCODE".equals(request.code())) {
+                title = "编号重复";
+                message = request.getMessage();
+            } else if ("LIBRARY_COPY_HAS_ACTIVE_LOAN".equals(request.code())
+                    || "LIBRARY_COPY_UNAVAILABLE".equals(request.code())
+                    || "LIBRARY_LOAN_NOT_ACTIVE".equals(request.code())) {
+                title = "状态冲突";
+                message = request.getMessage();
             } else if ("AUTH_SESSION_EXPIRED".equals(request.code())) {
                 title = "登录已失效";
                 message = "登录会话已过期，请重新登录。";

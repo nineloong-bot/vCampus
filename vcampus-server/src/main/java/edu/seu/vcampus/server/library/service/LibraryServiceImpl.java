@@ -49,6 +49,11 @@ public final class LibraryServiceImpl implements LibraryService {
     }
 
     @Override
+    public PageResult<BookSummary> searchManagedBooks(BookSearchQuery query) {
+        return operations.searchManagedBooks(query);
+    }
+
+    @Override
     public BookDetail getBook(String bookId) {
         return operations.getBook(bookId);
     }
@@ -57,8 +62,11 @@ public final class LibraryServiceImpl implements LibraryService {
     public LoanView borrow(String sessionToken, BorrowBookCommand command) {
         Objects.requireNonNull(command, "command");
         BorrowerIdentity borrower = identities.requireBorrower(sessionToken);
+        BookCopy snapshot = transactions.inTransaction(connection ->
+                books.requireCopy(connection, command.copyId()));
         List<ResourceKey> keys = List.of(
                 new ResourceKey("LIBRARY_USER", borrower.userId()),
+                new ResourceKey("BOOK", snapshot.bookId()),
                 new ResourceKey("BOOK_COPY", command.copyId()));
         return locks.withLocks(keys, () -> transactions.inTransaction(connection -> {
             Instant now = clock.instant();
@@ -71,6 +79,8 @@ public final class LibraryServiceImpl implements LibraryService {
                 throw new LoanLimitReachedException(borrower.userId());
             }
             BookCopy copy = books.requireCopy(connection, command.copyId());
+            Book book = books.requireBook(connection, copy.bookId());
+            if (!book.active()) throw new InactiveBookException(book.bookId());
             if (copy.status() != CopyStatus.AVAILABLE) {
                 throw new CopyUnavailableException(copy.copyId());
             }
@@ -88,12 +98,12 @@ public final class LibraryServiceImpl implements LibraryService {
     public LoanView returnBook(String sessionToken, ReturnBookCommand command) {
         Objects.requireNonNull(command, "command");
         BorrowerIdentity borrower = identities.requireBorrower(sessionToken);
-        ResourceKey loanKey = new ResourceKey("LOAN", command.loanId());
-        return locks.withLocks(List.of(loanKey), () -> {
-            Loan snapshot = transactions.inTransaction(connection ->
-                    loans.require(connection, command.loanId()));
-            ResourceKey copyKey = new ResourceKey("BOOK_COPY", snapshot.copyId());
-            return locks.withLocks(List.of(copyKey), () -> transactions.inTransaction(connection -> {
+        Loan snapshot = transactions.inTransaction(connection ->
+                loans.require(connection, command.loanId()));
+        return locks.withLocks(List.of(
+                new ResourceKey("LOAN", command.loanId()),
+                new ResourceKey("BOOK_COPY", snapshot.copyId())),
+                () -> transactions.inTransaction(connection -> {
                 Loan loan = loans.require(connection, command.loanId());
                 requireOwnership(loan, borrower);
                 if (loan.status() == LoanStatus.RETURNED || loan.returnedAt() != null) {
@@ -111,19 +121,26 @@ public final class LibraryServiceImpl implements LibraryService {
                         copy.rowVersion());
                 return toView(returned, copy.bookId());
             }));
-        });
     }
 
     @Override
     public LoanView renew(String sessionToken, RenewLoanCommand command) {
         Objects.requireNonNull(command, "command");
         BorrowerIdentity borrower = identities.requireBorrower(sessionToken);
+        Loan snapshot = transactions.inTransaction(connection ->
+                loans.require(connection, command.loanId()));
+        BookCopy copySnapshot = transactions.inTransaction(connection ->
+                books.requireCopy(connection, snapshot.copyId()));
         List<ResourceKey> keys = List.of(
                 new ResourceKey("LIBRARY_USER", borrower.userId()),
-                new ResourceKey("LOAN", command.loanId()));
+                new ResourceKey("LOAN", command.loanId()),
+                new ResourceKey("BOOK", copySnapshot.bookId()));
         return locks.withLocks(keys, () -> transactions.inTransaction(connection -> {
             Loan loan = loans.require(connection, command.loanId());
             requireOwnership(loan, borrower);
+            BookCopy copy = books.requireCopy(connection, loan.copyId());
+            Book book = books.requireBook(connection, copy.bookId());
+            if (!book.active()) throw new InactiveBookException(book.bookId());
             Instant now = clock.instant();
             if (loan.status() == LoanStatus.OVERDUE || loan.dueAt().isBefore(now)) {
                 throw new LoanOverdueException(loan.loanId());
@@ -139,7 +156,6 @@ public final class LibraryServiceImpl implements LibraryService {
                     loan.borrowedAt(), loan.dueAt().plus(policy.renewalDays(), ChronoUnit.DAYS),
                     null, loan.renewCount() + 1, LoanStatus.ACTIVE, loan.rowVersion() + 1);
             loans.update(connection, renewed, command.expectedVersion());
-            BookCopy copy = books.requireCopy(connection, loan.copyId());
             return toView(renewed, copy.bookId());
         }));
     }
@@ -161,17 +177,41 @@ public final class LibraryServiceImpl implements LibraryService {
 
     @Override
     public BookView updateBook(UpdateBookCommand command) {
-        return operations.updateBook(command);
+        Objects.requireNonNull(command, "command");
+        return locks.withLocks(List.of(new ResourceKey("BOOK", command.bookId())),
+                () -> operations.updateBook(command));
     }
 
     @Override
     public BookCopyView addCopy(AddBookCopyCommand command) {
-        return operations.addCopy(command);
+        Objects.requireNonNull(command, "command");
+        return locks.withLocks(List.of(new ResourceKey("BOOK", command.bookId())),
+                () -> operations.addCopy(command));
     }
 
     @Override
     public BookCopyView changeCopyStatus(ChangeCopyStatusCommand command) {
-        return operations.changeCopyStatus(command);
+        Objects.requireNonNull(command, "command");
+        if (command.status() == CopyStatus.BORROWED || command.status() == CopyStatus.LOST) {
+            throw new IllegalArgumentException("BORROWED and LOST must be assigned through loan operations");
+        }
+        return locks.withLocks(List.of(new ResourceKey("BOOK_COPY", command.copyId())),
+                () -> transactions.inTransaction(connection -> {
+                    BookCopy copy = books.requireCopy(connection, command.copyId());
+                    if (loans.hasEffectiveLoanForCopy(connection, copy.copyId())) {
+                        throw new CopyHasActiveLoanException(copy.copyId());
+                    }
+                    if (copy.rowVersion() != command.expectedVersion()) {
+                        throw new java.util.ConcurrentModificationException(
+                                "Book copy changed: " + copy.copyId());
+                    }
+                    if (copy.status() == command.status()) {
+                        throw new IllegalArgumentException("Copy already has requested status");
+                    }
+                    books.updateCopyStatus(connection, copy.copyId(), command.status(), command.expectedVersion());
+                    return new BookCopyView(copy.copyId(), copy.bookId(), copy.barcode(), copy.locationCode(),
+                            command.status(), copy.rowVersion() + 1);
+                }));
     }
 
     @Override
@@ -202,6 +242,11 @@ public final class LibraryServiceImpl implements LibraryService {
     @Override
     public PageResult<LoanView> searchAllLoans(AdminLoanSearchQuery query) {
         return operations.searchAllLoans(query);
+    }
+
+    @Override
+    public List<LibraryPolicyView> getPolicies() {
+        return operations.getPolicies();
     }
 
     @Override

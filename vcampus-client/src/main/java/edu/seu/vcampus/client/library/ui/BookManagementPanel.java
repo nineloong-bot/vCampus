@@ -38,20 +38,38 @@ public final class BookManagementPanel extends LibraryDataPanel {
         status.setText("正在保存书目……");
         service.updateBook(command).whenComplete((book, failure) -> SwingUtilities.invokeLater(() -> {
             if (!accepts(request)) return;
-            if (failure == null) status.setText("书目已保存");
-            else LibraryFeedback.failure(this, status, failure, "书目保存失败，请刷新后重试。");
+            if (failure != null) {
+                LibraryFeedback.failure(this, status, failure, "书目保存失败，请刷新后重试。");
+                return;
+            }
+            DefaultTableModel model = (DefaultTableModel) table.getModel();
+            for (int index = 0; index < books.size(); index++) {
+                BookSummary summary = books.get(index);
+                if (!summary.bookId().equals(book.bookId())) continue;
+                BookSummary changed = new BookSummary(book.bookId(), book.isbn(), book.title(),
+                        book.author(), book.category(), summary.availableCopies(),
+                        summary.totalCopies(), book.active());
+                java.util.ArrayList<BookSummary> updated = new java.util.ArrayList<>(books);
+                updated.set(index, changed); books = List.copyOf(updated);
+                model.setValueAt(book.isbn(), index, 0); model.setValueAt(book.title(), index, 1);
+                model.setValueAt(book.author(), index, 2);
+                model.setValueAt(book.active() ? "已启用" : "已停用", index, 3);
+                break;
+            }
+            status.setText("书目已保存");
         }));
     }
 
     public void refresh() {
         long request = beginRequest(); status.setText("正在加载书目……");
-        service.searchBooks(new BookSearchQuery(keyword.getText().trim(), null, false, 1, 100)).whenComplete((page, failure) ->
+        service.searchManagedBooks(new BookSearchQuery(keyword.getText().trim(), null, false, 1, 100)).whenComplete((page, failure) ->
                 SwingUtilities.invokeLater(() -> {
                     if (!accepts(request)) return;
                     if (failure != null) { LibraryFeedback.failure(this, status, failure, "书目加载失败，请重试。"); return; }
                     books = List.copyOf(page.items()); DefaultTableModel model = (DefaultTableModel) table.getModel();
                     model.setRowCount(0); for (BookSummary book : books)
-                        model.addRow(new Object[]{book.isbn(), book.title(), book.author(), "已启用"});
+                        model.addRow(new Object[]{book.isbn(), book.title(), book.author(),
+                                book.active() ? "已启用" : "已停用"});
                     status.setText(books.isEmpty() ? "暂无书目，可新增第一条书目" : "共 " + page.total() + " 条书目");
                 }));
     }

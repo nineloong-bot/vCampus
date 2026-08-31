@@ -18,10 +18,12 @@ final class AccessCatalogQueries {
     private AccessCatalogQueries() {
     }
 
-    static PageResult<BookSummary> search(Connection connection, BookSearchQuery query)
+    static PageResult<BookSummary> search(Connection connection, BookSearchQuery query,
+            boolean includeInactive)
             throws SQLException {
         requirePage(query.page(), query.pageSize());
-        StringBuilder sql = new StringBuilder("SELECT * FROM tblBook WHERE isActive = TRUE");
+        StringBuilder sql = new StringBuilder("SELECT * FROM tblBook WHERE 1 = 1");
+        if (!includeInactive) sql.append(" AND isActive = TRUE");
         List<String> values = new ArrayList<>();
         if (hasText(query.keyword())) {
             sql.append(" AND (title LIKE ? OR author LIKE ? OR isbn LIKE ?)");
@@ -48,7 +50,8 @@ final class AccessCatalogQueries {
                     if (!Boolean.TRUE.equals(query.availableOnly()) || available > 0) {
                         matches.add(new BookSummary(bookId, result.getString("isbn"),
                                 result.getString("title"), result.getString("author"),
-                                result.getString("category"), available, total));
+                                result.getString("category"), available, total,
+                                result.getBoolean("isActive")));
                     }
                 }
             }

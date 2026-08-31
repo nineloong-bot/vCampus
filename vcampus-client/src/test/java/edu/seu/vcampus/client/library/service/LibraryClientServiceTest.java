@@ -12,6 +12,7 @@ import edu.seu.vcampus.common.library.ReturnBookCommand;
 import edu.seu.vcampus.common.library.UpdateLibraryPolicyCommand;
 import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.protocol.ResponseBody;
+import edu.seu.vcampus.common.protocol.EmptyRequest;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -72,12 +73,22 @@ class LibraryClientServiceTest {
         UpdateLibraryPolicyCommand command = new UpdateLibraryPolicyCommand(
                 "STUDENT", 6, 31, 2, 16, 0);
         LibraryPolicyView policy = new LibraryPolicyView("STUDENT", 6, 31, 2, 16, 1);
+        List<LibraryPolicyView> policies = List.of(policy);
         when(connection.<PageResult<BookSummary>>send("LIBRARY_SEARCH_BOOKS", query, TIMEOUT))
+                .thenReturn(CompletableFuture.completedFuture(ResponseBody.success(page)));
+        when(connection.<PageResult<BookSummary>>send(
+                "LIBRARY_SEARCH_MANAGED_BOOKS", query, TIMEOUT))
                 .thenReturn(CompletableFuture.completedFuture(ResponseBody.success(page)));
         when(connection.<LibraryPolicyView>send("LIBRARY_UPDATE_POLICY", command, TIMEOUT))
                 .thenReturn(CompletableFuture.completedFuture(ResponseBody.success(policy)));
+        when(connection.<java.util.ArrayList<LibraryPolicyView>>send(
+                "LIBRARY_GET_POLICIES", EmptyRequest.INSTANCE, TIMEOUT))
+                .thenReturn(CompletableFuture.completedFuture(
+                        ResponseBody.success(new java.util.ArrayList<>(policies))));
 
         assertThat(service.searchBooks(query).join()).isEqualTo(page);
+        assertThat(service.searchManagedBooks(query).join()).isEqualTo(page);
         assertThat(service.updatePolicy(command).join()).isEqualTo(policy);
+        assertThat(service.getPolicies().join()).isEqualTo(policies);
     }
 }

@@ -15,8 +15,8 @@ public final class LoanAdminPanel extends LibraryDataPanel {
         super("library.loan-admin", "借阅管理", "查询全校借阅及逾期记录。", "借阅号", "借阅人", "副本", "到期时间", "状态");
         this.service = Objects.requireNonNull(service, "service");
         JButton refresh = new JButton("查询账号"); refresh.addActionListener(event -> refresh());
-        JButton returnBook = new JButton("办理归还"); returnBook.addActionListener(event -> returnSelected());
-        JButton markLost = new JButton("标记遗失"); markLost.addActionListener(event -> markLostSelected());
+        JButton returnBook = new JButton("办理归还"); returnBook.addActionListener(event -> confirmSelected(LoanStatus.RETURNED));
+        JButton markLost = new JButton("标记遗失"); markLost.addActionListener(event -> confirmSelected(LoanStatus.LOST));
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT)); actions.setOpaque(false);
         actions.add(new JLabel("账号（精确查询）")); actions.add(borrower); actions.add(loanStatus);
         actions.add(refresh); actions.add(returnBook); actions.add(markLost); add(actions, BorderLayout.SOUTH);
@@ -48,12 +48,32 @@ public final class LoanAdminPanel extends LibraryDataPanel {
     public void markLostSelected() { resolveSelected(LoanStatus.LOST); }
 
     private void resolveSelected(LoanStatus resolution) {
+        LoanView loan = selectedActiveLoan();
+        if (loan != null) resolve(loan, resolution);
+    }
+
+    private void confirmSelected(LoanStatus resolution) {
+        LoanView loan = selectedActiveLoan();
+        if (loan == null) return;
+        String action = resolution == LoanStatus.RETURNED ? "办理归还" : "确认遗失登记";
+        String subject = readable(loan.borrowerLoginId(), loan.borrowerUserId()) + " · "
+                + readable(loan.bookTitle(), loan.bookId()) + " · "
+                + readable(loan.copyBarcode(), loan.copyId());
+        new LoanActionDialog(SwingUtilities.getWindowAncestor(this), action, subject,
+                () -> resolve(loan, resolution)).setVisible(true);
+    }
+
+    private LoanView selectedActiveLoan() {
         int selected = table.getSelectedRow();
-        if (selected < 0 || selected >= loans.size()) { status.setText("请先选择一条有效借阅记录"); return; }
+        if (selected < 0 || selected >= loans.size()) { status.setText("请先选择一条有效借阅记录"); return null; }
         LoanView loan = loans.get(table.convertRowIndexToModel(selected));
         if (loan.status() != LoanStatus.ACTIVE && loan.status() != LoanStatus.OVERDUE) {
-            status.setText("所选借阅已经结束，不能重复处理"); return;
+            status.setText("所选借阅已经结束，不能重复处理"); return null;
         }
+        return loan;
+    }
+
+    private void resolve(LoanView loan, LoanStatus resolution) {
         long request = beginRequest();
         status.setText(resolution == LoanStatus.RETURNED ? "正在办理归还……" : "正在标记遗失……");
         service.resolveLoan(new AdminResolveLoanCommand(loan.loanId(), resolution, loan.rowVersion()))

@@ -5,6 +5,8 @@ import edu.seu.vcampus.common.library.LoanStatus;
 import edu.seu.vcampus.server.library.domain.Book;
 import edu.seu.vcampus.server.library.domain.BookCopy;
 import edu.seu.vcampus.server.library.domain.Loan;
+import edu.seu.vcampus.server.library.service.DuplicateBarcodeException;
+import edu.seu.vcampus.server.library.service.DuplicateIsbnException;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,9 +55,9 @@ class LibraryRepositoryTest {
             books.insertCopy(connection, copy("copy-1", "book-1", "BC-001"));
 
             assertThatThrownBy(() -> books.insertBook(connection,
-                    book("book-2", "9787300000001"))).isInstanceOf(SQLException.class);
+                    book("book-2", "9787300000001"))).isInstanceOf(DuplicateIsbnException.class);
             assertThatThrownBy(() -> books.insertCopy(connection,
-                    copy("copy-2", "book-1", "BC-001"))).isInstanceOf(SQLException.class);
+                    copy("copy-2", "book-1", "BC-001"))).isInstanceOf(DuplicateBarcodeException.class);
         }
     }
 

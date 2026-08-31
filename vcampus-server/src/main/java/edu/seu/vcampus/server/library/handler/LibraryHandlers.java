@@ -37,6 +37,11 @@ public final class LibraryHandlers {
             return safely(() -> { access.requireSession(message.sessionToken());
                 return ResponseBody.success(service.getBook(requireBody(String.class, message.body()))); });
         });
+        router.register("LIBRARY_SEARCH_MANAGED_BOOKS", (message, context) -> safely(() -> {
+            access.requirePermission(message.sessionToken(), ADMIN_PERMISSION);
+            return ResponseBody.success(service.searchManagedBooks(
+                    requireBody(BookSearchQuery.class, message.body())));
+        }));
         registerWrite(router, "LIBRARY_BORROW", BorrowBookCommand.class, access, deduplicator,
                 (token, body) -> service.borrow(token, body));
         registerWrite(router, "LIBRARY_RETURN", ReturnBookCommand.class, access, deduplicator,
@@ -66,6 +71,11 @@ public final class LibraryHandlers {
             access.requirePermission(message.sessionToken(), ADMIN_PERMISSION);
             return ResponseBody.success(service.searchAllLoans(requireBody(AdminLoanSearchQuery.class, message.body())));
         }));
+        router.register("LIBRARY_GET_POLICIES", (message, context) -> safely(() -> {
+            access.requirePermission(message.sessionToken(), ADMIN_PERMISSION);
+            requireBody(EmptyRequest.class, message.body());
+            return ResponseBody.success(new java.util.ArrayList<>(service.getPolicies()));
+        }));
         registerAdmin(router, "LIBRARY_UPDATE_POLICY", UpdateLibraryPolicyCommand.class, access, deduplicator,
                 (token, body) -> service.updatePolicy(body));
     }
@@ -77,7 +87,8 @@ public final class LibraryHandlers {
             access.requirePermission(message.sessionToken(), ADMIN_PERMISSION);
             T body = requireBody(bodyType, message.body());
             return deduplicate(deduplicator, message, context.connectionId(),
-                    () -> ResponseBody.success(action.apply(message.sessionToken(), body)));
+                    () -> safely(() -> ResponseBody.success(
+                            action.apply(message.sessionToken(), body))));
         }));
     }
 
@@ -88,7 +99,8 @@ public final class LibraryHandlers {
             access.requireSession(message.sessionToken());
             T body = requireBody(bodyType, message.body());
             return deduplicate(deduplicator, message, context.connectionId(),
-                    () -> ResponseBody.success(action.apply(message.sessionToken(), body)));
+                    () -> safely(() -> ResponseBody.success(
+                            action.apply(message.sessionToken(), body))));
         }));
     }
 

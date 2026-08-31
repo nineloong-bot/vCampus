@@ -7,15 +7,23 @@ import edu.seu.vcampus.common.library.LibraryPolicyView;
 import edu.seu.vcampus.common.library.RenewLoanCommand;
 import edu.seu.vcampus.common.library.ReturnBookCommand;
 import edu.seu.vcampus.common.library.UpdateLibraryPolicyCommand;
+import edu.seu.vcampus.common.library.ChangeCopyStatusCommand;
+import edu.seu.vcampus.common.library.CopyStatus;
+import edu.seu.vcampus.common.library.BookSearchQuery;
+import edu.seu.vcampus.common.library.BookSummary;
+import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.protocol.Message;
 import edu.seu.vcampus.common.protocol.MessageType;
 import edu.seu.vcampus.server.library.service.LibraryService;
+import edu.seu.vcampus.server.library.service.CopyUnavailableException;
 import edu.seu.vcampus.server.routing.ClientContext;
 import edu.seu.vcampus.server.routing.MessageRouter;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.Map;
+import java.util.List;
+import edu.seu.vcampus.common.protocol.EmptyRequest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -24,6 +32,7 @@ import static org.mockito.Mockito.when;
 import edu.seu.vcampus.server.routing.RequestDeduplicator;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.doAnswer;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 class LibraryHandlersTest {
     private final LibraryService service = mock(LibraryService.class);
@@ -64,6 +73,32 @@ class LibraryHandlersTest {
     }
 
     @Test
+    void checksAdminPermissionBeforeLoadingPolicies() {
+        LibraryHandlers.register(router, service, access);
+        List<LibraryPolicyView> policies = List.of(
+                new LibraryPolicyView("STUDENT", 5, 30, 1, 15, 2));
+        when(service.getPolicies()).thenReturn(policies);
+
+        assertThat(route("LIBRARY_GET_POLICIES", EmptyRequest.INSTANCE)).isEqualTo(policies);
+
+        verify(access).requirePermission("token", "LIBRARY_ADMIN");
+        verify(service).getPolicies();
+    }
+
+    @Test
+    void checksAdminPermissionBeforeSearchingManagedCatalog() {
+        LibraryHandlers.register(router, service, access);
+        BookSearchQuery query = new BookSearchQuery("", null, false, 1, 100);
+        PageResult<BookSummary> page = new PageResult<>(List.of(), 1, 100, 0);
+        when(service.searchManagedBooks(query)).thenReturn(page);
+
+        assertThat(route("LIBRARY_SEARCH_MANAGED_BOOKS", query)).isEqualTo(page);
+
+        verify(access).requirePermission("token", "LIBRARY_ADMIN");
+        verify(service).searchManagedBooks(query);
+    }
+
+    @Test
     void mapsBusinessFailureInsteadOfEscapingTheRouter() {
         LibraryHandlers.register(router, service, access);
         when(service.borrow(anyString(), any())).thenThrow(
@@ -78,6 +113,24 @@ class LibraryHandlersTest {
     }
 
     @Test
+    void mapsCopyVersionConflictToAnActionableResponse() {
+        LibraryHandlers.register(router, service, access);
+        ChangeCopyStatusCommand command = new ChangeCopyStatusCommand(
+                "copy-1", CopyStatus.DAMAGED, 0);
+        when(service.changeCopyStatus(command)).thenThrow(
+                new java.util.ConcurrentModificationException("Book copy changed: copy-1"));
+        Message message = new Message("request-1", MessageType.REQUEST,
+                "LIBRARY_CHANGE_COPY_STATUS", "token", command, 1L);
+
+        var response = router.route(message,
+                new ClientContext("connection-1", "127.0.0.1"));
+
+        assertThat(response.success()).isFalse();
+        assertThat(response.code()).isEqualTo("LIBRARY_COPY_STALE");
+        assertThat(response.message()).contains("刷新副本");
+    }
+
+    @Test
     void routesWritesThroughRequestDeduplication() {
         RequestDeduplicator deduplicator = mock(RequestDeduplicator.class);
         doAnswer(invocation -> ((java.util.function.Supplier<?>) invocation.getArgument(3)).get())
@@ -88,6 +141,28 @@ class LibraryHandlersTest {
         assertThat(route("LIBRARY_BORROW", new BorrowBookCommand("copy-1"))).isEqualTo(loan);
 
         verify(deduplicator).executeOnce(any(), isNull(), eq("connection-1"), any());
+    }
+
+    @Test
+    void completesDeduplicationWithMappedBusinessFailure() {
+        RequestDeduplicator deduplicator = mock(RequestDeduplicator.class);
+        AtomicBoolean supplierReturned = new AtomicBoolean();
+        doAnswer(invocation -> {
+            Object response = ((java.util.function.Supplier<?>) invocation.getArgument(3)).get();
+            supplierReturned.set(true);
+            return response;
+        }).when(deduplicator).executeOnce(any(), isNull(), eq("connection-1"), any());
+        LibraryHandlers.register(router, service, access, deduplicator);
+        BorrowBookCommand command = new BorrowBookCommand("copy-1");
+        when(service.borrow("token", command)).thenThrow(new CopyUnavailableException("copy-1"));
+        Message message = new Message("request-1", MessageType.REQUEST,
+                "LIBRARY_BORROW", "token", command, 1L);
+
+        var response = router.route(message,
+                new ClientContext("connection-1", "127.0.0.1"));
+
+        assertThat(response.code()).isEqualTo("LIBRARY_COPY_UNAVAILABLE");
+        assertThat(supplierReturned).isTrue();
     }
 
     private Object route(String command, java.io.Serializable body) {

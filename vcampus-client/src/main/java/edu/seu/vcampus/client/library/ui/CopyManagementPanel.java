@@ -21,7 +21,7 @@ public final class CopyManagementPanel extends LibraryDataPanel {
         super("library.copy-management", "副本管理", "查看全部副本，并按书名、条码、位置或状态搜索。",
                 "条码", "书目", "位置", "状态");
         this.service = Objects.requireNonNull(service, "service");
-        JButton search = new JButton("搜索副本"), add = new JButton("新增副本"), change = new JButton("变更所选状态");
+        JButton search = new JButton("搜索副本"), add = new JButton("新增副本"), change = new JButton("更新状态 / 找回");
         search.addActionListener(event -> filterCopies()); keyword.addActionListener(event -> filterCopies());
         add.addActionListener(event -> openAddDialog()); change.addActionListener(event -> openStatusDialog());
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT)); actions.setOpaque(false);
@@ -42,8 +42,14 @@ public final class CopyManagementPanel extends LibraryDataPanel {
         long request = beginRequest(); status.setText("正在更新副本状态……");
         service.changeCopyStatus(command).whenComplete((copy, failure) -> SwingUtilities.invokeLater(() -> {
             if (!accepts(request)) return;
-            if (failure == null) status.setText("副本状态已更新");
-            else LibraryFeedback.failure(this, status, failure, "副本状态更新失败，请刷新后重试。");
+            if (failure != null) {
+                LibraryFeedback.failure(this, status, failure, "副本状态更新失败，请刷新后重试。");
+                return;
+            }
+            allCopies = allCopies.stream().map(row -> row.copy().copyId().equals(copy.copyId())
+                    ? new CopyRow(copy, row.title()) : row).toList();
+            filterCopies();
+            status.setText("副本状态已更新");
         }));
     }
 
@@ -64,7 +70,7 @@ public final class CopyManagementPanel extends LibraryDataPanel {
     }
 
     private CompletableFuture<List<BookSummary>> loadBookPages(int page, List<BookSummary> books) {
-        return service.searchBooks(new BookSearchQuery("", null, false, page, 100)).thenCompose(result -> {
+        return service.searchManagedBooks(new BookSearchQuery("", null, false, page, 100)).thenCompose(result -> {
             books.addAll(result.items());
             return books.size() < result.total() ? loadBookPages(page + 1, books)
                     : CompletableFuture.completedFuture(List.copyOf(books));
@@ -96,9 +102,19 @@ public final class CopyManagementPanel extends LibraryDataPanel {
         int row = table.getSelectedRow();
         if (row < 0 || row >= copies.size()) { status.setText("请先选择一个馆藏副本"); return; }
         BookCopyView copy = copies.get(table.convertRowIndexToModel(row));
-        JComboBox<CopyStatus> state = new JComboBox<>(CopyStatus.values()); state.setSelectedItem(copy.status());
+        if (copy.status() == CopyStatus.BORROWED) {
+            status.setText("借出中的副本请在“借阅管理”中办理归还或标记遗失");
+            return;
+        }
+        CopyStatus[] targets = copy.status() == CopyStatus.LOST
+                ? new CopyStatus[]{CopyStatus.AVAILABLE, CopyStatus.DAMAGED}
+                : copy.status() == CopyStatus.AVAILABLE
+                        ? new CopyStatus[]{CopyStatus.DAMAGED}
+                        : new CopyStatus[]{CopyStatus.AVAILABLE};
+        JComboBox<CopyStatus> state = new JComboBox<>(targets);
         JPanel form = form(new String[]{"馆藏条码", "目标状态"}, new JComponent[]{new JLabel(copy.barcode()), state});
-        if (JOptionPane.showConfirmDialog(this, form, "变更副本状态", JOptionPane.OK_CANCEL_OPTION,
+        String title = copy.status() == CopyStatus.LOST ? "登记遗失副本已找回" : "变更副本状态";
+        if (JOptionPane.showConfirmDialog(this, form, title, JOptionPane.OK_CANCEL_OPTION,
                 JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return;
         changeStatus(new ChangeCopyStatusCommand(copy.copyId(), (CopyStatus) state.getSelectedItem(), copy.rowVersion()));
     }

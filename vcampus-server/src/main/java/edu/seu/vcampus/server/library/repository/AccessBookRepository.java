@@ -7,6 +7,8 @@ import edu.seu.vcampus.common.library.CopyStatus;
 import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.server.library.domain.Book;
 import edu.seu.vcampus.server.library.domain.BookCopy;
+import edu.seu.vcampus.server.library.service.DuplicateBarcodeException;
+import edu.seu.vcampus.server.library.service.DuplicateIsbnException;
 
 import java.sql.Connection;
 import java.sql.Date;
@@ -34,6 +36,11 @@ public final class AccessBookRepository implements BookRepository {
             statement.setLong(10, book.rowVersion());
             statement.executeUpdate();
             return book;
+        } catch (SQLException error) {
+            if (exists(connection, "SELECT COUNT(*) FROM tblBook WHERE isbn = ?", book.isbn())) {
+                throw new DuplicateIsbnException(book.isbn());
+            }
+            throw error;
         }
     }
 
@@ -58,7 +65,13 @@ public final class AccessBookRepository implements BookRepository {
     @Override
     public PageResult<BookSummary> search(Connection connection, BookSearchQuery query)
             throws SQLException {
-        return AccessCatalogQueries.search(connection, query);
+        return AccessCatalogQueries.search(connection, query, false);
+    }
+
+    @Override
+    public PageResult<BookSummary> searchManaged(Connection connection, BookSearchQuery query)
+            throws SQLException {
+        return AccessCatalogQueries.search(connection, query, true);
     }
 
     @Override
@@ -86,6 +99,12 @@ public final class AccessBookRepository implements BookRepository {
             if (statement.executeUpdate() != 1) {
                 throw new ConcurrentModificationException("Book changed: " + book.bookId());
             }
+        } catch (SQLException error) {
+            if (exists(connection, "SELECT COUNT(*) FROM tblBook WHERE isbn = ? AND bookId <> ?",
+                    book.isbn(), book.bookId())) {
+                throw new DuplicateIsbnException(book.isbn());
+            }
+            throw error;
         }
     }
 
@@ -102,6 +121,12 @@ public final class AccessBookRepository implements BookRepository {
             statement.setLong(6, copy.rowVersion());
             statement.executeUpdate();
             return copy;
+        } catch (SQLException error) {
+            if (exists(connection, "SELECT COUNT(*) FROM tblBookCopy WHERE barcode = ?",
+                    copy.barcode())) {
+                throw new DuplicateBarcodeException(copy.barcode());
+            }
+            throw error;
         }
     }
 
@@ -133,6 +158,18 @@ public final class AccessBookRepository implements BookRepository {
             statement.setLong(3, expectedVersion);
             if (statement.executeUpdate() != 1) {
                 throw new ConcurrentModificationException("Book copy changed: " + copyId);
+            }
+        }
+    }
+
+    private static boolean exists(Connection connection, String sql, String... values)
+            throws SQLException {
+        try (var statement = connection.prepareStatement(sql)) {
+            for (int index = 0; index < values.length; index++) {
+                statement.setString(index + 1, values[index]);
+            }
+            try (ResultSet result = statement.executeQuery()) {
+                return result.next() && result.getInt(1) > 0;
             }
         }
     }

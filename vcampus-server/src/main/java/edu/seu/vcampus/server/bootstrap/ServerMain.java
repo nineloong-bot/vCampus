@@ -101,7 +101,7 @@ public final class ServerMain {
                 new AccessUserRepository(), new AccessPermissionRepository(),
                 new AccessAuditRepository(), new PasswordHasher(), sessions, clock);
         return new UserRuntime(service, new AuthorizationService(sessions),
-                new RequestDeduplicator(transactions, locks), transactions, locks, clock);
+                new RequestDeduplicator(transactions), transactions, locks, clock);
     }
 
     private static void shutdown(SocketServer server) {
