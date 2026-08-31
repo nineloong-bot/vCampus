@@ -12,7 +12,9 @@ final class DemoShopUserPort implements ShopUserPort {
             new ShopUser("demo-buyer", ShopUserKind.STUDENT, true);
     private static final ShopUser ADMIN =
             new ShopUser("demo-admin", ShopUserKind.ADMINISTRATOR, true);
-    private final Map<String, ShopUser> sessions = Map.of("demo-buyer-token", BUYER);
+    private final Map<String, ShopUser> sessions = Map.of(
+            "demo-buyer-token", BUYER,
+            "demo-admin-token", ADMIN);
 
     @Override
     public ShopUser requireUser(String sessionToken) {

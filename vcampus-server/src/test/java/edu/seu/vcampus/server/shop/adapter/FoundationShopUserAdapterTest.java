@@ -78,9 +78,26 @@ class FoundationShopUserAdapterTest {
     }
 
     @Test
-    void rejectsAdministratorAccessUntilAnAdministratorContextExists() {
-        assertThatThrownBy(adapter::requireAdministrator)
-                .isInstanceOf(ShopAccessException.class)
-                .hasMessage("AUTH_FORBIDDEN");
+    void activeAdminSessionIsAccepted() {
+        when(authorization.requireSession("admin-token"))
+                .thenReturn(new UserIdentity("admin-1", "DEMO_ADMIN", UserRole.ADMIN, ACTIVE));
+
+        assertThat(adapter.requireAdministrator("admin-token"))
+                .isEqualTo(new ShopUser("admin-1", ShopUserKind.ADMINISTRATOR, true));
+    }
+
+    @Test
+    void studentAndDisabledAdminSessionsAreForbiddenForAdministration() {
+        when(authorization.requireSession("student-token"))
+                .thenReturn(new UserIdentity("student-1", "DEMO_STUDENT", UserRole.STUDENT, ACTIVE));
+        when(authorization.requireSession("disabled-admin-token"))
+                .thenReturn(new UserIdentity("admin-2", "DISABLED_ADMIN", UserRole.ADMIN, DISABLED));
+
+        assertThatThrownBy(() -> adapter.requireAdministrator("student-token"))
+                .isInstanceOfSatisfying(ShopAccessException.class,
+                        error -> assertThat(error.code()).isEqualTo("AUTH_FORBIDDEN"));
+        assertThatThrownBy(() -> adapter.requireAdministrator("disabled-admin-token"))
+                .isInstanceOfSatisfying(ShopAccessException.class,
+                        error -> assertThat(error.code()).isEqualTo("AUTH_FORBIDDEN"));
     }
 }
