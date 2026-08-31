@@ -18,7 +18,7 @@ class ServerMainSessionConfigurationTest {
         ServerConfig config = new ServerConfig(8888, 10, 2,
                 Path.of("target", "unused.accdb").toAbsolutePath(), 7, 15, 24);
 
-        Method factory = ServerMain.class.getDeclaredMethod("createUserRuntime", ServerConfig.class);
+        Method factory = ServerMain.class.getDeclaredMethod("createRuntime", ServerConfig.class);
         factory.setAccessible(true);
         Object runtime = factory.invoke(null, config);
         Method authorizationAccessor = runtime.getClass().getDeclaredMethod("authorization");
