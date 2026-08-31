@@ -3,10 +3,13 @@ package edu.seu.vcampus.client.shop.ui.buyer;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopRoute;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
+import edu.seu.vcampus.client.shop.ui.catalog.HttpsProductImageLoader;
+import edu.seu.vcampus.client.shop.ui.catalog.ProductCardRenderer;
+import edu.seu.vcampus.client.shop.ui.catalog.ProductGridPanel;
 import edu.seu.vcampus.common.shop.ProductSummary;
 
-import javax.swing.BoxLayout;
 import javax.swing.JButton;
+import javax.swing.ImageIcon;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import java.awt.FlowLayout;
@@ -18,26 +21,28 @@ import java.util.Objects;
 
 /** Displays a navigable list of buyer product summaries. */
 public final class ProductCardsPanel extends JPanel {
-    private final ShopNavigator navigator;
     private final ShopUiKit uiKit;
+    private final ProductGridPanel grid;
     private final List<String> productNames = new ArrayList<>();
     private final List<String> prices = new ArrayList<>();
 
     public ProductCardsPanel(ShopNavigator navigator, ShopUiKit uiKit) {
-        this.navigator = Objects.requireNonNull(navigator, "navigator");
+        ShopNavigator routes = Objects.requireNonNull(navigator, "navigator");
         this.uiKit = Objects.requireNonNull(uiKit, "uiKit");
-        setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
+        grid = new ProductGridPanel(new HttpsProductImageLoader(), renderer(),
+                productId -> routes.open(new ShopRoute.Product(productId)));
+        setLayout(new java.awt.BorderLayout());
+        add(grid, java.awt.BorderLayout.CENTER);
     }
 
     public void showProducts(Collection<ProductSummary> products) {
-        removeAll();
         productNames.clear();
         prices.clear();
         for (ProductSummary product : products) {
-            add(card(product));
             productNames.add(product.productName());
             prices.add(formatPrice(product.minimumPrice()));
         }
+        grid.showProducts(List.copyOf(products));
         revalidate();
         repaint();
     }
@@ -46,9 +51,14 @@ public final class ProductCardsPanel extends JPanel {
 
     public List<String> visiblePrices() { return List.copyOf(prices); }
 
-    private JPanel card(ProductSummary product) {
+    private ProductCardRenderer renderer() {
+        return (product, image, open) -> card(product, image, open);
+    }
+
+    private JPanel card(ProductSummary product, ImageIcon image, Runnable open) {
         String name = "product-" + product.productId();
         JPanel card = uiKit.productCard(name, new FlowLayout(FlowLayout.LEFT));
+        card.add(named(new JLabel(image), name + ".image"));
         card.add(named(new JLabel(product.productName()), name + ".name"));
         card.add(named(new JLabel(product.shopName()), name + ".shop"));
         card.add(named(new JLabel(product.category()), name + ".category"));
@@ -58,7 +68,7 @@ public final class ProductCardsPanel extends JPanel {
                 product.productName(), product.shopName(), product.category(), product.salesCount(),
                 formatPrice(product.minimumPrice())));
         action.setName(name);
-        action.addActionListener(event -> navigator.open(new ShopRoute.Product(product.productId())));
+        action.addActionListener(event -> open.run());
         card.add(action);
         return card;
     }
