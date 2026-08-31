@@ -2,6 +2,7 @@ package edu.seu.vcampus.server.bootstrap;
 
 import edu.seu.vcampus.common.protocol.EmptyResponse;
 import edu.seu.vcampus.common.protocol.ResponseBody;
+import edu.seu.vcampus.server.concurrency.ResourceLockManager;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.config.ConfigurationException;
 import edu.seu.vcampus.server.config.ServerConfig;
@@ -11,12 +12,33 @@ import edu.seu.vcampus.server.persistence.TransactionManager;
 import edu.seu.vcampus.server.routing.MessageRouter;
 import edu.seu.vcampus.server.routing.RequestDeduplicator;
 import edu.seu.vcampus.server.security.AuthorizationService;
+import edu.seu.vcampus.server.security.SessionExpiredException;
+import edu.seu.vcampus.server.security.UserIdentity;
 import edu.seu.vcampus.server.session.SessionRegistry;
+import edu.seu.vcampus.server.student.handler.DeduplicatingStudentWriteExecutor;
+import edu.seu.vcampus.server.student.handler.StudentAuthorizationPort;
+import edu.seu.vcampus.server.student.handler.StudentHandlers;
+import edu.seu.vcampus.server.student.handler.StudentPrincipal;
+import edu.seu.vcampus.server.student.numbering.AccessCampusCardNumberGenerator;
+import edu.seu.vcampus.server.student.numbering.AccessStudentNumberGenerator;
+import edu.seu.vcampus.server.student.repository.AccessOrganizationRepository;
+import edu.seu.vcampus.server.student.repository.NumberSequenceRepository;
+import edu.seu.vcampus.server.student.repository.OrganizationRepository;
+import edu.seu.vcampus.server.student.repository.StudentChangeRepository;
+import edu.seu.vcampus.server.student.repository.StudentRepository;
+import edu.seu.vcampus.server.student.repository.StudentProfileApplicationRepository;
+import edu.seu.vcampus.server.student.service.StudentAdmissionCoordinator;
+import edu.seu.vcampus.server.student.service.StudentOrganizationAdminService;
+import edu.seu.vcampus.server.student.service.StudentServiceImpl;
+import edu.seu.vcampus.server.student.service.StudentProfileServiceImpl;
 import edu.seu.vcampus.server.user.handler.UserHandlers;
 import edu.seu.vcampus.server.user.repository.AccessAuditRepository;
 import edu.seu.vcampus.server.user.repository.AccessPermissionRepository;
 import edu.seu.vcampus.server.user.repository.AccessUserRepository;
 import edu.seu.vcampus.server.user.service.PasswordHasher;
+import edu.seu.vcampus.server.user.service.UserAccountProvisioningPort;
+import edu.seu.vcampus.server.user.service.UserAccountProvisioningService;
+import edu.seu.vcampus.server.user.service.UserQueryPort;
 import edu.seu.vcampus.server.user.service.UserService;
 import edu.seu.vcampus.server.user.service.UserServiceImpl;
 import org.slf4j.Logger;
@@ -26,10 +48,15 @@ import java.nio.file.Path;
 import java.sql.DriverManager;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Set;
 
 /** Validates configuration and starts the VCampus socket server. */
 public final class ServerMain {
     private static final Logger LOGGER = LoggerFactory.getLogger(ServerMain.class);
+
+    /** Seed administrator used as the fallback operator for student change records. */
+    private static final String SYSTEM_OPERATOR_USER_ID =
+            "00000000-0000-0000-0000-000000000001";
 
     private ServerMain() {
     }
@@ -59,8 +86,9 @@ public final class ServerMain {
     private static void run(ServerConfig config) throws Exception {
         MessageRouter router = new MessageRouter(Map.of(
                 "PING", (request, context) -> ResponseBody.success(EmptyResponse.INSTANCE)));
-        UserRuntime users = createUserRuntime(config);
-        new UserHandlers(router, users.service(), users.authorization(), users.deduplicator());
+        ServerRuntime runtime = createRuntime(config);
+        new UserHandlers(router, runtime.users(), runtime.authorization(), runtime.deduplicator());
+        runtime.students().register(router);
         SocketServer server = new SocketServer(config.port(), config.workerThreads(),
                 config.maxConnections(), router);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> shutdown(server), "vcampus-shutdown"));
@@ -68,7 +96,7 @@ public final class ServerMain {
         server.serve();
     }
 
-    private static UserRuntime createUserRuntime(ServerConfig config) {
+    private static ServerRuntime createRuntime(ServerConfig config) {
         String databaseUrl = "jdbc:ucanaccess://" + config.databasePath()
                 + ";immediatelyReleaseResources=true";
         ConnectionProvider connections = () -> DriverManager.getConnection(databaseUrl);
@@ -77,11 +105,50 @@ public final class ServerMain {
         StripedResourceLockManager locks = new StripedResourceLockManager();
         SessionRegistry sessions = new SessionRegistry(clock,
                 Duration.ofMinutes(config.sessionTimeoutMinutes()));
-        UserService service = new UserServiceImpl(transactions, locks,
+        UserService users = new UserServiceImpl(transactions, locks,
                 new AccessUserRepository(), new AccessPermissionRepository(),
                 new AccessAuditRepository(), new PasswordHasher(), sessions, clock);
-        return new UserRuntime(service, new AuthorizationService(sessions),
-                new RequestDeduplicator(transactions, locks));
+        AuthorizationService authorization = new AuthorizationService(sessions);
+        RequestDeduplicator deduplicator = new RequestDeduplicator(transactions, locks);
+        StudentHandlers students = createStudentHandlers(transactions, locks, sessions,
+                deduplicator, (UserQueryPort) users);
+        return new ServerRuntime(users, authorization, deduplicator, students);
+    }
+
+    private static StudentHandlers createStudentHandlers(TransactionManager transactions,
+            ResourceLockManager locks, SessionRegistry sessions,
+            RequestDeduplicator deduplicator, UserQueryPort users) {
+        StudentRepository students = new StudentRepository();
+        StudentChangeRepository changes = new StudentChangeRepository();
+        OrganizationRepository organizations = new AccessOrganizationRepository();
+        NumberSequenceRepository sequences = new NumberSequenceRepository();
+        UserAccountProvisioningPort accounts = new UserAccountProvisioningService(locks,
+                new AccessUserRepository(), new AccessAuditRepository(), new PasswordHasher());
+        StudentAdmissionCoordinator admissions = new StudentAdmissionCoordinator(
+                transactions, locks, deduplicator, organizations,
+                new AccessCampusCardNumberGenerator(sequences),
+                new AccessStudentNumberGenerator(sequences), accounts, students, changes);
+        StudentServiceImpl service = new StudentServiceImpl(transactions, locks, students,
+                changes, organizations, users, SYSTEM_OPERATOR_USER_ID);
+        StudentProfileServiceImpl profiles = new StudentProfileServiceImpl(transactions, locks,
+                students, new StudentProfileApplicationRepository(), changes, users);
+        StudentAuthorizationPort authorization = token -> {
+            SessionRegistry.SessionSnapshot snapshot;
+            try {
+                snapshot = sessions.requireSnapshot(token);
+            } catch (SessionExpiredException error) {
+                throw new IllegalArgumentException("Invalid session", error);
+            }
+            if (snapshot.restricted()) {
+                throw new IllegalArgumentException("Invalid session");
+            }
+            UserIdentity identity = snapshot.identity();
+            return new StudentPrincipal(identity.userId(), Set.of(identity.role().name()),
+                    snapshot.permissions());
+        };
+        return new StudentHandlers(admissions, service,
+                new StudentOrganizationAdminService(transactions, locks, organizations),
+                authorization, new DeduplicatingStudentWriteExecutor(deduplicator), profiles);
     }
 
     private static void shutdown(SocketServer server) {
@@ -96,7 +163,7 @@ public final class ServerMain {
         }
     }
 
-    private record UserRuntime(UserService service, AuthorizationService authorization,
-                               RequestDeduplicator deduplicator) {
+    private record ServerRuntime(UserService users, AuthorizationService authorization,
+                                 RequestDeduplicator deduplicator, StudentHandlers students) {
     }
 }

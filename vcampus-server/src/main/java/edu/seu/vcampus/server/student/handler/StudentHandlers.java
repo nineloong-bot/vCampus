@@ -12,6 +12,8 @@ import edu.seu.vcampus.server.student.service.StudentOrganizationQuery;
 import edu.seu.vcampus.server.student.service.StudentService;
 import edu.seu.vcampus.server.student.service.StudentAdmissionException;
 import edu.seu.vcampus.server.student.service.StudentNotFoundException;
+import edu.seu.vcampus.server.student.service.StudentProfileApplicationException;
+import edu.seu.vcampus.server.student.service.StudentProfileService;
 import edu.seu.vcampus.server.student.numbering.StudentNumberingException;
 import edu.seu.vcampus.server.student.repository.OrganizationHierarchyException;
 
@@ -29,27 +31,40 @@ public final class StudentHandlers {
             "STUDENT_UPDATE_ENROLLMENT", "STUDENT_CHANGE_STATUS", "STUDENT_LIST_DEPARTMENTS",
             "STUDENT_LIST_MAJORS", "STUDENT_LIST_CLASSES", "STUDENT_GET_CHANGES",
             "STUDENT_SAVE_DEPARTMENT", "STUDENT_SAVE_MAJOR", "STUDENT_SAVE_CLASS");
+    public static final List<String> PROFILE_COMMANDS = List.of(
+            "STUDENT_PROFILE_GET_WORKSPACE", "STUDENT_PROFILE_SAVE_PERSONAL_DRAFT",
+            "STUDENT_PROFILE_SAVE_ATTENDANCE_DRAFT", "STUDENT_PROFILE_SUBMIT",
+            "STUDENT_PROFILE_REVIEW_LIST", "STUDENT_PROFILE_REVIEW_GET",
+            "STUDENT_PROFILE_APPROVE", "STUDENT_PROFILE_REJECT");
 
     private final StudentAdmissionService admissions;
     private final StudentService students;
     private final StudentOrganizationQuery organizations;
     private final StudentAuthorizationPort authorization;
     private final StudentWriteExecutor writes;
+    private final StudentProfileService profiles;
 
     StudentHandlers(StudentAdmissionService admissions, StudentService students,
             StudentOrganizationQuery organizations, StudentAuthorizationPort authorization) {
         this(admissions, students, organizations, authorization,
-                (request, principal, action) -> action.get());
+                (request, principal, action) -> action.get(), null);
     }
 
     public StudentHandlers(StudentAdmissionService admissions, StudentService students,
             StudentOrganizationQuery organizations, StudentAuthorizationPort authorization,
             StudentWriteExecutor writes) {
+        this(admissions, students, organizations, authorization, writes, null);
+    }
+
+    public StudentHandlers(StudentAdmissionService admissions, StudentService students,
+            StudentOrganizationQuery organizations, StudentAuthorizationPort authorization,
+            StudentWriteExecutor writes, StudentProfileService profiles) {
         this.admissions = Objects.requireNonNull(admissions);
         this.students = Objects.requireNonNull(students);
         this.organizations = Objects.requireNonNull(organizations);
         this.authorization = Objects.requireNonNull(authorization);
         this.writes = Objects.requireNonNull(writes);
+        this.profiles = profiles;
     }
 
     public void register(MessageRouter router) {
@@ -105,6 +120,37 @@ public final class StudentHandlers {
         router.register("STUDENT_SAVE_CLASS", typed(SaveClassCommand.class,
                 (message, body) -> write(message, () -> admin(message,
                         () -> organizations.saveClass(body)))));
+        if (profiles != null) registerProfiles(router);
+    }
+
+    private void registerProfiles(MessageRouter router) {
+        router.register("STUDENT_PROFILE_GET_WORKSPACE", typed(EmptyRequest.class,
+                (message, body) -> student(message,
+                        () -> profiles.getWorkspace(principal(message).userId()))));
+        router.register("STUDENT_PROFILE_SAVE_PERSONAL_DRAFT",
+                typed(SaveStudentPersonalDraftCommand.class, (message, body) -> write(message,
+                        () -> student(message, () -> profiles.savePersonalDraft(
+                                principal(message).userId(), body)))));
+        router.register("STUDENT_PROFILE_SAVE_ATTENDANCE_DRAFT",
+                typed(SaveStudentAttendanceDraftCommand.class, (message, body) -> write(message,
+                        () -> student(message, () -> profiles.saveAttendanceDraft(
+                                principal(message).userId(), body)))));
+        router.register("STUDENT_PROFILE_SUBMIT", typed(SubmitStudentProfileCommand.class,
+                (message, body) -> write(message, () -> student(message,
+                        () -> profiles.submit(principal(message).userId(), body)))));
+        router.register("STUDENT_PROFILE_REVIEW_LIST", typed(StudentProfileReviewQuery.class,
+                (message, body) -> admin(message, () -> profiles.listPending(body))));
+        router.register("STUDENT_PROFILE_REVIEW_GET", typed(EntityIdRequest.class,
+                (message, body) -> admin(message,
+                        () -> profiles.getApplication(body.entityId()))));
+        router.register("STUDENT_PROFILE_APPROVE", typed(ReviewStudentProfileCommand.class,
+                (message, body) -> write(message, () -> admin(message,
+                        () -> profiles.approve(body.applicationId(), principal(message).userId(),
+                                body.reviewComment())))));
+        router.register("STUDENT_PROFILE_REJECT", typed(ReviewStudentProfileCommand.class,
+                (message, body) -> write(message, () -> admin(message,
+                        () -> profiles.reject(body.applicationId(), principal(message).userId(),
+                                body.reviewComment())))));
     }
 
     private ResponseBody<? extends Serializable> updateContact(Message message,
@@ -125,6 +171,12 @@ public final class StudentHandlers {
         StudentPrincipal principal = principal(message);
         return principal.hasRole("ADMIN") || principal.hasPermission("STUDENT_WRITE")
                 ? success(action.get()) : forbidden();
+    }
+
+    private ResponseBody<? extends Serializable> student(Message message,
+            java.util.function.Supplier<? extends Serializable> action) {
+        StudentPrincipal principal = principal(message);
+        return principal.hasRole("STUDENT") ? success(action.get()) : forbidden();
     }
 
     private ResponseBody<? extends Serializable> authenticated(Message message,
@@ -166,6 +218,8 @@ public final class StudentHandlers {
             } catch (StudentNotFoundException error) {
                 return ResponseBody.failure("STUDENT_NOT_FOUND", "学生不存在", null);
             } catch (StudentAdmissionException error) {
+                return ResponseBody.failure(error.code(), error.getMessage(), null);
+            } catch (StudentProfileApplicationException error) {
                 return ResponseBody.failure(error.code(), error.getMessage(), null);
             } catch (StudentNumberingException error) {
                 return ResponseBody.failure(error.code(), error.getMessage(), null);
