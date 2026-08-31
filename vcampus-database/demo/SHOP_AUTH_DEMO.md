@@ -32,7 +32,7 @@ Set-Location -LiteralPath '<仓库根目录>'
 .\vcampus-distribution\scripts\start-shop-auth-demo-server.ps1
 ```
 
-看到 `Shop authenticated buyer demo server started` 后，再在终端二启动客户端：
+看到 `vCampus Shop final four-role demo server started` 后，再在终端二启动客户端：
 
 ```powershell
 Set-Location -LiteralPath '<仓库根目录>'

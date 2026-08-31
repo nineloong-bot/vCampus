@@ -102,7 +102,7 @@ Set-Location -LiteralPath '<仓库根目录>'
 看到以下启动消息后再启动客户端：
 
 ```text
-Shop authenticated buyer demo server started
+vCampus Shop final four-role demo server started
 ```
 
 客户端窗口：
@@ -125,7 +125,7 @@ Set-Location -LiteralPath '<仓库根目录>'
 .\vcampus-distribution\scripts\start-shop-auth-demo-server.ps1
 ```
 
-看到 `Shop authenticated buyer demo server started` 后，获取该主机的 Tailscale IPv4 地址：
+看到 `vCampus Shop final four-role demo server started` 后，获取该主机的 Tailscale IPv4 地址：
 
 ```powershell
 tailscale ip -4

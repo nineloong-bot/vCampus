@@ -1,8 +1,9 @@
 package edu.seu.vcampus.server.shop.demo;
 
 import java.nio.file.Path;
+import java.util.List;
 
-/** Command-line entry point for the local authenticated buyer Shop demo. */
+/** Command-line entry point for the local four-role Shop demo. */
 public final class ShopAuthDemoServerMain {
     private static final Path DEFAULT_DATABASE =
             Path.of("vcampus-database/demo/vcampus-shop-auth-demo.accdb");
@@ -24,11 +25,17 @@ public final class ShopAuthDemoServerMain {
         ShopAuthDemoRuntime runtime = ShopAuthDemoRuntime.start(database, port);
         Runtime.getRuntime().addShutdownHook(
                 new Thread(() -> close(runtime), "shop-auth-demo-shutdown"));
-        System.out.println("Shop authenticated buyer demo server started");
-        System.out.println("Database: " + database);
-        System.out.println("Port: " + runtime.localPort());
-        System.out.println("Demo login: DEMO_BUYER");
+        startupBanner(database, runtime.localPort()).forEach(System.out::println);
         runtime.await();
+    }
+
+    static List<String> startupBanner(Path database, int port) {
+        return List.of(
+                "vCampus Shop final four-role demo server started",
+                "Database: " + database.toAbsolutePath(),
+                "Port: " + port,
+                "Demo logins: DEMO_BUYER, DEMO_OTHER_BUYER, DEMO_TEACHER, DEMO_ADMIN",
+                "Demo password: 123456");
     }
 
     private static void close(ShopAuthDemoRuntime runtime) {
