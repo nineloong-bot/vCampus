@@ -21,7 +21,11 @@ import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.awt.event.FocusEvent;
+import java.awt.event.FocusListener;
 import java.awt.event.KeyEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.io.Serializable;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -137,6 +141,69 @@ class UpdateContactDialogTest {
                 UiSpacing.SPACE_2 + 1, UiSpacing.SPACE_4 + 1));
         assertThat(submit.getPreferredSize().height).isGreaterThanOrEqualTo(UiDimensions.CONTROL_HEIGHT);
         assertThat(submit.isFocusPainted()).isTrue();
+    }
+
+    @Test
+    void primarySaveFocusSwapsToTheSharedFocusBorderWithoutChangingInsets() throws Exception {
+        UpdateContactDialog dialog = dialog(new RecordingStudentClient(), profile(4, "old@seu.edu.cn", "130"));
+        JButton submit = button(dialog, "student.contact.submit");
+        Insets defaultInsets = submit.getBorder().getBorderInsets(submit);
+
+        onEdt(() -> {
+            FocusEvent gained = new FocusEvent(submit, FocusEvent.FOCUS_GAINED);
+            for (FocusListener listener : submit.getFocusListeners()) listener.focusGained(gained);
+        });
+        CompoundBorder focused = (CompoundBorder) submit.getBorder();
+        assertThat(focused.getOutsideBorder()).isSameAs(UiBorders.FOCUS);
+        assertThat(focused.getBorderInsets(submit)).isEqualTo(defaultInsets);
+
+        onEdt(() -> {
+            FocusEvent lost = new FocusEvent(submit, FocusEvent.FOCUS_LOST);
+            for (FocusListener listener : submit.getFocusListeners()) listener.focusLost(lost);
+        });
+        assertThat(((CompoundBorder) submit.getBorder()).getOutsideBorder()).isSameAs(UiBorders.LINE);
+    }
+
+    @Test
+    void dialogTraversalUsesEmailPhoneCancelRefreshAndSaveInOrder() throws Exception {
+        UpdateContactDialog dialog = dialog(new RecordingStudentClient(), profile(4, "old@seu.edu.cn", "130"));
+        FocusTraversalPolicy focus = dialog.getFocusTraversalPolicy();
+        JTextField email = field(dialog, "student.contact.email");
+        JTextField phone = field(dialog, "student.contact.phone");
+        JButton cancel = button(dialog, "student.contact.cancel");
+        JButton refresh = button(dialog, "student.contact.refresh");
+        JButton submit = button(dialog, "student.contact.submit");
+
+        assertThat(focus.getDefaultComponent(dialog)).isSameAs(email);
+        assertThat(focus.getComponentAfter(dialog, email)).isSameAs(phone);
+        assertThat(focus.getComponentAfter(dialog, phone)).isSameAs(cancel);
+        assertThat(focus.getComponentAfter(dialog, cancel)).isSameAs(submit);
+        onEdt(() -> refresh.setVisible(true));
+        assertThat(focus.getComponentAfter(dialog, cancel)).isSameAs(refresh);
+        assertThat(focus.getComponentAfter(dialog, refresh)).isSameAs(submit);
+    }
+
+    @Test
+    void openingDialogStartsKeyboardTraversalAtEmail() throws Exception {
+        var client = new RecordingStudentClient();
+        var opened = new CountDownLatch(1);
+        var closed = new CountDownLatch(1);
+        var dialog = new AtomicReference<UpdateContactDialog>();
+        SwingUtilities.invokeLater(() -> {
+            UpdateContactDialog shown = new UpdateContactDialog(null,
+                    new StudentClientService(client, Duration.ofSeconds(3)), profile(4, "old@seu.edu.cn", "130"),
+                    ignored -> { });
+            shown.addWindowListener(new WindowAdapter() {
+                @Override public void windowOpened(WindowEvent event) { opened.countDown(); }
+                @Override public void windowClosed(WindowEvent event) { closed.countDown(); }
+            });
+            dialog.set(shown);
+            shown.setVisible(true);
+        });
+        assertThat(opened.await(2, TimeUnit.SECONDS)).isTrue();
+        onEdt(() -> assertThat(field(dialog.get(), "student.contact.email").isFocusOwner()).isTrue());
+        onEdt(() -> dialog.get().dispose());
+        assertThat(closed.await(2, TimeUnit.SECONDS)).isTrue();
     }
 
     @Test

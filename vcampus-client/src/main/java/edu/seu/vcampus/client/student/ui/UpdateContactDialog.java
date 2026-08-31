@@ -10,9 +10,16 @@ import edu.seu.vcampus.common.student.StudentView;
 import edu.seu.vcampus.common.student.UpdateStudentContactCommand;
 
 import javax.swing.*;
+import javax.swing.border.Border;
 import javax.swing.plaf.basic.BasicButtonUI;
 import java.awt.*;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
 import java.awt.event.KeyEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
@@ -22,6 +29,12 @@ import java.util.regex.Pattern;
 /** Modal editor for the signed-in student's contact details. */
 public final class UpdateContactDialog extends JDialog {
     private static final Pattern EMAIL = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
+    private static final Border SUBMIT_BORDER = BorderFactory.createCompoundBorder(UiBorders.LINE,
+            BorderFactory.createEmptyBorder(UiSpacing.SPACE_2, UiSpacing.SPACE_4,
+                    UiSpacing.SPACE_2, UiSpacing.SPACE_4));
+    private static final Border SUBMIT_FOCUS_BORDER = BorderFactory.createCompoundBorder(UiBorders.FOCUS,
+            BorderFactory.createEmptyBorder(UiSpacing.SPACE_2 - 1, UiSpacing.SPACE_4 - 1,
+                    UiSpacing.SPACE_2 - 1, UiSpacing.SPACE_4 - 1));
 
     private final StudentClientService students;
     private final Consumer<StudentView> saved;
@@ -55,6 +68,11 @@ public final class UpdateContactDialog extends JDialog {
         getRootPane().registerKeyboardAction(event -> dispose(),
                 KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
                 JComponent.WHEN_IN_FOCUSED_WINDOW);
+        setFocusCycleRoot(true);
+        setFocusTraversalPolicy(new ContactFocusTraversalPolicy());
+        addWindowListener(new WindowAdapter() {
+            @Override public void windowOpened(WindowEvent event) { email.requestFocusInWindow(); }
+        });
         setSize(new Dimension(560, 360));
         setResizable(false);
         setLocationRelativeTo(owner);
@@ -93,12 +111,14 @@ public final class UpdateContactDialog extends JDialog {
         submit.setUI(new BasicButtonUI());
         submit.setOpaque(true);
         submit.setContentAreaFilled(true);
-        submit.setBorder(BorderFactory.createCompoundBorder(UiBorders.LINE,
-                BorderFactory.createEmptyBorder(UiSpacing.SPACE_2, UiSpacing.SPACE_4,
-                        UiSpacing.SPACE_2, UiSpacing.SPACE_4)));
+        submit.setBorder(SUBMIT_BORDER);
         submit.setFocusPainted(true);
         submit.setBackground(UiColors.ACCENT);
         submit.setForeground(UiColors.TEXT_ON_PRIMARY);
+        submit.addFocusListener(new FocusAdapter() {
+            @Override public void focusGained(FocusEvent event) { submit.setBorder(SUBMIT_FOCUS_BORDER); }
+            @Override public void focusLost(FocusEvent event) { submit.setBorder(SUBMIT_BORDER); }
+        });
         right.add(submit);
         bottom.add(right, BorderLayout.EAST);
         content.add(bottom, BorderLayout.SOUTH);
@@ -250,5 +270,26 @@ public final class UpdateContactDialog extends JDialog {
         result.setName(name);
         result.getAccessibleContext().setAccessibleName(accessibleName);
         return result;
+    }
+
+    private final class ContactFocusTraversalPolicy extends FocusTraversalPolicy {
+        private List<Component> order() {
+            List<Component> components = new ArrayList<>(List.of(email, phone, cancel));
+            if (refresh.isVisible()) components.add(refresh);
+            components.add(submit);
+            return components;
+        }
+
+        @Override public Component getComponentAfter(Container root, Component current) {
+            List<Component> components = order();
+            return components.get((components.indexOf(current) + 1 + components.size()) % components.size());
+        }
+        @Override public Component getComponentBefore(Container root, Component current) {
+            List<Component> components = order();
+            return components.get((components.indexOf(current) - 1 + components.size()) % components.size());
+        }
+        @Override public Component getFirstComponent(Container root) { return order().getFirst(); }
+        @Override public Component getLastComponent(Container root) { return order().getLast(); }
+        @Override public Component getDefaultComponent(Container root) { return email; }
     }
 }

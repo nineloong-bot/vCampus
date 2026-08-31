@@ -2,6 +2,7 @@ package edu.seu.vcampus.client.student;
 
 import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.core.network.ConnectionState;
+import edu.seu.vcampus.client.core.ui.MainFrame;
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.client.student.service.StudentRequestClient;
 import edu.seu.vcampus.client.student.ui.MyStudentProfilePanel;
@@ -16,6 +17,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Callable;
@@ -81,6 +83,12 @@ class StudentProfileUiTest {
         }
 
         assertThat(fixture.panel.getBackground()).isEqualTo(UiColors.BACKGROUND_PAGE);
+        FocusTraversalPolicy focus = fixture.panel.getFocusTraversalPolicy();
+        assertThat(focus.getFirstComponent(fixture.panel)).isSameAs(fixture.button("student.profile.refresh"));
+        assertThat(focus.getComponentAfter(fixture.panel, fixture.button("student.profile.refresh")))
+                .isSameAs(fixture.button("student.profile.edit"));
+        assertThat(focus.getComponentAfter(fixture.panel, fixture.button("student.profile.edit")))
+                .isSameAs(fixture.button("student.profile.refresh"));
     }
 
     @Test void minimumContentHeightScrollsContactFieldsIntoReachableView() throws Exception {
@@ -93,6 +101,10 @@ class StudentProfileUiTest {
 
         assertThat(scroll.getVerticalScrollBarPolicy()).isEqualTo(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
         assertThat(scroll.getHorizontalScrollBarPolicy()).isEqualTo(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        assertThat(scroll.getName()).isEqualTo("student.profile.fields.scroll");
+        assertThat(scroll.getAccessibleContext().getAccessibleName()).isEqualTo("学籍档案字段");
+        assertThat(scroll.getVerticalScrollBar().getName()).isEqualTo("student.profile.fields.vertical-scroll");
+        assertThat(scroll.getVerticalScrollBar().getAccessibleContext().getAccessibleName()).isEqualTo("学籍档案字段滚动条");
         assertThat(scroll.getVerticalScrollBar().getMaximum())
                 .isGreaterThan(scroll.getVerticalScrollBar().getVisibleAmount());
 
@@ -105,6 +117,47 @@ class StudentProfileUiTest {
         assertThat(email.width).isPositive();
         assertThat(email.height).isPositive();
         assertThat(scroll.getViewport().getViewRect().intersects(email)).isTrue();
+    }
+
+    @Test void actualMinimumFrameKeepsHeaderActionsAndContactFieldsReachable() throws Exception {
+        var response = new CompletableFuture<ResponseBody<StudentView>>();
+        var fixture = new StudentUiFixture(response, ConnectionState.CONNECTED);
+        var rendered = new CountDownLatch(1);
+        var frame = new AtomicReference<MainFrame>();
+        onEdt(() -> {
+            MainFrame actual = new MainFrame(studentUser(), fixture.connection, fixture.students);
+            fixture.component(actual.content(), "student.profile.version", JLabel.class)
+                    .addPropertyChangeListener("text", event -> rendered.countDown());
+            actual.setSize(1024, 680);
+            actual.setVisible(true);
+            frame.set(actual);
+        });
+        fixture.awaitDispatch(1);
+        response.complete(ResponseBody.success(profile(1, "student@seu.edu.cn", "13800000000")));
+        assertThat(rendered.await(2, TimeUnit.SECONDS)).isTrue();
+
+        onEdt(() -> {
+            MainFrame actual = frame.get();
+            actual.validate();
+            assertThat(actual.header().getBounds().width).isPositive();
+            assertThat(actual.header().getBounds().height).isPositive();
+            assertThat(actual.header().isVisible()).isTrue();
+            JScrollPane scroll = fixture.component(actual.content(), "student.profile.fields.scroll", JScrollPane.class);
+            assertThat(boundsIn(actual.content(), fixture.button(actual.content(), "student.profile.refresh"))
+                    .intersects(new Rectangle(actual.content().getSize()))).isTrue();
+            assertThat(boundsIn(actual.content(), fixture.button(actual.content(), "student.profile.edit"))
+                    .intersects(new Rectangle(actual.content().getSize()))).isTrue();
+            scroll.getVerticalScrollBar().setValue(scroll.getVerticalScrollBar().getMaximum());
+            layoutTree(actual);
+            Rectangle email = boundsIn((Container) scroll.getViewport().getView(),
+                    fixture.component(actual.content(), "student.profile.email", JLabel.class));
+            Rectangle version = boundsIn((Container) scroll.getViewport().getView(),
+                    fixture.component(actual.content(), "student.profile.version", JLabel.class));
+            assertThat(email.width).isPositive();
+            assertThat(version.width).isPositive();
+            assertThat(scroll.getViewport().getViewRect().intersects(email)).isTrue();
+            assertThat(scroll.getViewport().getViewRect().intersects(version)).isTrue();
+        });
     }
 
     @Test void lifecycleStatusesRenderChineseLabels() throws Exception {
@@ -233,6 +286,12 @@ class StudentProfileUiTest {
     }
     private static StudentView profile(StudentStatus status) { var p = profile(1, "a", "b"); return new StudentView(p.studentId(), p.userId(), p.campusCardNumber(), p.studentNumber(), p.studentType(), p.studentName(), p.gender(), p.email(), p.phone(), p.majorId(), p.classId(), p.enrollmentDate(), status, p.rowVersion()); }
     private static StudentView profileWithNulls() { var p = profile(1, null, null); return new StudentView(p.studentId(), p.userId(), p.campusCardNumber(), p.studentNumber(), null, p.studentName(), p.gender(), null, null, p.majorId(), p.classId(), null, null, p.rowVersion()); }
+    private static edu.seu.vcampus.common.user.UserView studentUser() {
+        LocalDateTime now = LocalDateTime.of(2026, 8, 31, 10, 0);
+        return new edu.seu.vcampus.common.user.UserView("user-1", "STUDENT_01",
+                edu.seu.vcampus.common.user.UserRole.STUDENT,
+                edu.seu.vcampus.common.user.AccountStatus.ACTIVE, false, now, 1, now, now);
+    }
     private static <T> T onEdt(Callable<T> work) throws Exception {
         var result = new AtomicReference<T>(); var failure = new AtomicReference<Throwable>();
         SwingUtilities.invokeAndWait(() -> { try { result.set(work.call()); } catch (Throwable thrown) { failure.set(thrown); } });
