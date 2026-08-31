@@ -11,6 +11,10 @@ import edu.seu.vcampus.common.shop.SellerApplicationStatus;
 import edu.seu.vcampus.common.shop.ShopStatus;
 import edu.seu.vcampus.common.shop.ShopAdminQuery;
 import edu.seu.vcampus.common.shop.ShopAdminSummary;
+import edu.seu.vcampus.common.shop.ProductManagementQuery;
+import edu.seu.vcampus.common.shop.ProductManagementSummary;
+import edu.seu.vcampus.common.shop.SellerOrderQuery;
+import edu.seu.vcampus.common.shop.SellerOrderView;
 import edu.seu.vcampus.server.shop.domain.SellerApplication;
 import edu.seu.vcampus.server.shop.domain.Shop;
 import edu.seu.vcampus.server.shop.domain.Product;
@@ -74,6 +78,12 @@ public interface ShopRepository {
 
     PageResult<ProductSummary> searchCatalog(Connection connection,
             ProductSearchQuery query, String shopId) throws Exception;
+
+    PageResult<ProductManagementSummary> searchManagedProducts(Connection connection,
+            ProductManagementQuery query) throws Exception;
+
+    List<SellerOrderView> findOrdersByShop(Connection connection, String shopId,
+            SellerOrderQuery query) throws Exception;
 
     Optional<ProductSku> findSellableSku(Connection connection, String skuId) throws Exception;
 

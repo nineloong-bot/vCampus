@@ -16,6 +16,11 @@ import edu.seu.vcampus.common.shop.ShopErrorCode;
 import edu.seu.vcampus.common.shop.ShopStatus;
 import edu.seu.vcampus.common.shop.ShopAdminQuery;
 import edu.seu.vcampus.common.shop.ShopAdminSummary;
+import edu.seu.vcampus.common.shop.ProductManagementQuery;
+import edu.seu.vcampus.common.shop.ProductManagementSummary;
+import edu.seu.vcampus.common.shop.SellerOrderItemView;
+import edu.seu.vcampus.common.shop.SellerOrderQuery;
+import edu.seu.vcampus.common.shop.SellerOrderView;
 import edu.seu.vcampus.server.shop.ShopException;
 import edu.seu.vcampus.server.shop.domain.SellerApplication;
 import edu.seu.vcampus.server.shop.domain.Shop;
@@ -503,6 +508,99 @@ public final class AccessShopRepository implements ShopRepository {
                     "page offset must not exceed " + MAX_CATALOG_PAGE_OFFSET);
         }
         return offset;
+    }
+
+    @Override
+    public PageResult<ProductManagementSummary> searchManagedProducts(Connection connection,
+            ProductManagementQuery query) throws Exception {
+        StringBuilder sql = new StringBuilder("SELECT p.productId, p.productName, p.productStatus, "
+                + "COUNT(k.skuId) AS skuCount, MIN(k.unitPrice) AS minimumPrice, "
+                + "SUM(k.stockQuantity) AS totalStock, SUM(k.reservedQuantity) AS reservedStock, "
+                + "p.salesCount, p.rowVersion FROM tblProduct p INNER JOIN tblProductSku k "
+                + "ON p.productId = k.productId WHERE p.shopId = ?");
+        List<Object> values = new ArrayList<>();
+        values.add(query.shopId());
+        if (query.status() != null) {
+            sql.append(" AND p.productStatus = ?");
+            values.add(query.status().name());
+        }
+        if (query.keyword() != null && !query.keyword().isBlank()) {
+            sql.append(" AND (p.productName LIKE ? OR EXISTS (SELECT 1 FROM tblProductSku matched "
+                    + "WHERE matched.productId = p.productId AND matched.skuName LIKE ?))");
+            String keyword = "%" + query.keyword().strip() + "%";
+            values.add(keyword); values.add(keyword);
+        }
+        sql.append(" GROUP BY p.productId, p.productName, p.productStatus, p.salesCount, p.rowVersion "
+                + "ORDER BY p.productName, p.productId");
+        List<ProductManagementSummary> all = new ArrayList<>();
+        try (PreparedStatement statement = connection.prepareStatement(sql.toString())) {
+            for (int index = 0; index < values.size(); index++) {
+                statement.setString(index + 1, values.get(index).toString());
+            }
+            try (ResultSet result = statement.executeQuery()) {
+                while (result.next()) {
+                    all.add(new ProductManagementSummary(result.getString("productId"),
+                            result.getString("productName"),
+                            ProductStatus.valueOf(result.getString("productStatus")),
+                            result.getLong("skuCount"), result.getBigDecimal("minimumPrice"),
+                            result.getLong("totalStock"), result.getLong("reservedStock"),
+                            result.getLong("salesCount"), result.getLong("rowVersion")));
+                }
+            }
+        }
+        long offset = validateCatalogPage(query.pageNumber(), query.pageSize());
+        int from = (int) Math.min(offset, all.size());
+        int to = (int) Math.min(offset + query.pageSize(), all.size());
+        return new PageResult<>(all.subList(from, to), query.pageNumber(), query.pageSize(), all.size());
+    }
+
+    @Override
+    public List<SellerOrderView> findOrdersByShop(Connection connection, String shopId,
+            SellerOrderQuery query) throws Exception {
+        StringBuilder sql = new StringBuilder("SELECT o.orderId, o.orderNumber, g.buyerUserId, "
+                + "o.shopId, s.shopName, o.orderAmount, o.paidAt, o.orderStatus "
+                + "FROM (tblOrder o INNER JOIN tblOrderGroup g ON o.orderGroupId = g.orderGroupId) "
+                + "INNER JOIN tblShop s ON o.shopId = s.shopId WHERE o.shopId = ?");
+        if (query.status() != null) sql.append(" AND o.orderStatus = ?");
+        sql.append(" ORDER BY o.paidAt DESC, o.createdAt DESC, o.orderId");
+        List<SellerOrderView> all = new ArrayList<>();
+        try (PreparedStatement statement = connection.prepareStatement(sql.toString())) {
+            statement.setString(1, shopId);
+            if (query.status() != null) statement.setString(2, query.status().name());
+            try (ResultSet result = statement.executeQuery()) {
+                while (result.next()) {
+                    String orderId = result.getString("orderId");
+                    all.add(new SellerOrderView(orderId, result.getString("orderNumber"),
+                            result.getString("buyerUserId"), result.getString("shopId"),
+                            result.getString("shopName"), result.getBigDecimal("orderAmount"),
+                            instant(result, "paidAt"), OrderStatus.valueOf(result.getString("orderStatus")),
+                            findSellerOrderItems(connection, orderId)));
+                }
+            }
+        }
+        long offset = validateCatalogPage(query.pageNumber(), query.pageSize());
+        int from = (int) Math.min(offset, all.size());
+        int to = (int) Math.min(offset + query.pageSize(), all.size());
+        return List.copyOf(all.subList(from, to));
+    }
+
+    private static List<SellerOrderItemView> findSellerOrderItems(Connection connection,
+            String orderId) throws Exception {
+        String sql = "SELECT k.productId, i.productNameSnapshot, i.skuId, i.skuNameSnapshot, "
+                + "i.quantity, i.unitPrice, i.lineAmount FROM tblOrderItem i LEFT JOIN "
+                + "tblProductSku k ON i.skuId = k.skuId WHERE i.orderId = ? ORDER BY i.orderItemId";
+        List<SellerOrderItemView> items = new ArrayList<>();
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, orderId);
+            try (ResultSet result = statement.executeQuery()) {
+                while (result.next()) items.add(new SellerOrderItemView(
+                        result.getString("productId"), result.getString("productNameSnapshot"),
+                        result.getString("skuId"), result.getString("skuNameSnapshot"),
+                        Math.toIntExact(result.getLong("quantity")), result.getBigDecimal("unitPrice"),
+                        result.getBigDecimal("lineAmount")));
+            }
+        }
+        return List.copyOf(items);
     }
 
     @Override

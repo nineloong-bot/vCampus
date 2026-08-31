@@ -4,6 +4,11 @@ import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.shop.ProductSearchQuery;
 import edu.seu.vcampus.common.shop.ProductSortMode;
 import edu.seu.vcampus.common.shop.ProductSummary;
+import edu.seu.vcampus.common.shop.ProductManagementQuery;
+import edu.seu.vcampus.common.shop.ProductManagementSummary;
+import edu.seu.vcampus.common.shop.ProductStatus;
+import edu.seu.vcampus.common.shop.SellerOrderQuery;
+import edu.seu.vcampus.common.shop.SellerOrderView;
 import edu.seu.vcampus.common.shop.SellerApplicationStatus;
 import edu.seu.vcampus.common.shop.ShopAdminQuery;
 import edu.seu.vcampus.common.shop.ShopAdminSummary;
@@ -177,6 +182,46 @@ class AccessShopRepositoryTest {
                 .containsExactly("shop-z", "shop-a", "shop-b");
     }
 
+    @Test
+    void managementProductsAggregateSkusAndSellerOrdersStayInsideTheSelectedShop() {
+        seedShop("shop-owned", "owner-1", "卖家店铺");
+        seedShop("shop-other", "teacher-1", "其他店铺");
+        seedProduct("product-owned", "shop-owned", "聚合商品", "文具", "说明", 8,
+                "2026-08-24T10:00:00Z");
+        seedProduct("product-other", "shop-other", "其他商品", "文具", "说明", 2,
+                "2026-08-24T11:00:00Z");
+        seedSku("sku-owned-a", "product-owned", "A", "5.00", 10, 2);
+        seedSku("sku-owned-b", "product-owned", "B", "2.50", 5, 1);
+        seedSku("sku-other", "product-other", "其他", "9.00", 20, 0);
+        seedPaidOrder("group-owned", "order-owned", "student-1", "shop-owned",
+                "sku-owned-a", "历史商品名", "历史规格名", "2026-08-30T10:00:00Z");
+        seedPaidOrder("group-other", "order-other", "stranger-1", "shop-other",
+                "sku-other", "其他商品", "其他规格", "2026-08-30T11:00:00Z");
+
+        PageResult<ProductManagementSummary> products = transactions.inTransaction(connection ->
+                repository.searchManagedProducts(connection, new ProductManagementQuery(
+                        "shop-owned", null, null, 0, 20)));
+        java.util.List<SellerOrderView> orders = transactions.inTransaction(connection ->
+                repository.findOrdersByShop(connection, "shop-owned",
+                        new SellerOrderQuery(null, 0, 20)));
+
+        assertThat(products.total()).isEqualTo(1);
+        assertThat(products.items()).singleElement().satisfies(product -> {
+            assertThat(product.productId()).isEqualTo("product-owned");
+            assertThat(product.skuCount()).isEqualTo(2);
+            assertThat(product.minimumPrice()).isEqualByComparingTo("2.50");
+            assertThat(product.totalStock()).isEqualTo(15);
+            assertThat(product.reservedStock()).isEqualTo(3);
+            assertThat(product.salesCount()).isEqualTo(8);
+        });
+        assertThat(orders).singleElement().satisfies(order -> {
+            assertThat(order.orderId()).isEqualTo("order-owned");
+            assertThat(order.buyerUserId()).isEqualTo("student-1");
+            assertThat(order.items()).singleElement().satisfies(item ->
+                    assertThat(item.productName()).isEqualTo("历史商品名"));
+        });
+    }
+
     private PageResult<ProductSummary> search(String keyword, String category,
             BigDecimal minPrice, BigDecimal maxPrice, ProductSortMode sortMode,
             int pageNumber, int pageSize) {
@@ -236,15 +281,52 @@ class AccessShopRepositoryTest {
     }
 
     private void seedSku(String skuId, String productId, String name, String price) {
+        seedSku(skuId, productId, name, price, 10, 0);
+    }
+
+    private void seedSku(String skuId, String productId, String name, String price,
+            long stock, long reserved) {
         transactions.inTransaction(connection -> {
             try (var statement = connection.prepareStatement(
                     "INSERT INTO tblProductSku (skuId, productId, skuName, unitPrice, stockQuantity, "
-                            + "reservedQuantity, isActive, rowVersion) VALUES (?, ?, ?, ?, 10, 0, TRUE, 0)")) {
+                            + "reservedQuantity, isActive, rowVersion) VALUES (?, ?, ?, ?, ?, ?, TRUE, 0)")) {
                 statement.setString(1, skuId);
                 statement.setString(2, productId);
                 statement.setString(3, name);
                 statement.setBigDecimal(4, new BigDecimal(price));
+                statement.setLong(5, stock);
+                statement.setLong(6, reserved);
                 statement.executeUpdate();
+            }
+            return null;
+        });
+    }
+
+    private void seedPaidOrder(String groupId, String orderId, String buyerId, String shopId,
+            String skuId, String productName, String skuName, String paidAt) {
+        transactions.inTransaction(connection -> {
+            Timestamp paid = Timestamp.from(Instant.parse(paidAt));
+            try (var group = connection.prepareStatement(
+                    "INSERT INTO tblOrderGroup (orderGroupId, buyerUserId, totalAmount, groupStatus, "
+                            + "createdAt, rowVersion) VALUES (?, ?, 6.00, 'PAID', ?, 0)")) {
+                group.setString(1, groupId); group.setString(2, buyerId);
+                group.setTimestamp(3, paid); group.executeUpdate();
+            }
+            try (var order = connection.prepareStatement(
+                    "INSERT INTO tblOrder (orderId, orderGroupId, shopId, orderNumber, orderAmount, "
+                            + "orderStatus, paidAt, createdAt, rowVersion) "
+                            + "VALUES (?, ?, ?, ?, 6.00, 'PAID', ?, ?, 0)")) {
+                order.setString(1, orderId); order.setString(2, groupId); order.setString(3, shopId);
+                order.setString(4, "NO-" + orderId); order.setTimestamp(5, paid);
+                order.setTimestamp(6, paid); order.executeUpdate();
+            }
+            try (var item = connection.prepareStatement(
+                    "INSERT INTO tblOrderItem (orderItemId, orderId, skuId, productNameSnapshot, "
+                            + "skuNameSnapshot, shopNameSnapshot, unitPrice, quantity, lineAmount) "
+                            + "VALUES (?, ?, ?, ?, ?, '历史店铺名', 3.00, 2, 6.00)")) {
+                item.setString(1, "item-" + orderId); item.setString(2, orderId);
+                item.setString(3, skuId); item.setString(4, productName); item.setString(5, skuName);
+                item.executeUpdate();
             }
             return null;
         });
