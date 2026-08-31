@@ -5,6 +5,7 @@ import edu.seu.vcampus.client.core.network.ConnectionState;
 import edu.seu.vcampus.client.core.ui.MainFrame;
 import edu.seu.vcampus.client.shop.service.ShopClientService;
 import edu.seu.vcampus.client.shop.service.ShopClientPort;
+import edu.seu.vcampus.client.shop.service.ShopClientException;
 import edu.seu.vcampus.client.shop.ui.ShopUiInstaller;
 import edu.seu.vcampus.client.shop.ui.style.DefaultShopUiKit;
 import edu.seu.vcampus.client.user.service.UserClientService;
@@ -22,6 +23,10 @@ import edu.seu.vcampus.common.shop.PaymentStatus;
 import edu.seu.vcampus.common.shop.PaymentView;
 import edu.seu.vcampus.common.shop.PaidOrderHistory;
 import edu.seu.vcampus.common.shop.SimulatePaymentCommand;
+import edu.seu.vcampus.common.shop.HomeProductQuery;
+import edu.seu.vcampus.common.shop.ProductSortMode;
+import edu.seu.vcampus.common.shop.SellerApplicationQuery;
+import edu.seu.vcampus.common.shop.SellerApplicationStatus;
 import edu.seu.vcampus.common.user.LoginResult;
 import edu.seu.vcampus.common.user.LoginCommand;
 import edu.seu.vcampus.common.user.UserView;
@@ -54,6 +59,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -67,6 +73,38 @@ class ShopAuthEndToEndTest {
 
     @TempDir
     Path temp;
+
+    @Test
+    void runtimeRegistersAllRoleSurfacesAndRejectsForbiddenCrossRoleActions() throws Exception {
+        Path database = temp.resolve("shop-role-surfaces.accdb");
+        ShopAuthDemoDatabase.initialize(database, schemaDir(), seedDir());
+
+        try (ShopAuthDemoRuntime runtime = ShopAuthDemoRuntime.start(database, 0);
+                ClientConnection teacherConnection = connected(runtime);
+                ClientConnection adminConnection = connected(runtime);
+                ClientConnection buyerConnection = connected(runtime)) {
+            ShopClientService teacher = loggedIn(teacherConnection, "DEMO_TEACHER");
+            ShopClientService admin = loggedIn(adminConnection, "DEMO_ADMIN");
+            ShopClientService buyer = loggedIn(buyerConnection, "DEMO_BUYER");
+
+            assertThat(buyer.home(new HomeProductQuery(null, null,
+                    ProductSortMode.SALES_DESC, 0, 20)).join().items()).hasSize(20);
+            assertThat(teacher.getMyApplication().join()).hasValueSatisfying(application ->
+                    assertThat(application.status()).isEqualTo(SellerApplicationStatus.REJECTED));
+            assertThat(admin.searchApplications(new SellerApplicationQuery(null,
+                    SellerApplicationStatus.REJECTED, 0, 20)).join().items())
+                    .extracting(application -> application.applicantUserId())
+                    .contains("demo-teacher");
+            assertThatThrownBy(() -> buyer.searchApplications(new SellerApplicationQuery(
+                    null, null, 0, 20)).join())
+                    .hasRootCauseInstanceOf(ShopClientException.class)
+                    .rootCause().extracting("code").isEqualTo("AUTH_FORBIDDEN");
+            assertThatThrownBy(() -> admin.addToCart(new AddCartItemCommand(
+                    "demo-stationery-001-sku-1", 1)).join())
+                    .hasRootCauseInstanceOf(ShopClientException.class)
+                    .rootCause().extracting("code").isEqualTo("SHOP_BUYER_FORBIDDEN");
+        }
+    }
 
     @Test
     void sessionExpirationRunsShopCleanupOnceBeforeOpeningLogin() throws Exception {
@@ -410,6 +448,18 @@ class ShopAuthEndToEndTest {
     private static Path projectDirectory(String name) {
         Path fromModule = Path.of("..", "vcampus-database", name);
         return Files.isDirectory(fromModule) ? fromModule : Path.of("vcampus-database", name);
+    }
+
+    private static ClientConnection connected(ShopAuthDemoRuntime runtime) throws Exception {
+        ClientConnection connection = new ClientConnection("127.0.0.1", runtime.localPort());
+        connection.connect(TIMEOUT);
+        return connection;
+    }
+
+    private static ShopClientService loggedIn(ClientConnection connection, String loginId) {
+        new UserClientService(connection, loginId + "-e2e", TIMEOUT)
+                .login(loginId, "123456".toCharArray()).join();
+        return new ShopClientService(connection, TIMEOUT);
     }
 
     private record InventoryState(long stockQuantity, long salesCount) { }
