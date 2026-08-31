@@ -1,9 +1,11 @@
 package edu.seu.vcampus.server.shop.service;
 
 import edu.seu.vcampus.common.shop.AddCartItemCommand;
+import edu.seu.vcampus.common.shop.ShopErrorCode;
 import edu.seu.vcampus.common.shop.UpdateCartItemCommand;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.persistence.TransactionManager;
+import edu.seu.vcampus.server.shop.ShopException;
 import edu.seu.vcampus.server.shop.port.ShopUserKind;
 import edu.seu.vcampus.server.shop.repository.AccessShopRepository;
 import edu.seu.vcampus.server.shop.testutil.FakeShopUserPort;
@@ -34,6 +36,8 @@ class CartServiceTest {
         users.add("token-1", "student-1", ShopUserKind.STUDENT, true);
         users.add("token-2", "student-1", ShopUserKind.STUDENT, true);
         users.add("other-token", "teacher-1", ShopUserKind.TEACHER, true);
+        users.add("admin-token", "admin-1", ShopUserKind.ADMINISTRATOR, true);
+        users.add("owner-token", "owner-1", ShopUserKind.STUDENT, true);
         transactions = new TransactionManager(database.connections());
         seedCatalog();
         service = new CartService(new AccessShopRepository(), users, transactions,
@@ -82,6 +86,18 @@ class CartServiceTest {
                 new AddCartItemCommand("sku-1", 0))).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> service.addToCart("token-1",
                 new AddCartItemCommand("sku-off", 1))).isInstanceOf(RuntimeException.class);
+    }
+
+    @Test
+    void rejectsAdministratorAndShopOwnerAtCartMutationBoundary() {
+        assertThatThrownBy(() -> service.addToCart("admin-token",
+                new AddCartItemCommand("sku-1", 1)))
+                .isInstanceOfSatisfying(ShopException.class, error -> assertThat(error.code())
+                        .isEqualTo(ShopErrorCode.SHOP_BUYER_FORBIDDEN));
+        assertThatThrownBy(() -> service.addToCart("owner-token",
+                new AddCartItemCommand("sku-1", 1)))
+                .isInstanceOfSatisfying(ShopException.class, error -> assertThat(error.code())
+                        .isEqualTo(ShopErrorCode.SHOP_SELF_PURCHASE_FORBIDDEN));
     }
 
     private void seedCatalog() {

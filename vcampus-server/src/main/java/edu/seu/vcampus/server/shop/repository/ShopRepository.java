@@ -71,6 +71,8 @@ public interface ShopRepository {
 
     Optional<ProductSku> findSellableSku(Connection connection, String skuId) throws Exception;
 
+    Optional<String> findShopOwnerBySku(Connection connection, String skuId) throws Exception;
+
     Optional<String> findCartIdByUser(Connection connection, String userId) throws Exception;
 
     String insertCart(Connection connection, String cartId, String userId, Instant updatedAt) throws Exception;

@@ -593,6 +593,19 @@ public final class AccessShopRepository implements ShopRepository {
     }
 
     @Override
+    public Optional<String> findShopOwnerBySku(Connection connection, String skuId) throws Exception {
+        String sql = "SELECT sh.ownerUserId FROM (tblProductSku k INNER JOIN tblProduct p "
+                + "ON k.productId = p.productId) INNER JOIN tblShop sh ON p.shopId = sh.shopId "
+                + "WHERE k.skuId = ?";
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, skuId);
+            try (ResultSet result = statement.executeQuery()) {
+                return result.next() ? Optional.of(result.getString(1)) : Optional.empty();
+            }
+        }
+    }
+
+    @Override
     public List<PaidOrderView> findPaidOrders(Connection connection,
             String buyerUserId) throws Exception {
         String sql = "SELECT o.orderId, o.orderNumber, o.shopId, s.shopName, "

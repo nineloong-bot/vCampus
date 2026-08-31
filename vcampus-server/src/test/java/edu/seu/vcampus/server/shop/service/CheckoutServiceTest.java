@@ -6,6 +6,7 @@ import edu.seu.vcampus.server.shop.ShopException;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -51,6 +52,23 @@ class CheckoutServiceTest extends CheckoutServiceTestSupport {
                 .isInstanceOfSatisfying(ShopException.class, error -> assertThat(error.code())
                         .isEqualTo(ShopErrorCode.SHOP_PRICE_CHANGED));
         assertThat(scalarLong("SELECT COUNT(*) FROM tblOrderGroup")).isZero();
+        assertThat(scalarLong("SELECT SUM(reservedQuantity) FROM tblProductSku")).isZero();
+    }
+
+    @Test
+    void administratorAndOwnerCannotCheckoutBuyerMutations() {
+        seedShop("shop-1", "owner-1", "文具店");
+        seedProductAndSku("product-1", "签字笔", "shop-1", "sku-1", "黑色", "2.50", 10);
+        seedCartItem("owner-1", "owner-cart-item", "sku-1", 1);
+
+        assertThatThrownBy(() -> checkout.checkout("admin-token", new edu.seu.vcampus.common.shop.CheckoutCommand(List.of(), false)))
+                .isInstanceOfSatisfying(ShopException.class, error -> assertThat(error.code())
+                        .isEqualTo(ShopErrorCode.SHOP_BUYER_FORBIDDEN));
+        assertThatThrownBy(() -> checkout.checkout("owner-token",
+                new edu.seu.vcampus.common.shop.CheckoutCommand(List.of(
+                        new edu.seu.vcampus.common.shop.CheckoutItem("owner-cart-item", new BigDecimal("2.50"))), false)))
+                .isInstanceOfSatisfying(ShopException.class, error -> assertThat(error.code())
+                        .isEqualTo(ShopErrorCode.SHOP_SELF_PURCHASE_FORBIDDEN));
         assertThat(scalarLong("SELECT SUM(reservedQuantity) FROM tblProductSku")).isZero();
     }
 }

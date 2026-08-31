@@ -13,6 +13,18 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class SimulatedPaymentServiceTest extends PaymentServiceTestSupport {
     @Test
+    void administratorCannotAttemptPayment() {
+        var checkout = seedCheckout(1);
+
+        assertThatThrownBy(() -> payments.simulatePayment("admin-token", new SimulatePaymentCommand(
+                checkout.paymentId(), PaymentChannel.ALIPAY, PaymentAttemptStatus.SUCCEEDED)))
+                .isInstanceOfSatisfying(ShopException.class, error -> assertThat(error.code())
+                        .isEqualTo(ShopErrorCode.SHOP_BUYER_FORBIDDEN));
+        assertThat(scalarLong("SELECT stockQuantity FROM tblProductSku WHERE skuId = 'sku-1'"))
+                .isEqualTo(10);
+    }
+
+    @Test
     void failedAttemptCanRetryAndSuccessConsumesReservationAndCountsSalesOnce() {
         var checkout = seedCheckout(2);
 

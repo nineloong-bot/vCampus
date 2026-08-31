@@ -36,6 +36,7 @@ abstract class PaymentServiceTestSupport {
         database = new ShopTestDatabase();
         users = new FakeShopUserPort();
         users.add("buyer-token", "student-1", ShopUserKind.STUDENT, true);
+        users.add("admin-token", "admin-1", ShopUserKind.ADMINISTRATOR, true);
         transactions = new TransactionManager(database.connections());
         locks = new StripedResourceLockManager();
         payments = new SimulatedPaymentService(users, transactions, locks,

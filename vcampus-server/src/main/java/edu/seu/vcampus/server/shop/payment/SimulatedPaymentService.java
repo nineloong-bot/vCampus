@@ -12,6 +12,7 @@ import edu.seu.vcampus.server.persistence.TransactionManager;
 import edu.seu.vcampus.server.shop.ShopException;
 import edu.seu.vcampus.server.shop.port.ShopUser;
 import edu.seu.vcampus.server.shop.port.ShopUserPort;
+import edu.seu.vcampus.server.shop.service.BuyerGuard;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -41,7 +42,7 @@ public final class SimulatedPaymentService {
     }
 
     public PaymentView simulatePayment(String sessionToken, SimulatePaymentCommand command) {
-        ShopUser buyer = requireActiveUser(sessionToken);
+        ShopUser buyer = BuyerGuard.requireBuyer(requireActiveUser(sessionToken));
         validate(command);
         PaymentLockData lockData = transactions.inTransaction(connection ->
                 loadLockData(connection, command.paymentId(), buyer.userId()));

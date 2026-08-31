@@ -35,7 +35,7 @@ public final class CartService {
     }
 
     public CartView getCart(String sessionToken) {
-        ShopUser actor = requireActiveUser(sessionToken);
+        ShopUser actor = requireBuyer(sessionToken);
         return transactions.inTransaction(connection -> repository.loadCart(connection, actor.userId()));
     }
 
@@ -43,12 +43,13 @@ public final class CartService {
         Objects.requireNonNull(command, "command");
         requirePositive(command.quantity());
         SellerApplicationService.requireId(command.skuId(), "skuId");
-        ShopUser actor = requireActiveUser(sessionToken);
+        ShopUser actor = requireBuyer(sessionToken);
         return locks.withLocks(List.of(SellerApplicationService.key("CART", actor.userId())), () ->
                 transactions.inTransaction(connection -> {
                     ProductSku sku = repository.findSellableSku(connection, command.skuId())
                             .orElseThrow(() -> SellerApplicationService.error(
                                     ShopErrorCode.SHOP_SKU_UNAVAILABLE, "SKU is unavailable"));
+                    requireDifferentOwner(connection, actor.userId(), sku.skuId());
                     String cartId = repository.findCartIdByUser(connection, actor.userId())
                             .orElseGet(() -> repositoryInsertCart(connection, actor.userId()));
                     var existing = repository.findCartItemBySku(connection, cartId, sku.skuId());
@@ -71,7 +72,7 @@ public final class CartService {
         Objects.requireNonNull(command, "command");
         requirePositive(command.quantity());
         SellerApplicationService.requireId(command.cartItemId(), "cartItemId");
-        ShopUser actor = requireActiveUser(sessionToken);
+        ShopUser actor = requireBuyer(sessionToken);
         return locks.withLocks(List.of(SellerApplicationService.key("CART", actor.userId())), () ->
                 transactions.inTransaction(connection -> {
                     String cartId = repository.findCartIdByUser(connection, actor.userId())
@@ -84,6 +85,7 @@ public final class CartService {
                     ProductSku sku = repository.findSellableSku(connection, item.skuId())
                             .orElseThrow(() -> SellerApplicationService.error(
                                     ShopErrorCode.SHOP_SKU_UNAVAILABLE, "SKU is unavailable"));
+                    requireDifferentOwner(connection, actor.userId(), sku.skuId());
                     requireAvailable(sku, command.quantity());
                     repository.updateCartItemQuantity(connection, item.cartItemId(), command.quantity(),
                             clock.instant(), command.expectedVersion());
@@ -93,7 +95,7 @@ public final class CartService {
 
     public CartView removeCartItem(String sessionToken, String cartItemId) {
         SellerApplicationService.requireId(cartItemId, "cartItemId");
-        ShopUser actor = requireActiveUser(sessionToken);
+        ShopUser actor = requireBuyer(sessionToken);
         return locks.withLocks(List.of(SellerApplicationService.key("CART", actor.userId())), () ->
                 transactions.inTransaction(connection -> {
                     String cartId = repository.findCartIdByUser(connection, actor.userId())
@@ -126,6 +128,18 @@ public final class CartService {
             throw new SecurityException("Active account required");
         }
         return actor;
+    }
+
+    private ShopUser requireBuyer(String sessionToken) {
+        return BuyerGuard.requireBuyer(requireActiveUser(sessionToken));
+    }
+
+    private void requireDifferentOwner(java.sql.Connection connection, String buyerId, String skuId)
+            throws Exception {
+        String ownerId = repository.findShopOwnerBySku(connection, skuId)
+                .orElseThrow(() -> SellerApplicationService.error(
+                        ShopErrorCode.SHOP_SKU_UNAVAILABLE, "SKU is unavailable"));
+        BuyerGuard.requireDifferentOwner(buyerId, ownerId);
     }
 
     private static void requirePositive(int quantity) {

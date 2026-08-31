@@ -33,6 +33,8 @@ abstract class CheckoutServiceTestSupport {
         database = new ShopTestDatabase();
         users = new FakeShopUserPort();
         users.add("buyer-token", "student-1", ShopUserKind.STUDENT, true);
+        users.add("owner-token", "owner-1", ShopUserKind.STUDENT, true);
+        users.add("admin-token", "admin-1", ShopUserKind.ADMINISTRATOR, true);
         transactions = new TransactionManager(database.connections());
         ShopRepository repository = new AccessShopRepository();
         var locks = new StripedResourceLockManager();
@@ -111,6 +113,31 @@ abstract class CheckoutServiceTestSupport {
         return new CheckoutCommand(cart.items().stream()
                 .map(item -> new CheckoutItem(item.cartItemId(), item.displayedUnitPrice()))
                 .toList(), acceptLatest);
+    }
+
+    protected void seedCartItem(String userId, String cartItemId, String skuId, long quantity) {
+        transactions.inTransaction(connection -> {
+            try (var cart = connection.prepareStatement(
+                    "INSERT INTO tblCart (cartId, userId, updatedAt) VALUES (?, ?, ?)");
+                    var item = connection.prepareStatement(
+                    "INSERT INTO tblCartItem (cartItemId, cartId, skuId, quantity, rowVersion, createdAt, updatedAt) "
+                            + "VALUES (?, ?, ?, ?, 0, ?, ?)")) {
+                String cartId = "cart-" + userId;
+                Timestamp now = Timestamp.from(Instant.parse("2026-08-28T10:00:00Z"));
+                cart.setString(1, cartId);
+                cart.setString(2, userId);
+                cart.setTimestamp(3, now);
+                cart.executeUpdate();
+                item.setString(1, cartItemId);
+                item.setString(2, cartId);
+                item.setString(3, skuId);
+                item.setLong(4, quantity);
+                item.setTimestamp(5, now);
+                item.setTimestamp(6, now);
+                item.executeUpdate();
+            }
+            return null;
+        });
     }
 
     protected long scalarLong(String sql) {

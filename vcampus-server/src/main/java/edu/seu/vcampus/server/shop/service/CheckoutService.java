@@ -53,7 +53,7 @@ public final class CheckoutService {
     }
 
     public CheckoutResult checkout(String sessionToken, CheckoutCommand command) {
-        ShopUser buyer = requireActiveUser(sessionToken);
+        ShopUser buyer = requireBuyer(sessionToken);
         Map<String, CheckoutItem> requested = validate(command);
         List<String> skuIds = transactions.inTransaction(connection ->
                 resolveOwnedSkuIds(connection, buyer.userId(), requested.keySet()));
@@ -75,6 +75,7 @@ public final class CheckoutService {
         }
         Map<String, Long> quantitiesBySku = new HashMap<>();
         for (CheckoutLine line : lines) {
+            BuyerGuard.requireDifferentOwner(buyerId, line.ownerUserId());
             requireSellable(line);
             BigDecimal displayed = requested.get(line.cartItemId()).displayedUnitPrice();
             if (!acceptLatestPrice && displayed.compareTo(line.unitPrice()) != 0) {
@@ -150,7 +151,7 @@ public final class CheckoutService {
             Set<String> cartItemIds) throws Exception {
         String sql = "SELECT ci.cartItemId, ci.skuId, ci.quantity, s.skuName, s.unitPrice, "
                 + "s.stockQuantity, s.reservedQuantity, s.isActive, p.productId, "
-                + "p.productName, p.productStatus, sh.shopId, sh.shopName, sh.shopStatus "
+                + "p.productName, p.productStatus, sh.shopId, sh.ownerUserId, sh.shopName, sh.shopStatus "
                 + "FROM (((tblCartItem ci INNER JOIN tblCart c ON ci.cartId = c.cartId) "
                 + "INNER JOIN tblProductSku s ON ci.skuId = s.skuId) "
                 + "INNER JOIN tblProduct p ON s.productId = p.productId) "
@@ -166,7 +167,7 @@ public final class CheckoutService {
                         lines.add(new CheckoutLine(result.getString("cartItemId"),
                                 result.getString("skuId"), result.getString("productId"),
                                 result.getString("shopId"), result.getString("productName"),
-                                result.getString("skuName"), result.getString("shopName"),
+                                result.getString("ownerUserId"), result.getString("skuName"), result.getString("shopName"),
                                 result.getBigDecimal("unitPrice"), result.getLong("quantity"),
                                 result.getLong("stockQuantity"),
                                 result.getLong("reservedQuantity"), result.getBoolean("isActive"),
@@ -204,6 +205,10 @@ public final class CheckoutService {
             throw new SecurityException("Active account required");
         }
         return user;
+    }
+
+    private ShopUser requireBuyer(String sessionToken) {
+        return BuyerGuard.requireBuyer(requireActiveUser(sessionToken));
     }
 
     private static void requireSellable(CheckoutLine line) {
@@ -342,7 +347,7 @@ public final class CheckoutService {
     }
 
     private record CheckoutLine(String cartItemId, String skuId, String productId,
-            String shopId, String productName, String skuName, String shopName,
+            String shopId, String productName, String ownerUserId, String skuName, String shopName,
             BigDecimal unitPrice, long quantity, long stockQuantity,
             long reservedQuantity, boolean skuActive, String productStatus,
             String shopStatus) {
