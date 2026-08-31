@@ -83,12 +83,7 @@ class StudentProfileUiTest {
         }
 
         assertThat(fixture.panel.getBackground()).isEqualTo(UiColors.BACKGROUND_PAGE);
-        FocusTraversalPolicy focus = fixture.panel.getFocusTraversalPolicy();
-        assertThat(focus.getFirstComponent(fixture.panel)).isSameAs(fixture.button("student.profile.refresh"));
-        assertThat(focus.getComponentAfter(fixture.panel, fixture.button("student.profile.refresh")))
-                .isSameAs(fixture.button("student.profile.edit"));
-        assertThat(focus.getComponentAfter(fixture.panel, fixture.button("student.profile.edit")))
-                .isSameAs(fixture.button("student.profile.refresh"));
+        assertThat(fixture.panel.isFocusCycleRoot()).isFalse();
     }
 
     @Test void minimumContentHeightScrollsContactFieldsIntoReachableView() throws Exception {
@@ -105,6 +100,7 @@ class StudentProfileUiTest {
         assertThat(scroll.getAccessibleContext().getAccessibleName()).isEqualTo("学籍档案字段");
         assertThat(scroll.getVerticalScrollBar().getName()).isEqualTo("student.profile.fields.vertical-scroll");
         assertThat(scroll.getVerticalScrollBar().getAccessibleContext().getAccessibleName()).isEqualTo("学籍档案字段滚动条");
+        assertThat(scroll.getVerticalScrollBar().isFocusable()).isTrue();
         assertThat(scroll.getVerticalScrollBar().getMaximum())
                 .isGreaterThan(scroll.getVerticalScrollBar().getVisibleAmount());
 
@@ -116,7 +112,7 @@ class StudentProfileUiTest {
                 fixture.label("student.profile.email")));
         assertThat(email.width).isPositive();
         assertThat(email.height).isPositive();
-        assertThat(scroll.getViewport().getViewRect().intersects(email)).isTrue();
+        assertThat(scroll.getViewport().getViewRect().contains(email)).isTrue();
     }
 
     @Test void actualMinimumFrameKeepsHeaderActionsAndContactFieldsReachable() throws Exception {
@@ -143,10 +139,15 @@ class StudentProfileUiTest {
             assertThat(actual.header().getBounds().height).isPositive();
             assertThat(actual.header().isVisible()).isTrue();
             JScrollPane scroll = fixture.component(actual.content(), "student.profile.fields.scroll", JScrollPane.class);
-            assertThat(boundsIn(actual.content(), fixture.button(actual.content(), "student.profile.refresh"))
-                    .intersects(new Rectangle(actual.content().getSize()))).isTrue();
-            assertThat(boundsIn(actual.content(), fixture.button(actual.content(), "student.profile.edit"))
-                    .intersects(new Rectangle(actual.content().getSize()))).isTrue();
+            Rectangle content = new Rectangle(actual.content().getSize());
+            JButton refresh = fixture.button(actual.content(), "student.profile.refresh");
+            JButton edit = fixture.button(actual.content(), "student.profile.edit");
+            assertThat(content.contains(boundsIn(actual.content(), refresh))).isTrue();
+            assertThat(content.contains(boundsIn(actual.content(), edit))).isTrue();
+            FocusTraversalPolicy focus = actual.getFocusTraversalPolicy();
+            assertThat(focus.getComponentBefore(actual, refresh)).isSameAs(scroll.getVerticalScrollBar());
+            assertThat(focus.getComponentAfter(actual, refresh)).isSameAs(edit);
+            assertThat(focus.getComponentAfter(actual, edit)).isNotSameAs(refresh);
             scroll.getVerticalScrollBar().setValue(scroll.getVerticalScrollBar().getMaximum());
             layoutTree(actual);
             Rectangle email = boundsIn((Container) scroll.getViewport().getView(),
@@ -154,9 +155,11 @@ class StudentProfileUiTest {
             Rectangle version = boundsIn((Container) scroll.getViewport().getView(),
                     fixture.component(actual.content(), "student.profile.version", JLabel.class));
             assertThat(email.width).isPositive();
+            assertThat(email.height).isPositive();
             assertThat(version.width).isPositive();
-            assertThat(scroll.getViewport().getViewRect().intersects(email)).isTrue();
-            assertThat(scroll.getViewport().getViewRect().intersects(version)).isTrue();
+            assertThat(version.height).isPositive();
+            assertThat(scroll.getViewport().getViewRect().contains(email)).isTrue();
+            assertThat(scroll.getViewport().getViewRect().contains(version)).isTrue();
         });
     }
 

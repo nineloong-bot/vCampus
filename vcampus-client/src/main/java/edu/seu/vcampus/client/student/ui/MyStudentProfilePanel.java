@@ -59,6 +59,7 @@ public final class MyStudentProfilePanel extends JPanel {
         fieldScroll.getViewport().setOpaque(false);
         fieldScroll.getVerticalScrollBar().setName("student.profile.fields.vertical-scroll");
         fieldScroll.getVerticalScrollBar().getAccessibleContext().setAccessibleName("学籍档案字段滚动条");
+        fieldScroll.getVerticalScrollBar().setFocusable(true);
         fieldScroll.getVerticalScrollBar().setUnitIncrement(UiSpacing.SPACE_4);
         add(fieldScroll, BorderLayout.CENTER);
 
@@ -68,14 +69,6 @@ public final class MyStudentProfilePanel extends JPanel {
         refreshButton = new JButton("重试"); refreshButton.setName("student.profile.refresh"); refreshButton.getAccessibleContext().setAccessibleName("刷新学籍档案"); refreshButton.addActionListener(e -> refreshProfile());
         editButton = new JButton("编辑"); editButton.setName("student.profile.edit"); editButton.getAccessibleContext().setAccessibleName("编辑联系方式"); editButton.setEnabled(false); editButton.addActionListener(e -> editContact());
         actions.add(refreshButton); actions.add(editButton); bottom.add(actions, BorderLayout.EAST); add(bottom, BorderLayout.SOUTH);
-        setFocusCycleRoot(true);
-        setFocusTraversalPolicy(new FocusTraversalPolicy() {
-            @Override public Component getComponentAfter(Container root, Component current) { return current == refreshButton ? editButton : refreshButton; }
-            @Override public Component getComponentBefore(Container root, Component current) { return current == editButton ? refreshButton : editButton; }
-            @Override public Component getFirstComponent(Container root) { return refreshButton; }
-            @Override public Component getLastComponent(Container root) { return editButton; }
-            @Override public Component getDefaultComponent(Container root) { return refreshButton; }
-        });
     }
 
     private JPanel group(String title) { JPanel p = new JPanel(new GridLayout(0, 2, UiSpacing.SPACE_4, UiSpacing.SPACE_2)); p.setOpaque(false); JLabel h = label(title, UiTypography.SECTION_TITLE); h.setName("student.profile.group." + title); p.add(h); p.add(new JLabel()); return p; }

@@ -59,6 +59,9 @@ public final class UpdateContactDialog extends JDialog {
         this.saved = Objects.requireNonNull(saved, "saved");
         email.setText(initial.email());
         phone.setText(initial.phone());
+        email.addFocusListener(new FocusAdapter() {
+            @Override public void focusGained(FocusEvent event) { initialFocusEstablished = true; }
+        });
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         setContentPane(buildForm());
         refresh.setVisible(false);
@@ -252,9 +255,7 @@ public final class UpdateContactDialog extends JDialog {
 
     private void establishInitialEmailFocus() {
         SwingUtilities.invokeLater(() -> {
-            if (isShowing() && !initialFocusEstablished) {
-                initialFocusEstablished = email.requestFocusInWindow();
-            }
+            if (isShowing() && !initialFocusEstablished) email.requestFocusInWindow();
         });
     }
 
@@ -284,22 +285,33 @@ public final class UpdateContactDialog extends JDialog {
 
     private final class ContactFocusTraversalPolicy extends FocusTraversalPolicy {
         private List<Component> order() {
-            List<Component> components = new ArrayList<>(List.of(email, phone, cancel));
-            if (refresh.isVisible()) components.add(refresh);
-            components.add(submit);
+            List<Component> components = new ArrayList<>();
+            addIfEligible(components, email);
+            addIfEligible(components, phone);
+            addIfEligible(components, cancel);
+            addIfEligible(components, refresh);
+            addIfEligible(components, submit);
             return components;
+        }
+
+        private static void addIfEligible(List<Component> components, Component component) {
+            if (component.isVisible() && component.isEnabled() && component.isFocusable()) components.add(component);
         }
 
         @Override public Component getComponentAfter(Container root, Component current) {
             List<Component> components = order();
-            return components.get((components.indexOf(current) + 1 + components.size()) % components.size());
+            if (components.isEmpty()) return null;
+            int index = components.indexOf(current);
+            return components.get(index < 0 ? 0 : (index + 1) % components.size());
         }
         @Override public Component getComponentBefore(Container root, Component current) {
             List<Component> components = order();
-            return components.get((components.indexOf(current) - 1 + components.size()) % components.size());
+            if (components.isEmpty()) return null;
+            int index = components.indexOf(current);
+            return components.get(index < 0 ? components.size() - 1 : (index - 1 + components.size()) % components.size());
         }
-        @Override public Component getFirstComponent(Container root) { return order().getFirst(); }
-        @Override public Component getLastComponent(Container root) { return order().getLast(); }
-        @Override public Component getDefaultComponent(Container root) { return email; }
+        @Override public Component getFirstComponent(Container root) { List<Component> components = order(); return components.isEmpty() ? null : components.getFirst(); }
+        @Override public Component getLastComponent(Container root) { List<Component> components = order(); return components.isEmpty() ? null : components.getLast(); }
+        @Override public Component getDefaultComponent(Container root) { return getFirstComponent(root); }
     }
 }

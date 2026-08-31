@@ -166,7 +166,7 @@ class UpdateContactDialogTest {
     }
 
     @Test
-    void dialogTraversalUsesEmailPhoneCancelRefreshAndSaveInOrder() throws Exception {
+    void dialogTraversalUsesOnlyEligibleControlsInLiteralUiStates() throws Exception {
         UpdateContactDialog dialog = dialog(new RecordingStudentClient(), profile(4, "old@seu.edu.cn", "130"));
         FocusTraversalPolicy focus = dialog.getFocusTraversalPolicy();
         JTextField email = field(dialog, "student.contact.email");
@@ -179,9 +179,19 @@ class UpdateContactDialogTest {
         assertThat(focus.getComponentAfter(dialog, email)).isSameAs(phone);
         assertThat(focus.getComponentAfter(dialog, phone)).isSameAs(cancel);
         assertThat(focus.getComponentAfter(dialog, cancel)).isSameAs(submit);
+        assertThat(focus.getComponentAfter(dialog, submit)).isSameAs(email);
         onEdt(() -> refresh.setVisible(true));
+        onEdt(() -> submit.setEnabled(false));
         assertThat(focus.getComponentAfter(dialog, cancel)).isSameAs(refresh);
-        assertThat(focus.getComponentAfter(dialog, refresh)).isSameAs(submit);
+        assertThat(focus.getComponentAfter(dialog, refresh)).isSameAs(email);
+        onEdt(() -> {
+            email.setEnabled(false);
+            phone.setEnabled(false);
+            cancel.setEnabled(false);
+            refresh.setEnabled(false);
+        });
+        assertThat(focus.getDefaultComponent(dialog)).isNull();
+        assertThat(focus.getComponentAfter(dialog, email)).isNull();
     }
 
     @Test
