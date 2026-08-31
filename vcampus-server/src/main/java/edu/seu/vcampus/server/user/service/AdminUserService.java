@@ -11,14 +11,13 @@ import edu.seu.vcampus.common.user.UserView;
 import edu.seu.vcampus.server.concurrency.ResourceKey;
 import edu.seu.vcampus.server.concurrency.ResourceLockManager;
 import edu.seu.vcampus.server.persistence.TransactionManager;
+import edu.seu.vcampus.server.routing.ClientContext;
 import edu.seu.vcampus.server.user.domain.UserAccount;
 import edu.seu.vcampus.server.user.repository.AuditRepository;
 import edu.seu.vcampus.server.user.repository.UserRepository;
 
 import java.util.List;
 import java.util.Objects;
-import java.time.Clock;
-import java.time.LocalDateTime;
 import java.util.function.Consumer;
 
 /** Implements administrator account searching and guarded account modifications. */
@@ -28,16 +27,16 @@ final class AdminUserService {
     private final UserRepository users;
     private final AuditRepository audits;
     private final Consumer<String> sessionRevoker;
-    private final Clock clock;
+    private final UserAuditWriter auditWriter;
 
     AdminUserService(TransactionManager transactions, ResourceLockManager locks, UserRepository users,
-            AuditRepository audits, Consumer<String> sessionRevoker, Clock clock) {
+            AuditRepository audits, Consumer<String> sessionRevoker) {
         this.transactions = Objects.requireNonNull(transactions, "transactions");
         this.locks = Objects.requireNonNull(locks, "locks");
         this.users = Objects.requireNonNull(users, "users");
         this.audits = Objects.requireNonNull(audits, "audits");
         this.sessionRevoker = Objects.requireNonNull(sessionRevoker, "sessionRevoker");
-        this.clock = Objects.requireNonNull(clock, "clock");
+        auditWriter = new UserAuditWriter(transactions, audits);
     }
 
     PageResult<UserSummary> search(UserSearchQuery query) {
@@ -49,55 +48,72 @@ final class AdminUserService {
         });
     }
 
-    UserView updateRole(String actorId, UpdateUserRoleCommand command) {
-        Objects.requireNonNull(actorId, "actorId");
-        Objects.requireNonNull(command, "command");
-        return withAccountLocks(command.userId(), () -> {
-            RoleUpdate result = transactions.inTransaction(connection -> {
-                UserAccount account = account(connection, command.userId());
-                if (command.newRole() == UserRole.STUDENT && account.role() != UserRole.STUDENT) {
-                    throw new IllegalStateException("USER_ROLE_CONFLICT");
-                }
-                protectOnlyAdministrator(connection, account, command.newRole() != UserRole.ADMIN);
-                boolean changed = account.role() != command.newRole();
-                UserAccount updated = account.withRole(command.newRole(), now());
-                users.updateWithVersion(connection, updated, command.expectedVersion());
-                audits.record(connection, actorId, "USER_UPDATE_ROLE", "USER",
-                        account.userId(), "SUCCESS");
-                return new RoleUpdate(view(updated, command.expectedVersion() + 1), changed);
-            });
-            if (result.changed()) {
-                sessionRevoker.accept(command.userId());
-            }
-            return result.view();
-        });
+    UserView updateRole(UpdateUserRoleCommand command) {
+        return updateRole(null, command, null);
     }
 
-    UserView changeStatus(String actorId, ChangeUserStatusCommand command) {
-        Objects.requireNonNull(actorId, "actorId");
+    UserView updateRole(String actorUserId, UpdateUserRoleCommand command,
+                        ClientContext context) {
         Objects.requireNonNull(command, "command");
-        return withAccountLocks(command.userId(), () -> {
-            UserView result = transactions.inTransaction(connection -> {
-                UserAccount account = account(connection, command.userId());
-                if (!canChangeStatus(account.accountStatus(), command.newStatus())) {
-                    throw new IllegalStateException("USER_STATUS_CONFLICT");
-                }
-                protectOnlyAdministrator(connection, account, command.newStatus() != AccountStatus.ACTIVE);
-                UserAccount updated = account.withStatus(command.newStatus(), now());
-                users.updateWithVersion(connection, updated, command.expectedVersion());
-                audits.record(connection, actorId, "USER_CHANGE_STATUS", "USER",
-                        account.userId(), "SUCCESS");
-                return view(updated, command.expectedVersion() + 1);
-            });
-            if (command.newStatus() == AccountStatus.DISABLED || command.newStatus() == AccountStatus.CANCELLED) {
+        try {
+            return withAccountLocks(command.userId(), () -> {
+                UserView result = transactions.inTransaction(connection -> {
+                    UserAccount account = account(connection, command.userId());
+                    if (command.newRole() == UserRole.STUDENT
+                            && account.role() != UserRole.STUDENT) {
+                        throw new IllegalStateException("USER_ROLE_CONFLICT");
+                    }
+                    protectOnlyAdministrator(connection, account,
+                            command.newRole() != UserRole.ADMIN);
+                    UserAccount updated = account.withRole(command.newRole());
+                    users.updateWithVersion(connection, updated, command.expectedVersion());
+                    audits.record(connection, actorUserId, "USER_UPDATE_ROLE", "USER",
+                            account.userId(), "SUCCESS", address(context));
+                    return view(updated, command.expectedVersion() + 1);
+                });
                 sessionRevoker.accept(command.userId());
-            }
-            return result;
-        });
+                return result;
+            });
+        } catch (RuntimeException error) {
+            auditWriter.failure(actorUserId, "USER_UPDATE_ROLE", command.userId(),
+                    error, address(context));
+            throw error;
+        }
     }
 
-    private LocalDateTime now() {
-        return LocalDateTime.ofInstant(clock.instant(), clock.getZone());
+    UserView changeStatus(ChangeUserStatusCommand command) {
+        return changeStatus(null, command, null);
+    }
+
+    UserView changeStatus(String actorUserId, ChangeUserStatusCommand command,
+                          ClientContext context) {
+        Objects.requireNonNull(command, "command");
+        try {
+            return withAccountLocks(command.userId(), () -> {
+                UserView result = transactions.inTransaction(connection -> {
+                    UserAccount account = account(connection, command.userId());
+                    if (!canChangeStatus(account.accountStatus(), command.newStatus())) {
+                        throw new IllegalStateException("USER_STATUS_CONFLICT");
+                    }
+                    protectOnlyAdministrator(connection, account,
+                            command.newStatus() != AccountStatus.ACTIVE);
+                    UserAccount updated = account.withStatus(command.newStatus());
+                    users.updateWithVersion(connection, updated, command.expectedVersion());
+                    audits.record(connection, actorUserId, "USER_CHANGE_STATUS", "USER",
+                            account.userId(), "SUCCESS", address(context));
+                    return view(updated, command.expectedVersion() + 1);
+                });
+                if (command.newStatus() == AccountStatus.DISABLED
+                        || command.newStatus() == AccountStatus.CANCELLED) {
+                    sessionRevoker.accept(command.userId());
+                }
+                return result;
+            });
+        } catch (RuntimeException error) {
+            auditWriter.failure(actorUserId, "USER_CHANGE_STATUS", command.userId(),
+                    error, address(context));
+            throw error;
+        }
     }
 
     private <T> T withAccountLocks(String userId, java.util.function.Supplier<T> action) {
@@ -133,6 +149,7 @@ final class AdminUserService {
                 account.mustChangePassword(), account.lastLoginAt(), version, account.createdAt(), account.updatedAt());
     }
 
-    private record RoleUpdate(UserView view, boolean changed) {
+    private static String address(ClientContext context) {
+        return context == null ? null : context.clientAddress();
     }
 }

@@ -1,33 +1,26 @@
 package edu.seu.vcampus.client.core.ui.theme;
 
 import java.awt.Font;
-import java.awt.GraphicsEnvironment;
-import java.util.Arrays;
-import java.util.Set;
 
-/** Serif typography roles and platform fallback selection. */
+/** Shared serif typography tokens for the client interface. */
 public final class UiTypography {
-    private static final String[] PREFERRED_FAMILIES = {
-            "Source Han Serif SC", "SimSun", "Songti SC", "Serif"
-    };
-    public static final String FAMILY = chooseFamily(Set.copyOf(Arrays.asList(
-            GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames())));
-    public static final Font DISPLAY = new Font(FAMILY, Font.BOLD, 20);
-    public static final Font PAGE_TITLE = new Font(FAMILY, Font.BOLD, 22);
-    public static final Font SECTION_TITLE = new Font(FAMILY, Font.BOLD, 16);
-    public static final Font BODY = new Font(FAMILY, Font.PLAIN, 14);
-    public static final Font BODY_BOLD = new Font(FAMILY, Font.BOLD, 14);
-    public static final Font CAPTION = new Font(FAMILY, Font.PLAIN, 12);
+    public static final Font DISPLAY = font(Font.BOLD, 26);
+    public static final Font PAGE_TITLE = font(Font.BOLD, 22);
+    public static final Font SECTION_TITLE = font(Font.BOLD, 16);
+    public static final Font BODY = font(Font.PLAIN, 14);
+    public static final Font BODY_BOLD = font(Font.BOLD, 14);
+    public static final Font CAPTION = font(Font.PLAIN, 12);
 
-    private UiTypography() {
+    private UiTypography() { }
+
+    private static Font font(int style, int size) {
+        return new Font(Font.SERIF, style, size);
     }
 
-    /** Chooses the first available family in the required fallback order. */
-    public static String chooseFamily(Set<String> availableFamilies) {
-        for (String family : PREFERRED_FAMILIES) {
-            if (availableFamilies.contains(family)) {
-                return family;
-            }
+    /** Selects the first installed serif font from the shared fallback order. */
+    public static String chooseFamily(java.util.Set<String> availableFamilies) {
+        for (String candidate : new String[]{"Source Han Serif SC", "SimSun", "Songti SC", "Serif"}) {
+            if (availableFamilies.contains(candidate)) return candidate;
         }
         return Font.SERIF;
     }

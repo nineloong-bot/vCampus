@@ -18,6 +18,8 @@ import edu.seu.vcampus.server.security.UserIdentity;
 import edu.seu.vcampus.server.session.SessionRegistry;
 import edu.seu.vcampus.server.user.domain.UserAccount;
 import edu.seu.vcampus.server.user.repository.AuditRepository;
+import edu.seu.vcampus.server.user.repository.AccessPermissionRepository;
+import edu.seu.vcampus.server.user.repository.PermissionRepository;
 import edu.seu.vcampus.server.user.repository.UserRepository;
 
 import java.time.Clock;
@@ -35,28 +37,46 @@ public final class UserServiceImpl implements UserService, UserQueryPort {
     private final TeacherAccountApplicationService applications;
     private final AuthenticationService authentication;
     private final AdminUserService administration;
+    private final UserAuditWriter auditWriter;
 
     /** Creates the service with production clock and session defaults. */
     public UserServiceImpl(TransactionManager transactions, ResourceLockManager locks,
             UserRepository users, AuditRepository audits, PasswordHasher hasher) {
-        this(transactions, locks, users, audits, hasher, new SessionRegistry(), Clock.systemUTC());
+        this(transactions, locks, users, new AccessPermissionRepository(), audits, hasher,
+                new SessionRegistry(), Clock.systemUTC());
     }
 
     /** Creates the service with injectable session and clock dependencies. */
     public UserServiceImpl(TransactionManager transactions, ResourceLockManager locks,
             UserRepository users, AuditRepository audits, PasswordHasher hasher,
             SessionRegistry sessions, Clock clock) {
+        this(transactions, locks, users, new AccessPermissionRepository(), audits, hasher,
+                sessions, clock);
+    }
+
+    /** Creates the service with injectable permission, session, and clock dependencies. */
+    public UserServiceImpl(TransactionManager transactions, ResourceLockManager locks,
+            UserRepository users, PermissionRepository permissions, AuditRepository audits,
+            PasswordHasher hasher, SessionRegistry sessions, Clock clock) {
         this.transactions = Objects.requireNonNull(transactions, "transactions");
         this.users = Objects.requireNonNull(users, "users");
+        auditWriter = new UserAuditWriter(transactions, audits);
         applications = new TeacherAccountApplicationService(transactions, locks, users, audits, hasher);
-        authentication = new AuthenticationService(transactions, locks, users, audits, hasher, sessions, clock);
+        authentication = new AuthenticationService(transactions, locks, users, permissions,
+                audits, hasher, sessions, clock);
         administration = new AdminUserService(transactions, locks, users, audits,
-                authentication::revokeSessionsForUser, clock);
+                authentication::revokeSessionsForUser);
     }
 
     /** Creates a pending teacher account application. */
     @Override public UserView applyForTeacherAccount(TeacherAccountApplicationCommand command) {
         return applications.apply(command);
+    }
+
+    /** Creates a pending teacher account and retains safe request audit metadata. */
+    @Override public UserView applyForTeacherAccount(
+            TeacherAccountApplicationCommand command, ClientContext context) {
+        return applications.apply(command, context);
     }
 
     /** Authenticates credentials and creates a normal or restricted session. */
@@ -65,35 +85,54 @@ public final class UserServiceImpl implements UserService, UserQueryPort {
     }
 
     /** Revokes a session token. */
-    @Override public void logout(String sessionToken) { authentication.logout(sessionToken); }
+    @Override public void logout(String sessionToken) { authentication.logout(sessionToken, null); }
+
+    /** Revokes a session and records safe request audit metadata. */
+    @Override public void logout(String sessionToken, ClientContext context) {
+        authentication.logout(sessionToken, context);
+    }
 
     /** Gets the current account projection. */
     @Override public UserView getCurrentUser(String sessionToken) { return authentication.currentUser(sessionToken); }
 
     /** Changes an account password and revokes the account's sessions. */
     @Override public void changePassword(String sessionToken, ChangePasswordCommand command) {
-        authentication.changePassword(sessionToken, command);
+        authentication.changePassword(sessionToken, command, null);
+    }
+
+    /** Changes a password and records safe request audit metadata. */
+    @Override public void changePassword(String sessionToken, ChangePasswordCommand command,
+                                         ClientContext context) {
+        authentication.changePassword(sessionToken, command, context);
     }
 
     /** Searches safe account summaries. */
     @Override public PageResult<UserSummary> searchUsers(UserSearchQuery query) { return administration.search(query); }
 
     /** Changes an account role. */
-    @Override public UserView updateRole(UpdateUserRoleCommand command) {
-        return updateRole(command.userId(), command);
-    }
+    @Override public UserView updateRole(UpdateUserRoleCommand command) { return administration.updateRole(command); }
 
-    @Override public UserView updateRole(String actorId, UpdateUserRoleCommand command) {
-        return administration.updateRole(actorId, command);
+    /** Changes a role with the authenticated actor retained for audit. */
+    @Override public UserView updateRole(String actorUserId, UpdateUserRoleCommand command,
+                                         ClientContext context) {
+        return administration.updateRole(actorUserId, command, context);
     }
 
     /** Changes an account lifecycle status. */
-    @Override public UserView changeStatus(ChangeUserStatusCommand command) {
-        return changeStatus(command.userId(), command);
+    @Override public UserView changeStatus(ChangeUserStatusCommand command) { return administration.changeStatus(command); }
+
+    /** Changes status with the authenticated actor retained for audit. */
+    @Override public UserView changeStatus(String actorUserId, ChangeUserStatusCommand command,
+                                           ClientContext context) {
+        return administration.changeStatus(actorUserId, command, context);
     }
 
-    @Override public UserView changeStatus(String actorId, ChangeUserStatusCommand command) {
-        return administration.changeStatus(actorId, command);
+    /** Writes a sanitized audit for a request rejected before service entry. */
+    @Override public void auditRejectedRequest(
+            String actorUserId, String actionCode, String targetId,
+            RuntimeException failure, ClientContext context) {
+        auditWriter.failure(actorUserId, actionCode, targetId, failure,
+                context == null ? null : context.clientAddress());
     }
 
     /** Revokes all sessions belonging to an account. */
@@ -103,9 +142,7 @@ public final class UserServiceImpl implements UserService, UserQueryPort {
 
     /** Finds an active user identity. */
     @Override public Optional<UserIdentity> findActiveUser(String userId) {
-        return findByUserId(userId).filter(identity -> transactions.inTransaction(connection ->
-                users.findById(connection, identity.userId())
-                        .map(account -> account.accountStatus() == ACTIVE).orElse(false)));
+        return findByUserId(userId).filter(identity -> identity.accountStatus() == ACTIVE);
     }
 
     /** Finds a user identity by its id. */

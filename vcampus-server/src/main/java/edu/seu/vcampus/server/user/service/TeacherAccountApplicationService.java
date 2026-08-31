@@ -5,6 +5,7 @@ import edu.seu.vcampus.common.user.UserView;
 import edu.seu.vcampus.server.concurrency.ResourceKey;
 import edu.seu.vcampus.server.concurrency.ResourceLockManager;
 import edu.seu.vcampus.server.persistence.TransactionManager;
+import edu.seu.vcampus.server.routing.ClientContext;
 import edu.seu.vcampus.server.user.domain.UserAccount;
 import edu.seu.vcampus.server.user.repository.AuditRepository;
 import edu.seu.vcampus.server.user.repository.DuplicateLoginIdException;
@@ -27,6 +28,7 @@ final class TeacherAccountApplicationService {
     private final UserRepository users;
     private final AuditRepository audits;
     private final PasswordHasher hasher;
+    private final UserAuditWriter auditWriter;
 
     TeacherAccountApplicationService(TransactionManager transactions, ResourceLockManager locks,
             UserRepository users, AuditRepository audits, PasswordHasher hasher) {
@@ -35,23 +37,48 @@ final class TeacherAccountApplicationService {
         this.users = Objects.requireNonNull(users, "users");
         this.audits = Objects.requireNonNull(audits, "audits");
         this.hasher = Objects.requireNonNull(hasher, "hasher");
+        auditWriter = new UserAuditWriter(transactions, audits);
     }
 
     UserView apply(TeacherAccountApplicationCommand command) {
+        return apply(command, null);
+    }
+
+    UserView apply(TeacherAccountApplicationCommand command, ClientContext context) {
         Objects.requireNonNull(command, "command");
         char[] password = command.password();
         try {
-            PasswordPolicy.validate(password);
-            String loginId = normalize(command.loginId());
-            PasswordHash passwordHash = hasher.hash(password);
-            return locks.withLocks(List.of(new ResourceKey("LOGIN_ID", loginId)),
-                    () -> create(loginId, passwordHash));
+            return prepareAndApply(command.loginId(), password, address(context));
         } finally {
             Arrays.fill(password, '\0');
         }
     }
 
-    private UserView create(String loginId, PasswordHash passwordHash) {
+    private UserView prepareAndApply(String submittedLoginId, char[] password,
+                                     String clientAddress) {
+        String loginId;
+        PasswordHash passwordHash;
+        try {
+            PasswordPolicy.validate(password);
+            loginId = normalize(submittedLoginId);
+            passwordHash = hasher.hash(password);
+        } catch (RuntimeException error) {
+            auditWriter.failure(null, "USER_REGISTER", null, error, clientAddress);
+            throw error;
+        }
+        return locks.withLocks(List.of(new ResourceKey("LOGIN_ID", loginId)), () -> {
+            try {
+                return create(loginId, passwordHash, clientAddress);
+            } catch (RuntimeException error) {
+                // The business transaction has already rolled back. Retaining the
+                // login lock serializes Access connection close/open during failure audit.
+                auditWriter.failure(null, "USER_REGISTER", null, error, clientAddress);
+                throw error;
+            }
+        });
+    }
+
+    private UserView create(String loginId, PasswordHash passwordHash, String clientAddress) {
         return transactions.inTransaction(connection -> {
             if (users.findByNormalizedLoginId(connection, loginId).isPresent()) {
                 throw exists(null);
@@ -65,7 +92,8 @@ final class TeacherAccountApplicationService {
             } catch (DuplicateLoginIdException error) {
                 throw exists(error);
             }
-            audits.record(connection, account.userId(), "USER_REGISTER", "SUCCESS");
+            audits.record(connection, null, "USER_REGISTER", "USER", account.userId(),
+                    "SUCCESS", clientAddress);
             return UserViews.from(account);
         });
     }
@@ -80,5 +108,9 @@ final class TeacherAccountApplicationService {
 
     private static IllegalStateException exists(Throwable cause) {
         return new IllegalStateException("USER_LOGIN_ID_EXISTS", cause);
+    }
+
+    private static String address(ClientContext context) {
+        return context == null ? null : context.clientAddress();
     }
 }

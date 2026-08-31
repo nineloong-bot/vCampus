@@ -1,18 +1,29 @@
 package edu.seu.vcampus.server.security;
 
+import edu.seu.vcampus.common.user.AccountStatus;
 import edu.seu.vcampus.common.user.UserRole;
 
 import java.util.Objects;
-import java.util.Set;
 
-/** Immutable authenticated identity retained by an in-memory session. */
+/**
+ * Used only by authorization boundaries and other server-side business modules
+ * to identify a user and the user's account state.
+ * It contains no credentials, password hash, salt, permission collection,
+ * session token, clientInstanceId, or initial-password-change state.
+ */
 public record UserIdentity(String userId, String loginId, UserRole role,
-                           Set<String> permissions, boolean restricted) {
-    /** Validates identity fields and snapshots granted permissions. */
+                           AccountStatus accountStatus) {
+    /** Validates the non-sensitive identity fields. */
     public UserIdentity {
         Objects.requireNonNull(userId, "userId");
         Objects.requireNonNull(loginId, "loginId");
         Objects.requireNonNull(role, "role");
-        permissions = Set.copyOf(Objects.requireNonNull(permissions, "permissions"));
+        Objects.requireNonNull(accountStatus, "accountStatus");
+    }
+
+    /** Retains the pre-session-snapshot constructor used by course-side adapters. */
+    public UserIdentity(String userId, String loginId, UserRole role,
+                        java.util.Set<String> ignoredPermissions, boolean ignoredRestricted) {
+        this(userId, loginId, role, AccountStatus.ACTIVE);
     }
 }

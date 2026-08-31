@@ -19,14 +19,13 @@ public final class AuthorizationService implements AuthorizationPort {
     }
 
     /** Enforces the first-password restriction before the normal permission check. */
-    @Override public UserIdentity requirePermission(String sessionToken, String permissionCode) {
-        UserIdentity identity = requireSession(sessionToken);
-        if (identity.restricted()) {
+    @Override public void requirePermission(String sessionToken, String permissionCode) {
+        SessionRegistry.SessionSnapshot snapshot = sessions.requireSnapshot(sessionToken);
+        if (snapshot.restricted()) {
             throw new InitialPasswordChangeRequiredException();
         }
-        if (!identity.permissions().contains(permissionCode)) {
+        if (!snapshot.permissions().contains(permissionCode)) {
             throw new ForbiddenException();
         }
-        return identity;
     }
 }

@@ -6,5 +6,5 @@ public interface AuthorizationPort {
     UserIdentity requireSession(String sessionToken);
 
     /** Requires a non-restricted session that holds the requested permission. */
-    UserIdentity requirePermission(String sessionToken, String permissionCode);
+    void requirePermission(String sessionToken, String permissionCode);
 }

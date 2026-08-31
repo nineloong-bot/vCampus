@@ -22,6 +22,12 @@ public record ChangePasswordCommand(char[] oldPassword, char[] newPassword) impl
     /** Returns a defensive copy of the replacement password. */
     @Override public char[] newPassword() { return newPassword.clone(); }
 
+    /** Clears both passwords retained by this request; repeated calls are harmless. */
+    public void clearPasswords() {
+        Arrays.fill(oldPassword, '\0');
+        Arrays.fill(newPassword, '\0');
+    }
+
     private static char[] copyAndClear(char[] value) {
         char[] copy = value.clone();
         Arrays.fill(value, '\0');

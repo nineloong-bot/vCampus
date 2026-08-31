@@ -4,6 +4,12 @@ import edu.seu.vcampus.client.core.navigation.PageNavigator;
 import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.course.service.CourseClientService;
 import edu.seu.vcampus.client.course.ui.CourseUiComposition;
+import edu.seu.vcampus.client.core.ui.shell.ApplicationStatusBar;
+import edu.seu.vcampus.client.core.ui.shell.IdentityHeader;
+import edu.seu.vcampus.client.core.ui.shell.ModulePlaceholderPage;
+import edu.seu.vcampus.client.core.ui.shell.PermissionNavigation;
+import edu.seu.vcampus.client.core.ui.theme.UiColors;
+import edu.seu.vcampus.client.core.ui.theme.UiDimensions;
 import edu.seu.vcampus.common.user.UserView;
 
 import javax.swing.JButton;
@@ -12,7 +18,6 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
-import java.awt.Dimension;
 import java.awt.GridLayout;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
@@ -20,37 +25,43 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/** Minimal layout-managed application shell extended by feature UI plans. */
+/** Shared application shell containing identity, navigation, content, and status seams. */
 public final class MainFrame extends JFrame {
-    private final JPanel header = new JPanel(new BorderLayout());
-    private final JPanel navigation = new JPanel();
+    private final JPanel header;
+    private final JPanel navigation;
     private final JPanel content = new JPanel();
-    private final JPanel footer = new JPanel(new BorderLayout());
+    private final JPanel footer;
     private final PageNavigator pageNavigator = new PageNavigator(content);
     private final AtomicBoolean authenticationHandoffStarted = new AtomicBoolean();
     private Runnable removeAuthenticationFailureListener = () -> { };
 
-    /** Creates the structural header, navigation, content, and footer seams. */
+    /** Creates the structural shell for compatibility with existing layout tests. */
     public MainFrame() {
-        this(null);
+        this(null, null);
     }
 
-    /** Creates the application shell with the logged-in demo identity. */
+    /** Creates the shell with a signed-in identity and no connection binding. */
     public MainFrame(UserView user) {
+        this(user, null);
+    }
+
+    /** Creates the complete demo shell with identity and live connection status. */
+    public MainFrame(UserView user, ClientConnection connection) {
         super("vCampus");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
-        header.add(new JLabel("vCampus"), BorderLayout.WEST);
-        header.add(new ConnectionStatusPanel(), BorderLayout.EAST);
-        footer.add(new JLabel("就绪"), BorderLayout.WEST);
+        header = new IdentityHeader(user, connection);
+        footer = new ApplicationStatusBar();
+        navigation = new PermissionNavigation(pageNavigator::show);
+        content.setBackground(UiColors.BACKGROUND_PAGE);
+        registerPlaceholders();
         add(header, BorderLayout.NORTH);
         add(navigation, BorderLayout.WEST);
         add(content, BorderLayout.CENTER);
         add(footer, BorderLayout.SOUTH);
-        if (user != null) {
-            configureLoggedInContent(header, pageNavigator, user);
-        }
-        pack();
+        setSize(UiDimensions.MAIN_WINDOW);
+        setMinimumSize(UiDimensions.MAIN_MINIMUM);
+        setLocationRelativeTo(null);
     }
 
     /** Creates a role-restricted course shell using the shared authenticated connection. */
@@ -60,8 +71,8 @@ public final class MainFrame extends JFrame {
 
     /** Creates a role-restricted course shell and supplies the one login-return handoff. */
     public MainFrame(UserView user, CourseClientService courses, ClientConnection connection,
-            Runnable onAuthenticationFailure) {
-        this();
+                     Runnable onAuthenticationFailure) {
+        this(user, connection);
         Objects.requireNonNull(user, "user");
         Objects.requireNonNull(courses, "courses");
         Objects.requireNonNull(connection, "connection");
@@ -86,8 +97,19 @@ public final class MainFrame extends JFrame {
                 removeAuthenticationFailureListener.run();
             }
         });
-        setMinimumSize(new Dimension(920, 620));
-        pack();
+    }
+
+    private void registerPlaceholders() {
+        register("student", "学籍档案", "用于查看和维护校园身份与学籍信息。");
+        register("course", "课程中心", "用于课程查询、选课和学习安排。");
+        register("library", "图书借阅", "用于检索馆藏并管理个人借阅。");
+        register("shop", "校园商城", "用于浏览校园商品和管理订单。");
+        register("account", "账户设置", "用于查看账户信息和安全设置。");
+        pageNavigator.show("student");
+    }
+
+    private void register(String id, String title, String description) {
+        pageNavigator.register(id, new ModulePlaceholderPage(title, description));
     }
 
     static void configureLoggedInContent(JPanel header, PageNavigator pageNavigator, UserView user) {
@@ -105,6 +127,7 @@ public final class MainFrame extends JFrame {
     }
 
     private void installCoursePages(Map<String, JPanel> pages) {
+        navigation.removeAll();
         navigation.setLayout(new GridLayout(0, 1, 8, 8));
         String firstPage = null;
         for (Map.Entry<String, JPanel> entry : pages.entrySet()) {
@@ -115,6 +138,8 @@ public final class MainFrame extends JFrame {
             navigation.add(button);
             if (firstPage == null) firstPage = pageId;
         }
+        navigation.revalidate();
+        navigation.repaint();
         if (firstPage != null) pageNavigator.show(firstPage);
     }
 
@@ -134,28 +159,18 @@ public final class MainFrame extends JFrame {
         };
     }
 
-    /** Returns the header extension point. */
-    public JPanel header() {
-        return header;
-    }
+    /** Returns the shared identity header. */
+    public JPanel header() { return header; }
 
-    /** Returns the navigation extension point. */
-    public JPanel navigation() {
-        return navigation;
-    }
+    /** Returns the fixed top-level navigation. */
+    public JPanel navigation() { return navigation; }
 
-    /** Returns the page content extension point. */
-    public JPanel content() {
-        return content;
-    }
+    /** Returns the card-layout page content region. */
+    public JPanel content() { return content; }
 
-    /** Returns the footer extension point. */
-    public JPanel footer() {
-        return footer;
-    }
+    /** Returns the shared application status bar. */
+    public JPanel footer() { return footer; }
 
     /** Returns the shared card-layout page navigator. */
-    public PageNavigator pageNavigator() {
-        return pageNavigator;
-    }
+    public PageNavigator pageNavigator() { return pageNavigator; }
 }

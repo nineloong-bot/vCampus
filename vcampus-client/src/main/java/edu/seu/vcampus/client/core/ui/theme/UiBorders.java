@@ -3,17 +3,16 @@ package edu.seu.vcampus.client.core.ui.theme;
 import javax.swing.BorderFactory;
 import javax.swing.border.Border;
 
-/** Shared borders used by the application shell. */
+/** Shared square, fine-line borders for client components. */
 public final class UiBorders {
-    public static final Border HEADER_BOTTOM = BorderFactory.createMatteBorder(
-            0, 0, 1, 0, UiColors.PRIMARY_HOVER);
-    public static final Border NAVIGATION_RIGHT = BorderFactory.createMatteBorder(
-            0, 0, 0, 1, UiColors.BORDER_DEFAULT);
-    public static final Border STATUS_TOP = BorderFactory.createMatteBorder(
-            1, 0, 0, 0, UiColors.BORDER_DEFAULT);
-    public static final Border SECTION = BorderFactory.createMatteBorder(
-            1, 0, 1, 0, UiColors.BORDER_DEFAULT);
+    public static final Border LINE = BorderFactory.createLineBorder(UiColors.BORDER_DEFAULT);
+    public static final Border FOCUS = BorderFactory.createLineBorder(UiColors.FOCUS, 2);
 
-    private UiBorders() {
+    private UiBorders() { }
+
+    /** Creates a standard page inset without duplicating spacing values. */
+    public static Border pageInset() {
+        return BorderFactory.createEmptyBorder(UiSpacing.SPACE_6, UiSpacing.SPACE_6,
+                UiSpacing.SPACE_6, UiSpacing.SPACE_6);
     }
 }

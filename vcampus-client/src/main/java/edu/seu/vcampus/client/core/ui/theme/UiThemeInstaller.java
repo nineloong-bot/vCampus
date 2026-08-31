@@ -1,26 +1,23 @@
 package edu.seu.vcampus.client.core.ui.theme;
 
 import javax.swing.UIManager;
-import java.util.concurrent.atomic.AtomicBoolean;
 
-/** Installs common Swing defaults once before windows are created. */
+/** Installs the shared academic look-and-feel defaults before windows are created. */
 public final class UiThemeInstaller {
-    private static final AtomicBoolean INSTALLED = new AtomicBoolean();
+    private UiThemeInstaller() { }
 
-    private UiThemeInstaller() {
-    }
-
-    /** Applies the shared academic visual defaults. */
+    /** Applies shared fonts, colors, and square control borders. */
     public static void install() {
-        if (!INSTALLED.compareAndSet(false, true)) {
-            return;
+        for (Object key : UIManager.getDefaults().keySet()) {
+            if (key.toString().endsWith(".font")) UIManager.put(key, UiTypography.BODY);
         }
-        UIManager.put("Label.font", UiTypography.BODY);
-        UIManager.put("Button.font", UiTypography.BODY);
-        UIManager.put("TextField.font", UiTypography.BODY);
-        UIManager.put("PasswordField.font", UiTypography.BODY);
         UIManager.put("Panel.background", UiColors.BACKGROUND_PAGE);
-        UIManager.put("OptionPane.messageFont", UiTypography.BODY);
-        UIManager.put("OptionPane.buttonFont", UiTypography.BODY);
+        UIManager.put("Label.foreground", UiColors.TEXT_PRIMARY);
+        UIManager.put("TextField.background", UiColors.BACKGROUND_PAGE);
+        UIManager.put("PasswordField.background", UiColors.BACKGROUND_PAGE);
+        UIManager.put("TextField.border", UiBorders.LINE);
+        UIManager.put("PasswordField.border", UiBorders.LINE);
+        UIManager.put("Button.font", UiTypography.BODY);
+        UIManager.put("Button.focus", UiColors.FOCUS);
     }
 }

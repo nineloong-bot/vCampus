@@ -13,10 +13,10 @@ import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import edu.seu.vcampus.server.persistence.TransactionManager;
 import edu.seu.vcampus.server.routing.MessageRouter;
 import edu.seu.vcampus.server.security.AuthorizationService;
-import edu.seu.vcampus.server.security.UserIdentity;
 import edu.seu.vcampus.server.session.SessionRegistry;
 import edu.seu.vcampus.server.user.handler.UserHandlers;
 import edu.seu.vcampus.server.user.repository.AccessAuditRepository;
+import edu.seu.vcampus.server.user.repository.AccessPermissionRepository;
 import edu.seu.vcampus.server.user.repository.AccessUserRepository;
 import edu.seu.vcampus.server.user.service.PasswordHasher;
 import edu.seu.vcampus.server.user.service.UserServiceImpl;
@@ -64,13 +64,14 @@ public final class ApplicationRuntime {
         ResourceLockManager locks = new StripedResourceLockManager();
         SessionRegistry sessions = new SessionRegistry(clock, sessionIdleTimeout);
         UserServiceImpl users = new UserServiceImpl(new TransactionManager(connections), locks,
-                new AccessUserRepository(), new AccessAuditRepository(), new PasswordHasher(), sessions, clock);
+                new AccessUserRepository(), new AccessPermissionRepository(),
+                new AccessAuditRepository(), new PasswordHasher(), sessions, clock);
         AuthorizationService authorization = new AuthorizationService(sessions);
         CourseAuthorizationGateway courseAuthorization = CourseRuntimeAdapters.authorization(
-                authorization::requireSession,
-                UserIdentity::userId,
-                identity -> identity.role().name(),
-                identity -> !identity.restricted(),
+                sessions::requireSnapshot,
+                snapshot -> snapshot.identity().userId(),
+                snapshot -> snapshot.identity().role().name(),
+                snapshot -> !snapshot.restricted(),
                 (userId, role) -> users.findActiveUser(userId)
                         .map(identity -> identity.role().name().equals(role)).orElse(false));
         CourseStudentGateway students = TemporaryUserStudentGateway.create(users);

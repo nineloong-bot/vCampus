@@ -16,6 +16,6 @@ final class UserViews {
 
     static UserIdentity identity(UserAccount account) {
         return new UserIdentity(account.userId(), account.loginId(), account.role(),
-                UserPermissions.forRole(account.role()), account.mustChangePassword());
+                account.accountStatus());
     }
 }

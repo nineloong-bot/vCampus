@@ -19,6 +19,14 @@ public record ServerConfig(
         int inventoryReservationMinutes,
         int dedupRetentionHours) {
 
+    /** Retains the course runtime's compact programmatic configuration constructor. */
+    public ServerConfig(int port, int maxConnections, int workerThreads, Path databasePath,
+                        int sessionTimeoutMinutes, int inventoryReservationMinutes,
+                        int dedupRetentionHours) {
+        this(port, maxConnections, workerThreads, databasePath, databasePath.getParent(), false,
+                sessionTimeoutMinutes, inventoryReservationMinutes, dedupRetentionHours);
+    }
+
     /** Loads properties from a file and resolves paths against an application base directory. */
     public static ServerConfig load(Path configFile, Path baseDirectory) {
         Properties properties = new Properties();

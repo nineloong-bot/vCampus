@@ -1,14 +1,21 @@
 package edu.seu.vcampus.client.core.ui.theme;
 
-/** Shared spacing scale from the UI review specification. */
+/** Shared spacing tokens in logical Swing pixels. */
 public final class UiSpacing {
-    public static final int XS = 4;
-    public static final int SM = 8;
-    public static final int MD = 12;
-    public static final int LG = 16;
-    public static final int XL = 24;
+    public static final int SPACE_1 = 4;
+    public static final int SPACE_2 = 8;
+    public static final int SPACE_3 = 12;
+    public static final int SPACE_4 = 16;
+    public static final int SPACE_6 = 24;
+    public static final int SPACE_8 = 32;
+
+    // Course UI aliases for the shared spacing scale.
+    public static final int XS = SPACE_1;
+    public static final int SM = SPACE_2;
+    public static final int MD = SPACE_3;
+    public static final int LG = SPACE_4;
+    public static final int XL = SPACE_6;
     public static final int PAGE_PADDING = XL;
 
-    private UiSpacing() {
-    }
+    private UiSpacing() { }
 }

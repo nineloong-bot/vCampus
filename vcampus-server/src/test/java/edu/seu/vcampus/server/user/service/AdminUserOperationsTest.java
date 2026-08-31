@@ -12,6 +12,7 @@ import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import edu.seu.vcampus.server.persistence.TransactionManager;
 import edu.seu.vcampus.server.routing.ClientContext;
 import edu.seu.vcampus.server.security.SessionExpiredException;
+import edu.seu.vcampus.server.session.SessionRegistry;
 import edu.seu.vcampus.server.user.domain.UserAccount;
 import edu.seu.vcampus.server.user.repository.AccessAuditRepository;
 import edu.seu.vcampus.server.user.repository.AccessUserRepository;
@@ -33,10 +34,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AdminUserOperationsTest {
+    private static final String ADMIN_ID = "00000000-0000-0000-0000-000000000001";
+    private static final ClientContext ADMIN_CONTEXT =
+            new ClientContext("admin-connection", "10.0.0.10");
     private TransactionManager transactions;
     private UserRepository repository;
     private UserService service;
     private ConnectionProvider connections;
+    private SessionRegistry sessions;
 
     @BeforeEach
     void createService() throws Exception {
@@ -50,8 +55,10 @@ class AdminUserOperationsTest {
             execute(connection, projectFile("seed", "010_roles_permissions.sql"));
         }
         repository = new AccessUserRepository();
+        sessions = new SessionRegistry();
         service = new UserServiceImpl(transactions, new StripedResourceLockManager(), repository,
-                new AccessAuditRepository(), new PasswordHasher());
+                new AccessAuditRepository(), new PasswordHasher(), sessions,
+                java.time.Clock.systemUTC());
     }
 
     @Test
@@ -69,11 +76,11 @@ class AdminUserOperationsTest {
 
     @Test
     void preventsDemotingTheOnlyActiveAdministrator() {
-        String administrator = "00000000-0000-0000-0000-000000000001";
-
-        assertThatThrownBy(() -> service.updateRole(new UpdateUserRoleCommand(
-                administrator, UserRole.TEACHER, 0)))
+        assertThatThrownBy(() -> service.updateRole(ADMIN_ID, new UpdateUserRoleCommand(
+                ADMIN_ID, UserRole.TEACHER, 0), ADMIN_CONTEXT))
                 .hasMessage("USER_LAST_ADMIN_PROTECTED");
+
+        assertAudit("USER_UPDATE_ROLE", "USER_LAST_ADMIN_PROTECTED", ADMIN_ID, ADMIN_ID);
     }
 
     @Test
@@ -83,8 +90,8 @@ class AdminUserOperationsTest {
         String token = service.login(new LoginCommand("TARGET", "Pass1234".toCharArray(), "client"),
                 new ClientContext("connection", "127.0.0.1")).sessionToken();
 
-        var view = service.changeStatus(new ChangeUserStatusCommand(target.userId(),
-                AccountStatus.DISABLED, "reviewed", 1));
+        var view = service.changeStatus(ADMIN_ID, new ChangeUserStatusCommand(target.userId(),
+                AccountStatus.DISABLED, "reviewed", 1), ADMIN_CONTEXT);
 
         assertThat(view.rowVersion()).isEqualTo(2);
         assertThatThrownBy(() -> service.getCurrentUser(token))
@@ -96,6 +103,70 @@ class AdminUserOperationsTest {
                 assertThat(result.getString(1)).isEqualTo("SUCCESS");
             }
         }
+        assertAudit("USER_CHANGE_STATUS", "SUCCESS", ADMIN_ID, target.userId());
+    }
+
+    @Test
+    void demotingAdministratorRevokesTheTargetsExistingSession() {
+        UserAccount target = account("SECOND_ADMIN", UserRole.ADMIN);
+        insert(target);
+        String token = service.login(new LoginCommand(target.loginId(), "Pass1234".toCharArray(),
+                "client"), new ClientContext("connection", "127.0.0.1")).sessionToken();
+
+        service.updateRole(ADMIN_ID,
+                new UpdateUserRoleCommand(target.userId(), UserRole.TEACHER, 1), ADMIN_CONTEXT);
+
+        assertThatThrownBy(() -> sessions.requireSession(token))
+                .isInstanceOf(SessionExpiredException.class);
+        assertThat(service.login(new LoginCommand(target.loginId(), "Pass1234".toCharArray(),
+                "client"), new ClientContext("connection", "127.0.0.1")).permissions())
+                .isEmpty();
+    }
+
+    @Test
+    void activeQueryPortExcludesNonActiveAccounts() {
+        PasswordHash password = new PasswordHasher().hash("Pass1234".toCharArray());
+        UserAccount pending = new UserAccount(UUID.randomUUID().toString(), "PENDING_USER",
+                password.hash(), password.salt(), password.iterations(),
+                UserRole.TEACHER, AccountStatus.PENDING, false, 0, null, null, 0,
+                LocalDateTime.now(), LocalDateTime.now());
+        insert(pending);
+        UserQueryPort queries = (UserQueryPort) service;
+
+        assertThat(queries.findByUserId(pending.userId())).isPresent();
+        assertThat(queries.findActiveUser(pending.userId())).isEmpty();
+    }
+
+    @Test
+    void rejectedStatusTransitionAuditsActorTargetAndStableCode() {
+        UserAccount target = account("STATUS_TARGET", UserRole.TEACHER);
+        insert(target);
+
+        assertThatThrownBy(() -> service.changeStatus(ADMIN_ID,
+                new ChangeUserStatusCommand(target.userId(), AccountStatus.PENDING,
+                        "invalid transition", 0), ADMIN_CONTEXT))
+                .hasMessage("USER_STATUS_CONFLICT");
+
+        assertAudit("USER_CHANGE_STATUS", "USER_STATUS_CONFLICT",
+                ADMIN_ID, target.userId());
+    }
+
+    private void assertAudit(String action, String resultCode, String actor, String target) {
+        transactions.inTransaction(connection -> {
+            try (var statement = connection.prepareStatement(
+                    "SELECT userId, targetId, clientAddress FROM tblAuditLog "
+                            + "WHERE actionCode=? AND resultCode=?")) {
+                statement.setString(1, action);
+                statement.setString(2, resultCode);
+                try (var result = statement.executeQuery()) {
+                    assertThat(result.next()).isTrue();
+                    assertThat(result.getString(1)).isEqualTo(actor);
+                    assertThat(result.getString(2)).isEqualTo(target);
+                    assertThat(result.getString(3)).isEqualTo(ADMIN_CONTEXT.clientAddress());
+                }
+            }
+            return null;
+        });
     }
 
     @Test
