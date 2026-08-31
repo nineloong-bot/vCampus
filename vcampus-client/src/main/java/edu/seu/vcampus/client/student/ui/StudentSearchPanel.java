@@ -68,7 +68,7 @@ public final class StudentSearchPanel extends JPanel {
         statusLabel = new JLabel("就绪");
         statusLabel.setFont(UiTypography.CAPTION);
         statusLabel.setForeground(UiColors.TEXT_SECONDARY);
-        statusLabel.setName("student.search.status");
+        statusLabel.setName("student.search.feedback");
         heading.add(statusLabel, BorderLayout.SOUTH);
         JPanel filterBar = buildFilterBar();
         heading.add(filterBar, BorderLayout.CENTER);
@@ -151,7 +151,7 @@ public final class StudentSearchPanel extends JPanel {
     }
 
     private JPanel buildFilterBar() {
-        JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT, UiSpacing.SPACE_2, UiSpacing.SPACE_1));
+        JPanel bar = new JPanel(new GridBagLayout());
         bar.setOpaque(false);
         bar.setName("student.search.filters");
         keywordField = new JTextField(12);
@@ -206,29 +206,62 @@ public final class StudentSearchPanel extends JPanel {
                         UiSpacing.SPACE_1, UiSpacing.SPACE_3)));
         searchButton.getAccessibleContext().setAccessibleName("搜索");
         searchButton.addActionListener(e -> search());
-        JLabel keywordLabel = new JLabel("关键词");
-        keywordLabel.setFont(UiTypography.CAPTION);
-        keywordLabel.setForeground(UiColors.TEXT_SECONDARY);
-        bar.add(keywordLabel);
-        bar.add(keywordField);
-        JLabel deptLabel = new JLabel("  院系:");
-        deptLabel.setFont(UiTypography.CAPTION);
-        bar.add(deptLabel);
-        bar.add(departmentCombo);
-        JLabel majorLabel = new JLabel("  专业:");
-        majorLabel.setFont(UiTypography.CAPTION);
-        bar.add(majorLabel);
-        bar.add(majorCombo);
-        JLabel classLabel = new JLabel("  班级:");
-        classLabel.setFont(UiTypography.CAPTION);
-        bar.add(classLabel);
-        bar.add(classCombo);
-        JLabel statusLabel = new JLabel("  状态:");
-        statusLabel.setFont(UiTypography.CAPTION);
-        bar.add(statusLabel);
-        bar.add(statusCombo);
-        bar.add(searchButton);
+        Dimension comboSize = new Dimension(150, Math.max(32, statusCombo.getPreferredSize().height));
+        for (JComboBox<?> combo : new JComboBox<?>[] {departmentCombo, majorCombo, classCombo, statusCombo}) {
+            combo.setPreferredSize(comboSize);
+            combo.setMinimumSize(new Dimension(110, comboSize.height));
+        }
+        keywordField.setPreferredSize(new Dimension(330, comboSize.height));
+        searchButton.setPreferredSize(new Dimension(88, comboSize.height));
+
+        addFilterLabel(bar, "关键词", 0, 0);
+        addFilterControl(bar, keywordField, 1, 0, 3, 2);
+        addFilterLabel(bar, "状态", 4, 0);
+        addFilterControl(bar, statusCombo, 5, 0, 1, 1);
+        GridBagConstraints button = constraints(6, 0);
+        button.fill = GridBagConstraints.BOTH;
+        button.insets = new Insets(UiSpacing.SPACE_1, UiSpacing.SPACE_2,
+                UiSpacing.SPACE_1, 0);
+        bar.add(searchButton, button);
+
+        addFilterLabel(bar, "院系", 0, 1);
+        addFilterControl(bar, departmentCombo, 1, 1, 1, 1);
+        addFilterLabel(bar, "专业", 2, 1);
+        addFilterControl(bar, majorCombo, 3, 1, 1, 1);
+        addFilterLabel(bar, "班级", 4, 1);
+        addFilterControl(bar, classCombo, 5, 1, 1, 1);
+        GridBagConstraints filler = constraints(6, 1);
+        filler.weightx = 0;
+        bar.add(Box.createRigidArea(searchButton.getPreferredSize()), filler);
         return bar;
+    }
+
+    private static void addFilterLabel(JPanel bar, String title, int column, int row) {
+        JLabel label = new JLabel(title, SwingConstants.RIGHT);
+        label.setFont(UiTypography.CAPTION);
+        label.setForeground(UiColors.TEXT_SECONDARY);
+        GridBagConstraints constraints = constraints(column, row);
+        constraints.anchor = GridBagConstraints.EAST;
+        constraints.insets = new Insets(UiSpacing.SPACE_1,
+                column == 0 ? 0 : UiSpacing.SPACE_3, UiSpacing.SPACE_1, UiSpacing.SPACE_2);
+        bar.add(label, constraints);
+    }
+
+    private static void addFilterControl(JPanel bar, JComponent component, int column,
+            int row, int width, double weight) {
+        GridBagConstraints constraints = constraints(column, row);
+        constraints.gridwidth = width;
+        constraints.weightx = weight;
+        constraints.fill = GridBagConstraints.HORIZONTAL;
+        constraints.insets = new Insets(UiSpacing.SPACE_1, 0, UiSpacing.SPACE_1, 0);
+        bar.add(component, constraints);
+    }
+
+    private static GridBagConstraints constraints(int column, int row) {
+        GridBagConstraints constraints = new GridBagConstraints();
+        constraints.gridx = column;
+        constraints.gridy = row;
+        return constraints;
     }
 
     @Override public void addNotify() {

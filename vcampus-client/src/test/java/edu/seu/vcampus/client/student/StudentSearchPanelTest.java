@@ -54,6 +54,36 @@ class StudentSearchPanelTest {
         assertThat(table.getValueAt(1, 3)).isEqualTo("已毕业");
     }
 
+    @Test void filtersStayOnTwoAlignedRowsAtMinimumWindowWidth() throws Exception {
+        var client = new AutoCompletingClient();
+        var panel = createPanel(client);
+
+        onEdt(() -> {
+            panel.setBounds(0, 0, 1024, 568);
+            layoutTree(panel);
+            JPanel filters = find(panel, "student.search.filters");
+            JTextField keyword = find(panel, "student.search.keyword");
+            JComboBox<?> department = find(panel, "student.search.department");
+            JComboBox<?> major = find(panel, "student.search.major");
+            JComboBox<?> studentClass = find(panel, "student.search.class");
+            JComboBox<?> status = find(panel, "student.search.status", JComboBox.class);
+            JButton submit = find(panel, "student.search.submit");
+
+            Rectangle keywordBounds = boundsIn(filters, keyword);
+            Rectangle departmentBounds = boundsIn(filters, department);
+            Rectangle majorBounds = boundsIn(filters, major);
+            Rectangle classBounds = boundsIn(filters, studentClass);
+            Rectangle statusBounds = boundsIn(filters, status);
+            Rectangle submitBounds = boundsIn(filters, submit);
+            assertThat(departmentBounds.y).isGreaterThan(keywordBounds.y);
+            assertThat(departmentBounds.y).isEqualTo(majorBounds.y).isEqualTo(classBounds.y);
+            assertThat(departmentBounds.width).isEqualTo(majorBounds.width).isEqualTo(classBounds.width);
+            assertThat(keywordBounds.y).isEqualTo(statusBounds.y).isEqualTo(submitBounds.y);
+            assertThat(submitBounds.getMaxX()).isLessThanOrEqualTo(filters.getWidth());
+            return null;
+        });
+    }
+
     @Test void cascadingDropdownsClearChildren() throws Exception {
         var client = new AutoCompletingClient();
         client.enqueue(ResponseBody.success(new ArrayList<>(List.of(
@@ -165,6 +195,12 @@ class StudentSearchPanelTest {
     private ClientConnection lastConnection;
 
     private StudentSearchPanel showPanel(AutoCompletingClient client) throws Exception {
+        StudentSearchPanel panel = createPanel(client);
+        onEdt(() -> { panel.addNotify(); return null; });
+        return panel;
+    }
+
+    private StudentSearchPanel createPanel(AutoCompletingClient client) throws Exception {
         var service = new StudentClientService(client, Duration.ofSeconds(3));
         var connection = new ClientConnection("localhost", 1);
         connections.add(connection);
@@ -174,12 +210,7 @@ class StudentSearchPanelTest {
             f.setAccessible(true);
             f.set(connection, edu.seu.vcampus.client.core.network.ConnectionState.CONNECTED);
         } catch (ReflectiveOperationException e) { throw new AssertionError(e); }
-        var panel = onEdt(() -> {
-            var p = new StudentSearchPanel(service, connection, id -> {});
-            p.addNotify();
-            return p;
-        });
-        return panel;
+        return onEdt(() -> new StudentSearchPanel(service, connection, id -> {}));
     }
 
     @SuppressWarnings("unchecked")
@@ -194,6 +225,26 @@ class StudentSearchPanelTest {
         throw new IllegalArgumentException("Missing component: " + name);
     }
 
+    private static <T extends Component> T find(Container root, String name, Class<T> type) {
+        for (Component child : root.getComponents()) {
+            if (name.equals(child.getName()) && type.isInstance(child)) return type.cast(child);
+            if (child instanceof Container nested) {
+                T found = findOrNull(nested, name, type); if (found != null) return found;
+            }
+        }
+        throw new IllegalArgumentException("Missing component: " + name + " of type " + type.getSimpleName());
+    }
+
+    private static <T extends Component> T findOrNull(Container root, String name, Class<T> type) {
+        for (Component child : root.getComponents()) {
+            if (name.equals(child.getName()) && type.isInstance(child)) return type.cast(child);
+            if (child instanceof Container nested) {
+                T found = findOrNull(nested, name, type); if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
     private static <T> T onEdt(Callable<T> work) throws Exception {
         var result = new AtomicReference<T>();
         var failure = new AtomicReference<Throwable>();
@@ -203,6 +254,15 @@ class StudentSearchPanelTest {
     }
 
     private static void flushEdt() throws Exception { SwingUtilities.invokeAndWait(() -> {}); }
+
+    private static void layoutTree(Container root) {
+        root.doLayout();
+        for (Component child : root.getComponents()) if (child instanceof Container nested) layoutTree(nested);
+    }
+
+    private static Rectangle boundsIn(Container root, Component component) {
+        return SwingUtilities.convertRectangle(component.getParent(), component.getBounds(), root);
+    }
 
     private static void waitForTableRows(JPanel panel, int expectedRows) throws Exception {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
