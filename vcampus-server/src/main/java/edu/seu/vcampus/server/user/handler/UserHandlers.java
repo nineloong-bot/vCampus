@@ -44,7 +44,7 @@ public final class UserHandlers {
         router.register("USER_CHANGE_PASSWORD", sessionHandler(ChangePasswordCommand.class,
                 command -> { users.changePassword(command.token(), command.body()); return EmptyResponse.INSTANCE; }));
         router.register("USER_SEARCH", permissionHandler("USER_READ_ALL", UserSearchQuery.class,
-                users::searchUsers));
+                (actorId, query) -> users.searchUsers(query)));
         router.register("USER_UPDATE_ROLE", permissionHandler("USER_ROLE_WRITE",
                 UpdateUserRoleCommand.class, users::updateRole));
         router.register("USER_CHANGE_STATUS", permissionHandler("USER_STATUS_WRITE",
@@ -65,10 +65,10 @@ public final class UserHandlers {
     }
 
     private <T extends Serializable, R extends Serializable> MessageHandler permissionHandler(
-            String permission, Class<T> type, Function<T, R> operation) {
+            String permission, Class<T> type, ActingOperation<T, R> operation) {
         return (message, context) -> execute(() -> {
-            authorization.requirePermission(message.sessionToken(), permission);
-            return operation.apply(type.cast(message.body()));
+            var actor = authorization.requirePermission(message.sessionToken(), permission);
+            return operation.apply(actor.userId(), type.cast(message.body()));
         });
     }
 
@@ -86,5 +86,10 @@ public final class UserHandlers {
     }
 
     private record SessionCommand<T>(String token, T body) {
+    }
+
+    @FunctionalInterface
+    private interface ActingOperation<T, R> {
+        R apply(String actorId, T command);
     }
 }

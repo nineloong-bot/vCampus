@@ -46,7 +46,8 @@ public final class ServerMain {
         String databaseUrl = "jdbc:ucanaccess://" + config.databasePath();
         ConnectionProvider connections = () -> DriverManager.getConnection(databaseUrl);
         ApplicationRuntime runtime = ApplicationRuntime.create(connections,
-                distributionDatabaseDirectory, Clock.systemUTC());
+                distributionDatabaseDirectory, Clock.systemUTC(),
+                Duration.ofMinutes(config.sessionTimeoutMinutes()));
         SocketServer server = new SocketServer(config.port(), config.workerThreads(),
                 config.maxConnections(), runtime.router());
         Runtime.getRuntime().addShutdownHook(new Thread(() -> shutdown(server), "vcampus-shutdown"));

@@ -3,6 +3,7 @@ package edu.seu.vcampus.client.user;
 import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.core.ui.MainFrame;
 import edu.seu.vcampus.client.user.service.UserClientService;
+import edu.seu.vcampus.client.user.service.UserClientException;
 import edu.seu.vcampus.client.user.ui.InitialPasswordChangeDialog;
 import edu.seu.vcampus.client.user.ui.LoginFrame;
 import edu.seu.vcampus.common.protocol.EmptyResponse;
@@ -35,6 +36,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
@@ -123,7 +125,7 @@ class LoginDemoUiTest {
         char[] newPassword = "ReplacementPassword8".toCharArray();
 
         assertThatThrownBy(() -> service.changePassword(oldPassword, newPassword).join())
-                .hasCauseInstanceOf(IllegalArgumentException.class);
+                .hasCauseInstanceOf(UserClientException.class);
 
         verify(connection, never()).setSessionToken(null);
         assertThat(oldPassword).containsOnly('\0');
@@ -152,9 +154,79 @@ class LoginDemoUiTest {
         UserClientService service = new UserClientService(connection, "demo-client", TIMEOUT);
 
         assertThatThrownBy(() -> service.logout().join())
-                .hasCauseInstanceOf(IllegalArgumentException.class);
+                .hasCauseInstanceOf(UserClientException.class);
 
         verify(connection, never()).setSessionToken(null);
+    }
+
+    @Test
+    void userClientPreservesStableAuthenticationFailureCode() {
+        ClientConnection connection = mock(ClientConnection.class);
+        doReturn(CompletableFuture.completedFuture(ResponseBody.failure(
+                "AUTH_ACCOUNT_DISABLED", "账户已停用", null)))
+                .when(connection).send(eq("USER_LOGOUT"), eq(EmptyResponse.INSTANCE), eq(TIMEOUT));
+        UserClientService service = new UserClientService(connection, "demo-client", TIMEOUT);
+
+        Throwable failure = org.assertj.core.api.Assertions.catchThrowable(() -> service.logout().join());
+        while (failure instanceof java.util.concurrent.CompletionException && failure.getCause() != null) {
+            failure = failure.getCause();
+        }
+        assertThat(failure).isInstanceOfSatisfying(UserClientException.class,
+                error -> assertThat(error.code()).isEqualTo("AUTH_ACCOUNT_DISABLED"));
+    }
+
+    @Test
+    void terminalPasswordChangeFailureClearsTokenDisposesAndCompletesExactlyOnceOnEdt() throws Exception {
+        ClientConnection connection = mock(ClientConnection.class);
+        doReturn(CompletableFuture.completedFuture(ResponseBody.failure(
+                "AUTH_SESSION_EXPIRED", "expired", null)))
+                .when(connection).send(eq("USER_CHANGE_PASSWORD"),
+                        any(ChangePasswordCommand.class), eq(TIMEOUT));
+        UserClientService service = new UserClientService(connection, "demo-client", TIMEOUT);
+        AtomicInteger completions = new AtomicInteger();
+        AtomicBoolean completedOnEdt = new AtomicBoolean();
+        InitialPasswordChangeDialog[] dialog = new InitialPasswordChangeDialog[1];
+        SwingUtilities.invokeAndWait(() -> {
+            dialog[0] = new InitialPasswordChangeDialog(service, () -> {
+                completions.incrementAndGet();
+                completedOnEdt.set(SwingUtilities.isEventDispatchThread());
+            });
+            dialog[0].setVisible(true);
+            component(dialog[0], "password-change.old", JPasswordField.class).setText("InitialPassword7");
+            component(dialog[0], "password-change.new", JPasswordField.class).setText("ReplacementPassword8");
+            component(dialog[0], "password-change.confirm", JPasswordField.class).setText("ReplacementPassword8");
+            component(dialog[0], "password-change.submit", AbstractButton.class).doClick();
+        });
+
+        awaitEdt(() -> completions.get() == 1);
+
+        verify(connection).setSessionToken(null);
+        assertThat(dialog[0].isDisplayable()).isFalse();
+        assertThat(completions).hasValue(1);
+        assertThat(completedOnEdt).isTrue();
+    }
+
+    @Test
+    void terminalLogoutAndRepeatedWindowCloseCompleteOnlyOnce() throws Exception {
+        ClientConnection connection = mock(ClientConnection.class);
+        doReturn(CompletableFuture.completedFuture(ResponseBody.failure(
+                "AUTH_ACCOUNT_DISABLED", "disabled", null)))
+                .when(connection).send(eq("USER_LOGOUT"), eq(EmptyResponse.INSTANCE), eq(TIMEOUT));
+        UserClientService service = new UserClientService(connection, "demo-client", TIMEOUT);
+        AtomicInteger completions = new AtomicInteger();
+        InitialPasswordChangeDialog[] dialog = new InitialPasswordChangeDialog[1];
+        SwingUtilities.invokeAndWait(() -> {
+            dialog[0] = new InitialPasswordChangeDialog(service, completions::incrementAndGet);
+            dialog[0].setVisible(true);
+            dialog[0].dispatchEvent(new WindowEvent(dialog[0], WindowEvent.WINDOW_CLOSING));
+            dialog[0].dispatchEvent(new WindowEvent(dialog[0], WindowEvent.WINDOW_CLOSING));
+        });
+
+        awaitEdt(() -> completions.get() == 1);
+
+        verify(connection).setSessionToken(null);
+        assertThat(dialog[0].isDisplayable()).isFalse();
+        assertThat(completions).hasValue(1);
     }
 
     @Test

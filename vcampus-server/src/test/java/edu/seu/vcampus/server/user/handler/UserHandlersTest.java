@@ -71,6 +71,18 @@ class UserHandlersTest {
         assertThat(((TrackingAuthorization) authorization).permission).isEqualTo(permission);
     }
 
+    @Test
+    void roleAndStatusCommandsPassTheSingleAuthenticatedActorIdentityToTheService() {
+        route("USER_UPDATE_ROLE", new UpdateUserRoleCommand("target", UserRole.TEACHER, 0));
+        route("USER_CHANGE_STATUS", new ChangeUserStatusCommand(
+                "target", AccountStatus.DISABLED, "reviewed", 0));
+
+        StubUsers stub = (StubUsers) users;
+        assertThat(stub.roleActorId).isEqualTo("actor-user");
+        assertThat(stub.statusActorId).isEqualTo("actor-user");
+        assertThat(((TrackingAuthorization) authorization).permissionCalls).isEqualTo(2);
+    }
+
     @ParameterizedTest
     @CsvSource({"USER_LOGOUT", "USER_GET_CURRENT", "USER_CHANGE_PASSWORD"})
     void restrictedSessionAllowlistUsesSessionValidation(String command) {
@@ -107,10 +119,12 @@ class UserHandlersTest {
     }
 
     private static UserIdentity identity(boolean restricted) {
-        return new UserIdentity("user", "USER", UserRole.ADMIN, Set.of("USER_READ_ALL"), restricted);
+        return new UserIdentity("actor-user", "USER", UserRole.ADMIN, Set.of("USER_READ_ALL"), restricted);
     }
 
     private static final class StubUsers implements UserService {
+        private String roleActorId;
+        private String statusActorId;
         private static final UserView VIEW = new UserView("user", "USER", UserRole.ADMIN,
                 AccountStatus.ACTIVE, false, null, 0, LocalDateTime.MIN, LocalDateTime.MIN);
 
@@ -123,11 +137,20 @@ class UserHandlersTest {
         @Override public PageResult<UserSummary> searchUsers(UserSearchQuery query) { return new PageResult<>(java.util.List.of(), 0, 10, 0); }
         @Override public UserView updateRole(UpdateUserRoleCommand command) { return VIEW; }
         @Override public UserView changeStatus(ChangeUserStatusCommand command) { return VIEW; }
+        @Override public UserView updateRole(String actorId, UpdateUserRoleCommand command) {
+            roleActorId = actorId;
+            return VIEW;
+        }
+        @Override public UserView changeStatus(String actorId, ChangeUserStatusCommand command) {
+            statusActorId = actorId;
+            return VIEW;
+        }
     }
 
     private static final class TrackingAuthorization implements AuthorizationPort {
         private String permission;
         private int sessionCalls;
+        private int permissionCalls;
         private boolean restricted;
 
         @Override public UserIdentity requireSession(String sessionToken) {
@@ -135,9 +158,11 @@ class UserHandlersTest {
             return identity(restricted);
         }
 
-        @Override public void requirePermission(String sessionToken, String permissionCode) {
+        @Override public UserIdentity requirePermission(String sessionToken, String permissionCode) {
             permission = permissionCode;
+            permissionCalls++;
             if (restricted) throw new InitialPasswordChangeRequiredException();
+            return identity(false);
         }
     }
 }

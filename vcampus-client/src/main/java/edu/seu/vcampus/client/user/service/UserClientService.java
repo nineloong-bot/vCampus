@@ -75,7 +75,7 @@ public class UserClientService {
 
     private LoginResult requireSuccess(ResponseBody<LoginResult> response) {
         if (!response.success() || response.data() == null) {
-            throw new IllegalArgumentException(response.code());
+            throw failure(response);
         }
         LoginResult result = response.data();
         connection.setSessionToken(result.sessionToken());
@@ -91,8 +91,20 @@ public class UserClientService {
 
     private static void requireEmptySuccess(ResponseBody<EmptyResponse> response) {
         if (!response.success() || response.data() != EmptyResponse.INSTANCE) {
-            throw new IllegalArgumentException(response.code());
+            throw failure(response);
         }
+    }
+
+    /** Clears the in-memory token after a terminal authentication failure. */
+    public void invalidateLocalSession() {
+        connection.setSessionToken(null);
+    }
+
+    private static UserClientException failure(ResponseBody<?> response) {
+        String code = response == null || response.code() == null || response.code().isBlank()
+                ? "COMMON_PROTOCOL_ERROR" : response.code();
+        String message = response == null ? null : response.message();
+        return new UserClientException(code, message);
     }
 
     private static void clearPassword(char[] password) {

@@ -51,7 +51,7 @@ public final class UserServiceImpl implements UserService, UserQueryPort {
         applications = new TeacherAccountApplicationService(transactions, locks, users, audits, hasher);
         authentication = new AuthenticationService(transactions, locks, users, audits, hasher, sessions, clock);
         administration = new AdminUserService(transactions, locks, users, audits,
-                authentication::revokeSessionsForUser);
+                authentication::revokeSessionsForUser, clock);
     }
 
     /** Creates a pending teacher account application. */
@@ -79,10 +79,22 @@ public final class UserServiceImpl implements UserService, UserQueryPort {
     @Override public PageResult<UserSummary> searchUsers(UserSearchQuery query) { return administration.search(query); }
 
     /** Changes an account role. */
-    @Override public UserView updateRole(UpdateUserRoleCommand command) { return administration.updateRole(command); }
+    @Override public UserView updateRole(UpdateUserRoleCommand command) {
+        return updateRole(command.userId(), command);
+    }
+
+    @Override public UserView updateRole(String actorId, UpdateUserRoleCommand command) {
+        return administration.updateRole(actorId, command);
+    }
 
     /** Changes an account lifecycle status. */
-    @Override public UserView changeStatus(ChangeUserStatusCommand command) { return administration.changeStatus(command); }
+    @Override public UserView changeStatus(ChangeUserStatusCommand command) {
+        return changeStatus(command.userId(), command);
+    }
+
+    @Override public UserView changeStatus(String actorId, ChangeUserStatusCommand command) {
+        return administration.changeStatus(actorId, command);
+    }
 
     /** Revokes all sessions belonging to an account. */
     @Override public void revokeSessionsForUser(String userId) {

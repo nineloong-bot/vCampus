@@ -9,6 +9,9 @@
 - 一个应用级 `ResourceLockManager`，由用户服务和 `CourseComposition` 共用；
 - 一个用户模块 `SessionRegistry`，登录、登出、用户授权和选课授权都以其中的实时会话为准。
 
+会话空闲过期时间由 `config/server.properties` 的 `session.timeoutMinutes` 控制；生产启动会把该值传入
+`ApplicationRuntime`，未显式配置组合参数的兼容入口仍使用 30 分钟默认值。
+
 `ServerMain` 使用 `ApplicationRuntime` 的路由创建生产 `SocketServer`。客户端也只创建一个
 `ClientConnection`，`UserClientService` 与 `CourseClientService` 共用该连接；登录成功后写入的会话令牌
 因此会自动附在后续选课请求上。客户端页面过滤只是减少误操作，服务端角色检查始终是安全边界。

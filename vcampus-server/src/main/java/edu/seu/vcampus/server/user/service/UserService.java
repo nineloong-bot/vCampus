@@ -35,8 +35,18 @@ public interface UserService {
     /** Changes a base role while applying optimistic-version and last-admin protection. */
     UserView updateRole(UpdateUserRoleCommand command);
 
+    /** Changes a base role and attributes its audit event to the authenticated actor. */
+    default UserView updateRole(String actorId, UpdateUserRoleCommand command) {
+        return updateRole(command);
+    }
+
     /** Changes account lifecycle state while applying optimistic-version and last-admin protection. */
     UserView changeStatus(ChangeUserStatusCommand command);
+
+    /** Changes lifecycle state and attributes its audit event to the authenticated actor. */
+    default UserView changeStatus(String actorId, ChangeUserStatusCommand command) {
+        return changeStatus(command);
+    }
 
     /** Revokes all sessions belonging to a user after an account-security change. */
     void revokeSessionsForUser(String userId);

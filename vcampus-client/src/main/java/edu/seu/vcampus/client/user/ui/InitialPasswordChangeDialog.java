@@ -1,6 +1,7 @@
 package edu.seu.vcampus.client.user.ui;
 
 import edu.seu.vcampus.client.user.service.UserClientService;
+import edu.seu.vcampus.client.user.service.UserClientException;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
@@ -17,9 +18,16 @@ import java.awt.event.WindowEvent;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Set;
 
 /** Requires replacing an initial password before the user can enter the application. */
 public final class InitialPasswordChangeDialog extends JDialog {
+    private static final Set<String> TERMINAL_AUTH_CODES = Set.of(
+            "AUTH_SESSION_EXPIRED", "AUTH_ACCOUNT_DISABLED",
+            "AUTH_INITIAL_PASSWORD_CHANGE_REQUIRED");
     private final UserClientService users;
     private final Runnable onComplete;
     private final JPasswordField oldPassword = named(
@@ -32,6 +40,7 @@ public final class InitialPasswordChangeDialog extends JDialog {
     private final JButton logout = named(new JButton("退出登录"), "password-change.logout");
     private final JLabel status = named(new JLabel(" "), "password-change.status");
     private final JLabel error = named(new JLabel(" "), "password-change.error");
+    private final AtomicBoolean completed = new AtomicBoolean();
 
     /** Creates the mandatory initial-password replacement dialog. */
     public InitialPasswordChangeDialog(UserClientService users, Runnable onComplete) {
@@ -118,23 +127,52 @@ public final class InitialPasswordChangeDialog extends JDialog {
 
     private void finishChange(Throwable failure) {
         if (failure != null) {
+            if (isTerminalAuthenticationFailure(failure)) {
+                finishTerminal();
+                return;
+            }
             setPending(false, " ");
             error.setText("修改密码失败，请检查原密码后重试");
             oldPassword.requestFocusInWindow();
+            return;
+        }
+        complete();
+    }
+
+    private void finishLogout(Throwable failure) {
+        if (failure != null) {
+            if (isTerminalAuthenticationFailure(failure)) {
+                finishTerminal();
+                return;
+            }
+            setPending(false, " ");
+            error.setText("退出失败，请重试");
+            return;
+        }
+        complete();
+    }
+
+    private void finishTerminal() {
+        users.invalidateLocalSession();
+        complete();
+    }
+
+    private void complete() {
+        if (!completed.compareAndSet(false, true)) {
             return;
         }
         dispose();
         onComplete.run();
     }
 
-    private void finishLogout(Throwable failure) {
-        if (failure != null) {
-            setPending(false, " ");
-            error.setText("退出失败，请重试");
-            return;
+    private static boolean isTerminalAuthenticationFailure(Throwable failure) {
+        Throwable cause = failure;
+        while ((cause instanceof CompletionException || cause instanceof ExecutionException)
+                && cause.getCause() != null) {
+            cause = cause.getCause();
         }
-        dispose();
-        onComplete.run();
+        return cause instanceof UserClientException userFailure
+                && TERMINAL_AUTH_CODES.contains(userFailure.code());
     }
 
     private void setPending(boolean pending, String message) {

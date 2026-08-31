@@ -12,6 +12,8 @@ import edu.seu.vcampus.common.course.OfferingSearchQuery;
 import edu.seu.vcampus.common.user.AccountStatus;
 import edu.seu.vcampus.common.user.LoginResult;
 import edu.seu.vcampus.common.user.UserRole;
+import edu.seu.vcampus.common.user.UpdateUserRoleCommand;
+import edu.seu.vcampus.common.user.UserSearchQuery;
 import edu.seu.vcampus.server.bootstrap.ApplicationRuntime;
 import edu.seu.vcampus.server.network.SocketServer;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
@@ -70,6 +72,7 @@ class LoginCourseSocketIntegrationTest {
         insertUser(connections, STUDENT_USER_ID, "STUDENT1", UserRole.STUDENT, false);
         insertUser(connections, TEACHER_USER_ID, "TEACHER1", UserRole.TEACHER, false);
         insertUser(connections, "admin-user-001", "ADMIN1", UserRole.ADMIN, false);
+        insertUser(connections, "admin-user-002", "ADMIN2", UserRole.ADMIN, false);
         insertUser(connections, "restricted-user-001", "RESTRICTED1", UserRole.STUDENT, true);
 
         server = new SocketServer(0, 4, 20, runtime.router());
@@ -142,6 +145,34 @@ class LoginCourseSocketIntegrationTest {
                 .extracting("offeringId").contains(offering.offeringId());
         assertThat(courses.getCurrentSchedule().join())
                 .extracting("offeringId").containsExactly(offering.offeringId());
+    }
+
+    @Test
+    void demotingAnAdministratorExpiresEveryOldTokenForUserAndCourseAdminCommands() throws Exception {
+        ClientConnection targetConnection = new ClientConnection("127.0.0.1", server.localPort());
+        targetConnection.connect(Duration.ofSeconds(5));
+        try {
+            UserClientService targetUsers = new UserClientService(
+                    targetConnection, "demoted-admin", Duration.ofSeconds(10));
+            CourseClientService targetCourses = new CourseClientService(targetConnection);
+            LoginResult target = targetUsers.login("ADMIN2", PASSWORD.toCharArray()).join();
+            assertThat(target.user().role()).isEqualTo(UserRole.ADMIN);
+
+            login("ADMIN1");
+            var update = connection.send("USER_UPDATE_ROLE", new UpdateUserRoleCommand(
+                    "admin-user-002", UserRole.TEACHER, target.user().rowVersion() + 1),
+                    Duration.ofSeconds(10)).join();
+            assertThat(update.success()).withFailMessage("role update failed: %s", update.code()).isTrue();
+
+            var userAdminResponse = targetConnection.send("USER_SEARCH",
+                    new UserSearchQuery(null, null, null, 0, 10), Duration.ofSeconds(10)).join();
+            assertThat(userAdminResponse.success()).isFalse();
+            assertThat(userAdminResponse.code()).isEqualTo("AUTH_SESSION_EXPIRED");
+            assertCourseFailure(() -> targetCourses.createTerm(term()).join(),
+                    "AUTH_SESSION_EXPIRED");
+        } finally {
+            targetConnection.close();
+        }
     }
 
     private LoginResult login(String loginId) {

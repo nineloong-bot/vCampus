@@ -80,6 +80,25 @@ class ApplicationRuntimeTest {
                 .isEqualTo("AUTH_SESSION_EXPIRED");
     }
 
+    @Test
+    void configuredIdleTimeoutControlsSessionExpiryInsteadOfTheThirtyMinuteDefault() throws Exception {
+        Path database = Files.createTempDirectory("vcampus-runtime-timeout-").resolve("runtime.accdb");
+        ConnectionProvider connections = () -> DriverManager.getConnection(
+                "jdbc:ucanaccess://" + database + ";newDatabaseVersion=V2010");
+        MutableClock clock = new MutableClock();
+        ApplicationRuntime runtime = ApplicationRuntime.create(
+                connections, databaseRoot(), clock, Duration.ofMinutes(7));
+        insertUser(connections, "STUDENT1", UserRole.STUDENT, false, "Password7");
+
+        LoginResult student = login(runtime, "STUDENT1");
+        clock.advance(Duration.ofMinutes(6));
+        assertThat(route(runtime, "COURSE_TERM_LIST", student.sessionToken(), EmptyRequest.INSTANCE).success())
+                .isTrue();
+        clock.advance(Duration.ofMinutes(8));
+        assertThat(route(runtime, "COURSE_TERM_LIST", student.sessionToken(), EmptyRequest.INSTANCE).code())
+                .isEqualTo("AUTH_SESSION_EXPIRED");
+    }
+
     private static LoginResult login(ApplicationRuntime runtime, String loginId) {
         ResponseBody<?> response = route(runtime, "USER_LOGIN", null,
                 new LoginCommand(loginId, "Password7".toCharArray(), "client-1"));

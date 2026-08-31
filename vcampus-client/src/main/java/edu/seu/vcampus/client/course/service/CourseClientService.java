@@ -14,6 +14,8 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
@@ -23,11 +25,16 @@ public final class CourseClientService {
     private static final Duration READ = Duration.ofSeconds(10);
     private static final Duration WRITE = Duration.ofSeconds(15);
     private final CourseTransport transport;
+    private final Executor executor;
     private final CopyOnWriteArrayList<Consumer<CourseClientException>> authenticationFailureListeners =
             new CopyOnWriteArrayList<>();
 
-    public CourseClientService(ClientConnection connection) { this(connection::send); }
-    public CourseClientService(CourseTransport transport) { this.transport = Objects.requireNonNull(transport); }
+    public CourseClientService(ClientConnection connection) { this(connection::send, ForkJoinPool.commonPool()); }
+    public CourseClientService(CourseTransport transport) { this(transport, ForkJoinPool.commonPool()); }
+    public CourseClientService(CourseTransport transport, Executor executor) {
+        this.transport = Objects.requireNonNull(transport, "transport");
+        this.executor = Objects.requireNonNull(executor, "executor");
+    }
 
     /** Registers a listener for failures that invalidate the logged-in course shell. */
     public Runnable addAuthenticationFailureListener(Consumer<CourseClientException> listener) {
@@ -77,11 +84,13 @@ public final class CourseClientService {
     }
 
     private CompletableFuture<Serializable> raw(String command, Serializable body, Duration timeout) {
-        CompletableFuture<? extends edu.seu.vcampus.common.protocol.ResponseBody<? extends Serializable>> sent;
-        try { sent = transport.<Serializable>send(command, body, timeout); }
-        catch (RuntimeException failure) { return CompletableFuture.failedFuture(transportFailure(failure)); }
-        if (sent == null) return CompletableFuture.failedFuture(malformed());
-        return sent.handle((response, failure) -> {
+        return CompletableFuture.supplyAsync(() -> {
+            CompletableFuture<? extends edu.seu.vcampus.common.protocol.ResponseBody<? extends Serializable>> sent =
+                    transport.<Serializable>send(command, body, timeout);
+            return sent == null
+                    ? CompletableFuture.<edu.seu.vcampus.common.protocol.ResponseBody<? extends Serializable>>failedFuture(malformed())
+                    : sent;
+        }, executor).thenCompose(sent -> sent).handle((response, failure) -> {
             if (failure != null) throw transportFailure(failure);
             if (response == null) throw malformed();
             if (response.success()) {
@@ -123,9 +132,14 @@ public final class CourseClientService {
         Throwable cause = failure;
         while ((cause instanceof CompletionException || cause instanceof ExecutionException)
                 && cause.getCause() != null) cause = cause.getCause();
-        if (cause instanceof CourseClientException courseFailure && isAuthenticationFailure(courseFailure.code())) {
-            notifyAuthenticationFailure(courseFailure);
-            return courseFailure;
+        if (cause instanceof CourseClientException courseFailure) {
+            if (isAuthenticationFailure(courseFailure.code())) {
+                notifyAuthenticationFailure(courseFailure);
+                return courseFailure;
+            }
+            if ("COMMON_PROTOCOL_ERROR".equals(courseFailure.code())) {
+                return courseFailure;
+            }
         }
         return cause instanceof TimeoutException ? timeout() : network();
     }

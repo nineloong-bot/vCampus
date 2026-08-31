@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.sql.SQLException;
 import java.time.Clock;
+import java.time.Duration;
 import java.util.Map;
 import java.util.Objects;
 
@@ -47,13 +48,21 @@ public final class ApplicationRuntime {
      */
     public static ApplicationRuntime create(ConnectionProvider connections, Path databaseResourceRoot,
                                             Clock clock) throws IOException, SQLException {
+        return create(connections, databaseResourceRoot, clock, Duration.ofMinutes(30));
+    }
+
+    /** Creates a runtime using the configured idle-session timeout. */
+    public static ApplicationRuntime create(ConnectionProvider connections, Path databaseResourceRoot,
+                                            Clock clock, Duration sessionIdleTimeout)
+            throws IOException, SQLException {
         Objects.requireNonNull(connections, "connections");
         Objects.requireNonNull(databaseResourceRoot, "databaseResourceRoot");
         Objects.requireNonNull(clock, "clock");
+        Objects.requireNonNull(sessionIdleTimeout, "sessionIdleTimeout");
         new ApplicationSchemaInitializer(databaseResourceRoot).initialize(connections);
 
         ResourceLockManager locks = new StripedResourceLockManager();
-        SessionRegistry sessions = new SessionRegistry(clock);
+        SessionRegistry sessions = new SessionRegistry(clock, sessionIdleTimeout);
         UserServiceImpl users = new UserServiceImpl(new TransactionManager(connections), locks,
                 new AccessUserRepository(), new AccessAuditRepository(), new PasswordHasher(), sessions, clock);
         AuthorizationService authorization = new AuthorizationService(sessions);
