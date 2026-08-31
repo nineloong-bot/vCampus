@@ -49,6 +49,7 @@ public final class UpdateContactDialog extends JDialog {
     private boolean conflict;
     private boolean disposed;
     private boolean published;
+    private boolean initialFocusEstablished;
 
     public UpdateContactDialog(Window owner, StudentClientService students,
                                StudentView initial, Consumer<StudentView> saved) {
@@ -71,7 +72,8 @@ public final class UpdateContactDialog extends JDialog {
         setFocusCycleRoot(true);
         setFocusTraversalPolicy(new ContactFocusTraversalPolicy());
         addWindowListener(new WindowAdapter() {
-            @Override public void windowOpened(WindowEvent event) { email.requestFocusInWindow(); }
+            @Override public void windowOpened(WindowEvent event) { establishInitialEmailFocus(); }
+            @Override public void windowActivated(WindowEvent event) { establishInitialEmailFocus(); }
         });
         setSize(new Dimension(560, 360));
         setResizable(false);
@@ -246,6 +248,14 @@ public final class UpdateContactDialog extends JDialog {
     private static void onEdt(Runnable task) {
         if (SwingUtilities.isEventDispatchThread()) task.run();
         else SwingUtilities.invokeLater(task);
+    }
+
+    private void establishInitialEmailFocus() {
+        SwingUtilities.invokeLater(() -> {
+            if (isShowing() && !initialFocusEstablished) {
+                initialFocusEstablished = email.requestFocusInWindow();
+            }
+        });
     }
 
     private static JTextField field(String name, String accessibleName) {
