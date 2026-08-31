@@ -13,6 +13,9 @@ import edu.seu.vcampus.common.shop.ShopView;
 import edu.seu.vcampus.common.shop.UpdateProductCommand;
 import edu.seu.vcampus.common.shop.UpdateShopCommand;
 import edu.seu.vcampus.common.shop.UpsertSkuCommand;
+import edu.seu.vcampus.common.shop.ProductManagementQuery;
+import edu.seu.vcampus.common.shop.ProductManagementSummary;
+import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.server.concurrency.ResourceLockManager;
 import edu.seu.vcampus.server.persistence.TransactionManager;
 import edu.seu.vcampus.server.shop.domain.Product;
@@ -30,6 +33,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /** Seller-owned product, SKU, and shop-profile mutations. */
 public final class ProductService {
@@ -55,17 +60,35 @@ public final class ProductService {
         requireText(command.description(), "description");
         requireText(command.category(), "category");
         requireText(command.contact(), "contact");
-        return locks.withLocks(List.of(SellerApplicationService.key("USER", actor.userId())), () ->
+        String normalizedName = command.shopName().strip().toLowerCase(Locale.ROOT);
+        return locks.withLocks(List.of(SellerApplicationService.key("USER", actor.userId()),
+                SellerApplicationService.key("SHOP_NAME", normalizedName)), () ->
                 transactions.inTransaction(connection -> {
                     Shop owned = requireOwnedActiveShop(connection, actor.userId());
+                    var nameOwner = repository.findShopByNormalizedName(connection, normalizedName);
+                    if (nameOwner.isPresent() && !nameOwner.orElseThrow().shopId().equals(owned.shopId())) {
+                        throw SellerApplicationService.error(ShopErrorCode.SHOP_NAME_EXISTS,
+                                "Shop name already exists");
+                    }
                     Shop updated = new Shop(owned.shopId(), owned.ownerUserId(),
-                            command.shopName().strip(), command.shopName().strip().toLowerCase(Locale.ROOT), command.description().strip(),
-                            command.category().strip(), command.contact().strip(), owned.status(),
+                            command.shopName().strip(), normalizedName, command.description().strip(),
+                            owned.category(), command.contact().strip(), owned.status(),
                             owned.suspensionReason(), owned.suspendedByUserId(), owned.suspendedAt(),
                             owned.rowVersion(), owned.createdAt(), clock.instant());
                     return toShopView(repository.updateShopProfile(connection, updated,
                             command.expectedVersion()));
                 }));
+    }
+
+    public PageResult<ProductManagementSummary> searchOwnedProducts(String sessionToken,
+            ProductManagementQuery query) {
+        Objects.requireNonNull(query, "query");
+        ShopUser actor = users.requireUser(sessionToken);
+        return transactions.inTransaction(connection -> {
+            Shop shop = requireOwnedShop(connection, actor.userId());
+            return repository.searchManagedProducts(connection, new ProductManagementQuery(
+                    shop.shopId(), query.status(), query.keyword(), query.pageNumber(), query.pageSize()));
+        });
     }
 
     public ProductView createProduct(String sessionToken, CreateProductCommand command) {
@@ -117,6 +140,9 @@ public final class ProductService {
                             command.expectedVersion());
                     List<ProductSku> existingSkus = repository.findSkusByProduct(connection,
                             existing.productId());
+                    Set<String> retainedSkuIds = command.skus().stream()
+                            .map(UpsertSkuCommand::skuId).filter(Objects::nonNull)
+                            .collect(Collectors.toSet());
                     for (UpsertSkuCommand commandSku : command.skus()) {
                         if (commandSku.skuId() == null) {
                             repository.insertSku(connection, new ProductSku(UUID.randomUUID().toString(),
@@ -135,6 +161,17 @@ public final class ProductService {
                                     commandSku.stockQuantity(), stored.reservedQuantity(),
                                     commandSku.active(), stored.rowVersion()), commandSku.expectedVersion());
                         }
+                    }
+                    for (ProductSku omitted : existingSkus) {
+                        if (retainedSkuIds.contains(omitted.skuId()) || !omitted.active()) continue;
+                        if (omitted.reservedQuantity() > 0) {
+                            throw SellerApplicationService.error(ShopErrorCode.SHOP_SKU_UNAVAILABLE,
+                                    "Reserved SKU cannot be removed");
+                        }
+                        repository.updateSku(connection, new ProductSku(omitted.skuId(),
+                                omitted.productId(), omitted.skuName(), omitted.unitPrice(),
+                                omitted.stockQuantity(), omitted.reservedQuantity(), false,
+                                omitted.rowVersion()), omitted.rowVersion());
                     }
                     return toView(connection, updated);
                 }));
@@ -161,13 +198,17 @@ public final class ProductService {
     }
 
     private Shop requireOwnedActiveShop(Connection connection, String ownerId) throws Exception {
-        Shop shop = repository.findShopByOwner(connection, ownerId)
-                .orElseThrow(() -> SellerApplicationService.error(
-                        ShopErrorCode.SHOP_SELLER_NOT_APPROVED, "Approved shop required"));
+        Shop shop = requireOwnedShop(connection, ownerId);
         if (shop.status() == ShopStatus.SUSPENDED) {
             throw SellerApplicationService.error(ShopErrorCode.SHOP_SUSPENDED, "Shop is suspended");
         }
         return shop;
+    }
+
+    private Shop requireOwnedShop(Connection connection, String ownerId) throws Exception {
+        return repository.findShopByOwner(connection, ownerId)
+                .orElseThrow(() -> SellerApplicationService.error(
+                        ShopErrorCode.SHOP_SELLER_NOT_APPROVED, "Approved shop required"));
     }
 
     private Product requireOwnedProduct(Connection connection, String productId,

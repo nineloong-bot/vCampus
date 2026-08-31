@@ -10,6 +10,9 @@ import edu.seu.vcampus.common.shop.SellerReviewDecision;
 import edu.seu.vcampus.common.shop.ShopErrorCode;
 import edu.seu.vcampus.common.shop.SubmitSellerApplicationCommand;
 import edu.seu.vcampus.common.shop.UpdateProductCommand;
+import edu.seu.vcampus.common.shop.ProductManagementQuery;
+import edu.seu.vcampus.common.shop.SuspendShopCommand;
+import edu.seu.vcampus.common.shop.UpdateShopCommand;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.persistence.TransactionManager;
 import edu.seu.vcampus.server.shop.ShopException;
@@ -35,6 +38,7 @@ class ProductServiceTest {
     private SellerApplicationService applications;
     private ShopAdminService admin;
     private ProductService products;
+    private SellerService sellers;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -50,6 +54,7 @@ class ProductServiceTest {
         applications = new SellerApplicationService(repository, users, transactions, locks, clock);
         admin = new ShopAdminService(repository, users, transactions, locks, clock);
         products = new ProductService(repository, users, transactions, locks, clock);
+        sellers = new SellerService(repository, users, transactions);
         approve("owner-token", "店铺一");
         approve("stranger-token", "店铺二");
     }
@@ -108,6 +113,33 @@ class ProductServiceTest {
                 product("铅笔", "https://user:password@example.test/pen.png")))
                 .isInstanceOfSatisfying(ShopException.class, error -> assertThat(error.code())
                         .isEqualTo(ShopErrorCode.SHOP_COVER_IMAGE_URL_INVALID));
+    }
+
+    @Test
+    void ownedProductSearchIgnoresRequestedShopAndRemainsReadableWhileSuspended() {
+        var created = products.createProduct("owner-token", product("可读商品", null));
+        var shop = sellers.getOwnedShop("owner-token");
+        admin.suspendShop("admin-token", new SuspendShopCommand(
+                shop.shopId(), "例行停业", shop.rowVersion()));
+
+        var page = products.searchOwnedProducts("owner-token", new ProductManagementQuery(
+                "another-shop", null, null, 0, 20));
+
+        assertThat(page.items()).extracting(value -> value.productId())
+                .containsExactly(created.productId());
+    }
+
+    @Test
+    void profileKeepsApprovedCategoryAndRechecksNormalizedShopName() {
+        var owned = sellers.getOwnedShop("owner-token");
+        var updated = products.updateShop("owner-token", new UpdateShopCommand(
+                "店铺一新名", "新简介", "药品", "new@example.edu", owned.rowVersion()));
+        assertThat(updated.category()).isEqualTo("文具");
+
+        assertThatThrownBy(() -> products.updateShop("owner-token", new UpdateShopCommand(
+                "  店铺二  ", "新简介", "文具", "new@example.edu", updated.rowVersion())))
+                .isInstanceOfSatisfying(ShopException.class, error -> assertThat(error.code())
+                        .isEqualTo(ShopErrorCode.SHOP_NAME_EXISTS));
     }
 
     private static CreateProductCommand product(String name, String coverImageUrl) {
