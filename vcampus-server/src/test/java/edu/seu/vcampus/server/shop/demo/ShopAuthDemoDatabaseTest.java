@@ -36,7 +36,7 @@ class ShopAuthDemoDatabaseTest {
     Path temp;
 
     @Test
-    void createsKnownBuyerAndOneHundredSellableProductsAcrossFourShops() throws Exception {
+    void createsFiveCategoryShopsAndOneHundredProductsWithPlaceholderCovers() throws Exception {
         Path database = temp.resolve("shop-auth.accdb");
 
         ShopAuthDemoDatabase.initialize(database, schemaDir(), seedDir());
@@ -48,7 +48,7 @@ class ShopAuthDemoDatabaseTest {
                     .isEqualTo(1);
             assertThat(count(connection,
                     "SELECT COUNT(*) FROM tblShop WHERE shopStatus='ACTIVE'"))
-                    .isEqualTo(4);
+                    .isEqualTo(5);
             assertThat(count(connection,
                     "SELECT COUNT(*) FROM tblProduct")).isEqualTo(100);
             assertThat(count(connection,
@@ -62,11 +62,18 @@ class ShopAuthDemoDatabaseTest {
             assertThat(count(connection,
                     "SELECT COUNT(*) FROM tblProduct WHERE shopId='demo-shop-daily' "
                             + "AND category='生活用品'"))
-                    .isEqualTo(55);
+                    .isEqualTo(45);
             assertThat(count(connection,
                     "SELECT COUNT(*) FROM tblProduct WHERE shopId='demo-shop-medicine' "
                             + "AND category='药品'"))
                     .isEqualTo(5);
+            assertThat(count(connection,
+                    "SELECT COUNT(*) FROM tblProduct WHERE shopId='demo-shop-other' "
+                            + "AND category='其他'"))
+                    .isEqualTo(10);
+            assertThat(count(connection,
+                    "SELECT COUNT(*) FROM tblProduct WHERE coverImageUrl IS NULL"))
+                    .isEqualTo(100);
 
             List<String> productIds = strings(connection,
                     "SELECT productId FROM tblProduct");
@@ -78,14 +85,16 @@ class ShopAuthDemoDatabaseTest {
                     "SELECT skuId FROM tblProductSku");
             assertThat(new HashSet<>(productIds)).hasSize(100);
             assertThat(new HashSet<>(productNames)).hasSize(100);
-            assertThat(new HashSet<>(skuIds)).hasSize(120);
+            assertThat(new HashSet<>(skuIds)).hasSize(121);
             assertThat(productIds).allMatch(id -> id.matches(
-                    "demo-(stationery|books|daily|medicine)-\\d{3}"));
+                    "demo-(stationery|books|daily|medicine|other)-\\d{3}"));
             assertThat(descriptions).allMatch(description -> description.contains("分类：")
                     && description.contains("用途：") && description.contains("规格："));
             assertThat(skuCounts(connection)).allSatisfy((productId, skuCount) -> {
                 int categoryIndex = Integer.parseInt(productId.substring(productId.length() - 3));
-                assertThat(skuCount).isEqualTo(categoryIndex % 5 == 0 ? 2L : 1L);
+                long expected = productId.equals("demo-stationery-001")
+                        || categoryIndex % 5 == 0 ? 2L : 1L;
+                assertThat(skuCount).isEqualTo(expected);
             });
             assertThat(count(connection,
                     "SELECT COUNT(*) FROM tblProduct p WHERE NOT EXISTS "
@@ -233,8 +242,8 @@ class ShopAuthDemoDatabaseTest {
 
             var dailyThirdPage = repository.searchCatalog(connection,
                     query(null, "生活用品", 2, 20), null);
-            assertThat(dailyThirdPage.total()).isEqualTo(55);
-            assertThat(dailyThirdPage.items()).hasSize(15);
+            assertThat(dailyThirdPage.total()).isEqualTo(45);
+            assertThat(dailyThirdPage.items()).hasSize(5);
 
             var skuMatches = repository.searchCatalog(connection,
                     query("组合装", null, 0, 100), null);
@@ -280,7 +289,7 @@ class ShopAuthDemoDatabaseTest {
             assertThat(count(connection, "SELECT COUNT(*) FROM tblUser WHERE userId='demo-buyer'"))
                     .isEqualTo(1);
             assertThat(count(connection, "SELECT COUNT(*) FROM tblShop"))
-                    .isEqualTo(4);
+                    .isEqualTo(5);
             assertThat(count(connection,
                     "SELECT COUNT(*) FROM tblProductSku "
                             + "WHERE skuId='demo-stationery-001-sku-1' "

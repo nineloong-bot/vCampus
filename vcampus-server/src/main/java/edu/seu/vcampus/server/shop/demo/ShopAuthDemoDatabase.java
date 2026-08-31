@@ -67,6 +67,7 @@ public final class ShopAuthDemoDatabase {
         insertUser(connection, "demo-owner-books", "DEMO_OWNER_BOOKS");
         insertUser(connection, "demo-owner-daily", "DEMO_OWNER_DAILY");
         insertUser(connection, "demo-owner-medicine", "DEMO_OWNER_MEDICINE");
+        insertUser(connection, "demo-owner-other", "DEMO_OWNER_OTHER");
     }
 
     private static void insertUser(Connection connection, String userId, String loginId)
@@ -94,6 +95,8 @@ public final class ShopAuthDemoDatabase {
                 "校园生活超市", "生活用品", now);
         insertShop(connection, "demo-shop-medicine", "demo-owner-medicine",
                 "校园药店", "药品", now);
+        insertShop(connection, "demo-shop-other", "demo-owner-other",
+                "校园综合店", "其他", now);
         for (ProductSeed product : ShopDemoCatalog.products()) {
             insertProduct(connection, product, now);
             for (SkuSeed sku : product.skus()) {

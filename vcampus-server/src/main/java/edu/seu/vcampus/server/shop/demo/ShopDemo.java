@@ -27,6 +27,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 
+import edu.seu.vcampus.server.shop.demo.ShopDemoCatalog.ProductSeed;
+import edu.seu.vcampus.server.shop.demo.ShopDemoCatalog.SkuSeed;
+
 /** Builds a persistent Access database and runs a complete Shop purchase scenario. */
 public final class ShopDemo {
     public static final String BUYER_TOKEN = "demo-buyer-token";
@@ -73,9 +76,10 @@ public final class ShopDemo {
 
         var catalog = shop.getHomeProducts(new HomeProductQuery(
                 null, null, ProductSortMode.SALES_DESC, 0, 20));
-        cart.addToCart(BUYER_TOKEN, new AddCartItemCommand("demo-pen-black", 2));
+        cart.addToCart(BUYER_TOKEN, new AddCartItemCommand(
+                "demo-stationery-001-sku-1", 2));
         var cartView = cart.addToCart(BUYER_TOKEN,
-                new AddCartItemCommand("demo-book-standard", 1));
+                new AddCartItemCommand("demo-books-001-sku-1", 1));
         var checkoutResult = checkout.checkout(BUYER_TOKEN,
                 new CheckoutCommand(cartView.items().stream()
                         .map(item -> new CheckoutItem(
@@ -84,7 +88,7 @@ public final class ShopDemo {
         var paymentView = payment.simulatePayment(BUYER_TOKEN,
                 new SimulatePaymentCommand(checkoutResult.paymentId(),
                         PaymentChannel.ALIPAY, PaymentAttemptStatus.SUCCEEDED));
-        return new ShopDemoResult(database, catalog.items().size(),
+        return new ShopDemoResult(database, Math.toIntExact(catalog.total()),
                 checkoutResult.orders().size(), paymentView.paymentNumber(),
                 paymentView.amount(), paymentView.status());
     }
@@ -118,7 +122,8 @@ public final class ShopDemo {
         try (PreparedStatement statement = connection.prepareStatement(
                 "INSERT INTO tblUser (userId) VALUES (?)")) {
             for (String id : List.of("demo-buyer", "demo-owner-stationery",
-                    "demo-owner-books", "demo-admin")) {
+                    "demo-owner-books", "demo-owner-daily", "demo-owner-medicine",
+                    "demo-owner-other", "demo-admin")) {
                 statement.setString(1, id);
                 statement.executeUpdate();
             }
@@ -128,59 +133,69 @@ public final class ShopDemo {
     private static void seedCatalog(Connection connection) throws Exception {
         Instant now = Instant.now();
         insertShop(connection, "demo-shop-stationery", "demo-owner-stationery",
-                "校园文具店", now);
+                "校园文具店", "文具", now);
         insertShop(connection, "demo-shop-books", "demo-owner-books",
-                "校园书店", now);
-        insertProduct(connection, "demo-pen", "demo-shop-stationery", "签字笔", now);
-        insertProduct(connection, "demo-book", "demo-shop-books", "Java 教材", now);
-        insertSku(connection, "demo-pen-black", "demo-pen", "黑色", "3.00", 10);
-        insertSku(connection, "demo-book-standard", "demo-book", "标准版", "10.00", 5);
+                "校园书店", "图书", now);
+        insertShop(connection, "demo-shop-daily", "demo-owner-daily",
+                "校园生活超市", "生活用品", now);
+        insertShop(connection, "demo-shop-medicine", "demo-owner-medicine",
+                "校园药店", "药品", now);
+        insertShop(connection, "demo-shop-other", "demo-owner-other",
+                "校园综合店", "其他", now);
+        for (ProductSeed product : ShopDemoCatalog.products()) {
+            insertProduct(connection, product, now);
+            for (SkuSeed sku : product.skus()) insertSku(connection, product.id(), sku);
+        }
     }
 
     private static void insertShop(Connection connection, String id, String owner,
-            String name, Instant now) throws Exception {
+            String name, String category, Instant now) throws Exception {
         try (PreparedStatement statement = connection.prepareStatement(
                 "INSERT INTO tblShop (shopId, ownerUserId, shopName, normalizedShopName, description, category, "
                         + "contact, shopStatus, rowVersion, createdAt, updatedAt) "
-                        + "VALUES (?, ?, ?, ?, 'Demo 店铺', '校园生活', 'demo@example.com', "
+                        + "VALUES (?, ?, ?, ?, 'Demo 店铺', ?, 'demo@example.com', "
                         + "'ACTIVE', 0, ?, ?)")) {
             statement.setString(1, id);
             statement.setString(2, owner);
             statement.setString(3, name);
             statement.setString(4, name.strip().toLowerCase(java.util.Locale.ROOT));
-            statement.setTimestamp(5, Timestamp.from(now));
+            statement.setString(5, category);
             statement.setTimestamp(6, Timestamp.from(now));
+            statement.setTimestamp(7, Timestamp.from(now));
             statement.executeUpdate();
         }
     }
 
-    private static void insertProduct(Connection connection, String id, String shopId,
-            String name, Instant now) throws Exception {
+    private static void insertProduct(Connection connection, ProductSeed product,
+            Instant now) throws Exception {
         try (PreparedStatement statement = connection.prepareStatement(
                 "INSERT INTO tblProduct (productId, shopId, productName, normalizedProductName, category, "
                         + "description, coverImageUrl, productStatus, salesCount, rowVersion, createdAt, updatedAt) "
-                        + "VALUES (?, ?, ?, ?, '生活用品', 'Demo 商品', NULL, 'ACTIVE', 0, 0, ?, ?)")) {
-            statement.setString(1, id);
-            statement.setString(2, shopId);
-            statement.setString(3, name);
-            statement.setString(4, name.toLowerCase(java.util.Locale.ROOT));
-            statement.setTimestamp(5, Timestamp.from(now));
-            statement.setTimestamp(6, Timestamp.from(now));
+                        + "VALUES (?, ?, ?, ?, ?, ?, NULL, 'ACTIVE', ?, 0, ?, ?)")) {
+            statement.setString(1, product.id());
+            statement.setString(2, product.shopId());
+            statement.setString(3, product.name());
+            statement.setString(4, product.name().strip().toLowerCase(java.util.Locale.ROOT));
+            statement.setString(5, product.category());
+            statement.setString(6, product.description());
+            statement.setLong(7, product.salesCount());
+            statement.setTimestamp(8, Timestamp.from(now));
+            statement.setTimestamp(9, Timestamp.from(now));
             statement.executeUpdate();
         }
     }
 
-    private static void insertSku(Connection connection, String id, String productId,
-            String name, String price, long stock) throws Exception {
+    private static void insertSku(Connection connection, String productId, SkuSeed sku)
+            throws Exception {
         try (PreparedStatement statement = connection.prepareStatement(
                 "INSERT INTO tblProductSku (skuId, productId, skuName, unitPrice, "
                         + "stockQuantity, reservedQuantity, isActive, rowVersion) "
                         + "VALUES (?, ?, ?, ?, ?, 0, TRUE, 0)")) {
-            statement.setString(1, id);
+            statement.setString(1, sku.id());
             statement.setString(2, productId);
-            statement.setString(3, name);
-            statement.setBigDecimal(4, new java.math.BigDecimal(price));
-            statement.setLong(5, stock);
+            statement.setString(3, sku.name());
+            statement.setBigDecimal(4, sku.price());
+            statement.setLong(5, sku.stock());
             statement.executeUpdate();
         }
     }
