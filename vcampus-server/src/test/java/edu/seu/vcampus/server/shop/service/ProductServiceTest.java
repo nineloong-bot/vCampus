@@ -43,6 +43,7 @@ class ProductServiceTest {
         var users = new FakeShopUserPort();
         users.add("owner-token", "owner-1", ShopUserKind.TEACHER, true);
         users.add("stranger-token", "stranger-1", ShopUserKind.STUDENT, true);
+        users.add("admin-token", "admin-1", ShopUserKind.ADMINISTRATOR, true);
         var transactions = new TransactionManager(database.connections());
         var locks = new StripedResourceLockManager();
         var clock = Clock.fixed(Instant.parse("2026-08-28T07:00:00Z"), ZoneOffset.UTC);
@@ -119,7 +120,7 @@ class ProductServiceTest {
                 null, shopName, "简介", "文具", "contact@example.edu", "经营计划", 0));
         var pending = applications.submitApplication(token,
                 new SubmitSellerApplicationCommand(draft.applicationId(), draft.rowVersion()));
-        admin.reviewApplication(new ReviewSellerApplicationCommand(pending.applicationId(),
+        admin.reviewApplication("admin-token", new ReviewSellerApplicationCommand(pending.applicationId(),
                 SellerReviewDecision.APPROVE, null, pending.rowVersion()));
     }
 }

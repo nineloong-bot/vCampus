@@ -92,7 +92,7 @@ class SellerApplicationServiceTest {
                 .isInstanceOfSatisfying(ShopException.class, error -> assertThat(error.code())
                         .isEqualTo(ShopErrorCode.SHOP_SELLER_APPLICATION_STATUS_INVALID));
 
-        SellerApplicationView rejected = admin.reviewApplication(new ReviewSellerApplicationCommand(
+        SellerApplicationView rejected = admin.reviewApplication("admin-token", new ReviewSellerApplicationCommand(
                 pending.applicationId(), SellerReviewDecision.REJECT, "资料不完整", pending.rowVersion()));
         SellerApplicationView revised = seller.saveDraft("student-token", edit(rejected, "新名称"));
 
@@ -111,7 +111,7 @@ class SellerApplicationServiceTest {
         ReviewSellerApplicationCommand command = new ReviewSellerApplicationCommand(
                 pending.applicationId(), SellerReviewDecision.APPROVE, null, pending.rowVersion());
 
-        List<Outcome> outcomes = concurrently(() -> admin.reviewApplication(command));
+        List<Outcome> outcomes = concurrently(() -> admin.reviewApplication("admin-token", command));
 
         assertThat(outcomes).filteredOn(Outcome::success).hasSize(1);
         long shops = new TransactionManager(database.connections()).inTransaction(
@@ -124,7 +124,7 @@ class SellerApplicationServiceTest {
         SellerApplicationView draft = seller.saveDraft("student-token", draft("唯一店铺"));
         SellerApplicationView pending = seller.submitApplication("student-token",
                 new SubmitSellerApplicationCommand(draft.applicationId(), draft.rowVersion()));
-        admin.reviewApplication(new ReviewSellerApplicationCommand(pending.applicationId(),
+        admin.reviewApplication("admin-token", new ReviewSellerApplicationCommand(pending.applicationId(),
                 SellerReviewDecision.APPROVE, null, pending.rowVersion()));
 
         assertThatThrownBy(() -> seller.saveDraft("student-token", draft("第二店铺")))
@@ -161,7 +161,7 @@ class SellerApplicationServiceTest {
         SellerApplicationView firstDraft = seller.saveDraft("student-token", draft("Campus Shop"));
         SellerApplicationView firstPending = seller.submitApplication("student-token",
                 new SubmitSellerApplicationCommand(firstDraft.applicationId(), firstDraft.rowVersion()));
-        admin.reviewApplication(new ReviewSellerApplicationCommand(firstPending.applicationId(),
+        admin.reviewApplication("admin-token", new ReviewSellerApplicationCommand(firstPending.applicationId(),
                 SellerReviewDecision.APPROVE, null, firstPending.rowVersion()));
         SellerApplicationView duplicate = seller.saveDraft("teacher-token", draft("  campus shop  "));
 

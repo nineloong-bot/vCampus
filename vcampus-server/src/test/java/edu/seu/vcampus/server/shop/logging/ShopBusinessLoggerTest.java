@@ -35,4 +35,23 @@ class ShopBusinessLoggerTest {
             logger.detachAppender(events);
         }
     }
+
+    @Test
+    void writesStructuredAdministrativeStateChange() {
+        Logger logger = (Logger) LoggerFactory.getLogger("vcampus.business");
+        ListAppender<ILoggingEvent> events = new ListAppender<>();
+        events.start();
+        logger.addAppender(events);
+        try {
+            new ShopBusinessLogger().stateChanged("admin-7", "SHOP", "shop-1",
+                    "ACTIVE", "SUSPENDED", "违规商品");
+
+            String output = events.list.stream().map(ILoggingEvent::getFormattedMessage)
+                    .collect(Collectors.joining("\n"));
+            assertThat(output).contains("event=STATE_CHANGE", "actorId=admin-7", "targetType=SHOP",
+                    "targetId=shop-1", "oldStatus=ACTIVE", "newStatus=SUSPENDED", "reason=违规商品");
+        } finally {
+            logger.detachAppender(events);
+        }
+    }
 }

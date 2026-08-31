@@ -7,6 +7,7 @@ import edu.seu.vcampus.common.shop.SellerApplicationStatus;
 import edu.seu.vcampus.common.shop.SellerReviewDecision;
 import edu.seu.vcampus.common.shop.ShopErrorCode;
 import edu.seu.vcampus.common.shop.ShopStatus;
+import edu.seu.vcampus.common.shop.ShopAdminQuery;
 import edu.seu.vcampus.common.shop.ShopView;
 import edu.seu.vcampus.common.shop.SubmitSellerApplicationCommand;
 import edu.seu.vcampus.common.shop.SuspendShopCommand;
@@ -14,6 +15,7 @@ import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.persistence.TransactionManager;
 import edu.seu.vcampus.server.shop.ShopException;
 import edu.seu.vcampus.server.shop.port.ShopUserKind;
+import edu.seu.vcampus.server.shop.port.ShopAccessException;
 import edu.seu.vcampus.server.shop.repository.AccessShopRepository;
 import edu.seu.vcampus.server.shop.repository.ShopRepository;
 import edu.seu.vcampus.server.shop.testutil.FakeShopUserPort;
@@ -41,7 +43,7 @@ class ShopStatusServiceTest {
         ShopRepository repository = new AccessShopRepository();
         var users = new FakeShopUserPort();
         users.add("owner-token", "owner-1", ShopUserKind.TEACHER, true);
-        users.administrator("admin-7");
+        users.add("admin-token", "admin-7", ShopUserKind.ADMINISTRATOR, true);
         var transactions = new TransactionManager(database.connections());
         var locks = new StripedResourceLockManager();
         var clock = Clock.fixed(Instant.parse("2026-08-28T06:30:00Z"), ZoneOffset.UTC);
@@ -59,7 +61,7 @@ class ShopStatusServiceTest {
     void suspensionRecordsAuditAndResumeKeepsApplicationApproved() {
         ShopView approved = approveOwnerShop();
 
-        admin.suspendShop(new SuspendShopCommand(approved.shopId(), "违规商品", approved.rowVersion()));
+        admin.suspendShop("admin-token", new SuspendShopCommand(approved.shopId(), "违规商品", approved.rowVersion()));
         ShopView suspended = seller.getOwnedShop("owner-token");
 
         assertThat(suspended.status()).isEqualTo(ShopStatus.SUSPENDED);
@@ -69,25 +71,38 @@ class ShopStatusServiceTest {
         assertThat(sellerApplications.getMyApplication("owner-token").status())
                 .isEqualTo(SellerApplicationStatus.APPROVED);
 
-        admin.resumeShop(new ResumeShopCommand(suspended.shopId(), suspended.rowVersion()));
+        admin.resumeShop("admin-token", new ResumeShopCommand(suspended.shopId(), suspended.rowVersion()));
         ShopView resumed = seller.requireOwnedActiveShop("owner-token");
         assertThat(resumed.status()).isEqualTo(ShopStatus.ACTIVE);
-        assertThat(resumed.suspensionReason()).isEqualTo("违规商品");
-        assertThat(resumed.suspendedByUserId()).isEqualTo("admin-7");
+        assertThat(resumed.suspensionReason()).isNull();
+        assertThat(resumed.suspendedByUserId()).isNull();
+        assertThat(resumed.suspendedAt()).isNull();
     }
 
     @Test
     void suspensionRequiresReasonAndRejectsStaleVersion() {
         ShopView approved = approveOwnerShop();
-        assertThatThrownBy(() -> admin.suspendShop(
+        assertThatThrownBy(() -> admin.suspendShop("admin-token",
                 new SuspendShopCommand(approved.shopId(), " ", approved.rowVersion())))
                 .isInstanceOf(IllegalArgumentException.class);
 
-        admin.suspendShop(new SuspendShopCommand(approved.shopId(), "违规", approved.rowVersion()));
-        assertThatThrownBy(() -> admin.resumeShop(
+        admin.suspendShop("admin-token", new SuspendShopCommand(approved.shopId(), "违规", approved.rowVersion()));
+        assertThatThrownBy(() -> admin.resumeShop("admin-token",
                 new ResumeShopCommand(approved.shopId(), approved.rowVersion())))
                 .isInstanceOfSatisfying(ShopException.class, error -> assertThat(error.code())
-                        .isEqualTo(ShopErrorCode.SHOP_STATUS_INVALID));
+                        .isEqualTo(ShopErrorCode.SHOP_CONCURRENT_MODIFICATION));
+    }
+
+    @Test
+    void onlyActiveAdministratorSessionCanSearchAndMutateShops() {
+        ShopView approved = approveOwnerShop();
+
+        assertThat(admin.searchShops("admin-token", new ShopAdminQuery(null, null, 0, 20)).items())
+                .extracting(summary -> summary.shopId()).containsExactly(approved.shopId());
+        assertThatThrownBy(() -> admin.searchShops("owner-token",
+                new ShopAdminQuery(null, null, 0, 20)))
+                .isInstanceOfSatisfying(ShopAccessException.class,
+                        error -> assertThat(error.code()).isEqualTo("AUTH_FORBIDDEN"));
     }
 
     private ShopView approveOwnerShop() {
@@ -95,7 +110,7 @@ class ShopStatusServiceTest {
                 null, "教师书屋", "教材与文具", "图书", "owner@example.edu", "经营计划", 0));
         var pending = sellerApplications.submitApplication("owner-token",
                 new SubmitSellerApplicationCommand(draft.applicationId(), draft.rowVersion()));
-        admin.reviewApplication(new ReviewSellerApplicationCommand(pending.applicationId(),
+        admin.reviewApplication("admin-token", new ReviewSellerApplicationCommand(pending.applicationId(),
                 SellerReviewDecision.APPROVE, null, pending.rowVersion()));
         return seller.getOwnedShop("owner-token");
     }

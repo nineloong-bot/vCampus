@@ -9,14 +9,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public final class FakeShopUserPort implements ShopUserPort {
     private final Map<String, ShopUser> sessions = new ConcurrentHashMap<>();
-    private volatile ShopUser administrator = new ShopUser("admin-1", ShopUserKind.ADMINISTRATOR, true);
 
     public void add(String token, String userId, ShopUserKind kind, boolean active) {
         sessions.put(token, new ShopUser(userId, kind, active));
-    }
-
-    public void administrator(String userId) {
-        administrator = new ShopUser(userId, ShopUserKind.ADMINISTRATOR, true);
     }
 
     @Override
@@ -26,10 +21,5 @@ public final class FakeShopUserPort implements ShopUserPort {
             throw new SecurityException("Unknown session");
         }
         return user;
-    }
-
-    @Override
-    public ShopUser requireAdministrator() {
-        return administrator;
     }
 }

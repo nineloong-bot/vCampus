@@ -31,6 +31,13 @@ public final class ShopBusinessLogger {
                 result.successfulChannel(), result.amount(), result.status());
     }
 
+    public void stateChanged(String actorId, String targetType, String targetId,
+            String oldStatus, String newStatus, String reason) {
+        LOG.info("module=SHOP event=STATE_CHANGE actorId={} targetType={} targetId={} "
+                        + "oldStatus={} newStatus={} reason={}",
+                safe(actorId), targetType, targetId, oldStatus, newStatus, safe(reason));
+    }
+
     private static String safe(String value) {
         return value == null ? "anonymous" : value;
     }

@@ -249,8 +249,8 @@ public final class AccessShopRepository implements ShopRepository {
             statement.setString(7, expectedStatus.name());
             statement.setLong(8, expectedVersion);
             if (statement.executeUpdate() != 1) {
-                throw new ShopException(ShopErrorCode.SHOP_STATUS_INVALID,
-                        "Shop status or version does not allow this transition");
+                throw new ShopException(ShopErrorCode.SHOP_CONCURRENT_MODIFICATION,
+                        "Shop status or version changed before this transition");
             }
         }
         return findShopById(connection, shopId).orElseThrow();

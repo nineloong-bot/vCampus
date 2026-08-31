@@ -24,9 +24,4 @@ final class DemoShopUserPort implements ShopUserPort {
         }
         return user;
     }
-
-    @Override
-    public ShopUser requireAdministrator() {
-        return ADMIN;
-    }
 }

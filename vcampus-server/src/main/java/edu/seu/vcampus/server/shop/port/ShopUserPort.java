@@ -11,8 +11,4 @@ public interface ShopUserPort {
         }
         return user;
     }
-
-    /** Transitional compatibility for legacy in-process services. */
-    @Deprecated(forRemoval = true)
-    ShopUser requireAdministrator();
 }

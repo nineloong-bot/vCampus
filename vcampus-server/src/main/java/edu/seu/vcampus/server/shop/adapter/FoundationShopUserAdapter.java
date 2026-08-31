@@ -42,9 +42,4 @@ public final class FoundationShopUserAdapter implements ShopUserPort {
             throw new ShopAccessException("AUTH_SESSION_EXPIRED");
         }
     }
-
-    @Override
-    public ShopUser requireAdministrator() {
-        throw new ShopAccessException("AUTH_FORBIDDEN");
-    }
 }
