@@ -13,6 +13,8 @@ import edu.seu.vcampus.server.shop.port.ShopUser;
 import edu.seu.vcampus.server.shop.port.ShopUserKind;
 import edu.seu.vcampus.server.shop.port.ShopUserPort;
 import edu.seu.vcampus.server.shop.service.ShopAdminService;
+import edu.seu.vcampus.server.shop.service.AdminProductService;
+import edu.seu.vcampus.common.shop.ProductManagementQuery;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -32,14 +34,23 @@ class AdminShopHandlersTest {
                 .thenReturn(new ShopUser("admin-1", ShopUserKind.ADMINISTRATOR, true));
         when(service.searchApplications("admin-token", query))
                 .thenReturn(new PageResult<>(List.of(), 0, 20, 0));
-        new AdminShopHandlers(router, users, mock(RequestDeduplicator.class), service,
+        AdminProductService products = mock(AdminProductService.class);
+        ProductManagementQuery productQuery = new ProductManagementQuery("shop-1", null, null, 0, 20);
+        when(products.searchProducts("admin-token", productQuery))
+                .thenReturn(new PageResult<>(List.of(), 0, 20, 0));
+        new AdminShopHandlers(router, users, mock(RequestDeduplicator.class), service, products,
                 mock(ShopBusinessLogger.class));
 
         ResponseBody<?> response = router.route(new Message("search", MessageType.REQUEST,
                 "SHOP_ADMIN_SEARCH_APPLICATIONS", "admin-token", query, 1L),
                 new ClientContext("connection-1", "127.0.0.1"));
+        ResponseBody<?> managed = router.route(new Message("products", MessageType.REQUEST,
+                "SHOP_ADMIN_SEARCH_PRODUCTS", "admin-token", productQuery, 1L),
+                new ClientContext("connection-1", "127.0.0.1"));
 
         assertThat(response.code()).isEqualTo("SUCCESS");
+        assertThat(managed.code()).isEqualTo("SUCCESS");
         verify(service).searchApplications("admin-token", query);
+        verify(products).searchProducts("admin-token", productQuery);
     }
 }

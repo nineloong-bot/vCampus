@@ -12,4 +12,8 @@ public interface AdminShopClientPort {
     CompletableFuture<PageResult<ShopAdminSummary>> searchShops(ShopAdminQuery query);
     CompletableFuture<EmptyResponse> suspendShop(SuspendShopCommand command);
     CompletableFuture<EmptyResponse> resumeShop(ResumeShopCommand command);
+    CompletableFuture<PageResult<ProductManagementSummary>> searchProducts(ProductManagementQuery query);
+    CompletableFuture<ProductView> createProduct(AdminCreateProductCommand command);
+    CompletableFuture<ProductView> updateProduct(AdminUpdateProductCommand command);
+    CompletableFuture<EmptyResponse> changeProductStatus(AdminChangeProductStatusCommand command);
 }

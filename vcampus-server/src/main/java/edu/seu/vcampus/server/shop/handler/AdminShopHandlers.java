@@ -11,6 +11,8 @@ import edu.seu.vcampus.server.routing.RequestDeduplicator;
 import edu.seu.vcampus.server.shop.logging.ShopBusinessLogger;
 import edu.seu.vcampus.server.shop.port.ShopUserPort;
 import edu.seu.vcampus.server.shop.service.ShopAdminService;
+import edu.seu.vcampus.server.shop.service.AdminProductService;
+import edu.seu.vcampus.common.shop.*;
 
 import java.util.Objects;
 
@@ -36,6 +38,24 @@ public final class AdminShopHandlers {
         router.register("SHOP_ADMIN_RESUME_SHOP", support.write(ResumeShopCommand.class,
                 (token, command) -> {
                     admin.resumeShop(token, command);
+                    return EmptyResponse.INSTANCE;
+                }));
+    }
+
+    public AdminShopHandlers(MessageRouter router, ShopUserPort users,
+            RequestDeduplicator deduplicator, ShopAdminService admin,
+            AdminProductService products, ShopBusinessLogger log) {
+        this(router, users, deduplicator, admin, log);
+        ShopHandlerSupport support = new ShopHandlerSupport(users, deduplicator, log);
+        router.register("SHOP_ADMIN_SEARCH_PRODUCTS", support.read(ProductManagementQuery.class,
+                products::searchProducts));
+        router.register("SHOP_ADMIN_CREATE_PRODUCT", support.write(AdminCreateProductCommand.class,
+                products::createProduct));
+        router.register("SHOP_ADMIN_UPDATE_PRODUCT", support.write(AdminUpdateProductCommand.class,
+                products::updateProduct));
+        router.register("SHOP_ADMIN_CHANGE_PRODUCT_STATUS", support.write(
+                AdminChangeProductStatusCommand.class, (token, command) -> {
+                    products.changeStatus(token, command);
                     return EmptyResponse.INSTANCE;
                 }));
     }

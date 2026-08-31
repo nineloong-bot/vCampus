@@ -98,6 +98,36 @@ public final class ShopClientService implements ShopClientPort, SellerShopClient
         return send("SHOP_SELLER_SUBMIT_APPLICATION", command);
     }
 
+    @Override public CompletableFuture<ShopView> getOwnedShop() {
+        return send("SHOP_SELLER_GET_SHOP", EmptyRequest.INSTANCE);
+    }
+
+    @Override public CompletableFuture<ShopView> updateOwnedShop(UpdateShopCommand command) {
+        return send("SHOP_SELLER_UPDATE_SHOP", command);
+    }
+
+    @Override public CompletableFuture<PageResult<ProductManagementSummary>> searchOwnedProducts(
+            ProductManagementQuery query) {
+        return send("SHOP_SELLER_SEARCH_PRODUCTS", query);
+    }
+
+    @Override public CompletableFuture<ProductView> createOwnedProduct(CreateProductCommand command) {
+        return send("SHOP_SELLER_CREATE_PRODUCT", command);
+    }
+
+    @Override public CompletableFuture<ProductView> updateOwnedProduct(UpdateProductCommand command) {
+        return send("SHOP_SELLER_UPDATE_PRODUCT", command);
+    }
+
+    @Override public CompletableFuture<EmptyResponse> changeOwnedProductStatus(
+            ChangeProductStatusCommand command) {
+        return send("SHOP_SELLER_CHANGE_PRODUCT_STATUS", command);
+    }
+
+    @Override public CompletableFuture<SellerOrderHistory> getOwnedOrders(SellerOrderQuery query) {
+        return send("SHOP_SELLER_GET_ORDERS", query);
+    }
+
     @Override
     public CompletableFuture<PageResult<SellerApplicationView>> searchApplications(SellerApplicationQuery query) {
         return send("SHOP_ADMIN_SEARCH_APPLICATIONS", query);
@@ -121,6 +151,24 @@ public final class ShopClientService implements ShopClientPort, SellerShopClient
     @Override
     public CompletableFuture<EmptyResponse> resumeShop(ResumeShopCommand command) {
         return send("SHOP_ADMIN_RESUME_SHOP", command);
+    }
+
+    @Override public CompletableFuture<PageResult<ProductManagementSummary>> searchProducts(
+            ProductManagementQuery query) {
+        return send("SHOP_ADMIN_SEARCH_PRODUCTS", query);
+    }
+
+    @Override public CompletableFuture<ProductView> createProduct(AdminCreateProductCommand command) {
+        return send("SHOP_ADMIN_CREATE_PRODUCT", command);
+    }
+
+    @Override public CompletableFuture<ProductView> updateProduct(AdminUpdateProductCommand command) {
+        return send("SHOP_ADMIN_UPDATE_PRODUCT", command);
+    }
+
+    @Override public CompletableFuture<EmptyResponse> changeProductStatus(
+            AdminChangeProductStatusCommand command) {
+        return send("SHOP_ADMIN_CHANGE_PRODUCT_STATUS", command);
     }
 
     private <T extends Serializable> CompletableFuture<T> send(String command, Serializable body) {

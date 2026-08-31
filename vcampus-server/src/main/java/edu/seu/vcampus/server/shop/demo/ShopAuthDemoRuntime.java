@@ -23,6 +23,10 @@ import edu.seu.vcampus.server.shop.service.CheckoutService;
 import edu.seu.vcampus.server.shop.service.ShopService;
 import edu.seu.vcampus.server.shop.service.SellerApplicationService;
 import edu.seu.vcampus.server.shop.service.ShopAdminService;
+import edu.seu.vcampus.server.shop.service.SellerService;
+import edu.seu.vcampus.server.shop.service.ProductService;
+import edu.seu.vcampus.server.shop.service.SellerOrderService;
+import edu.seu.vcampus.server.shop.service.AdminProductService;
 import edu.seu.vcampus.server.user.handler.UserHandlers;
 import edu.seu.vcampus.server.user.repository.AccessAuditRepository;
 import edu.seu.vcampus.server.user.repository.AccessUserRepository;
@@ -89,16 +93,25 @@ public final class ShopAuthDemoRuntime implements AutoCloseable {
                 repository, shopUsers, transactions, locks, clock);
         ShopAdminService adminService = new ShopAdminService(
                 repository, shopUsers, transactions, locks, clock);
+        SellerService sellerService = new SellerService(repository, shopUsers, transactions);
+        ProductService productService = new ProductService(
+                repository, shopUsers, transactions, locks, clock);
+        SellerOrderService sellerOrderService = new SellerOrderService(
+                repository, shopUsers, transactions);
         MessageRouter router = new MessageRouter(Map.of(
                 "PING", (request, context) -> ResponseBody.success(EmptyResponse.INSTANCE)));
         new UserHandlers(router, userService, authorization);
         RequestDeduplicator deduplicator = new RequestDeduplicator(transactions, locks);
         ShopBusinessLogger businessLogger = new ShopBusinessLogger();
+        AdminProductService adminProductService = new AdminProductService(
+                repository, shopUsers, transactions, locks, clock, businessLogger);
         new BuyerShopHandlers(router, shopUsers,
                 deduplicator, shopService, cartService,
                 checkoutService, orderService, paymentService, businessLogger);
-        new SellerShopHandlers(router, shopUsers, deduplicator, applicationService, businessLogger);
-        new AdminShopHandlers(router, shopUsers, deduplicator, adminService, businessLogger);
+        new SellerShopHandlers(router, shopUsers, deduplicator, applicationService, sellerService,
+                productService, sellerOrderService, businessLogger);
+        new AdminShopHandlers(router, shopUsers, deduplicator, adminService, adminProductService,
+                businessLogger);
 
         ShopAuthDemoRuntime runtime = new ShopAuthDemoRuntime(
                 new SocketServer(port, WORKER_COUNT, QUEUE_CAPACITY, router));

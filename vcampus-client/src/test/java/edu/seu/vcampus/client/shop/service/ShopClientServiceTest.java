@@ -205,4 +205,27 @@ class ShopClientServiceTest {
         verify(connection).send("SHOP_ADMIN_SEARCH_APPLICATIONS", applications, TIMEOUT);
         verify(connection).send("SHOP_ADMIN_SUSPEND_SHOP", suspend, TIMEOUT);
     }
+
+    @Test
+    void sendsSellerAndAdministratorManagementCommandsWithTypedBodies() {
+        ClientConnection connection = mock(ClientConnection.class);
+        SellerShopClientPort seller = new ShopClientService(connection, TIMEOUT);
+        AdminShopClientPort admin = (AdminShopClientPort) seller;
+        ProductManagementQuery sellerQuery = new ProductManagementQuery(null, null, "笔", 0, 20);
+        CreateProductCommand create = new CreateProductCommand("签字笔", "文具", "说明",
+                List.of(new CreateSkuCommand("黑色", new java.math.BigDecimal("3.00"), 5, true)));
+        AdminCreateProductCommand adminCreate = new AdminCreateProductCommand("shop-1", create);
+        when(connection.<PageResult<ProductManagementSummary>>send(
+                eq("SHOP_SELLER_SEARCH_PRODUCTS"), eq(sellerQuery), eq(TIMEOUT)))
+                .thenReturn(CompletableFuture.completedFuture(ResponseBody.success(
+                        new PageResult<>(List.of(), 0, 20, 0))));
+        when(connection.<ProductView>send(eq("SHOP_ADMIN_CREATE_PRODUCT"),
+                eq(adminCreate), eq(TIMEOUT))).thenReturn(CompletableFuture.completedFuture(
+                        ResponseBody.success(mock(ProductView.class))));
+
+        assertThat(seller.searchOwnedProducts(sellerQuery).join().items()).isEmpty();
+        admin.createProduct(adminCreate).join();
+        verify(connection).send("SHOP_SELLER_SEARCH_PRODUCTS", sellerQuery, TIMEOUT);
+        verify(connection).send("SHOP_ADMIN_CREATE_PRODUCT", adminCreate, TIMEOUT);
+    }
 }

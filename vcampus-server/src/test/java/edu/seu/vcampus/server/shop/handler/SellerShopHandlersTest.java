@@ -13,6 +13,11 @@ import edu.seu.vcampus.server.shop.port.ShopUser;
 import edu.seu.vcampus.server.shop.port.ShopUserKind;
 import edu.seu.vcampus.server.shop.port.ShopUserPort;
 import edu.seu.vcampus.server.shop.service.SellerApplicationService;
+import edu.seu.vcampus.server.shop.service.SellerService;
+import edu.seu.vcampus.server.shop.service.ProductService;
+import edu.seu.vcampus.server.shop.service.SellerOrderService;
+import edu.seu.vcampus.common.shop.ProductManagementQuery;
+import edu.seu.vcampus.common.paging.PageResult;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
@@ -35,19 +40,28 @@ class SellerShopHandlersTest {
         when(service.findMyApplication("seller-token")).thenReturn(Optional.empty());
         when(deduplicator.executeOnce(any(), eq("seller-1"), eq("connection-1"), any()))
                 .thenAnswer(invocation -> invocation.<Supplier<ResponseBody<?>>>getArgument(3).get());
-        new SellerShopHandlers(router, users, deduplicator, service, mock(ShopBusinessLogger.class));
+        ProductService products = mock(ProductService.class);
+        ProductManagementQuery query = new ProductManagementQuery("forged-shop", null, null, 0, 20);
+        when(products.searchOwnedProducts("seller-token", query))
+                .thenReturn(new PageResult<>(java.util.List.of(), 0, 20, 0));
+        new SellerShopHandlers(router, users, deduplicator, service, mock(SellerService.class),
+                products, mock(SellerOrderService.class), mock(ShopBusinessLogger.class));
 
         ResponseBody<?> get = router.route(request("get", "SHOP_SELLER_GET_APPLICATION",
                 EmptyRequest.INSTANCE), context());
         SaveSellerDraftCommand draft = new SaveSellerDraftCommand(null, "文具店", "简介",
                 "文具", "contact", "经营计划", 0);
         ResponseBody<?> save = router.route(request("save", "SHOP_SELLER_SAVE_APPLICATION", draft), context());
+        ResponseBody<?> managed = router.route(request("managed", "SHOP_SELLER_SEARCH_PRODUCTS",
+                query), context());
 
         assertThat(get.code()).isEqualTo("SUCCESS");
         assertThat(get.data()).isNull();
         assertThat(save.code()).isEqualTo("SUCCESS");
+        assertThat(managed.code()).isEqualTo("SUCCESS");
         verify(service).findMyApplication("seller-token");
         verify(service).saveDraft("seller-token", draft);
+        verify(products).searchOwnedProducts("seller-token", query);
         verify(deduplicator).executeOnce(any(), eq("seller-1"), eq("connection-1"), any());
     }
 
