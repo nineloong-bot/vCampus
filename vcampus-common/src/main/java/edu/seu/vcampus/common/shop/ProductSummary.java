@@ -5,5 +5,5 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 public record ProductSummary(String productId, String shopId, String shopName,
-        String productName, String category, BigDecimal minimumPrice,
+        String productName, String category, String coverImageUrl, BigDecimal minimumPrice,
         long salesCount, Instant createdAt) implements Serializable { }

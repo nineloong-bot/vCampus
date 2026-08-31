@@ -4,6 +4,6 @@ import java.io.Serializable;
 import java.util.List;
 
 public record CreateProductCommand(String productName, String category,
-        String description, List<CreateSkuCommand> skus) implements Serializable {
+        String description, String coverImageUrl, List<CreateSkuCommand> skus) implements Serializable {
     public CreateProductCommand { skus = List.copyOf(skus); }
 }
