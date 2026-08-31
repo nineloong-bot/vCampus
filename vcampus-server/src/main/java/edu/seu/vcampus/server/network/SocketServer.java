@@ -4,7 +4,10 @@ import edu.seu.vcampus.common.error.ErrorDetail;
 import edu.seu.vcampus.common.protocol.Message;
 import edu.seu.vcampus.common.protocol.MessageType;
 import edu.seu.vcampus.common.protocol.ResponseBody;
+import edu.seu.vcampus.server.routing.CommandNotFoundException;
 import edu.seu.vcampus.server.routing.MessageRouter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -20,6 +23,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Accepts socket clients and dispatches their requests on a bounded pool. */
 public final class SocketServer implements AutoCloseable {
+    private static final Logger LOGGER = LoggerFactory.getLogger(SocketServer.class);
+
     private final ServerSocket serverSocket;
     private final MessageRouter router;
     private final ThreadPoolExecutor workers;
@@ -64,7 +69,15 @@ public final class SocketServer implements AutoCloseable {
         try (ClientConnection connection = new ClientConnection(socket, UUID.randomUUID().toString())) {
             while (!socket.isClosed()) {
                 Message request = connection.read();
-                ResponseBody<?> body = router.route(request, connection.context());
+                ResponseBody<?> body;
+                try {
+                    body = router.route(request, connection.context());
+                } catch (CommandNotFoundException error) {
+                    body = ResponseBody.failure("COMMON_UNKNOWN_COMMAND", "未知命令", null);
+                } catch (RuntimeException error) {
+                    LOGGER.error("处理请求 {} 失败", request.command(), error);
+                    body = ResponseBody.failure("COMMON_SERVER_ERROR", "服务器内部错误", null);
+                }
                 connection.send(new Message(request.requestId(), MessageType.RESPONSE,
                         request.command(), null, body, System.currentTimeMillis()));
             }
