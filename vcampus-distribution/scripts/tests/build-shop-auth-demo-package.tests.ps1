@@ -64,6 +64,18 @@ try {
     Assert-True (-not (Get-ChildItem -LiteralPath $packageRoot -Recurse -File -Filter 'pom.xml')) `
         'Maven project files must not be included in the ZIP.'
 
+    $instructions = Get-Content -Raw -LiteralPath (Join-Path $packageRoot '使用说明.txt')
+    foreach ($loginId in @('DEMO_BUYER', 'DEMO_OTHER_BUYER', 'DEMO_TEACHER', 'DEMO_ADMIN')) {
+        Assert-Contains $instructions $loginId `
+            "Portable instructions must document the fixed account $loginId."
+    }
+    Assert-Contains $instructions '密码：123456' `
+        'Portable instructions must document the shared Demo password.'
+    Assert-Contains $instructions '文具 10、图书 30、生活用品 45、药品 5、其他 10' `
+        'Portable instructions must document the deterministic five-category catalog.'
+    Assert-Contains $instructions '暂无图片' `
+        'Portable instructions must explain the image placeholder used by this release.'
+
     New-Item -ItemType Directory -Force -Path $fakeBin | Out-Null
     Set-Content -LiteralPath (Join-Path $fakeBin 'java.cmd') -Encoding Ascii -Value @(
         '@echo off'
