@@ -93,7 +93,9 @@ public final class UpdateContactDialog extends JDialog {
         submit.setUI(new BasicButtonUI());
         submit.setOpaque(true);
         submit.setContentAreaFilled(true);
-        submit.setBorder(UiBorders.LINE);
+        submit.setBorder(BorderFactory.createCompoundBorder(UiBorders.LINE,
+                BorderFactory.createEmptyBorder(UiSpacing.SPACE_2, UiSpacing.SPACE_4,
+                        UiSpacing.SPACE_2, UiSpacing.SPACE_4)));
         submit.setFocusPainted(true);
         submit.setBackground(UiColors.ACCENT);
         submit.setForeground(UiColors.TEXT_ON_PRIMARY);

@@ -2,6 +2,8 @@ package edu.seu.vcampus.client.student;
 
 import edu.seu.vcampus.client.core.ui.theme.UiBorders;
 import edu.seu.vcampus.client.core.ui.theme.UiColors;
+import edu.seu.vcampus.client.core.ui.theme.UiDimensions;
+import edu.seu.vcampus.client.core.ui.theme.UiSpacing;
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.client.student.service.StudentRequestClient;
 import edu.seu.vcampus.client.student.ui.UpdateContactDialog;
@@ -15,6 +17,8 @@ import org.junit.jupiter.api.Test;
 
 import javax.swing.*;
 import javax.swing.plaf.basic.BasicButtonUI;
+import javax.swing.border.CompoundBorder;
+import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
@@ -124,7 +128,14 @@ class UpdateContactDialogTest {
         assertThat(submit.isContentAreaFilled()).isTrue();
         assertThat(submit.getBackground()).isEqualTo(UiColors.ACCENT);
         assertThat(submit.getForeground()).isEqualTo(UiColors.TEXT_ON_PRIMARY);
-        assertThat(submit.getBorder()).isSameAs(UiBorders.LINE);
+        assertThat(submit.getBorder()).isInstanceOf(CompoundBorder.class);
+        CompoundBorder border = (CompoundBorder) submit.getBorder();
+        assertThat(border.getOutsideBorder()).isSameAs(UiBorders.LINE);
+        assertThat(border.getInsideBorder()).isInstanceOf(EmptyBorder.class);
+        assertThat(border.getBorderInsets(submit)).isEqualTo(new Insets(
+                UiSpacing.SPACE_2 + 1, UiSpacing.SPACE_4 + 1,
+                UiSpacing.SPACE_2 + 1, UiSpacing.SPACE_4 + 1));
+        assertThat(submit.getPreferredSize().height).isGreaterThanOrEqualTo(UiDimensions.CONTROL_HEIGHT);
         assertThat(submit.isFocusPainted()).isTrue();
     }
 
