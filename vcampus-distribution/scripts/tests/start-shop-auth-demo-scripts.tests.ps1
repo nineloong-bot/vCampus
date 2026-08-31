@@ -24,6 +24,7 @@ try {
     New-Item -ItemType Directory -Force -Path $fakeBin | Out-Null
     Set-Content -LiteralPath (Join-Path $fakeBin 'mvn.cmd') -Encoding Ascii -Value @(
         '@echo off'
+        'echo %*>"%SHOP_AUTH_DEMO_SCRIPT_CAPTURE%.mvn-args"'
         'exit /b 0'
     )
     Set-Content -LiteralPath (Join-Path $fakeBin 'java.cmd') -Encoding Ascii -Value @(
@@ -55,8 +56,11 @@ try {
     & (Join-Path $repoRoot 'vcampus-distribution\scripts\start-shop-auth-demo-client.ps1')
     $clientCwd = (Get-Content -Raw -LiteralPath "$clientCapture.cwd").Trim()
     $clientArgs = (Get-Content -Raw -LiteralPath "$clientCapture.args").Trim()
+    $clientMavenArgs = (Get-Content -Raw -LiteralPath "$clientCapture.mvn-args").Trim()
 
     Assert-Equal $runtimeRoot $clientCwd 'Client Java process must run in the ignored Shop Demo runtime directory.'
+    Assert-Contains $clientMavenArgs '-DskipTests' `
+        'Client startup build must skip automated tests so Swing test windows are not displayed.'
     Assert-Contains $clientArgs "-Dlogback.configurationFile=$(Join-Path $repoRoot 'vcampus-distribution\config\logback.xml')" `
         'Client must use an absolute Logback configuration path after changing directory.'
     Assert-Contains $clientArgs "-cp $(Join-Path $repoRoot 'vcampus-distribution\lib\vCampusClient.jar') edu.seu.vcampus.client.shop.demo.ShopAuthDemoClientMain" `

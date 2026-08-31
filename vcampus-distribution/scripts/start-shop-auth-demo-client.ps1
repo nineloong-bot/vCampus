@@ -13,7 +13,7 @@ $previousLocation = Get-Location
 
 try {
     Set-Location -LiteralPath $worktreeRoot
-    & mvn -pl vcampus-client -am package
+    & mvn -pl vcampus-client -am '-DskipTests' package
     if ($LASTEXITCODE -ne 0) {
         throw "Shop Demo 客户端构建失败，退出码：$LASTEXITCODE"
     }
