@@ -22,8 +22,10 @@ import java.sql.DriverManager;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Base64;
 import java.util.UUID;
 
@@ -57,6 +59,25 @@ class ApplicationRuntimeTest {
         assertThat(route(runtime, "COURSE_TERM_LIST", restricted.sessionToken(), EmptyRequest.INSTANCE).code())
                 .isEqualTo("AUTH_INITIAL_PASSWORD_CHANGE_REQUIRED");
         assertThat(runtime.course().resourceLocks()).isSameAs(runtime.resourceLocks());
+    }
+
+    @Test
+    void usesTheInjectedClockForCourseSessionExpiry() throws Exception {
+        Path database = Files.createTempDirectory("vcampus-runtime-clock-").resolve("runtime.accdb");
+        ConnectionProvider connections = () -> DriverManager.getConnection(
+                "jdbc:ucanaccess://" + database + ";newDatabaseVersion=V2010");
+        MutableClock clock = new MutableClock();
+        ApplicationRuntime runtime = ApplicationRuntime.create(connections, databaseRoot(), clock);
+        insertUser(connections, "STUDENT1", UserRole.STUDENT, false, "Password7");
+
+        LoginResult student = login(runtime, "STUDENT1");
+        assertThat(route(runtime, "COURSE_TERM_LIST", student.sessionToken(), EmptyRequest.INSTANCE).success())
+                .isTrue();
+
+        clock.advance(Duration.ofMinutes(31));
+
+        assertThat(route(runtime, "COURSE_TERM_LIST", student.sessionToken(), EmptyRequest.INSTANCE).code())
+                .isEqualTo("AUTH_SESSION_EXPIRED");
     }
 
     private static LoginResult login(ApplicationRuntime runtime, String loginId) {
@@ -116,5 +137,17 @@ class ApplicationRuntimeTest {
     private static Path databaseRoot() {
         Path root = Path.of("vcampus-database");
         return Files.exists(root) ? root : Path.of("..", "vcampus-database");
+    }
+
+    private static final class MutableClock extends Clock {
+        private Instant instant = Instant.parse("2026-08-30T00:00:00Z");
+
+        @Override public ZoneOffset getZone() { return ZoneOffset.UTC; }
+        @Override public Clock withZone(java.time.ZoneId zone) { return this; }
+        @Override public Instant instant() { return instant; }
+
+        private void advance(Duration duration) {
+            instant = instant.plus(duration);
+        }
     }
 }

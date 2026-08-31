@@ -53,7 +53,7 @@ public final class ApplicationRuntime {
         new ApplicationSchemaInitializer(databaseResourceRoot).initialize(connections);
 
         ResourceLockManager locks = new StripedResourceLockManager();
-        SessionRegistry sessions = new SessionRegistry();
+        SessionRegistry sessions = new SessionRegistry(clock);
         UserServiceImpl users = new UserServiceImpl(new TransactionManager(connections), locks,
                 new AccessUserRepository(), new AccessAuditRepository(), new PasswordHasher(), sessions, clock);
         AuthorizationService authorization = new AuthorizationService(sessions);

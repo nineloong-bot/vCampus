@@ -413,11 +413,14 @@ class CourseUiTest {
     void compositionRegistersStudentAndAdministrativePagesUnderStableIds() throws Exception {
         CourseUiComposition composition = onEdt(() -> new CourseUiComposition(CourseUiGateway.preview()));
 
-        assertThat(composition.studentPages().keySet()).containsExactly(
-                "course.offerings", "course.enrollments", "course.schedule", "course.adjustment", "course.retake");
-        assertThat(composition.administrativePages().keySet()).containsExactly(
-                "course.terms", "course.catalog", "course.offering-admin", "course.outcome-import", "course.adjustment-audit");
-        assertThat(composition.allPages()).hasSize(10);
+        onEdt(() -> {
+            assertThat(composition.studentPages().keySet()).containsExactly(
+                    "course.offerings", "course.enrollments", "course.schedule", "course.adjustment", "course.retake");
+            assertThat(composition.administrativePages().keySet()).containsExactly(
+                    "course.terms", "course.catalog", "course.offering-admin", "course.outcome-import", "course.adjustment-audit");
+            assertThat(composition.allPages()).hasSize(10);
+            return null;
+        });
     }
 
     @Test
@@ -427,14 +430,17 @@ class CourseUiTest {
         List<String> missingNames = new ArrayList<>();
         List<String> inaccessibleByKeyboard = new ArrayList<>();
 
-        composition.allPages().forEach((pageId, page) -> descendants(page).stream()
-                .filter(CourseUiTest::isInteractiveControl)
-                .forEach(component -> {
-                    String name = component.getAccessibleContext().getAccessibleName();
-                    String description = pageId + ":" + component.getClass().getSimpleName();
-                    if (name == null || name.isBlank()) missingNames.add(description);
-                    if (!component.isFocusable()) inaccessibleByKeyboard.add(description + ":" + name);
-                }));
+        onEdt(() -> {
+            composition.allPages().forEach((pageId, page) -> descendants(page).stream()
+                    .filter(CourseUiTest::isInteractiveControl)
+                    .forEach(component -> {
+                        String name = component.getAccessibleContext().getAccessibleName();
+                        String description = pageId + ":" + component.getClass().getSimpleName();
+                        if (name == null || name.isBlank()) missingNames.add(description);
+                        if (!component.isFocusable()) inaccessibleByKeyboard.add(description + ":" + name);
+                    }));
+            return null;
+        });
 
         assertThat(missingNames).as("interactive controls without accessible names").isEmpty();
         assertThat(inaccessibleByKeyboard).as("interactive controls excluded from keyboard focus").isEmpty();
