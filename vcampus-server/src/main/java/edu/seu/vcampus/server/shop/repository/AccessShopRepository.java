@@ -241,6 +241,19 @@ public final class AccessShopRepository implements ShopRepository {
     }
 
     @Override
+    public Optional<Product> findProductByNormalizedName(Connection connection, String shopId,
+            String normalizedName) throws Exception {
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT * FROM tblProduct WHERE shopId = ? AND normalizedProductName = ?")) {
+            statement.setString(1, shopId);
+            statement.setString(2, normalizedName);
+            try (ResultSet result = statement.executeQuery()) {
+                return result.next() ? Optional.of(mapProduct(result)) : Optional.empty();
+            }
+        }
+    }
+
+    @Override
     public List<ProductSku> findSkusByProduct(Connection connection, String productId) throws Exception {
         List<ProductSku> skus = new ArrayList<>();
         try (PreparedStatement statement = connection.prepareStatement(
@@ -257,20 +270,22 @@ public final class AccessShopRepository implements ShopRepository {
 
     @Override
     public Product insertProduct(Connection connection, Product product) throws Exception {
-        String sql = "INSERT INTO tblProduct (productId, shopId, productName, category, description, "
-                + "productStatus, salesCount, rowVersion, createdAt, updatedAt) "
-                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO tblProduct (productId, shopId, productName, normalizedProductName, "
+                + "category, description, coverImageUrl, productStatus, salesCount, rowVersion, "
+                + "createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, product.productId());
             statement.setString(2, product.shopId());
             statement.setString(3, product.productName());
-            statement.setString(4, product.category());
-            statement.setString(5, product.description());
-            statement.setString(6, product.status().name());
-            statement.setLong(7, product.salesCount());
-            statement.setLong(8, product.rowVersion());
-            setInstant(statement, 9, product.createdAt());
-            setInstant(statement, 10, product.updatedAt());
+            statement.setString(4, product.normalizedProductName());
+            statement.setString(5, product.category());
+            statement.setString(6, product.description());
+            statement.setString(7, product.coverImageUrl());
+            statement.setString(8, product.status().name());
+            statement.setLong(9, product.salesCount());
+            statement.setLong(10, product.rowVersion());
+            setInstant(statement, 11, product.createdAt());
+            setInstant(statement, 12, product.updatedAt());
             statement.executeUpdate();
         }
         return product;
@@ -279,15 +294,18 @@ public final class AccessShopRepository implements ShopRepository {
     @Override
     public Product updateProduct(Connection connection, Product product,
             long expectedVersion) throws Exception {
-        String sql = "UPDATE tblProduct SET productName = ?, category = ?, description = ?, "
-                + "updatedAt = ?, rowVersion = rowVersion + 1 WHERE productId = ? AND rowVersion = ?";
+        String sql = "UPDATE tblProduct SET productName = ?, normalizedProductName = ?, category = ?, "
+                + "description = ?, coverImageUrl = ?, updatedAt = ?, rowVersion = rowVersion + 1 "
+                + "WHERE productId = ? AND rowVersion = ?";
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, product.productName());
-            statement.setString(2, product.category());
-            statement.setString(3, product.description());
-            setInstant(statement, 4, product.updatedAt());
-            statement.setString(5, product.productId());
-            statement.setLong(6, expectedVersion);
+            statement.setString(2, product.normalizedProductName());
+            statement.setString(3, product.category());
+            statement.setString(4, product.description());
+            statement.setString(5, product.coverImageUrl());
+            setInstant(statement, 6, product.updatedAt());
+            statement.setString(7, product.productId());
+            statement.setLong(8, expectedVersion);
             if (statement.executeUpdate() != 1) {
                 throw new ShopException(ShopErrorCode.SHOP_PRODUCT_INACTIVE, "Stale product version");
             }
@@ -349,7 +367,7 @@ public final class AccessShopRepository implements ShopRepository {
     public PageResult<ProductSummary> searchCatalog(Connection connection,
             ProductSearchQuery query, String shopId) throws Exception {
         StringBuilder sql = new StringBuilder("SELECT p.productId, p.shopId, s.shopName, "
-                + "p.productName, p.category, MIN(k.unitPrice) AS minimumPrice, "
+                + "p.productName, p.category, p.coverImageUrl, MIN(k.unitPrice) AS minimumPrice, "
                 + "p.salesCount, p.createdAt FROM (tblProduct p INNER JOIN tblShop s "
                 + "ON p.shopId = s.shopId) INNER JOIN tblProductSku k ON p.productId = k.productId "
                 + "WHERE s.shopStatus = 'ACTIVE' AND p.productStatus = 'ACTIVE' "
@@ -372,7 +390,7 @@ public final class AccessShopRepository implements ShopRepository {
             sql.append(" AND p.category = ?");
             values.add(query.category().strip());
         }
-        sql.append(" GROUP BY p.productId, p.shopId, s.shopName, p.productName, p.category, "
+        sql.append(" GROUP BY p.productId, p.shopId, s.shopName, p.productName, p.category, p.coverImageUrl, "
                 + "p.salesCount, p.createdAt HAVING 1 = 1");
         if (query.minPrice() != null) {
             sql.append(" AND MIN(k.unitPrice) >= ?");
@@ -401,7 +419,7 @@ public final class AccessShopRepository implements ShopRepository {
                     all.add(new ProductSummary(result.getString("productId"),
                             result.getString("shopId"), result.getString("shopName"),
                             result.getString("productName"), result.getString("category"),
-                            result.getBigDecimal("minimumPrice"), result.getLong("salesCount"),
+                            result.getString("coverImageUrl"), result.getBigDecimal("minimumPrice"), result.getLong("salesCount"),
                             instant(result, "createdAt")));
                 }
             }
@@ -694,8 +712,9 @@ public final class AccessShopRepository implements ShopRepository {
 
     private static Product mapProduct(ResultSet result) throws Exception {
         return new Product(result.getString("productId"), result.getString("shopId"),
-                result.getString("productName"), result.getString("category"),
-                result.getString("description"), ProductStatus.valueOf(
+                result.getString("productName"), result.getString("normalizedProductName"),
+                result.getString("category"), result.getString("description"),
+                result.getString("coverImageUrl"), ProductStatus.valueOf(
                         result.getString("productStatus")), result.getLong("salesCount"),
                 result.getLong("rowVersion"), instant(result, "createdAt"),
                 instant(result, "updatedAt"));

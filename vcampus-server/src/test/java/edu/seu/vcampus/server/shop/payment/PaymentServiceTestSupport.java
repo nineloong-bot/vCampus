@@ -66,9 +66,9 @@ abstract class PaymentServiceTestSupport {
                 shop.executeUpdate();
             }
             try (var product = connection.prepareStatement(
-                    "INSERT INTO tblProduct (productId, shopId, productName, category, description, "
+                    "INSERT INTO tblProduct (productId, shopId, productName, normalizedProductName, category, description, "
                             + "productStatus, salesCount, rowVersion, createdAt, updatedAt) "
-                            + "VALUES ('product-1', 'shop-1', '签字笔', '综合', '详情', "
+                            + "VALUES ('product-1', 'shop-1', '签字笔', '签字笔', '综合', '详情', "
                             + "'ACTIVE', 0, 0, ?, ?)")) {
                 product.setTimestamp(1, now);
                 product.setTimestamp(2, now);

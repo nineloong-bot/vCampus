@@ -87,9 +87,36 @@ class ProductServiceTest {
                         .isEqualTo(ShopErrorCode.SHOP_NOT_OWNER));
     }
 
+    @Test
+    void rejectsDuplicateGenericProductNameWithinOneShop() {
+        products.createProduct("owner-token", product("中性笔", "https://img.example/a.png"));
+
+        assertThatThrownBy(() -> products.createProduct("owner-token",
+                product("  中性笔  ", "https://img.example/b.png")))
+                .isInstanceOfSatisfying(ShopException.class, error -> assertThat(error.code())
+                        .isEqualTo(ShopErrorCode.SHOP_PRODUCT_NAME_EXISTS));
+    }
+
+    @Test
+    void rejectsNonHttpsOrCredentialedCoverUrl() {
+        assertThatThrownBy(() -> products.createProduct("owner-token",
+                product("中性笔", "http://example.test/pen.png")))
+                .isInstanceOfSatisfying(ShopException.class, error -> assertThat(error.code())
+                        .isEqualTo(ShopErrorCode.SHOP_COVER_IMAGE_URL_INVALID));
+        assertThatThrownBy(() -> products.createProduct("owner-token",
+                product("铅笔", "https://user:password@example.test/pen.png")))
+                .isInstanceOfSatisfying(ShopException.class, error -> assertThat(error.code())
+                        .isEqualTo(ShopErrorCode.SHOP_COVER_IMAGE_URL_INVALID));
+    }
+
+    private static CreateProductCommand product(String name, String coverImageUrl) {
+        return new CreateProductCommand(name, "文具", "顺滑书写", coverImageUrl, List.of(
+                new CreateSkuCommand("黑色", new BigDecimal("2.50"), 20, true)));
+    }
+
     private void approve(String token, String shopName) {
         var draft = applications.saveDraft(token, new SaveSellerDraftCommand(
-                null, shopName, "简介", "综合", "contact@example.edu", 0));
+                null, shopName, "简介", "文具", "contact@example.edu", 0));
         var pending = applications.submitApplication(token,
                 new SubmitSellerApplicationCommand(draft.applicationId(), draft.rowVersion()));
         admin.reviewApplication(new ReviewSellerApplicationCommand(pending.applicationId(),

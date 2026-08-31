@@ -50,6 +50,9 @@ public interface ShopRepository {
 
     Optional<Product> findProductById(Connection connection, String productId) throws Exception;
 
+    Optional<Product> findProductByNormalizedName(Connection connection, String shopId,
+            String normalizedName) throws Exception;
+
     List<ProductSku> findSkusByProduct(Connection connection, String productId) throws Exception;
 
     Product insertProduct(Connection connection, Product product) throws Exception;

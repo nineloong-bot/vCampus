@@ -81,9 +81,9 @@ class ShopServiceTest {
                 shop.executeUpdate();
             }
             try (var product = connection.prepareStatement(
-                    "INSERT INTO tblProduct (productId, shopId, productName, category, description, "
+                    "INSERT INTO tblProduct (productId, shopId, productName, normalizedProductName, category, description, "
                             + "productStatus, salesCount, rowVersion, createdAt, updatedAt) "
-                            + "VALUES ('service-product', 'service-shop', '雨伞', '生活用品', "
+                            + "VALUES ('service-product', 'service-shop', '雨伞', '雨伞', '生活用品', "
                             + "'晴雨两用', 'ACTIVE', 1, 0, ?, ?)")) {
                 product.setTimestamp(1, now);
                 product.setTimestamp(2, now);
@@ -97,9 +97,9 @@ class ShopServiceTest {
                 sku.executeUpdate();
             }
             try (var product = connection.prepareStatement(
-                    "INSERT INTO tblProduct (productId, shopId, productName, category, description, "
+                    "INSERT INTO tblProduct (productId, shopId, productName, normalizedProductName, category, description, "
                             + "productStatus, salesCount, rowVersion, createdAt, updatedAt) "
-                            + "VALUES ('popular-product', 'service-shop', '畅销笔记本', '文具', "
+                            + "VALUES ('popular-product', 'service-shop', '畅销笔记本', '畅销笔记本', '文具', "
                             + "'销量更高但价格更低', 'ACTIVE', 10, 0, ?, ?)")) {
                 product.setTimestamp(1, now);
                 product.setTimestamp(2, now);

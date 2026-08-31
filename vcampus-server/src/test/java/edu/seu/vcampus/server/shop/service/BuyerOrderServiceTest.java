@@ -123,9 +123,9 @@ class BuyerOrderServiceTest {
                 insertShop(shop, "shop-2", "stranger-1", "书店", created);
             }
             try (var product = connection.prepareStatement(
-                    "INSERT INTO tblProduct (productId, shopId, productName, category, description, "
+                    "INSERT INTO tblProduct (productId, shopId, productName, normalizedProductName, category, description, "
                             + "productStatus, salesCount, rowVersion, createdAt, updatedAt) "
-                            + "VALUES (?, ?, ?, '综合', '详情', 'ACTIVE', 0, 0, ?, ?)")) {
+                            + "VALUES (?, ?, ?, ?, '综合', '详情', 'ACTIVE', 0, 0, ?, ?)")) {
                 insertProduct(product, "product-1", "shop-1", "签字笔", created);
                 insertProduct(product, "product-2", "shop-2", "笔记本", created);
                 insertProduct(product, "product-3", "shop-2", "书签", created);
@@ -213,8 +213,9 @@ class BuyerOrderServiceTest {
         statement.setString(1, productId);
         statement.setString(2, shopId);
         statement.setString(3, name);
-        statement.setTimestamp(4, created);
+        statement.setString(4, name.toLowerCase(java.util.Locale.ROOT));
         statement.setTimestamp(5, created);
+        statement.setTimestamp(6, created);
         statement.executeUpdate();
     }
 

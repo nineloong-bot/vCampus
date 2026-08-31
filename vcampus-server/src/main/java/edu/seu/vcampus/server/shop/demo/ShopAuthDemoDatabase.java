@@ -123,17 +123,18 @@ public final class ShopAuthDemoDatabase {
     private static void insertProduct(Connection connection, ProductSeed product,
             Instant now) throws Exception {
         try (PreparedStatement statement = connection.prepareStatement(
-                "INSERT INTO tblProduct (productId, shopId, productName, category, description, "
-                        + "productStatus, salesCount, rowVersion, createdAt, updatedAt) "
-                        + "VALUES (?, ?, ?, ?, ?, 'ACTIVE', ?, 0, ?, ?)")) {
+                "INSERT INTO tblProduct (productId, shopId, productName, normalizedProductName, category, "
+                        + "description, coverImageUrl, productStatus, salesCount, rowVersion, createdAt, updatedAt) "
+                        + "VALUES (?, ?, ?, ?, ?, ?, NULL, 'ACTIVE', ?, 0, ?, ?)")) {
             statement.setString(1, product.id());
             statement.setString(2, product.shopId());
             statement.setString(3, product.name());
-            statement.setString(4, product.category());
-            statement.setString(5, product.description());
-            statement.setLong(6, product.salesCount());
-            statement.setTimestamp(7, Timestamp.from(now));
+            statement.setString(4, product.name().strip().toLowerCase(java.util.Locale.ROOT));
+            statement.setString(5, product.category());
+            statement.setString(6, product.description());
+            statement.setLong(7, product.salesCount());
             statement.setTimestamp(8, Timestamp.from(now));
+            statement.setTimestamp(9, Timestamp.from(now));
             statement.executeUpdate();
         }
     }

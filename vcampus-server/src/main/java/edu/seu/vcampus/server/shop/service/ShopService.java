@@ -57,7 +57,7 @@ public final class ShopService {
                         "Product is inactive");
             }
             return new ProductDetail(product.productId(), product.productName(), product.category(),
-                    product.description(), product.status(), product.salesCount(),
+                    product.description(), product.coverImageUrl(), product.status(), product.salesCount(),
                     new ShopSummary(shop.shopId(), shop.shopName()),
                     repository.findSkusByProduct(connection, product.productId()).stream()
                             .filter(sku -> sku.active() && sku.availableQuantity() > 0)

@@ -81,14 +81,15 @@ abstract class CheckoutServiceTestSupport {
         transactions.inTransaction(connection -> {
             Timestamp now = Timestamp.from(Instant.parse("2026-08-28T09:00:00Z"));
             try (var product = connection.prepareStatement(
-                    "INSERT INTO tblProduct (productId, shopId, productName, category, description, "
+                    "INSERT INTO tblProduct (productId, shopId, productName, normalizedProductName, category, description, "
                             + "productStatus, salesCount, rowVersion, createdAt, updatedAt) "
-                            + "VALUES (?, ?, ?, '综合', '详情', 'ACTIVE', 0, 0, ?, ?)")) {
+                            + "VALUES (?, ?, ?, ?, '综合', '详情', 'ACTIVE', 0, 0, ?, ?)")) {
                 product.setString(1, productId);
                 product.setString(2, shopId);
                 product.setString(3, productName);
-                product.setTimestamp(4, now);
+                product.setString(4, productName.toLowerCase(java.util.Locale.ROOT));
                 product.setTimestamp(5, now);
+                product.setTimestamp(6, now);
                 product.executeUpdate();
             }
             try (var sku = connection.prepareStatement(

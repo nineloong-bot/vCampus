@@ -156,14 +156,15 @@ public final class ShopDemo {
     private static void insertProduct(Connection connection, String id, String shopId,
             String name, Instant now) throws Exception {
         try (PreparedStatement statement = connection.prepareStatement(
-                "INSERT INTO tblProduct (productId, shopId, productName, category, description, "
-                        + "productStatus, salesCount, rowVersion, createdAt, updatedAt) "
-                        + "VALUES (?, ?, ?, '校园生活', 'Demo 商品', 'ACTIVE', 0, 0, ?, ?)")) {
+                "INSERT INTO tblProduct (productId, shopId, productName, normalizedProductName, category, "
+                        + "description, coverImageUrl, productStatus, salesCount, rowVersion, createdAt, updatedAt) "
+                        + "VALUES (?, ?, ?, ?, '生活用品', 'Demo 商品', NULL, 'ACTIVE', 0, 0, ?, ?)")) {
             statement.setString(1, id);
             statement.setString(2, shopId);
             statement.setString(3, name);
-            statement.setTimestamp(4, Timestamp.from(now));
+            statement.setString(4, name.toLowerCase(java.util.Locale.ROOT));
             statement.setTimestamp(5, Timestamp.from(now));
+            statement.setTimestamp(6, Timestamp.from(now));
             statement.executeUpdate();
         }
     }

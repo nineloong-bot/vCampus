@@ -7,6 +7,7 @@ import edu.seu.vcampus.common.shop.ProductSkuView;
 import edu.seu.vcampus.common.shop.ProductStatus;
 import edu.seu.vcampus.common.shop.ProductView;
 import edu.seu.vcampus.common.shop.ShopErrorCode;
+import edu.seu.vcampus.common.shop.ShopCategories;
 import edu.seu.vcampus.common.shop.ShopStatus;
 import edu.seu.vcampus.common.shop.ShopView;
 import edu.seu.vcampus.common.shop.UpdateProductCommand;
@@ -26,6 +27,7 @@ import java.sql.Connection;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -77,10 +79,13 @@ public final class ProductService {
         return locks.withLocks(List.of(SellerApplicationService.key("USER", actor.userId())), () ->
                 transactions.inTransaction(connection -> {
                     Shop shop = requireOwnedActiveShop(connection, actor.userId());
+                    String normalizedName = normalizeProductName(command.productName());
+                    requireProductNameAvailable(connection, shop.shopId(), normalizedName, null);
                     var now = clock.instant();
                     Product product = repository.insertProduct(connection, new Product(
                             UUID.randomUUID().toString(), shop.shopId(), command.productName().strip(),
-                            command.category().strip(), command.description().strip(),
+                            normalizedName, supportedCategory(shop.category()), command.description().strip(),
+                            ProductImageUrl.validate(command.coverImageUrl()),
                             ProductStatus.DRAFT, 0, 0, now, now));
                     for (CreateSkuCommand sku : command.skus()) {
                         repository.insertSku(connection, new ProductSku(UUID.randomUUID().toString(),
@@ -99,12 +104,15 @@ public final class ProductService {
                     Shop shop = requireOwnedActiveShop(connection, actor.userId());
                     Product existing = requireOwnedProduct(connection, command.productId(), shop.shopId());
                     validateProduct(command.productName(), command.category(), command.description());
+                    String normalizedName = normalizeProductName(command.productName());
+                    requireProductNameAvailable(connection, shop.shopId(), normalizedName, existing.productId());
                     for (UpsertSkuCommand sku : command.skus()) {
                         validateSku(sku.skuName(), sku.unitPrice(), sku.stockQuantity());
                     }
                     Product updated = repository.updateProduct(connection, new Product(
                             existing.productId(), existing.shopId(), command.productName().strip(),
-                            command.category().strip(), command.description().strip(), existing.status(),
+                            normalizedName, supportedCategory(shop.category()), command.description().strip(),
+                            ProductImageUrl.validate(command.coverImageUrl()), existing.status(),
                             existing.salesCount(), existing.rowVersion(), existing.createdAt(), clock.instant()),
                             command.expectedVersion());
                     List<ProductSku> existingSkus = repository.findSkusByProduct(connection,
@@ -176,7 +184,7 @@ public final class ProductService {
 
     private ProductView toView(Connection connection, Product product) throws Exception {
         return new ProductView(product.productId(), product.productName(), product.category(),
-                product.description(), product.status(), product.salesCount(), product.rowVersion(),
+                product.description(), product.coverImageUrl(), product.status(), product.salesCount(), product.rowVersion(),
                 repository.findSkusByProduct(connection, product.productId()).stream()
                         .map(ProductService::toSkuView).toList());
     }
@@ -196,6 +204,28 @@ public final class ProductService {
         requireText(name, "productName");
         requireText(category, "category");
         requireText(description, "description");
+    }
+
+    private void requireProductNameAvailable(Connection connection, String shopId,
+            String normalizedName, String productId) throws Exception {
+        var existing = repository.findProductByNormalizedName(connection, shopId, normalizedName);
+        if (existing.isPresent() && !existing.orElseThrow().productId().equals(productId)) {
+            throw SellerApplicationService.error(ShopErrorCode.SHOP_PRODUCT_NAME_EXISTS,
+                    "Product name already exists in this shop");
+        }
+    }
+
+    private static String normalizeProductName(String name) {
+        return name.strip().toLowerCase(Locale.ROOT);
+    }
+
+    private static String supportedCategory(String category) {
+        try {
+            return ShopCategories.requireSupported(category);
+        } catch (IllegalArgumentException exception) {
+            throw SellerApplicationService.error(ShopErrorCode.SHOP_CATEGORY_INVALID,
+                    "Unsupported shop category");
+        }
     }
 
     private static void validateSku(CreateSkuCommand sku) {

@@ -54,8 +54,10 @@ CREATE TABLE tblProduct (
     productId VARCHAR(36) PRIMARY KEY,
     shopId VARCHAR(36) NOT NULL,
     productName VARCHAR(256) NOT NULL,
+    normalizedProductName VARCHAR(256) NOT NULL,
     category VARCHAR(64) NOT NULL,
     description MEMO NOT NULL,
+    coverImageUrl VARCHAR(2048),
     productStatus VARCHAR(16) NOT NULL,
     salesCount LONG NOT NULL DEFAULT 0,
     rowVersion LONG NOT NULL DEFAULT 0,
@@ -67,6 +69,8 @@ CREATE TABLE tblProduct (
 );
 
 CREATE INDEX idx_tblProduct_shopId ON tblProduct (shopId);
+CREATE UNIQUE INDEX uk_tblProduct_shop_normalized_name
+    ON tblProduct (shopId, normalizedProductName);
 CREATE INDEX idx_tblProduct_category_status ON tblProduct (category, productStatus);
 
 CREATE TABLE tblProductSku (

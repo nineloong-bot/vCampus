@@ -135,16 +135,17 @@ class BuyerShopServiceTest {
             long sales, String createdAt) {
         transactions.inTransaction(connection -> {
             try (var statement = connection.prepareStatement(
-                    "INSERT INTO tblProduct (productId, shopId, productName, category, description, "
+                    "INSERT INTO tblProduct (productId, shopId, productName, normalizedProductName, category, description, "
                             + "productStatus, salesCount, rowVersion, createdAt, updatedAt) "
-                            + "VALUES (?, ?, ?, '文具', '详情', 'ACTIVE', ?, 0, ?, ?)")) {
+                            + "VALUES (?, ?, ?, ?, '文具', '详情', 'ACTIVE', ?, 0, ?, ?)")) {
                 statement.setString(1, productId);
                 statement.setString(2, shopId);
                 statement.setString(3, name);
-                statement.setLong(4, sales);
+                statement.setString(4, name.toLowerCase(java.util.Locale.ROOT));
+                statement.setLong(5, sales);
                 Timestamp time = Timestamp.from(Instant.parse(createdAt));
-                statement.setTimestamp(5, time);
                 statement.setTimestamp(6, time);
+                statement.setTimestamp(7, time);
                 statement.executeUpdate();
             }
             return null;

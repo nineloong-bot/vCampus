@@ -168,18 +168,19 @@ class AccessShopRepositoryTest {
             String description, long sales, String createdAt) {
         transactions.inTransaction(connection -> {
             try (var statement = connection.prepareStatement(
-                    "INSERT INTO tblProduct (productId, shopId, productName, category, description, "
-                            + "productStatus, salesCount, rowVersion, createdAt, updatedAt) "
-                            + "VALUES (?, ?, ?, ?, ?, 'ACTIVE', ?, 0, ?, ?)")) {
+                    "INSERT INTO tblProduct (productId, shopId, productName, normalizedProductName, "
+                            + "category, description, coverImageUrl, productStatus, salesCount, rowVersion, "
+                            + "createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, NULL, 'ACTIVE', ?, 0, ?, ?)")) {
                 statement.setString(1, productId);
                 statement.setString(2, shopId);
                 statement.setString(3, name);
-                statement.setString(4, category);
-                statement.setString(5, description);
-                statement.setLong(6, sales);
+                statement.setString(4, name.toLowerCase(java.util.Locale.ROOT));
+                statement.setString(5, category);
+                statement.setString(6, description);
+                statement.setLong(7, sales);
                 Timestamp time = Timestamp.from(Instant.parse(createdAt));
-                statement.setTimestamp(7, time);
                 statement.setTimestamp(8, time);
+                statement.setTimestamp(9, time);
                 statement.executeUpdate();
             }
             return null;
