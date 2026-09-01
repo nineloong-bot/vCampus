@@ -2,6 +2,7 @@ package edu.seu.vcampus.client.user.ui;
 
 import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.core.ui.MainFrame;
+import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.client.user.service.UserClientService;
 import edu.seu.vcampus.common.user.LoginResult;
 
@@ -17,6 +18,7 @@ public final class UserUiCoordinator {
     private static final String SESSION_REPLACED = "登录已在其他位置失效，请重新登录";
     private static final String SESSION_INVALID = "登录状态已失效，请重新登录";
     private final UserClientService users;
+    private final StudentClientService students;
     private final ClientConnection connection;
     private LoginFrame activeLogin;
     private MainFrame activeMain;
@@ -25,7 +27,14 @@ public final class UserUiCoordinator {
 
     /** Creates the client-side authentication and shell coordinator. */
     public UserUiCoordinator(UserClientService users, ClientConnection connection) {
+        this(users, null, connection);
+    }
+
+    /** Creates the authentication coordinator with optional student self-service support. */
+    public UserUiCoordinator(UserClientService users, StudentClientService students,
+                             ClientConnection connection) {
         this.users = Objects.requireNonNull(users, "users");
+        this.students = students;
         this.connection = Objects.requireNonNull(connection, "connection");
     }
 
@@ -56,7 +65,7 @@ public final class UserUiCoordinator {
             dialog.setVisible(true);
             return;
         }
-        MainFrame main = new MainFrame(result.user(), connection);
+        MainFrame main = new MainFrame(result.user(), connection, students);
         activeMain = main;
         sessionEnding = false;
         replaceAccountPage(main, result);

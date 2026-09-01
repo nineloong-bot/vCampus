@@ -24,7 +24,8 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 
 /** Asynchronous protocol client with one response-reader thread. */
-public final class ClientConnection implements Closeable {
+public final class ClientConnection implements Closeable,
+        edu.seu.vcampus.client.student.service.StudentRequestClient {
     private final String host;
     private final int port;
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();

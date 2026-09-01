@@ -8,6 +8,8 @@ import edu.seu.vcampus.client.core.ui.shell.ModulePlaceholderPage;
 import edu.seu.vcampus.client.core.ui.shell.PermissionNavigation;
 import edu.seu.vcampus.client.core.ui.theme.UiColors;
 import edu.seu.vcampus.client.core.ui.theme.UiDimensions;
+import edu.seu.vcampus.client.student.service.StudentClientService;
+import edu.seu.vcampus.client.student.ui.StudentModulePageFactory;
 import edu.seu.vcampus.common.user.UserView;
 
 import javax.swing.JFrame;
@@ -24,16 +26,22 @@ public final class MainFrame extends JFrame {
 
     /** Creates the structural shell for compatibility with existing layout tests. */
     public MainFrame() {
-        this(null, null);
+        this(null, null, null);
     }
 
     /** Creates the shell with a signed-in identity and no connection binding. */
     public MainFrame(UserView user) {
-        this(user, null);
+        this(user, null, null);
     }
 
     /** Creates the complete demo shell with identity and live connection status. */
     public MainFrame(UserView user, ClientConnection connection) {
+        this(user, connection, null);
+    }
+
+    /** Creates the complete shell with an optional live student self-service page. */
+    public MainFrame(UserView user, ClientConnection connection,
+                     StudentClientService students) {
         super("vCampus");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
@@ -41,7 +49,7 @@ public final class MainFrame extends JFrame {
         footer = new ApplicationStatusBar();
         navigation = new PermissionNavigation(pageNavigator::show);
         content.setBackground(UiColors.BACKGROUND_PAGE);
-        registerPlaceholders();
+        registerPages(user, connection, students);
         add(header, BorderLayout.NORTH);
         add(navigation, BorderLayout.WEST);
         add(content, BorderLayout.CENTER);
@@ -51,8 +59,9 @@ public final class MainFrame extends JFrame {
         setLocationRelativeTo(null);
     }
 
-    private void registerPlaceholders() {
-        register("student", "学籍档案", "用于查看和维护校园身份与学籍信息。");
+    private void registerPages(UserView user, ClientConnection connection,
+                               StudentClientService students) {
+        pageNavigator.register("student", StudentModulePageFactory.create(user, students, connection));
         register("course", "课程中心", "用于课程查询、选课和学习安排。");
         register("library", "图书借阅", "用于检索馆藏并管理个人借阅。");
         register("shop", "校园商城", "用于浏览校园商品和管理订单。");

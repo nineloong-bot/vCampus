@@ -8,8 +8,8 @@ INSERT INTO tblUser
      lockedUntil, lastLoginAt, rowVersion, createdAt, updatedAt)
 VALUES
     ('00000000-0000-0000-0000-000000000001', 'ADMIN',
-     'wv1EPhIJoFhdJw2+WvjHEVTQxtaiehvG6dlZWu1lDlQ=',
-     'SvRF0HbkjKvkxUOaS1r20g==', 120000, 'ADMIN', 'ACTIVE', TRUE, 0,
+     'qX+wANpmojiY0I1qjpBBoUCjiFP6bZJnWg5qgeHmNh4=',
+     'mW5pbqIFUpGT2Zlkq7TsSA==', 120000, 'ADMIN', 'ACTIVE', TRUE, 0,
      NULL, NULL, 0, NOW(), NOW());
 
 INSERT INTO tblPermission (permissionCode, permissionName)
@@ -22,6 +22,8 @@ INSERT INTO tblPermission (permissionCode, permissionName)
 VALUES ('USER_AUDIT_READ', '查看安全审计');
 INSERT INTO tblPermission (permissionCode, permissionName)
 VALUES ('USER_PASSWORD_RESET', '初始化学生密码');
+INSERT INTO tblPermission (permissionCode, permissionName)
+VALUES ('STUDENT_WRITE', '学籍管理');
 
 INSERT INTO tblRolePermission (roleCode, permissionCode)
 VALUES ('ADMIN', 'USER_READ_ALL');
@@ -33,3 +35,5 @@ INSERT INTO tblRolePermission (roleCode, permissionCode)
 VALUES ('ADMIN', 'USER_AUDIT_READ');
 INSERT INTO tblRolePermission (roleCode, permissionCode)
 VALUES ('ADMIN', 'USER_PASSWORD_RESET');
+INSERT INTO tblRolePermission (roleCode, permissionCode)
+VALUES ('ADMIN', 'STUDENT_WRITE');
