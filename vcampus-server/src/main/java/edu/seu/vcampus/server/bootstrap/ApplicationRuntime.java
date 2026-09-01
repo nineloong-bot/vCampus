@@ -12,13 +12,16 @@ import edu.seu.vcampus.server.course.service.CourseStudentGateway;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import edu.seu.vcampus.server.persistence.TransactionManager;
 import edu.seu.vcampus.server.routing.MessageRouter;
+import edu.seu.vcampus.server.routing.RequestDeduplicator;
 import edu.seu.vcampus.server.security.AuthorizationService;
 import edu.seu.vcampus.server.session.SessionRegistry;
+import edu.seu.vcampus.server.user.handler.SecurityAuditHandler;
 import edu.seu.vcampus.server.user.handler.UserHandlers;
 import edu.seu.vcampus.server.user.repository.AccessAuditRepository;
 import edu.seu.vcampus.server.user.repository.AccessPermissionRepository;
 import edu.seu.vcampus.server.user.repository.AccessUserRepository;
 import edu.seu.vcampus.server.user.service.PasswordHasher;
+import edu.seu.vcampus.server.user.service.SecurityAuditService;
 import edu.seu.vcampus.server.user.service.UserServiceImpl;
 
 import java.io.IOException;
@@ -34,12 +37,15 @@ public final class ApplicationRuntime {
     private final MessageRouter router;
     private final CourseComposition course;
     private final ResourceLockManager resourceLocks;
+    private final AuthorizationService authorization;
 
     private ApplicationRuntime(MessageRouter router, CourseComposition course,
-                               ResourceLockManager resourceLocks) {
+                               ResourceLockManager resourceLocks,
+                               AuthorizationService authorization) {
         this.router = router;
         this.course = course;
         this.resourceLocks = resourceLocks;
+        this.authorization = authorization;
     }
 
     /**
@@ -63,9 +69,11 @@ public final class ApplicationRuntime {
 
         ResourceLockManager locks = new StripedResourceLockManager();
         SessionRegistry sessions = new SessionRegistry(clock, sessionIdleTimeout);
-        UserServiceImpl users = new UserServiceImpl(new TransactionManager(connections), locks,
+        TransactionManager transactions = new TransactionManager(connections);
+        AccessAuditRepository audits = new AccessAuditRepository();
+        UserServiceImpl users = new UserServiceImpl(transactions, locks,
                 new AccessUserRepository(), new AccessPermissionRepository(),
-                new AccessAuditRepository(), new PasswordHasher(), sessions, clock);
+                audits, new PasswordHasher(), sessions, clock);
         AuthorizationService authorization = new AuthorizationService(sessions);
         CourseAuthorizationGateway courseAuthorization = CourseRuntimeAdapters.authorization(
                 sessions::requireSnapshot,
@@ -79,9 +87,11 @@ public final class ApplicationRuntime {
                 students, clock, locks);
         MessageRouter router = new MessageRouter(Map.of(
                 "PING", (request, context) -> ResponseBody.success(EmptyResponse.INSTANCE)));
-        new UserHandlers(router, users, authorization);
+        new UserHandlers(router, users, authorization, new RequestDeduplicator(transactions, locks));
+        router.register("SECURITY_AUDIT_SEARCH", new SecurityAuditHandler(authorization,
+                new SecurityAuditService(transactions, audits)));
         courses.register(router);
-        return new ApplicationRuntime(router, courses, locks);
+        return new ApplicationRuntime(router, courses, locks, authorization);
     }
 
     /** Returns the application-wide message router. */
@@ -97,5 +107,10 @@ public final class ApplicationRuntime {
     /** Returns the application-wide business resource lock manager. */
     public ResourceLockManager resourceLocks() {
         return resourceLocks;
+    }
+
+    /** Exposes the shared authorization state to the production bootstrap. */
+    AuthorizationService authorization() {
+        return authorization;
     }
 }

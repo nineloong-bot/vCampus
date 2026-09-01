@@ -8,6 +8,7 @@ import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.user.AccountStatus;
 import edu.seu.vcampus.common.user.LoginCommand;
 import edu.seu.vcampus.common.user.LoginResult;
+import edu.seu.vcampus.common.user.SecurityAuditQuery;
 import edu.seu.vcampus.common.user.UserRole;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import edu.seu.vcampus.server.routing.ClientContext;
@@ -97,6 +98,23 @@ class ApplicationRuntimeTest {
         clock.advance(Duration.ofMinutes(8));
         assertThat(route(runtime, "COURSE_TERM_LIST", student.sessionToken(), EmptyRequest.INSTANCE).code())
                 .isEqualTo("AUTH_SESSION_EXPIRED");
+    }
+
+    @Test
+    void unifiedRuntimeRegistersCourseUserAndSecurityAuditCommands() throws Exception {
+        Path database = Files.createTempDirectory("vcampus-runtime-unified-").resolve("runtime.accdb");
+        ConnectionProvider connections = () -> DriverManager.getConnection(
+                "jdbc:ucanaccess://" + database + ";newDatabaseVersion=V2010");
+        ApplicationRuntime runtime = ApplicationRuntime.create(connections, databaseRoot(), Clock.systemUTC());
+
+        ResponseBody<?> course = route(runtime, "COURSE_TERM_LIST", null, EmptyRequest.INSTANCE);
+        ResponseBody<?> user = route(runtime, "USER_GET_CURRENT", null, EmptyRequest.INSTANCE);
+        ResponseBody<?> audit = route(runtime, "SECURITY_AUDIT_SEARCH", null,
+                new SecurityAuditQuery(null, null, null, null, null, 0, 20));
+
+        assertThat(course.code()).isEqualTo("AUTH_SESSION_EXPIRED");
+        assertThat(user.code()).isEqualTo("AUTH_SESSION_EXPIRED");
+        assertThat(audit.code()).isEqualTo("AUTH_SESSION_EXPIRED");
     }
 
     private static LoginResult login(ApplicationRuntime runtime, String loginId) {
