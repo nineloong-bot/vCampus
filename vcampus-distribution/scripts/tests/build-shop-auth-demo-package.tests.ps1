@@ -73,8 +73,8 @@ try {
         'Portable instructions must document the shared Demo password.'
     Assert-Contains $instructions '文具 10、图书 30、生活用品 45、药品 5、其他 10' `
         'Portable instructions must document the deterministic five-category catalog.'
-    Assert-Contains $instructions '暂无图片' `
-        'Portable instructions must explain the image placeholder used by this release.'
+    Assert-Contains $instructions '每类提供 4 个内置封面' `
+        'Portable instructions must explain built-in product covers.'
 
     New-Item -ItemType Directory -Force -Path $fakeBin | Out-Null
     Set-Content -LiteralPath (Join-Path $fakeBin 'java.cmd') -Encoding Ascii -Value @(
@@ -100,7 +100,7 @@ try {
         'The server BAT must use the packaged Logback configuration.'
     Assert-Contains $serverArgs '-cp lib\vCampusServer.jar edu.seu.vcampus.server.shop.demo.ShopAuthDemoServerMain' `
         'The server BAT must launch the Shop Auth Demo server main class.'
-    Assert-Contains $serverArgs 'database\vcampus-shop-auth-demo.accdb 19090 database\schema database\seed' `
+    Assert-Contains $serverArgs 'database\vcampus-shop-auth-demo.accdb 8888 database\schema database\seed' `
         'The server BAT must pass the packaged database, port, schema, and seed paths.'
 
     $clientCapture = Join-Path $testRoot 'client'
@@ -111,7 +111,7 @@ try {
     $clientArgs = (Get-Content -Raw -LiteralPath "$clientCapture.args").Trim()
     Assert-Contains $clientArgs '-Dlogback.configurationFile=config\logback.xml' `
         'The client BAT must use the packaged Logback configuration.'
-    Assert-Contains $clientArgs '-cp lib\vCampusClient.jar edu.seu.vcampus.client.shop.demo.ShopAuthDemoClientMain 127.0.0.1 19090' `
+    Assert-Contains $clientArgs '-cp lib\vCampusClient.jar edu.seu.vcampus.client.shop.demo.ShopAuthDemoClientMain 127.0.0.1 8888' `
         'The client BAT must connect to the local Shop Auth Demo server by default.'
 
     Write-Host 'Shop Auth Demo portable package tests passed.'

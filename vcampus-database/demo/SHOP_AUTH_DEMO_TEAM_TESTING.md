@@ -75,7 +75,7 @@ git rev-parse HEAD
 
 每次启动会重建五个营业店铺与 100 件在售商品：校园文具店 10 件“文具”、校园书店 30 件“图书”、校园生活超市 45 件“生活用品”、校园药店 5 件“药品”、校园综合店 10 件“其他”。搜索结果每页 20 件；全量为 5 页，图书为 20 + 10 两页，生活用品为 20 + 20 + 5 三页。
 
-本版商品不写入图片 URL，界面统一显示“暂无图片”占位，不需要数据库升级或图片资源包。
+本版每类提供 4 个内置封面，共 20 个稳定选择；客户端离线绘制符号占位，不需要数据库升级或图片资源包。
 
 统一关键词框依次使用 `速干`、`校园书店`、`药品`、`宿舍卫生`、`组合装`，可分别复核商品名、店铺名、分类、描述、SKU 名五种匹配。其中 `组合装` 固定命中 20 件商品且不应重复，也不应污染卡片最低价。价格、库存、销量均为确定性差异数据；选择销量降序后结果保持非升序。
 
@@ -112,7 +112,7 @@ Set-Location -LiteralPath '<仓库根目录>'
 .\vcampus-distribution\scripts\start-shop-auth-demo-client.ps1
 ```
 
-客户端默认连接 `127.0.0.1:19090`。
+客户端默认连接 `127.0.0.1:8888`。
 
 ## 模式 B：通过 Tailscale 联机测试
 
@@ -131,7 +131,7 @@ Set-Location -LiteralPath '<仓库根目录>'
 tailscale ip -4
 ```
 
-把输出的地址作为 `<服务器的 Tailscale IP>` 发给组员。服务端监听本机可用网络接口的 `19090` 端口；Tailscale 联机不需要公网端口映射，也不需要 Funnel。
+把输出的地址作为 `<服务器的 Tailscale IP>` 发给组员。服务端监听本机可用网络接口的 `8888` 端口；Tailscale 联机不需要公网端口映射，也不需要 Funnel。
 
 ### 客户端主机
 
@@ -140,14 +140,14 @@ tailscale ip -4
 ```powershell
 $ServerTailscaleIp = '<服务器的 Tailscale IP>'
 tailscale ping $ServerTailscaleIp
-Test-NetConnection $ServerTailscaleIp -Port 19090
+Test-NetConnection $ServerTailscaleIp -Port 8888
 ```
 
 其中 `Test-NetConnection` 的 `TcpTestSucceeded` 应为 `True`。在 macOS 或 Linux 上可用以下命令检测端口：
 
 ```bash
 server_tailscale_ip='<服务器的 Tailscale IP>'
-nc -vz "$server_tailscale_ip" 19090
+nc -vz "$server_tailscale_ip" 8888
 ```
 
 然后在 Windows 客户端的仓库根目录运行：
@@ -155,7 +155,7 @@ nc -vz "$server_tailscale_ip" 19090
 ```powershell
 Set-Location -LiteralPath '<仓库根目录>'
 $ServerTailscaleIp = '<服务器的 Tailscale IP>'
-.\vcampus-distribution\scripts\start-shop-auth-demo-client.ps1 -ServerHost $ServerTailscaleIp -ServerPort 19090
+.\vcampus-distribution\scripts\start-shop-auth-demo-client.ps1 -ServerHost $ServerTailscaleIp -ServerPort 8888
 ```
 
 ## 人工验收流程
@@ -195,11 +195,11 @@ $ServerTailscaleIp = '<服务器的 Tailscale IP>'
 
 ### 无法连接服务端
 
-在两端运行 `tailscale status`，确认设备在线且位于同一 tailnet；再检查 tailnet ACL 或管理员策略是否允许互访、服务端进程是否仍在运行，以及服务端主机的防火墙是否允许 Tailscale 网络访问 TCP `19090`。
+在两端运行 `tailscale status`，确认设备在线且位于同一 tailnet；再检查 tailnet ACL 或管理员策略是否允许互访、服务端进程是否仍在运行，以及服务端主机的防火墙是否允许 Tailscale 网络访问 TCP `8888`。
 
 ### 端口检测成功，但客户端仍连接失败
 
-重新核对客户端的 `-ServerHost`、`-ServerPort 19090` 和 Tailscale IP，确认没有误用本机 `127.0.0.1`，并确认服务端窗口没有退出或报错。
+重新核对客户端的 `-ServerHost`、`-ServerPort 8888` 和 Tailscale IP，确认没有误用本机 `127.0.0.1`，并确认服务端窗口没有退出或报错。
 
 ### 数据库提示被占用
 

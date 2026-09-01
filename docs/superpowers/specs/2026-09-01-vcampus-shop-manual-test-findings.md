@@ -376,3 +376,22 @@
 5. **简化搜索筛选。** 最后确定筛选区展开、条件应用和即时刷新规则。
 
 在进入实施前，应针对每一类问题形成经过确认的交互方案和测试计划，再按优先级分批修改，避免把多个独立导航或页面状态问题混在同一批实现中。
+
+## 6. 整改验收结果（2026-09-01）
+
+本轮已完成自动化整改验收，原始观察保留在上文。自动化结果不能替代用户在真实窗口中的视觉与操作确认。
+
+| 问题 | 自动化证据 | 当前结论 |
+| --- | --- | --- |
+| SHOP-TEST-001 | `ProductGridPanelTest`、`CatalogPaginationTest` | 布局计算与首次异步渲染已通过；待人工复测首屏高度 |
+| SHOP-TEST-002A/B | `SellerApplicationPanelTest`、`ShopNavigatorTest` | 直接提交、保存失败、保存/丢弃/取消离开路径通过 |
+| SHOP-TEST-003.1/3.2 | `CatalogPanelsTest`、`ProductGridPanelTest` | 整卡激活、首页隐藏店铺、搜索显示店铺通过 |
+| SHOP-TEST-004 | `ApplicationReviewPanelTest`、`AccessShopRepositoryTest` | 未处理/已处理分组及最新优先查询通过 |
+| SHOP-TEST-005 | `ProductManagementPanelTest`、`AdminProductManagementPanelTest`、`CoverPresetPickerPanelTest` | SKU 技术字段隐藏、业务字段编辑、内置封面选择通过 |
+| SHOP-TEST-006 | `CatalogPanelsTest`、`CatalogPaginationTest` | 搜索与应用筛选语义、排序即时刷新通过 |
+| SHOP-TEST-007.1/2/3 | `PurchasePanelsTest`、`ShopUiTest` | 单价/数量/小计/权威总计、纵向确认清单、商品详情入口通过 |
+| SHOP-TEST-008 | `ShopNavigatorTest` 六组参数化场景 | 工具页互切后一次返回内容锚点通过 |
+
+完整仓库验证：`mvn verify` 共运行 Common 19、Server 191、Client 171，合计 381 项，0 失败、0 错误、0 跳过。Shop Demo 启动脚本与便携包脚本测试均通过，默认端口为 8888。
+
+仍需人工执行：使用四个独立客户端窗口逐项复测上述界面表现，并记录截图。与 `origin/feat/user-management@8d53d9e` 的最终联合编译和登录/首次改密/账户页/退出联动，需要在获得明确集成授权并引入该提交后执行。
