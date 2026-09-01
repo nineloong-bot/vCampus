@@ -12,7 +12,6 @@ import edu.seu.vcampus.client.core.ui.theme.UiColors;
 import edu.seu.vcampus.client.core.ui.theme.UiDimensions;
 import edu.seu.vcampus.common.user.UserView;
 
-import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -22,7 +21,6 @@ import java.awt.BorderLayout;
 import java.awt.GridLayout;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -79,7 +77,6 @@ public final class MainFrame extends JFrame {
         Objects.requireNonNull(connection, "connection");
         Runnable handoff = Objects.requireNonNull(onAuthenticationFailure, "onAuthenticationFailure");
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        addIdentity(header, user);
         removeAuthenticationFailureListener = courses.addAuthenticationFailureListener(failure -> {
             if (!authenticationHandoffStarted.compareAndSet(false, true)) return;
             connection.setSessionToken(null);
@@ -88,7 +85,7 @@ public final class MainFrame extends JFrame {
                 handoff.run();
             });
         });
-        installCoursePages(new CourseUiComposition(courses).pagesFor(user.role()));
+        installPage("course", new CourseUiComposition(courses).workspaceFor(user.role()));
         addWindowListener(new WindowAdapter() {
             @Override public void windowClosing(WindowEvent event) {
                 if (!authenticationHandoffStarted.get()) connection.close();
@@ -125,39 +122,6 @@ public final class MainFrame extends JFrame {
     private static void addIdentity(JPanel header, UserView user) {
         header.add(new JLabel("当前用户：" + user.loginId() + "（" + user.role().name() + "）"),
                 BorderLayout.CENTER);
-    }
-
-    private void installCoursePages(Map<String, JPanel> pages) {
-        navigation.removeAll();
-        navigation.setLayout(new GridLayout(0, 1, 8, 8));
-        String firstPage = null;
-        for (Map.Entry<String, JPanel> entry : pages.entrySet()) {
-            String pageId = entry.getKey();
-            pageNavigator.register(pageId, entry.getValue());
-            JButton button = new JButton(navigationLabel(pageId));
-            button.addActionListener(event -> pageNavigator.show(pageId));
-            navigation.add(button);
-            if (firstPage == null) firstPage = pageId;
-        }
-        navigation.revalidate();
-        navigation.repaint();
-        if (firstPage != null) pageNavigator.show(firstPage);
-    }
-
-    private static String navigationLabel(String pageId) {
-        return switch (pageId) {
-            case "course.offerings" -> "教学班查询";
-            case "course.enrollments" -> "我的选课";
-            case "course.schedule" -> "我的课表";
-            case "course.adjustment" -> "退改补";
-            case "course.retake" -> "重修";
-            case "course.terms" -> "学期管理";
-            case "course.catalog" -> "课程目录";
-            case "course.offering-admin" -> "教学班管理";
-            case "course.outcome-import" -> "修读结果导入";
-            case "course.adjustment-audit" -> "退改补审计";
-            default -> throw new IllegalArgumentException("Unknown course page: " + pageId);
-        };
     }
 
     /** Returns the shared identity header. */

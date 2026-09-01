@@ -2,22 +2,35 @@ package edu.seu.vcampus.client.user.ui;
 
 import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.core.ui.MainFrame;
+import edu.seu.vcampus.client.course.service.CourseClientService;
+import edu.seu.vcampus.client.course.ui.CourseUiComposition;
 import edu.seu.vcampus.client.user.service.UserClientService;
 import edu.seu.vcampus.common.user.LoginResult;
 
 import javax.swing.SwingUtilities;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Coordinates authentication windows so restricted sessions never see the application shell. */
 public final class UserUiCoordinator {
     private static final String PASSWORD_CHANGED = "密码修改成功，请使用新密码重新登录";
     private static final String LOGGED_OUT = "已退出登录";
     private final UserClientService users;
+    private final CourseClientService courses;
     private final ClientConnection connection;
 
     /** Creates the client-side authentication and shell coordinator. */
     public UserUiCoordinator(UserClientService users, ClientConnection connection) {
+        this(users, null, connection);
+    }
+
+    /** Creates the production coordinator with courses bound to the shared connection. */
+    public UserUiCoordinator(UserClientService users, CourseClientService courses,
+                             ClientConnection connection) {
         this.users = Objects.requireNonNull(users, "users");
+        this.courses = courses;
         this.connection = Objects.requireNonNull(connection, "connection");
     }
 
@@ -42,8 +55,31 @@ public final class UserUiCoordinator {
             return;
         }
         MainFrame main = new MainFrame(result.user(), connection);
+        if (courses != null) {
+            main.installPage("course", new CourseUiComposition(courses)
+                    .workspaceFor(result.user().role()));
+        }
         replaceAccountPage(main, result);
+        bindCourseAuthenticationFailure(main);
         main.setVisible(true);
+    }
+
+    private void bindCourseAuthenticationFailure(MainFrame main) {
+        if (courses == null) return;
+        AtomicBoolean handedOff = new AtomicBoolean();
+        Runnable remove = courses.addAuthenticationFailureListener(failure -> {
+            if (!handedOff.compareAndSet(false, true)) return;
+            users.clearSession();
+            SwingUtilities.invokeLater(() -> {
+                main.dispose();
+                showLogin("登录状态已失效，请重新登录");
+            });
+        });
+        main.addWindowListener(new WindowAdapter() {
+            @Override public void windowClosed(WindowEvent event) {
+                remove.run();
+            }
+        });
     }
 
     private void replaceAccountPage(MainFrame main, LoginResult result) {

@@ -2,6 +2,7 @@ package edu.seu.vcampus.client;
 
 import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.core.ui.theme.UiThemeInstaller;
+import edu.seu.vcampus.client.course.service.CourseClientService;
 import edu.seu.vcampus.client.user.service.UserClientService;
 import edu.seu.vcampus.client.user.ui.UserUiCoordinator;
 
@@ -32,9 +33,10 @@ public final class ClientMain {
             Runtime.getRuntime().addShutdownHook(new Thread(connection::close, "vcampus-client-close"));
             UserClientService users = new UserClientService(
                     connection, UUID.randomUUID().toString(), timeout);
+            CourseClientService courses = new CourseClientService(connection);
             SwingUtilities.invokeLater(() -> {
                 UiThemeInstaller.install();
-                new UserUiCoordinator(users, connection).start();
+                new UserUiCoordinator(users, courses, connection).start();
             });
         } catch (Exception error) {
             System.err.println("客户端启动失败：" + error.getMessage());

@@ -31,9 +31,12 @@ import edu.seu.vcampus.common.course.UpdateOfferingCommand;
 import edu.seu.vcampus.common.course.OfferingView;
 import edu.seu.vcampus.common.course.TermPhaseView;
 import edu.seu.vcampus.common.paging.PageResult;
+import edu.seu.vcampus.common.user.UserRole;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.swing.JButton;
 import javax.swing.JComponent;
@@ -41,6 +44,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
+import javax.swing.JTabbedPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.JCheckBox;
@@ -58,10 +62,32 @@ import java.math.BigDecimal;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class CourseUiTest {
+    @ParameterizedTest
+    @MethodSource("roleTabs")
+    void workspaceOwnsRoleFilteredInternalTabs(UserRole role, List<String> expected) throws Exception {
+        CourseWorkspacePanel workspace = onEdt(
+                () -> new CourseWorkspacePanel(CourseUiGateway.preview(), role));
+        JTabbedPane tabs = descendants(workspace).stream()
+                .filter(JTabbedPane.class::isInstance).map(JTabbedPane.class::cast)
+                .findFirst().orElseThrow();
+        assertThat(IntStream.range(0, tabs.getTabCount()).mapToObj(tabs::getTitleAt))
+                .containsExactlyElementsOf(expected);
+        assertThat(workspace.getName()).isEqualTo("page.course");
+    }
+
+    static Stream<Arguments> roleTabs() {
+        return Stream.of(
+                Arguments.of(UserRole.STUDENT, List.of("教学班查询", "我的选课", "我的课表", "退改补", "重修")),
+                Arguments.of(UserRole.TEACHER, List.of("教学班查询", "教师课表")),
+                Arguments.of(UserRole.ADMIN, List.of("学期管理", "课程目录", "教学班管理", "修读结果导入", "选退记录")));
+    }
+
     @Test
     void queryPageUsesReviewedTemplateAndSharedTokens() throws Exception {
         OfferingSearchPanel panel = onEdt(() -> new OfferingSearchPanel(CourseUiGateway.preview()));
@@ -410,32 +436,43 @@ class CourseUiTest {
     }
 
     @Test
-    void compositionRegistersStudentAndAdministrativePagesUnderStableIds() throws Exception {
+    void compositionCreatesIndependentRoleWorkspacesUnderTheCoursePageId() throws Exception {
         CourseUiComposition composition = onEdt(() -> new CourseUiComposition(CourseUiGateway.preview()));
 
-        onEdt(() -> {
-            assertThat(composition.studentPages().keySet()).containsExactly(
-                    "course.offerings", "course.enrollments", "course.schedule", "course.adjustment", "course.retake");
-            assertThat(composition.administrativePages().keySet()).containsExactly(
-                    "course.terms", "course.catalog", "course.offering-admin", "course.outcome-import", "course.adjustment-audit");
-            assertThat(composition.allPages()).hasSize(10);
-            return null;
-        });
+        CourseWorkspacePanel first = onEdt(() -> composition.workspaceFor(UserRole.STUDENT));
+        CourseWorkspacePanel second = onEdt(() -> composition.workspaceFor(UserRole.STUDENT));
+
+        assertThat(first).isNotSameAs(second);
+        assertThat(first.getName()).isEqualTo("page.course");
+        assertThat(second.getName()).isEqualTo("page.course");
     }
 
     @Test
     void everyInteractiveCoursePageControlHasAnAccessibleNameAndKeyboardFocus() throws Exception {
         CourseUiComposition composition = onEdt(() -> new CourseUiComposition(CourseUiGateway.preview()));
-        SwingUtilities.invokeAndWait(() -> { });
+        List<CourseWorkspacePanel> workspaces = onEdt(() -> List.of(
+                composition.workspaceFor(UserRole.STUDENT),
+                composition.workspaceFor(UserRole.ADMIN)));
         List<String> missingNames = new ArrayList<>();
         List<String> inaccessibleByKeyboard = new ArrayList<>();
 
+        for (CourseWorkspacePanel workspace : workspaces) {
+            JTabbedPane tabs = descendants(workspace).stream()
+                    .filter(JTabbedPane.class::isInstance).map(JTabbedPane.class::cast)
+                    .findFirst().orElseThrow();
+            for (int index = 0; index < tabs.getTabCount(); index++) {
+                int selected = index;
+                SwingUtilities.invokeAndWait(() -> tabs.setSelectedIndex(selected));
+            }
+        }
+        SwingUtilities.invokeAndWait(() -> { });
+
         onEdt(() -> {
-            composition.allPages().forEach((pageId, page) -> descendants(page).stream()
+            workspaces.forEach(workspace -> descendants(workspace).stream()
                     .filter(CourseUiTest::isInteractiveControl)
                     .forEach(component -> {
                         String name = component.getAccessibleContext().getAccessibleName();
-                        String description = pageId + ":" + component.getClass().getSimpleName();
+                        String description = component.getClass().getSimpleName();
                         if (name == null || name.isBlank()) missingNames.add(description);
                         if (!component.isFocusable()) inaccessibleByKeyboard.add(description + ":" + name);
                     }));

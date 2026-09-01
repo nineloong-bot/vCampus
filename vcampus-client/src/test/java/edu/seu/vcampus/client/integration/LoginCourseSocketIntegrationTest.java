@@ -3,6 +3,8 @@ package edu.seu.vcampus.client.integration;
 import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.course.service.CourseClientException;
 import edu.seu.vcampus.client.course.service.CourseClientService;
+import edu.seu.vcampus.client.course.ui.CourseUiComposition;
+import edu.seu.vcampus.client.course.ui.CourseWorkspacePanel;
 import edu.seu.vcampus.client.user.service.UserClientService;
 import edu.seu.vcampus.common.course.CreateCourseCommand;
 import edu.seu.vcampus.common.course.CreateOfferingCommand;
@@ -24,6 +26,10 @@ import org.junit.jupiter.api.io.TempDir;
 
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
+import javax.swing.JTabbedPane;
+import javax.swing.SwingUtilities;
+import java.awt.Component;
+import java.awt.Container;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -42,6 +48,8 @@ import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
@@ -109,6 +117,8 @@ class LoginCourseSocketIntegrationTest {
     void authenticatesEveryCourseRoleAndPreservesSessionSecurityAcrossTheProductionBoundary() {
         LoginResult administrator = login("ADMIN1");
         assertThat(administrator.user().role()).isEqualTo(UserRole.ADMIN);
+        assertWorkspaceTabs(administrator, List.of(
+                "学期管理", "课程目录", "教学班管理", "修读结果导入", "选退记录"));
         var term = courses.createTerm(term()).join();
         var course = courses.createCourse(new CreateCourseCommand(
                 "CS-E2E", "端到端系统测试", BigDecimal.valueOf(3), 48, null, true)).join();
@@ -120,6 +130,8 @@ class LoginCourseSocketIntegrationTest {
 
         LoginResult student = login("STUDENT1");
         assertThat(student.user().userId()).isEqualTo(STUDENT_USER_ID);
+        assertWorkspaceTabs(student, List.of(
+                "教学班查询", "我的选课", "我的课表", "退改补", "重修"));
         assertThat(courses.listTerms().join()).extracting("termId").contains(term.termId());
         assertThat(courses.searchOfferings(new OfferingSearchQuery(
                 term.termId(), "CS-E2E", null, false, 0, 20)).join().items())
@@ -140,6 +152,7 @@ class LoginCourseSocketIntegrationTest {
 
         LoginResult teacher = login("TEACHER1");
         assertThat(teacher.user().role()).isEqualTo(UserRole.TEACHER);
+        assertWorkspaceTabs(teacher, List.of("教学班查询", "教师课表"));
         assertThat(courses.searchOfferings(new OfferingSearchQuery(
                 term.termId(), null, null, false, 0, 20)).join().items())
                 .extracting("offeringId").contains(offering.offeringId());
@@ -180,6 +193,31 @@ class LoginCourseSocketIntegrationTest {
         LoginResult result = users.login(loginId, password).join();
         assertThat(password).containsOnly('\0');
         return result;
+    }
+
+    private void assertWorkspaceTabs(LoginResult result, List<String> expected) {
+        AtomicReference<CourseWorkspacePanel> workspace = new AtomicReference<>();
+        try {
+            SwingUtilities.invokeAndWait(() -> workspace.set(
+                    new CourseUiComposition(courses).workspaceFor(result.user().role())));
+        } catch (Exception error) {
+            throw new AssertionError(error);
+        }
+        JTabbedPane tabs = descendants(workspace.get()).stream()
+                .filter(JTabbedPane.class::isInstance).map(JTabbedPane.class::cast)
+                .findFirst().orElseThrow();
+        assertThat(IntStream.range(0, tabs.getTabCount()).mapToObj(tabs::getTitleAt))
+                .containsExactlyElementsOf(expected);
+        assertThat(workspace.get().getName()).isEqualTo("page.course");
+    }
+
+    private static List<Component> descendants(Container root) {
+        java.util.ArrayList<Component> found = new java.util.ArrayList<>();
+        for (Component child : root.getComponents()) {
+            found.add(child);
+            if (child instanceof Container nested) found.addAll(descendants(nested));
+        }
+        return found;
     }
 
     private static void assertCourseFailure(Runnable action, String code) {
