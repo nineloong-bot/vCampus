@@ -71,7 +71,7 @@ public final class AdminProductService {
                     Product product = repository.insertProduct(connection, new Product(
                             UUID.randomUUID().toString(), shop.shopId(), command.productName().strip(),
                             normalized, shop.category(), command.description().strip(),
-                            ProductImageUrl.validate(command.coverImageUrl()), ProductStatus.DRAFT,
+                            ProductImageUrl.validate(command.coverImageUrl(), command.category()), ProductStatus.DRAFT,
                             0, 0, now, now));
                     for (CreateSkuCommand sku : command.skus()) repository.insertSku(connection,
                             new ProductSku(UUID.randomUUID().toString(), product.productId(),
@@ -98,7 +98,7 @@ public final class AdminProductService {
                     Product updated = repository.updateProduct(connection, new Product(
                             existing.productId(), existing.shopId(), command.productName().strip(),
                             normalized, shop.category(), command.description().strip(),
-                            ProductImageUrl.validate(command.coverImageUrl()), existing.status(),
+                            ProductImageUrl.validate(command.coverImageUrl(), command.category()), existing.status(),
                             existing.salesCount(), existing.rowVersion(), existing.createdAt(), clock.instant()),
                             command.expectedVersion());
                     List<ProductSku> stored = repository.findSkusByProduct(connection, existing.productId());

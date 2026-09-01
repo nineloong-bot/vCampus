@@ -117,7 +117,7 @@ public final class ProductService {
                     Product product = repository.insertProduct(connection, new Product(
                             UUID.randomUUID().toString(), shop.shopId(), command.productName().strip(),
                             normalizedName, supportedCategory(shop.category()), command.description().strip(),
-                            ProductImageUrl.validate(command.coverImageUrl()),
+                            ProductImageUrl.validate(command.coverImageUrl(), command.category()),
                             ProductStatus.DRAFT, 0, 0, now, now));
                     for (CreateSkuCommand sku : command.skus()) {
                         repository.insertSku(connection, new ProductSku(UUID.randomUUID().toString(),
@@ -144,7 +144,7 @@ public final class ProductService {
                     Product updated = repository.updateProduct(connection, new Product(
                             existing.productId(), existing.shopId(), command.productName().strip(),
                             normalizedName, supportedCategory(shop.category()), command.description().strip(),
-                            ProductImageUrl.validate(command.coverImageUrl()), existing.status(),
+                            ProductImageUrl.validate(command.coverImageUrl(), command.category()), existing.status(),
                             existing.salesCount(), existing.rowVersion(), existing.createdAt(), clock.instant()),
                             command.expectedVersion());
                     List<ProductSku> existingSkus = repository.findSkusByProduct(connection,
