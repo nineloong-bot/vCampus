@@ -30,6 +30,7 @@ import org.junit.jupiter.api.Test;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JScrollPane;
+import javax.swing.JPanel;
 import javax.swing.JTextField;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -94,7 +95,7 @@ class CatalogPaginationTest {
 
         JScrollPane scroll = component(panel, "home.scroll", JScrollPane.class);
         onEdt(() -> scroll.getVerticalScrollBar().setValues(120, 10, 0, 1000));
-        onEdt(() -> component(panel, "product-product-1", JButton.class).doClick());
+        onEdt(() -> clickCard(component(panel, "product-product-1", JPanel.class)));
         assertThat(navigator.current()).contains(new ShopRoute.Product("product-1"));
         onEdt((Runnable) navigator::back);
         flushUi();
@@ -104,6 +105,12 @@ class CatalogPaginationTest {
                 new HomeViewState(second, 120)));
         assertThat(scroll.getVerticalScrollBar().getValue()).isEqualTo(120);
         assertThat(navigator.history()).isEmpty();
+    }
+
+    private static void clickCard(JPanel card) {
+        java.awt.event.MouseEvent event = new java.awt.event.MouseEvent(card,
+                java.awt.event.MouseEvent.MOUSE_CLICKED, 0, 0, 1, 1, 1, false);
+        for (java.awt.event.MouseListener listener : card.getMouseListeners()) listener.mouseClicked(event);
     }
 
     @Test

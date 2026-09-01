@@ -49,14 +49,15 @@ final class WrappingGridLayout implements LayoutManager {
             Insets insets = parent.getInsets();
             int available = availableWidth(parent, insets);
             int columns = columns(available);
-            int cardWidth = Math.max(1,
-                    (available - Math.max(0, columns - 1) * horizontalGap) / columns);
+            int cardWidth = minimumCardWidth;
             int cardHeight = maximumPreferredHeight(parent);
+            int usedWidth = columns * cardWidth + Math.max(0, columns - 1) * horizontalGap;
+            int offset = Math.max(0, (available - usedWidth) / 2);
             for (int index = 0; index < parent.getComponentCount(); index++) {
                 int column = index % columns;
                 int row = index / columns;
                 parent.getComponent(index).setBounds(
-                        insets.left + column * (cardWidth + horizontalGap),
+                        insets.left + offset + column * (cardWidth + horizontalGap),
                         insets.top + row * (cardHeight + verticalGap),
                         cardWidth, cardHeight);
             }

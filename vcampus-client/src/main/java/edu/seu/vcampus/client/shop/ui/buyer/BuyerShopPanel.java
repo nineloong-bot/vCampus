@@ -43,7 +43,7 @@ public final class BuyerShopPanel extends JPanel {
         this.navigator = Objects.requireNonNull(navigator, "navigator");
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
         ShopNavigator routes = this.navigator;
-        cards = new ProductCardsPanel(routes, uiKit);
+        cards = new ProductCardsPanel(routes, uiKit, ProductCardContext.STOREFRONT);
         pagination = new ShopPaginationPanel("storefront", uiKit);
         routes.addListener(route -> {
             if (!(route instanceof ShopRoute.Storefront)) latest.begin();

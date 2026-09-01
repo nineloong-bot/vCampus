@@ -8,7 +8,6 @@ import edu.seu.vcampus.client.shop.ui.catalog.ProductCardRenderer;
 import edu.seu.vcampus.client.shop.ui.catalog.ProductGridPanel;
 import edu.seu.vcampus.common.shop.ProductSummary;
 
-import javax.swing.JButton;
 import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
 import javax.swing.JLabel;
@@ -26,10 +25,16 @@ public final class ProductCardsPanel extends JPanel {
     private final ProductGridPanel grid;
     private final List<String> productNames = new ArrayList<>();
     private final List<String> prices = new ArrayList<>();
+    private final ProductCardContext context;
 
     public ProductCardsPanel(ShopNavigator navigator, ShopUiKit uiKit) {
+        this(navigator, uiKit, ProductCardContext.SEARCH);
+    }
+
+    public ProductCardsPanel(ShopNavigator navigator, ShopUiKit uiKit, ProductCardContext context) {
         ShopNavigator routes = Objects.requireNonNull(navigator, "navigator");
         this.uiKit = Objects.requireNonNull(uiKit, "uiKit");
+        this.context = Objects.requireNonNull(context, "context");
         grid = new ProductGridPanel(new BuiltinProductImageLoader(), renderer(),
                 productId -> routes.open(new ShopRoute.Product(productId)));
         setLayout(new java.awt.BorderLayout());
@@ -67,16 +72,30 @@ public final class ProductCardsPanel extends JPanel {
         cover.setAlignmentX(CENTER_ALIGNMENT);
         card.add(cover);
         card.add(named(new JLabel(product.productName()), name + ".name"));
-        card.add(named(new JLabel(product.shopName()), name + ".shop"));
+        if (context.showShopName()) card.add(named(new JLabel(product.shopName()), name + ".shop"));
         card.add(named(new JLabel(product.category()), name + ".category"));
         card.add(named(new JLabel(formatPrice(product.minimumPrice())), name + ".price"));
         card.add(named(new JLabel("销量 " + product.salesCount()), name + ".sales"));
-        JButton action = uiKit.secondaryButton(name + ".open",
-                product.productName() + " | " + formatPrice(product.minimumPrice()));
-        action.setName(name);
-        action.addActionListener(event -> open.run());
-        card.add(action);
+        card.setFocusable(true);
+        card.getAccessibleContext().setAccessibleName(product.productName() + " " + formatPrice(product.minimumPrice()));
+        java.awt.event.MouseAdapter activate = new java.awt.event.MouseAdapter() {
+            @Override public void mouseClicked(java.awt.event.MouseEvent event) { open.run(); }
+        };
+        installActivation(card, activate);
+        card.getInputMap(WHEN_FOCUSED).put(javax.swing.KeyStroke.getKeyStroke("ENTER"), "open");
+        card.getInputMap(WHEN_FOCUSED).put(javax.swing.KeyStroke.getKeyStroke("SPACE"), "open");
+        card.getActionMap().put("open", new javax.swing.AbstractAction() {
+            @Override public void actionPerformed(java.awt.event.ActionEvent event) { open.run(); }
+        });
         return card;
+    }
+
+    private static void installActivation(java.awt.Container root, java.awt.event.MouseAdapter activation) {
+        root.addMouseListener(activation);
+        for (java.awt.Component child : root.getComponents()) {
+            child.addMouseListener(activation);
+            if (child instanceof java.awt.Container nested) installActivation(nested, activation);
+        }
     }
 
     private static String formatPrice(BigDecimal price) { return "¥" + price.setScale(2) + " 起"; }

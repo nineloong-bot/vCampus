@@ -47,7 +47,7 @@ public final class ShopHomePanel extends JPanel {
         this.navigator = Objects.requireNonNull(navigator, "navigator");
         this.uiKit = Objects.requireNonNull(uiKit, "uiKit");
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
-        this.cards = new ProductCardsPanel(navigator, uiKit);
+        this.cards = new ProductCardsPanel(navigator, uiKit, ProductCardContext.HOME);
         this.pagination = new ShopPaginationPanel("home", uiKit);
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
         navigator.addListener(route -> {

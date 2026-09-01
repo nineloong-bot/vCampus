@@ -181,7 +181,7 @@ class CatalogPanelsTest {
 
         onEdt(() -> panel.load());
         flushEdt();
-        onEdt(() -> component(panel, "product-product-9", JButton.class).doClick());
+        onEdt(() -> clickCard(component(panel, "product-product-9", JPanel.class)));
 
         ArgumentCaptor<HomeProductQuery> query = ArgumentCaptor.forClass(HomeProductQuery.class);
         verify(client).home(query.capture());
@@ -313,9 +313,15 @@ class CatalogPanelsTest {
         flushEdt();
         assertThat(component(panel, "shop-name", JLabel.class).getText()).isEqualTo("店empty");
         onEdt(() -> panel.load("c"));
-        JButton product = awaitComponent(panel, "product-product-c", JButton.class);
+        JPanel product = awaitComponent(panel, "product-product-c", JPanel.class);
         assertThat(component(panel, "shop-name", JLabel.class).getText()).isEqualTo("店c");
-        assertThat(product.getText()).contains("C");
+        assertThat(component(product, "product-product-c.name", JLabel.class).getText()).contains("C");
+    }
+
+    private static void clickCard(JPanel card) {
+        java.awt.event.MouseEvent event = new java.awt.event.MouseEvent(card,
+                java.awt.event.MouseEvent.MOUSE_CLICKED, 0, 0, 1, 1, 1, false);
+        for (java.awt.event.MouseListener listener : card.getMouseListeners()) listener.mouseClicked(event);
     }
 
     @Test

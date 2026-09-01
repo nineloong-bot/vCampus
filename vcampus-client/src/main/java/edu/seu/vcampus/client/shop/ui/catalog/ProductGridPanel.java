@@ -61,5 +61,7 @@ public final class ProductGridPanel extends JPanel {
         slot.add(card);
         slot.revalidate();
         slot.repaint();
+        revalidate();
+        if (getParent() != null) getParent().revalidate();
     }
 }
