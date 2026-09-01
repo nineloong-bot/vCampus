@@ -54,7 +54,14 @@ Swing 页面
 
 ## 3. UML 类图
 
+README 默认嵌入已渲染的 PNG；同目录保留 SVG，折叠区域保留 Mermaid 源码，便于后续修改。
+
 ### 3.1 核心服务与持久化
+
+![核心服务与持久化 UML 类图](diagrams/library-core-class.png)
+
+<details>
+<summary>查看可编辑 Mermaid 源码</summary>
 
 ```mermaid
 classDiagram
@@ -174,7 +181,14 @@ Book "1" --> "0..*" BookCopy : 拥有
 BookCopy "1" --> "0..*" Loan : 形成历史借阅
 ```
 
+</details>
+
 ### 3.2 客户端 UI 组合
+
+![客户端 UI UML 类图](diagrams/library-ui-class.png)
+
+<details>
+<summary>查看可编辑 Mermaid 源码</summary>
 
 ```mermaid
 classDiagram
@@ -231,11 +245,18 @@ LibraryFeedback <.. CurrentLoansPanel
 LibraryFeedback <.. LoanAdminPanel
 ```
 
+</details>
+
 `LibraryWorkspacePanel` 只在当前用户拥有 `LIBRARY_ADMIN` 时创建管理页面。切换栏目时会调用对应页面的刷新动作，首次打开工作区也会自动加载当前栏目。
 
 ## 4. UML 顺序图
 
 ### 4.1 借阅一本实体副本
+
+![借阅实体副本 UML 顺序图](diagrams/borrow-sequence.png)
+
+<details>
+<summary>查看可编辑 Mermaid 源码</summary>
 
 ```mermaid
 sequenceDiagram
@@ -299,9 +320,16 @@ Client-->>UI: LoanView 或 LibraryRequestException
 UI-->>Reader: 刷新详情或显示醒目错误窗口
 ```
 
+</details>
+
 借阅记录和副本状态在同一事务内修改，因此不会出现“副本已借出但没有借阅记录”或相反状态。同一副本的并发借阅只允许一个请求成功。
 
 ### 4.2 管理员处理某个账号的借阅
+
+![管理员处理账号借阅 UML 顺序图](diagrams/admin-resolve-sequence.png)
+
+<details>
+<summary>查看可编辑 Mermaid 源码</summary>
 
 ```mermaid
 sequenceDiagram
@@ -351,6 +379,8 @@ UI->>Client: 重新查询该账号借阅
 Client-->>UI: 最新当前借阅与历史
 UI-->>Admin: 显示账号状态已同步
 ```
+
+</details>
 
 管理员不能直接把存在有效借阅的副本改成“可借”。归还和报失必须从借阅管理发起，从而保证借阅人页面、借阅历史与副本状态使用同一份服务端事实。
 

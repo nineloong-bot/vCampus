@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1760 1290" role="img" aria-labelledby="title desc">
+  <title id="title">借阅实体副本顺序图</title>
+  <desc id="desc">展示学生或教师从界面发起借阅，经权限验证、请求去重、资源锁和数据库事务完成借阅的顺序。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#334155"/></marker>
+    <style>
+      text { font-family: "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #172033; }
+      .diagram-title { font-size: 25px; font-weight: 700; }
+      .participant { fill: #eff6ff; stroke: #2563eb; stroke-width: 1.6; rx: 7; }
+      .participant-service { fill: #f5f3ff; stroke: #7c3aed; stroke-width: 1.6; rx: 7; }
+      .participant-data { fill: #ecfdf5; stroke: #059669; stroke-width: 1.6; rx: 7; }
+      .pname { font-size: 13px; font-weight: 700; text-anchor: middle; }
+      .lifeline { stroke: #94a3b8; stroke-width: 1.3; stroke-dasharray: 6 6; }
+      .call { stroke: #334155; stroke-width: 1.6; marker-end: url(#arrow); }
+      .return { stroke: #64748b; stroke-width: 1.4; stroke-dasharray: 6 4; marker-end: url(#arrow); }
+      .msg { font-size: 12px; text-anchor: middle; }
+      .frame { fill: #ffffff; fill-opacity: .78; stroke: #64748b; stroke-width: 1.4; rx: 7; }
+      .frame-title { fill: #e2e8f0; stroke: #64748b; stroke-width: 1.2; }
+      .frame-label { font-size: 12px; font-weight: 700; }
+      .divider { stroke: #94a3b8; stroke-width: 1.2; stroke-dasharray: 6 5; }
+      .note { fill: #fff7ed; stroke: #ea580c; stroke-width: 1.3; rx: 7; }
+      .note-text { font-size: 12px; }
+      .activation { fill: #dbeafe; stroke: #2563eb; stroke-width: 1; }
+    </style>
+  </defs>
+
+  <text x="880" y="35" class="diagram-title" text-anchor="middle">借阅一本实体副本 · 顺序图</text>
+
+  <rect x="35" y="65" width="120" height="58" class="participant"/>
+  <text x="95" y="90" class="pname">学生 / 教师</text><text x="95" y="108" class="pname">Reader</text>
+  <rect x="205" y="65" width="150" height="58" class="participant"/>
+  <text x="280" y="90" class="pname">BookDetailPanel</text><text x="280" y="108" class="pname">UI</text>
+  <rect x="405" y="65" width="160" height="58" class="participant"/>
+  <text x="485" y="90" class="pname">LibraryClientService</text><text x="485" y="108" class="pname">Socket</text>
+  <rect x="615" y="65" width="160" height="58" class="participant"/>
+  <text x="695" y="90" class="pname">LibraryHandlers</text><text x="695" y="108" class="pname">Authorization</text>
+  <rect x="825" y="65" width="160" height="58" class="participant-service"/>
+  <text x="905" y="90" class="pname">RequestDeduplicator</text><text x="905" y="108" class="pname">requestId</text>
+  <rect x="1035" y="65" width="160" height="58" class="participant-service"/>
+  <text x="1115" y="90" class="pname">LibraryServiceImpl</text><text x="1115" y="108" class="pname">Service</text>
+  <rect x="1245" y="65" width="145" height="58" class="participant-service"/>
+  <text x="1317" y="90" class="pname">ResourceLockManager</text><text x="1317" y="108" class="pname">Locks</text>
+  <rect x="1440" y="65" width="130" height="58" class="participant-data"/>
+  <text x="1505" y="90" class="pname">TransactionManager</text><text x="1505" y="108" class="pname">Tx</text>
+  <rect x="1610" y="65" width="120" height="58" class="participant-data"/>
+  <text x="1670" y="90" class="pname">Repositories</text><text x="1670" y="108" class="pname">Access DB</text>
+
+  <line x1="95" y1="123" x2="95" y2="1280" class="lifeline"/>
+  <line x1="280" y1="123" x2="280" y2="1280" class="lifeline"/>
+  <line x1="485" y1="123" x2="485" y2="1280" class="lifeline"/>
+  <line x1="695" y1="123" x2="695" y2="1280" class="lifeline"/>
+  <line x1="905" y1="123" x2="905" y2="1280" class="lifeline"/>
+  <line x1="1115" y1="123" x2="1115" y2="1280" class="lifeline"/>
+  <line x1="1317" y1="123" x2="1317" y2="1280" class="lifeline"/>
+  <line x1="1505" y1="123" x2="1505" y2="1280" class="lifeline"/>
+  <line x1="1670" y1="123" x2="1670" y2="1280" class="lifeline"/>
+
+  <line x1="95" y1="165" x2="280" y2="165" class="call"/><text x="187" y="156" class="msg">选择可借副本并确认</text>
+  <line x1="280" y1="210" x2="485" y2="210" class="call"/><text x="382" y="201" class="msg">borrow(BorrowBookCommand)</text>
+  <line x1="485" y1="255" x2="695" y2="255" class="call"/><text x="590" y="246" class="msg">LIBRARY_BORROW(requestId, token, copyId)</text>
+  <rect x="687" y="255" width="16" height="145" class="activation"/>
+  <rect x="610" y="275" width="170" height="50" class="note"/>
+  <text x="695" y="296" class="note-text" text-anchor="middle">校验会话</text>
+  <text x="695" y="315" class="note-text" text-anchor="middle">requireSession(token)</text>
+  <line x1="695" y1="350" x2="905" y2="350" class="call"/><text x="800" y="341" class="msg">executeOnce(requestId, action)</text>
+  <rect x="897" y="350" width="16" height="780" class="activation"/>
+  <line x1="905" y1="395" x2="1505" y2="395" class="call"/><text x="1205" y="386" class="msg">查询或认领 requestId</text>
+  <line x1="1505" y1="425" x2="905" y2="425" class="return"/><text x="1205" y="416" class="msg">去重状态</text>
+
+  <rect x="800" y="445" width="905" height="660" class="frame"/>
+  <path d="M800 445 H930 L950 466 H800 z" class="frame-title"/>
+  <text x="815" y="461" class="frame-label">alt</text>
+  <text x="970" y="463" class="frame-label">requestId 已完成</text>
+  <line x1="905" y1="505" x2="695" y2="505" class="return"/><text x="800" y="496" class="msg">直接返回已保存 ResponseBody</text>
+
+  <line x1="800" y1="545" x2="1705" y2="545" class="divider"/>
+  <text x="825" y="566" class="frame-label">else 首次处理</text>
+
+  <line x1="905" y1="600" x2="1115" y2="600" class="call"/><text x="1010" y="591" class="msg">borrow(token, command)</text>
+  <rect x="1107" y="600" width="16" height="390" class="activation"/>
+  <line x1="1115" y1="645" x2="695" y2="645" class="call"/><text x="905" y="636" class="msg">requireBorrower(token)</text>
+  <line x1="695" y1="675" x2="1115" y2="675" class="return"/><text x="905" y="666" class="msg">BorrowerIdentity(userId, roleCode)</text>
+  <line x1="1115" y1="720" x2="1505" y2="720" class="call"/><text x="1310" y="711" class="msg">读取 BookCopy 快照</text>
+  <line x1="1505" y1="750" x2="1670" y2="750" class="call"/><text x="1587" y="741" class="msg">requireCopy(copyId)</text>
+  <line x1="1670" y1="780" x2="1115" y2="780" class="return"/><text x="1392" y="771" class="msg">BookCopy</text>
+  <line x1="1115" y1="825" x2="1317" y2="825" class="call"/><text x="1216" y="816" class="msg">锁定 USER、BOOK、COPY</text>
+  <line x1="1317" y1="855" x2="1115" y2="855" class="return"/><text x="1216" y="846" class="msg">规范顺序取得资源锁</text>
+  <line x1="1115" y1="900" x2="1505" y2="900" class="call"/><text x="1310" y="891" class="msg">开始借阅事务</text>
+  <line x1="1505" y1="935" x2="1670" y2="935" class="call"/><text x="1587" y="926" class="msg">检查逾期、上限、策略、书目与副本</text>
+
+  <rect x="1195" y="955" width="500" height="125" class="frame"/>
+  <path d="M1195 955 H1315 L1335 976 H1195 z" class="frame-title"/>
+  <text x="1210" y="971" class="frame-label">alt</text>
+  <text x="1350" y="973" class="frame-label">业务冲突</text>
+  <text x="1215" y="1005" class="note-text">失败：事务回滚 → 错误码映射 → 失败 ResponseBody</text>
+  <line x1="1195" y1="1025" x2="1695" y2="1025" class="divider"/>
+  <text x="1215" y="1048" class="frame-label">else 校验通过</text>
+  <text x="1215" y="1070" class="note-text">插入 ACTIVE Loan；副本更新为 BORROWED；提交事务</text>
+
+  <line x1="1115" y1="1135" x2="905" y2="1135" class="return"/><text x="1010" y="1126" class="msg">LoanView 或失败 ResponseBody</text>
+  <line x1="905" y1="1175" x2="1505" y2="1175" class="call"/><text x="1205" y="1166" class="msg">持久化成功或失败的最终响应</text>
+  <line x1="905" y1="1210" x2="695" y2="1210" class="return"/><text x="800" y="1201" class="msg">ResponseBody</text>
+  <line x1="695" y1="1240" x2="485" y2="1240" class="return"/><text x="590" y="1231" class="msg">Socket 响应</text>
+  <line x1="485" y1="1270" x2="280" y2="1270" class="return"/><text x="382" y="1261" class="msg">刷新详情或显示醒目错误窗口</text>
+</svg>
