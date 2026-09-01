@@ -9,7 +9,9 @@ import edu.seu.vcampus.client.user.service.UserClientService;
 import edu.seu.vcampus.common.course.CreateCourseCommand;
 import edu.seu.vcampus.common.course.CreateOfferingCommand;
 import edu.seu.vcampus.common.course.CreateTermCommand;
+import edu.seu.vcampus.common.course.DropCommand;
 import edu.seu.vcampus.common.course.EnrollCommand;
+import edu.seu.vcampus.common.course.EnrollmentView;
 import edu.seu.vcampus.common.course.OfferingSearchQuery;
 import edu.seu.vcampus.common.user.AccountStatus;
 import edu.seu.vcampus.common.user.LoginResult;
@@ -133,12 +135,21 @@ class LoginCourseSocketIntegrationTest {
         assertWorkspaceTabs(student, List.of(
                 "教学班查询", "我的选课", "我的课表", "退改补", "重修"));
         assertThat(courses.listTerms().join()).extracting("termId").contains(term.termId());
-        assertThat(courses.searchOfferings(new OfferingSearchQuery(
-                term.termId(), "CS-E2E", null, false, 0, 20)).join().items())
+        OfferingSearchQuery query = new OfferingSearchQuery(
+                term.termId(), "CS-E2E", null, false, 0, 20);
+        assertThat(courses.searchOfferings(query).join().items())
                 .extracting("offeringId").containsExactly(offering.offeringId());
-        assertThat(courses.enroll(new EnrollCommand(offering.offeringId())).join().studentId())
+        EnrollmentView enrollment = courses.enroll(new EnrollCommand(offering.offeringId())).join();
+        assertThat(enrollment.studentId())
                 .as("temporary active-STUDENT mapping keeps studentId equal to userId")
                 .isEqualTo(STUDENT_USER_ID);
+        int beforeDrop = courses.searchOfferings(query).join().items().getFirst().enrolledCount();
+        courses.drop(new DropCommand(enrollment.enrollmentId(), enrollment.rowVersion())).join();
+        assertThat(courses.getCurrentEnrollments().join())
+                .filteredOn(row -> row.enrollmentId().equals(enrollment.enrollmentId()))
+                .extracting(EnrollmentView::enrollmentStatus).containsExactly("DROPPED");
+        assertThat(courses.searchOfferings(query).join().items().getFirst().enrolledCount())
+                .isEqualTo(beforeDrop - 1);
         assertCourseFailure(() -> courses.createTerm(term()).join(), "COMMON_FORBIDDEN");
 
         users.logout().join();

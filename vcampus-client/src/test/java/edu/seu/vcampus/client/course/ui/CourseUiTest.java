@@ -542,6 +542,9 @@ class CourseUiTest {
             }
             public CompletableFuture<List<ScheduleItem>> currentSchedule() { return CompletableFuture.completedFuture(List.of()); }
             public CompletableFuture<EnrollmentView> enroll(EnrollCommand command) { return base.enroll(command); }
+            @Override public CompletableFuture<TermPhaseView> getTermPhase(String termId) {
+                return base.getTermPhase(termId);
+            }
         };
         MyEnrollmentPanel panel = onEdt(() -> new MyEnrollmentPanel(gateway));
         SwingUtilities.invokeAndWait(() -> { });
@@ -550,6 +553,278 @@ class CourseUiTest {
         assertThat(table.getRowCount()).isEqualTo(1);
         assertThat(table.getValueAt(0, 0)).isEqualTo("offering-real-1");
         assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.NORMAL);
+    }
+
+    @Test
+    void myEnrollmentsDropsTheSelectedActiveRowAndRefreshesAuthoritativeData() throws Exception {
+        AtomicReference<DropCommand> submitted = new AtomicReference<>();
+        AtomicReference<String> confirmedLabel = new AtomicReference<>();
+        AtomicInteger refreshCalls = new AtomicInteger();
+        AtomicInteger invalidations = new AtomicInteger();
+        EnrollmentView active = new EnrollmentView(
+                "enrollment-1", "offering-1", "student-1", "NORMAL", "ACTIVE",
+                Instant.parse("2026-08-28T08:00:00Z"), null, 7);
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(
+                enrollmentGateway(List.of(active), "ENROLLMENT", "ACTIVE")) {
+            @Override public CompletableFuture<List<EnrollmentView>> currentEnrollments() {
+                refreshCalls.incrementAndGet();
+                return CompletableFuture.completedFuture(List.of(active));
+            }
+
+            @Override public CompletableFuture<EmptyResponse> drop(DropCommand command) {
+                submitted.set(command);
+                return CompletableFuture.completedFuture(EmptyResponse.INSTANCE);
+            }
+        };
+        MyEnrollmentPanel panel = onEdt(() -> new MyEnrollmentPanel(gateway,
+                (owner, courseLabel) -> {
+                    confirmedLabel.set(courseLabel);
+                    return true;
+                }, invalidations::incrementAndGet));
+        SwingUtilities.invokeAndWait(() -> { });
+        JTable table = enrollmentTable(panel);
+
+        SwingUtilities.invokeAndWait(() -> table.setRowSelectionInterval(0, 0));
+        assertThat(button(panel, "退选所选课程").isEnabled()).isTrue();
+        SwingUtilities.invokeAndWait(() -> button(panel, "退选所选课程").doClick());
+        SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(submitted.get()).isEqualTo(new DropCommand("enrollment-1", 7));
+        assertThat(confirmedLabel.get()).contains("offering-1");
+        assertThat(refreshCalls).hasValue(2);
+        assertThat(invalidations).hasValue(1);
+        assertThat(labels(panel)).anyMatch(text -> text.contains("正常选课开放")
+                && text.contains("08-20") && text.contains("09-09"));
+    }
+
+    @Test
+    void myEnrollmentsMapsASortedViewRowBackToItsEnrollment() throws Exception {
+        AtomicReference<DropCommand> submitted = new AtomicReference<>();
+        EnrollmentView first = new EnrollmentView(
+                "enrollment-1", "offering-a", "student-1", "NORMAL", "ACTIVE",
+                Instant.parse("2026-08-28T08:00:00Z"), null, 7);
+        EnrollmentView second = new EnrollmentView(
+                "enrollment-2", "offering-z", "student-1", "NORMAL", "ACTIVE",
+                Instant.parse("2026-08-29T08:00:00Z"), null, 11);
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(
+                enrollmentGateway(List.of(first, second), "ENROLLMENT", "ACTIVE")) {
+            @Override public CompletableFuture<EmptyResponse> drop(DropCommand command) {
+                submitted.set(command);
+                return CompletableFuture.completedFuture(EmptyResponse.INSTANCE);
+            }
+        };
+        MyEnrollmentPanel panel = onEdt(() -> new MyEnrollmentPanel(gateway, (owner, label) -> true, () -> { }));
+        SwingUtilities.invokeAndWait(() -> { });
+        JTable table = enrollmentTable(panel);
+
+        SwingUtilities.invokeAndWait(() -> {
+            table.getRowSorter().toggleSortOrder(0);
+            table.getRowSorter().toggleSortOrder(0);
+            table.setRowSelectionInterval(0, 0);
+            button(panel, "退选所选课程").doClick();
+        });
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(submitted.get()).isEqualTo(new DropCommand("enrollment-2", 11));
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "ENROLLMENT,ACTIVE,true",
+            "ADJUSTMENT,ACTIVE,true",
+            "READ_ONLY,ACTIVE,false",
+            "CLOSED,CLOSED,false"
+    })
+    void myEnrollmentDropAvailabilityFollowsTheAuthoritativePhase(
+            String phase, String termStatus, boolean expectedEnabled) throws Exception {
+        EnrollmentView active = new EnrollmentView(
+                "enrollment-1", "offering-1", "student-1", "NORMAL", "ACTIVE",
+                Instant.parse("2026-08-28T08:00:00Z"), null, 7);
+        MyEnrollmentPanel panel = onEdt(() -> new MyEnrollmentPanel(
+                enrollmentGateway(List.of(active), phase, termStatus), (owner, label) -> true, () -> { }));
+        SwingUtilities.invokeAndWait(() -> { });
+
+        SwingUtilities.invokeAndWait(() -> enrollmentTable(panel).setRowSelectionInterval(0, 0));
+
+        assertThat(button(panel, "退选所选课程").isEnabled()).isEqualTo(expectedEnabled);
+    }
+
+    @Test
+    void myEnrollmentDropRequiresAnActiveSelectedRow() throws Exception {
+        EnrollmentView dropped = new EnrollmentView(
+                "enrollment-1", "offering-1", "student-1", "NORMAL", "DROPPED",
+                Instant.parse("2026-08-28T08:00:00Z"), Instant.parse("2026-08-29T08:00:00Z"), 8);
+        MyEnrollmentPanel panel = onEdt(() -> new MyEnrollmentPanel(
+                enrollmentGateway(List.of(dropped), "ENROLLMENT", "ACTIVE"),
+                (owner, label) -> true, () -> { }));
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(button(panel, "退选所选课程").isEnabled()).isFalse();
+        SwingUtilities.invokeAndWait(() -> enrollmentTable(panel).setRowSelectionInterval(0, 0));
+        assertThat(button(panel, "退选所选课程").isEnabled()).isFalse();
+    }
+
+    @Test
+    void myEnrollmentDropStaysDisabledWithoutASelection() throws Exception {
+        EnrollmentView active = new EnrollmentView(
+                "enrollment-1", "offering-1", "student-1", "NORMAL", "ACTIVE",
+                Instant.parse("2026-08-28T08:00:00Z"), null, 7);
+        MyEnrollmentPanel panel = onEdt(() -> new MyEnrollmentPanel(
+                enrollmentGateway(List.of(active), "ENROLLMENT", "ACTIVE"),
+                (owner, label) -> true, () -> { }));
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(enrollmentTable(panel).getSelectedRow()).isEqualTo(-1);
+        assertThat(button(panel, "退选所选课程").isEnabled()).isFalse();
+    }
+
+    @Test
+    void myEnrollmentDropStopsWhenConfirmationIsRejected() throws Exception {
+        AtomicInteger submissions = new AtomicInteger();
+        EnrollmentView active = new EnrollmentView(
+                "enrollment-1", "offering-1", "student-1", "NORMAL", "ACTIVE",
+                Instant.parse("2026-08-28T08:00:00Z"), null, 7);
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(
+                enrollmentGateway(List.of(active), "ENROLLMENT", "ACTIVE")) {
+            @Override public CompletableFuture<EmptyResponse> drop(DropCommand command) {
+                submissions.incrementAndGet();
+                return CompletableFuture.completedFuture(EmptyResponse.INSTANCE);
+            }
+        };
+        MyEnrollmentPanel panel = onEdt(() -> new MyEnrollmentPanel(
+                gateway, (owner, label) -> false, () -> { }));
+        SwingUtilities.invokeAndWait(() -> { });
+
+        SwingUtilities.invokeAndWait(() -> {
+            enrollmentTable(panel).setRowSelectionInterval(0, 0);
+            button(panel, "退选所选课程").doClick();
+        });
+
+        assertThat(submissions).hasValue(0);
+        assertThat(button(panel, "退选所选课程").isEnabled()).isTrue();
+    }
+
+    @Test
+    void failedImmediateDropKeepsRowsAndRestoresTheAction() throws Exception {
+        EnrollmentView active = new EnrollmentView(
+                "enrollment-1", "offering-1", "student-1", "NORMAL", "ACTIVE",
+                Instant.parse("2026-08-28T08:00:00Z"), null, 7);
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(
+                enrollmentGateway(List.of(active), "ADJUSTMENT", "ACTIVE")) {
+            @Override public CompletableFuture<EmptyResponse> drop(DropCommand command) {
+                return CompletableFuture.failedFuture(
+                        new CourseClientException("COURSE_DROP_FAILED", "服务端拒绝退选", null, false));
+            }
+        };
+        MyEnrollmentPanel panel = onEdt(() -> new MyEnrollmentPanel(
+                gateway, (owner, label) -> true, () -> { }));
+        SwingUtilities.invokeAndWait(() -> { });
+
+        SwingUtilities.invokeAndWait(() -> {
+            enrollmentTable(panel).setRowSelectionInterval(0, 0);
+            button(panel, "退选所选课程").doClick();
+        });
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(enrollmentTable(panel).getRowCount()).isEqualTo(1);
+        assertThat(button(panel, "退选所选课程").isEnabled()).isTrue();
+        assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.ERROR);
+        assertThat(labels(panel)).contains("服务端拒绝退选");
+    }
+
+    @Test
+    void removedEnrollmentPageIgnoresALateDropCompletion() throws Exception {
+        CompletableFuture<EmptyResponse> request = new CompletableFuture<>();
+        AtomicInteger refreshCalls = new AtomicInteger();
+        AtomicInteger invalidations = new AtomicInteger();
+        EnrollmentView active = new EnrollmentView(
+                "enrollment-1", "offering-1", "student-1", "NORMAL", "ACTIVE",
+                Instant.parse("2026-08-28T08:00:00Z"), null, 7);
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(
+                enrollmentGateway(List.of(active), "ENROLLMENT", "ACTIVE")) {
+            @Override public CompletableFuture<List<EnrollmentView>> currentEnrollments() {
+                refreshCalls.incrementAndGet();
+                return CompletableFuture.completedFuture(List.of(active));
+            }
+
+            @Override public CompletableFuture<EmptyResponse> drop(DropCommand command) { return request; }
+        };
+        MyEnrollmentPanel panel = onEdt(() -> new MyEnrollmentPanel(
+                gateway, (owner, label) -> true, invalidations::incrementAndGet));
+        SwingUtilities.invokeAndWait(() -> { });
+
+        SwingUtilities.invokeAndWait(() -> {
+            enrollmentTable(panel).setRowSelectionInterval(0, 0);
+            button(panel, "退选所选课程").doClick();
+        });
+        assertThat(button(panel, "退选所选课程").isEnabled()).isFalse();
+        SwingUtilities.invokeAndWait(panel::removeNotify);
+        request.complete(EmptyResponse.INSTANCE);
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(refreshCalls).hasValue(1);
+        assertThat(invalidations).hasValue(0);
+    }
+
+    @Test
+    void enrollmentChangesRefreshLoadedTabsLazilyAndDoNotConstructHiddenTabs() throws Exception {
+        AtomicInteger enrollmentLoads = new AtomicInteger();
+        AtomicInteger scheduleLoads = new AtomicInteger();
+        EnrollmentView active = new EnrollmentView(
+                "enrollment-1", "o1", "student-1", "NORMAL", "ACTIVE",
+                Instant.parse("2026-08-28T08:00:00Z"), null, 7);
+        CourseUiGateway base = CourseUiGateway.preview();
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(base) {
+            @Override public CompletableFuture<List<EnrollmentView>> currentEnrollments() {
+                enrollmentLoads.incrementAndGet();
+                return CompletableFuture.completedFuture(List.of(active));
+            }
+
+            @Override public CompletableFuture<List<ScheduleItem>> currentSchedule() {
+                scheduleLoads.incrementAndGet();
+                return base.currentSchedule();
+            }
+
+            @Override public CompletableFuture<TermPhaseView> getTermPhase(String termId) {
+                return enrollmentPhase(termId, "ENROLLMENT", "ACTIVE");
+            }
+
+            @Override public CompletableFuture<EmptyResponse> drop(DropCommand command) {
+                return CompletableFuture.completedFuture(EmptyResponse.INSTANCE);
+            }
+        };
+        CourseWorkspacePanel workspace = onEdt(() -> new CourseWorkspacePanel(
+                gateway, UserRole.STUDENT, (owner, label) -> true));
+        JTabbedPane tabs = descendants(workspace).stream().filter(JTabbedPane.class::isInstance)
+                .map(JTabbedPane.class::cast).findFirst().orElseThrow();
+
+        SwingUtilities.invokeAndWait(() -> tabs.setSelectedIndex(2));
+        SwingUtilities.invokeAndWait(() -> { });
+        assertThat(scheduleLoads).hasValue(1);
+        SwingUtilities.invokeAndWait(() -> tabs.setSelectedIndex(1));
+        SwingUtilities.invokeAndWait(() -> { });
+        MyEnrollmentPanel enrollments = (MyEnrollmentPanel) tabs.getComponentAt(1);
+        SwingUtilities.invokeAndWait(() -> {
+            enrollmentTable(enrollments).setRowSelectionInterval(0, 0);
+            button(enrollments, "退选所选课程").doClick();
+        });
+        SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(enrollmentLoads).hasValue(2);
+        assertThat(scheduleLoads).hasValue(1);
+        assertThat(tabs.getComponentAt(3).getName()).startsWith("course.tab.placeholder.");
+        SwingUtilities.invokeAndWait(() -> tabs.setSelectedIndex(2));
+        SwingUtilities.invokeAndWait(() -> { });
+        assertThat(scheduleLoads.get()).isGreaterThan(1);
+        int enrollmentsBeforeOpeningAdjustment = enrollmentLoads.get();
+        int schedulesBeforeOpeningAdjustment = scheduleLoads.get();
+        SwingUtilities.invokeAndWait(() -> tabs.setSelectedIndex(3));
+        SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> { });
+        assertThat(enrollmentLoads).hasValue(enrollmentsBeforeOpeningAdjustment + 1);
+        assertThat(scheduleLoads).hasValue(schedulesBeforeOpeningAdjustment + 1);
     }
 
     @Test
@@ -1395,6 +1670,39 @@ class CourseUiTest {
                 .map(JButton::getText).toList();
     }
 
+    private static JButton button(Container root, String text) {
+        return descendants(root).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
+                .filter(candidate -> text.equals(candidate.getText())).findFirst().orElseThrow();
+    }
+
+    private static JTable enrollmentTable(Container root) {
+        return descendants(root).stream().filter(JTable.class::isInstance).map(JTable.class::cast)
+                .filter(table -> "我的选课记录".equals(table.getAccessibleContext().getAccessibleName()))
+                .findFirst().orElseThrow();
+    }
+
+    private static CourseUiGateway enrollmentGateway(
+            List<EnrollmentView> enrollments, String phase, String termStatus) {
+        CourseUiGateway base = CourseUiGateway.preview();
+        return new DelegatingCourseUiGateway(base) {
+            @Override public CompletableFuture<List<EnrollmentView>> currentEnrollments() {
+                return CompletableFuture.completedFuture(enrollments);
+            }
+
+            @Override public CompletableFuture<TermPhaseView> getTermPhase(String termId) {
+                return enrollmentPhase(termId, phase, termStatus);
+            }
+        };
+    }
+
+    private static CompletableFuture<TermPhaseView> enrollmentPhase(
+            String termId, String phase, String termStatus) {
+        return CompletableFuture.completedFuture(new TermPhaseView(
+                termId, termStatus, phase, Instant.parse("2026-08-25T00:00:00Z"),
+                Instant.parse("2026-08-20T00:00:00Z"), Instant.parse("2026-08-31T16:00:00Z"),
+                Instant.parse("2026-09-01T00:00:00Z"), Instant.parse("2026-09-08T16:00:00Z")));
+    }
+
     private static JTextField textField(Container root, String accessibleName) {
         return descendants(root).stream().filter(JTextField.class::isInstance).map(JTextField.class::cast)
                 .filter(field -> accessibleName.equals(field.getAccessibleContext().getAccessibleName()))
@@ -1412,6 +1720,9 @@ class CourseUiTest {
         public CompletableFuture<List<ScheduleItem>> currentSchedule() { return delegate.currentSchedule(); }
         public CompletableFuture<EnrollmentView> enroll(EnrollCommand command) { return delegate.enroll(command); }
         @Override public CompletableFuture<String> currentTermId() { return delegate.currentTermId(); }
+        @Override public CompletableFuture<TermPhaseView> getTermPhase(String termId) {
+            return delegate.getTermPhase(termId);
+        }
         @Override public CompletableFuture<List<TermView>> listTerms() { return delegate.listTerms(); }
     }
 

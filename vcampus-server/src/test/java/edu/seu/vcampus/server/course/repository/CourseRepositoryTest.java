@@ -77,6 +77,26 @@ class CourseRepositoryTest {
     }
 
     @Test
+    void listsCurrentTermEnrollmentHistoryWithoutWideningTheActiveOnlyQuery() {
+        seedCatalog();
+        repository.insertOffering(connection, offering("offering-1", 30), List.of());
+        repository.insertOffering(connection, offering("offering-2", 30), List.of());
+        Enrollment active = repository.insertEnrollment(connection, enrollment("active-enrollment", "ACTIVE"));
+        Enrollment dropped = repository.insertEnrollment(connection, new Enrollment(
+                "dropped-enrollment", "offering-2", "student-1", "NORMAL", "DROPPED",
+                Instant.parse("2026-01-11T00:00:00Z"), Instant.parse("2026-01-12T00:00:00Z"),
+                0, null, null));
+
+        assertThat(repository.findByStudentAndTerm(connection, "student-1", "term-1"))
+                .extracting(Enrollment::enrollmentId, Enrollment::enrollmentStatus)
+                .containsExactlyInAnyOrder(
+                        org.assertj.core.groups.Tuple.tuple(active.enrollmentId(), "ACTIVE"),
+                        org.assertj.core.groups.Tuple.tuple(dropped.enrollmentId(), "DROPPED"));
+        assertThat(repository.findActiveByStudentAndTerm(connection, "student-1", "term-1"))
+                .extracting(Enrollment::enrollmentId).containsExactly(active.enrollmentId());
+    }
+
+    @Test
     void incrementsVersionsWhenMutableRowsChange() {
         seedCatalog();
         Term initialTerm = repository.requireTerm(connection, "term-1");

@@ -61,6 +61,8 @@ public interface CourseRepository {
     /** Returns active enrollments for a student in a term. */
     List<Enrollment> findActiveByStudentAndTerm(Connection connection, String studentId,
                                                  String termId);
+    /** Returns active and dropped enrollment history for a student in a term. */
+    List<Enrollment> findByStudentAndTerm(Connection connection, String studentId, String termId);
     /** Returns all active enrollments for one student. */
     List<Enrollment> findActiveByStudent(Connection connection, String studentId);
     /** Returns offerings assigned to one teacher. */

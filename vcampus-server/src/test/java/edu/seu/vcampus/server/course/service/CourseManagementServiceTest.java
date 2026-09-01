@@ -94,6 +94,24 @@ class CourseManagementServiceTest {
                 "student-user", "student-user", "student-user", "student-user");
     }
 
+    @Test void currentEnrollmentsRetainDroppedHistoryWhileActiveViewsExcludeIt() {
+        TermView term = service.createTerm(termCommand());
+        CourseView course = service.createCourse(courseCommand("CS101", "程序设计"));
+        OfferingView offering = service.createOffering(new CreateOfferingCommand(
+                term.termId(), course.courseId(), "teacher-1", "学生班", 30, "OPEN",
+                List.of(new CreateOfferingCommand.ScheduleInput(
+                        "MONDAY", 1, 2, 1, 16, "教一-101"))));
+        EnrollmentView enrolled = service.enroll("student", new EnrollCommand(offering.offeringId()));
+
+        service.drop("student", new DropCommand(enrolled.enrollmentId(), enrolled.rowVersion()));
+
+        assertThat(service.getCurrentEnrollments("student"))
+                .filteredOn(row -> row.enrollmentId().equals(enrolled.enrollmentId()))
+                .extracting(EnrollmentView::enrollmentStatus).containsExactly("DROPPED");
+        assertThat(service.getCurrentSchedule("student")).isEmpty();
+        assertThat(((CourseQueryPort) service).hasActiveEnrollment("student-1")).isFalse();
+    }
+
     @Test void currentViewsExcludeClosedTermEnrollmentsAndTeachingAssignments() {
         TermView current = service.createTerm(termCommand());
         TermView closed = service.createTerm(new CreateTermCommand(

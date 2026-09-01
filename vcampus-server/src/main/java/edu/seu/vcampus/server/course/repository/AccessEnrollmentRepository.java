@@ -50,6 +50,22 @@ final class AccessEnrollmentRepository {
         } catch (SQLException error) { throw CourseJdbc.failure("list active enrollments", error); }
     }
 
+    List<Enrollment> findByStudentAndTerm(Connection c, String studentId, String termId) {
+        List<Enrollment> values = new ArrayList<>();
+        String sql = "SELECT e.* FROM tblEnrollment e INNER JOIN tblCourseOffering o ON "
+                + "e.offeringId=o.offeringId WHERE e.studentId=? AND o.termId=? ORDER BY e.enrolledAt";
+        try (PreparedStatement s = c.prepareStatement(sql)) {
+            s.setString(1, studentId);
+            s.setString(2, termId);
+            try (ResultSet r = s.executeQuery()) {
+                while (r.next()) values.add(enrollment(r));
+            }
+            return values;
+        } catch (SQLException error) {
+            throw CourseJdbc.failure("list enrollment history", error);
+        }
+    }
+
     List<Enrollment> findActiveByStudent(Connection c,String studentId){
         List<Enrollment> values=new ArrayList<>();
         try(PreparedStatement s=c.prepareStatement("SELECT * FROM tblEnrollment WHERE studentId=? AND enrollmentStatus='ACTIVE' ORDER BY enrolledAt")){s.setString(1,studentId);try(ResultSet r=s.executeQuery()){while(r.next())values.add(enrollment(r));}return values;}catch(SQLException e){throw CourseJdbc.failure("list active enrollments",e);}

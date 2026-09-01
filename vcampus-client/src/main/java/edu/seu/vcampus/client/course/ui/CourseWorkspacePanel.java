@@ -23,6 +23,13 @@ public final class CourseWorkspacePanel extends JPanel {
     private final Set<Integer> dirty = new HashSet<>();
 
     public CourseWorkspacePanel(CourseUiGateway gateway, UserRole role) {
+        this(gateway, role, (owner, courseLabel) -> javax.swing.JOptionPane.showConfirmDialog(
+                owner, "确认退选“" + courseLabel + "”吗？", "确认退选",
+                javax.swing.JOptionPane.YES_NO_OPTION,
+                javax.swing.JOptionPane.WARNING_MESSAGE) == javax.swing.JOptionPane.YES_OPTION);
+    }
+
+    CourseWorkspacePanel(CourseUiGateway gateway, UserRole role, DropConfirmation dropConfirmation) {
         super(new BorderLayout());
         Objects.requireNonNull(gateway, "gateway");
         setName("page.course");
@@ -30,7 +37,8 @@ public final class CourseWorkspacePanel extends JPanel {
         switch (Objects.requireNonNull(role, "role")) {
             case STUDENT -> {
                 addTab("教学班查询", () -> new OfferingSearchPanel(gateway));
-                addTab("我的选课", () -> new MyEnrollmentPanel(gateway));
+                addTab("我的选课", () -> new MyEnrollmentPanel(
+                        gateway, dropConfirmation, this::markEnrollmentDerivedTabsDirty));
                 addTab("我的课表", () -> new MySchedulePanel(gateway));
                 addTab("退改补", () -> new AdjustmentPanel(gateway));
                 addTab("重修", () -> new RetakePanel(gateway));
@@ -62,11 +70,17 @@ public final class CourseWorkspacePanel extends JPanel {
 
     private void open(int index) {
         if (index < 0) return;
+        boolean alreadyLoaded = loaded.containsKey(index);
         AbstractCoursePanel page = loaded.computeIfAbsent(index, key -> {
             AbstractCoursePanel created = factories.get(key).get();
             tabs.setComponentAt(key, created);
             return created;
         });
-        if (dirty.remove(index)) page.refreshAfterNavigation();
+        boolean needsRefresh = dirty.remove(index);
+        if (alreadyLoaded && needsRefresh) page.refreshAfterNavigation();
+    }
+
+    private void markEnrollmentDerivedTabsDirty() {
+        dirty.addAll(List.of(0, 2, 3, 4));
     }
 }
