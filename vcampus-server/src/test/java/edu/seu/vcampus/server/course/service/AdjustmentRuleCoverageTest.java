@@ -6,6 +6,7 @@ import edu.seu.vcampus.common.course.LateAddCommand;
 import edu.seu.vcampus.common.course.EnrollmentView;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.course.domain.AdjustmentClosedException;
+import edu.seu.vcampus.server.course.domain.DropClosedException;
 import edu.seu.vcampus.server.course.domain.EnrollmentClosedException;
 import edu.seu.vcampus.server.course.domain.EnrollmentVersionMismatchException;
 import edu.seu.vcampus.server.course.domain.OfferingFullException;
@@ -58,19 +59,25 @@ class AdjustmentRuleCoverageTest {
         seed("CLOSED", NOW.minusSeconds(60), NOW.plusSeconds(60)); offer("source", "course-1", 2, 1, "OPEN", List.of()); offer("target", "course-2", 2, 0, "OPEN", List.of());
         Enrollment source = active("source", "student"); CourseService service = service(repository);
         assertThatThrownBy(() -> service.addDuringAdjustment("token", new LateAddCommand("target"))).isInstanceOf(AdjustmentClosedException.class);
-        assertThatThrownBy(() -> service.dropDuringAdjustment("token", new DropCommand(source.enrollmentId(), 0))).isInstanceOf(AdjustmentClosedException.class);
+        assertThatThrownBy(() -> service.drop("token", new DropCommand(source.enrollmentId(), 0))).isInstanceOf(DropClosedException.class);
         assertThatThrownBy(() -> service.changeDuringAdjustment("token", new ChangeOfferingCommand(source.enrollmentId(), "target", 0))).isInstanceOf(AdjustmentClosedException.class);
         assertThat(enrollment(source.enrollmentId()).enrollmentStatus()).isEqualTo("ACTIVE"); assertThat(count("target")).isZero();
-        assertThat(audits()).hasSize(3).allSatisfy(a -> { assertThat(a.operationResult()).isEqualTo("FAILED"); assertThat(a.failureCode()).isEqualTo("COURSE_ADJUSTMENT_NOT_OPEN"); });
+        assertThat(audits()).hasSize(3).allSatisfy(a -> assertThat(a.operationResult()).isEqualTo("FAILED"));
+        assertThat(audits()).filteredOn(a -> "DROP".equals(a.adjustmentType())).singleElement()
+                .extracting(EnrollmentAdjustment::failureCode).isEqualTo("COURSE_DROP_NOT_OPEN");
+        assertThat(audits()).filteredOn(a -> !"DROP".equals(a.adjustmentType())).allSatisfy(a ->
+                assertThat(a.failureCode()).isEqualTo("COURSE_ADJUSTMENT_NOT_OPEN"));
     }
 
     @Test void outsideWindowRejectsAddDropAndChangeWithoutMutationsAndAuditsEach() {
         seed("ACTIVE", NOW.plusSeconds(1), NOW.plusSeconds(60)); offer("source", "course-1", 2, 1, "OPEN", List.of()); offer("target", "course-2", 2, 0, "OPEN", List.of());
         Enrollment source = active("source", "student"); CourseService service = service(repository);
         assertThatThrownBy(() -> service.addDuringAdjustment("token", new LateAddCommand("target"))).isInstanceOf(AdjustmentClosedException.class);
-        assertThatThrownBy(() -> service.dropDuringAdjustment("token", new DropCommand(source.enrollmentId(), 0))).isInstanceOf(AdjustmentClosedException.class);
+        assertThatThrownBy(() -> service.drop("token", new DropCommand(source.enrollmentId(), 0))).isInstanceOf(DropClosedException.class);
         assertThatThrownBy(() -> service.changeDuringAdjustment("token", new ChangeOfferingCommand(source.enrollmentId(), "target", 0))).isInstanceOf(AdjustmentClosedException.class);
         assertThat(enrollment(source.enrollmentId()).enrollmentStatus()).isEqualTo("ACTIVE"); assertThat(audits()).hasSize(3);
+        assertThat(audits()).filteredOn(a -> "DROP".equals(a.adjustmentType())).singleElement()
+                .extracting(EnrollmentAdjustment::failureCode).isEqualTo("COURSE_DROP_NOT_OPEN");
     }
 
     @Test void lateAddRejectsFullTargetAndAuditsFailure() {
@@ -92,7 +99,7 @@ class AdjustmentRuleCoverageTest {
     @Test void staleDropAndChangeVersionsRollbackAndAuditFailure() {
         seedOpen(); offer("source", "course-1", 3, 1, "OPEN", List.of()); offer("target", "course-2", 3, 0, "OPEN", List.of()); Enrollment source = active("source", "student");
         CourseService service = service(repository);
-        assertThatThrownBy(() -> service.dropDuringAdjustment("token", new DropCommand(source.enrollmentId(), 1))).isInstanceOf(EnrollmentVersionMismatchException.class);
+        assertThatThrownBy(() -> service.drop("token", new DropCommand(source.enrollmentId(), 1))).isInstanceOf(EnrollmentVersionMismatchException.class);
         assertThatThrownBy(() -> service.changeDuringAdjustment("token", new ChangeOfferingCommand(source.enrollmentId(), "target", 1))).isInstanceOf(EnrollmentVersionMismatchException.class);
         assertThat(enrollment(source.enrollmentId()).enrollmentStatus()).isEqualTo("ACTIVE"); assertThat(count("source")).isEqualTo(1); assertThat(count("target")).isZero();
         assertThat(audits()).hasSize(2).allSatisfy(a -> assertThat(a.failureCode()).isEqualTo("COMMON_CONCURRENT_MODIFICATION"));

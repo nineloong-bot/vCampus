@@ -52,7 +52,10 @@ public final class CourseClientService {
     public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery q) { return callPage("COURSE_SEARCH_OFFERINGS", q, READ, OfferingSummary.class); }
     public CompletableFuture<EnrollmentView> enroll(EnrollCommand c) { return call("COURSE_ENROLL", c, WRITE, EnrollmentView.class); }
     public CompletableFuture<EnrollmentView> addDuringAdjustment(LateAddCommand c) { return call("COURSE_ADJUSTMENT_ADD", c, WRITE, EnrollmentView.class); }
-    public CompletableFuture<EmptyResponse> dropDuringAdjustment(DropCommand c) { return call("COURSE_ADJUSTMENT_DROP", c, WRITE, EmptyResponse.class); }
+    public CompletableFuture<EmptyResponse> drop(DropCommand c) { return call("COURSE_DROP", c, WRITE, EmptyResponse.class); }
+    /** Compatibility delegate for callers compiled against the former adjustment-only facade. */
+    @Deprecated
+    public CompletableFuture<EmptyResponse> dropDuringAdjustment(DropCommand c) { return drop(c); }
     public CompletableFuture<EnrollmentView> changeDuringAdjustment(ChangeOfferingCommand c) { return call("COURSE_ADJUSTMENT_CHANGE", c, WRITE, EnrollmentView.class); }
     public CompletableFuture<RetakeEligibility> checkRetakeEligibility(String id) { return call("COURSE_RETAKE_CHECK", new EntityIdRequest(id), READ, RetakeEligibility.class); }
     public CompletableFuture<EnrollmentView> enrollRetake(RetakeCommand c) { return call("COURSE_RETAKE_ENROLL", c, WRITE, EnrollmentView.class); }

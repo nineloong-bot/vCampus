@@ -22,7 +22,7 @@ public final class TermWindowPolicy {
     }
 
     /**
-     * Requires drop, change, or late-add adjustment to be open at {@code now}.
+     * Requires change or late-add adjustment to be open at {@code now}.
      * The lower bound is inclusive and the upper bound is exclusive.
      */
     public void requireAdjustmentOpen(Term term, Instant now) {
@@ -32,6 +32,21 @@ public final class TermWindowPolicy {
         if ("CLOSED".equals(status)
                 || !inWindow(now, term.adjustmentStartAt(), term.adjustmentEndAt())) {
             throw new AdjustmentClosedException();
+        }
+    }
+
+    /**
+     * Requires either normal enrollment or adjustment to be open for a drop at {@code now}.
+     * Both windows include their lower bound and exclude their upper bound.
+     */
+    public void requireDropOpen(Term term, Instant now) {
+        Objects.requireNonNull(term, "term");
+        Objects.requireNonNull(now, "now");
+        String status = requireStatus(term);
+        boolean enrollment = inWindow(now, term.enrollmentStartAt(), term.enrollmentEndAt());
+        boolean adjustment = inWindow(now, term.adjustmentStartAt(), term.adjustmentEndAt());
+        if ("CLOSED".equals(status) || (!enrollment && !adjustment)) {
+            throw new DropClosedException();
         }
     }
 

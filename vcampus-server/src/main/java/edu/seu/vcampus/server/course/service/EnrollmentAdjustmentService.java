@@ -81,7 +81,7 @@ final class EnrollmentAdjustmentService {
                     return transactions.inTransaction(c -> {
                         Enrollment source = rules.requireOwnedActive(c, command.enrollmentId(), initial.studentId(), command.expectedVersion());
                         Offering offering = repository.requireOffering(c, source.offeringId());
-                        windows.requireAdjustmentOpen(repository.requireTerm(c, offering.termId()), now);
+                        windows.requireDropOpen(repository.requireTerm(c, offering.termId()), now);
                         repository.updateEnrollment(c, dropped(source, now), command.expectedVersion());
                         repository.changeEnrolledCount(c, source.offeringId(), -1);
                         repository.insertAdjustment(c, adjustment(initial.studentId(), "DROP", source.offeringId(), null, "SUCCEEDED", null, now));

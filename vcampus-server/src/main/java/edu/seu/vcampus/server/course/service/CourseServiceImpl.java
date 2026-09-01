@@ -179,8 +179,14 @@ public final class CourseServiceImpl implements CourseService, CourseQueryPort {
     }
 
     @Override
-    public void dropDuringAdjustment(String sessionToken, DropCommand command) {
+    public void drop(String sessionToken, DropCommand command) {
         adjustments.drop(sessionToken, command);
+    }
+
+    @Deprecated
+    @Override
+    public void dropDuringAdjustment(String sessionToken, DropCommand command) {
+        drop(sessionToken, command);
     }
 
     @Override

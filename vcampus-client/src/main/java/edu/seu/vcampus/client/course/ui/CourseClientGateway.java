@@ -57,7 +57,7 @@ public final class CourseClientGateway implements CourseUiGateway {
     }
 
     public CompletableFuture<EnrollmentView> lateAdd(LateAddCommand command) { return client.addDuringAdjustment(command); }
-    public CompletableFuture<EmptyResponse> drop(DropCommand command) { return client.dropDuringAdjustment(command); }
+    public CompletableFuture<EmptyResponse> drop(DropCommand command) { return client.drop(command); }
     public CompletableFuture<EnrollmentView> change(ChangeOfferingCommand command) { return client.changeDuringAdjustment(command); }
     public CompletableFuture<RetakeEligibility> checkRetake(String courseId) { return client.checkRetakeEligibility(courseId); }
     public CompletableFuture<EnrollmentView> enrollRetake(RetakeCommand command) { return client.enrollRetake(command); }

@@ -9,6 +9,7 @@ import edu.seu.vcampus.server.concurrency.ResourceLockManager;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.course.domain.CourseForbiddenException;
 import edu.seu.vcampus.server.course.domain.ChangeTargetInvalidException;
+import edu.seu.vcampus.server.course.domain.DropClosedException;
 import edu.seu.vcampus.server.course.domain.EnrollmentNotActiveException;
 import edu.seu.vcampus.server.course.domain.OfferingFullException;
 import edu.seu.vcampus.server.course.domain.ScheduleConflictPolicy;
@@ -122,6 +123,52 @@ class EnrollmentAdjustmentTest {
                 .isInstanceOf(EnrollmentNotActiveException.class)
                 .extracting("code").isEqualTo("COURSE_ENROLLMENT_NOT_ACTIVE");
         assertThat(offering("source").enrolledCount()).isZero();
+    }
+
+    @Test
+    void dropDuringNormalEnrollmentWindowPersistsRowCountVersionAndSuccessAudit() {
+        seedCatalog(NOW.minusSeconds(60), NOW.plusSeconds(60),
+                NOW.plusSeconds(120), NOW.plusSeconds(180));
+        seedOffering("source", "course-1", 2, 1);
+        Enrollment source = seedActive("source", STUDENT);
+
+        service.drop(TOKEN, new DropCommand(source.enrollmentId(), source.rowVersion()));
+
+        Enrollment dropped = enrollment(source.enrollmentId());
+        assertThat(dropped.enrollmentStatus()).isEqualTo("DROPPED");
+        assertThat(dropped.droppedAt()).isEqualTo(NOW);
+        assertThat(dropped.rowVersion()).isEqualTo(source.rowVersion() + 1);
+        assertThat(offering("source").enrolledCount()).isZero();
+        assertThat(adjustments()).singleElement().satisfies(a -> {
+            assertThat(a.adjustmentType()).isEqualTo("DROP");
+            assertThat(a.sourceOfferingId()).isEqualTo("source");
+            assertThat(a.operationResult()).isEqualTo("SUCCEEDED");
+            assertThat(a.failureCode()).isNull();
+        });
+    }
+
+    @Test
+    void dropDuringGapLeavesEnrollmentVersionAndOfferingCountUnchanged() {
+        seedCatalog(NOW.minusSeconds(120), NOW.minusSeconds(60),
+                NOW.plusSeconds(60), NOW.plusSeconds(120));
+        seedOffering("source", "course-1", 2, 1);
+        Enrollment source = seedActive("source", STUDENT);
+
+        assertThatThrownBy(() -> service.drop(TOKEN,
+                new DropCommand(source.enrollmentId(), source.rowVersion())))
+                .isInstanceOf(DropClosedException.class)
+                .extracting("code").isEqualTo("COURSE_DROP_NOT_OPEN");
+
+        Enrollment unchanged = enrollment(source.enrollmentId());
+        assertThat(unchanged.enrollmentStatus()).isEqualTo("ACTIVE");
+        assertThat(unchanged.droppedAt()).isNull();
+        assertThat(unchanged.rowVersion()).isEqualTo(source.rowVersion());
+        assertThat(offering("source").enrolledCount()).isEqualTo(1);
+        assertThat(adjustments()).singleElement().satisfies(a -> {
+            assertThat(a.adjustmentType()).isEqualTo("DROP");
+            assertThat(a.operationResult()).isEqualTo("FAILED");
+            assertThat(a.failureCode()).isEqualTo("COURSE_DROP_NOT_OPEN");
+        });
     }
 
     @Test
@@ -259,10 +306,16 @@ class EnrollmentAdjustmentTest {
     }
 
     private void seedCatalog() {
+        seedCatalog(NOW.minusSeconds(3600), NOW.minusSeconds(1800),
+                NOW.minusSeconds(60), NOW.plusSeconds(60));
+    }
+
+    private void seedCatalog(Instant enrollmentStart, Instant enrollmentEnd,
+                             Instant adjustmentStart, Instant adjustmentEnd) {
         inTransaction(connection -> {
             repository.insertTerm(connection, new Term("term-1", "2026-2027-1", "Autumn",
                     LocalDate.of(2026, 9, 1), LocalDate.of(2027, 1, 15),
-                    NOW.minusSeconds(3600), NOW.minusSeconds(1800), NOW.minusSeconds(60), NOW.plusSeconds(60),
+                    enrollmentStart, enrollmentEnd, adjustmentStart, adjustmentEnd,
                     "ACTIVE", 0, null, null));
             repository.insertCourse(connection, new Course("course-1", "CS101", "Programming",
                     BigDecimal.valueOf(3), 48, null, true, 0, null, null));

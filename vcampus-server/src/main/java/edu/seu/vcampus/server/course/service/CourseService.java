@@ -32,8 +32,14 @@ public interface CourseService {
     /** Adds the authenticated student during the adjustment window. */
     EnrollmentView addDuringAdjustment(String sessionToken, LateAddCommand command);
 
-    /** Drops the authenticated student's active enrollment during the adjustment window. */
-    void dropDuringAdjustment(String sessionToken, DropCommand command);
+    /** Drops the authenticated student's active enrollment during either mutation window. */
+    void drop(String sessionToken, DropCommand command);
+
+    /** Compatibility delegate for the former adjustment-only service contract. */
+    @Deprecated
+    default void dropDuringAdjustment(String sessionToken, DropCommand command) {
+        drop(sessionToken, command);
+    }
 
     /** Atomically changes the authenticated student's active enrollment to another offering. */
     EnrollmentView changeDuringAdjustment(String sessionToken, ChangeOfferingCommand command);

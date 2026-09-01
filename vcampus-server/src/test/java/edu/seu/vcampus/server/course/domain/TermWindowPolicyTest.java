@@ -74,6 +74,54 @@ class TermWindowPolicyTest {
                 arguments(ADJUSTMENT_END.plusNanos(1), false, "just after adjustment end"));
     }
 
+    @ParameterizedTest
+    @MethodSource("openDropInstants")
+    void dropIsOpenDuringEitherMutationWindow(Instant now) {
+        assertThatCode(() -> windows.requireDropOpen(activeTerm(), now))
+                .doesNotThrowAnyException();
+    }
+
+    static Stream<Instant> openDropInstants() {
+        return Stream.of(
+                ENROLLMENT_START,
+                ENROLLMENT_END.minusNanos(1),
+                ADJUSTMENT_START,
+                ADJUSTMENT_END.minusNanos(1));
+    }
+
+    @ParameterizedTest
+    @MethodSource("closedDropInstants")
+    void dropIsClosedOutsideBothWindows(Instant now) {
+        assertThatThrownBy(() -> windows.requireDropOpen(activeTerm(), now))
+                .isInstanceOfSatisfying(DropClosedException.class,
+                        error -> org.assertj.core.api.Assertions.assertThat(error.code())
+                                .isEqualTo("COURSE_DROP_NOT_OPEN"));
+    }
+
+    static Stream<Instant> closedDropInstants() {
+        return Stream.of(
+                ENROLLMENT_START.minusNanos(1),
+                ENROLLMENT_END,
+                ENROLLMENT_END.plusSeconds(1),
+                ADJUSTMENT_START.minusNanos(1),
+                ADJUSTMENT_END,
+                ADJUSTMENT_END.plusNanos(1));
+    }
+
+    @Test
+    void closedTermRejectsDropInsideEitherConfiguredWindow() {
+        Term term = termWithStatus("CLOSED");
+
+        assertThatThrownBy(() -> windows.requireDropOpen(term, ENROLLMENT_START))
+                .isInstanceOfSatisfying(DropClosedException.class,
+                        error -> org.assertj.core.api.Assertions.assertThat(error.code())
+                                .isEqualTo("COURSE_DROP_NOT_OPEN"));
+        assertThatThrownBy(() -> windows.requireDropOpen(term, ADJUSTMENT_START))
+                .isInstanceOfSatisfying(DropClosedException.class,
+                        error -> org.assertj.core.api.Assertions.assertThat(error.code())
+                                .isEqualTo("COURSE_DROP_NOT_OPEN"));
+    }
+
     @Test
     void closedTermRejectsMutationsEvenInsideConfiguredWindows() {
         Term term = termWithStatus("CLOSED");

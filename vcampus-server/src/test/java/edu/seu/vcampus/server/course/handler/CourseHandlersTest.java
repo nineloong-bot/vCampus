@@ -2,6 +2,7 @@ package edu.seu.vcampus.server.course.handler;
 
 import edu.seu.vcampus.common.course.*;
 import edu.seu.vcampus.common.protocol.*;
+import edu.seu.vcampus.server.course.domain.DropClosedException;
 import edu.seu.vcampus.server.course.domain.OfferingFullException;
 import edu.seu.vcampus.server.course.service.*;
 import edu.seu.vcampus.server.routing.*;
@@ -31,7 +32,7 @@ class CourseHandlersTest {
         MessageRouter router = new MessageRouter(Map.of());
         new CourseHandlers(service, auth, CourseWriteExecutor.direct()).register(router);
         List<String> commands = List.of("COURSE_GET_CURRENT_TERM", "COURSE_SEARCH_OFFERINGS", "COURSE_ENROLL",
-                "COURSE_ADJUSTMENT_ADD", "COURSE_ADJUSTMENT_DROP", "COURSE_ADJUSTMENT_CHANGE",
+                "COURSE_ADJUSTMENT_ADD", "COURSE_DROP", "COURSE_ADJUSTMENT_DROP", "COURSE_ADJUSTMENT_CHANGE",
                 "COURSE_RETAKE_CHECK", "COURSE_RETAKE_ENROLL", "COURSE_GET_MY_SCHEDULE",
                 "COURSE_GET_MY_ENROLLMENTS", "COURSE_IMPORT_OUTCOMES", "COURSE_CREATE",
                 "COURSE_UPDATE", "COURSE_CREATE_OFFERING", "COURSE_UPDATE_OFFERING");
@@ -115,7 +116,7 @@ class CourseHandlersTest {
         assertThat(route(router, "COURSE_GET_MY_SCHEDULE", "teacher", EmptyRequest.INSTANCE).success()).isTrue();
         assertThat(route(router, "COURSE_GET_MY_ENROLLMENTS", "teacher", EmptyRequest.INSTANCE).code()).isEqualTo("COMMON_FORBIDDEN");
         for (String command : List.of("COURSE_ENROLL", "COURSE_ADJUSTMENT_ADD",
-                "COURSE_ADJUSTMENT_DROP", "COURSE_ADJUSTMENT_CHANGE", "COURSE_RETAKE_CHECK",
+                "COURSE_DROP", "COURSE_ADJUSTMENT_DROP", "COURSE_ADJUSTMENT_CHANGE", "COURSE_RETAKE_CHECK",
                 "COURSE_RETAKE_ENROLL", "COURSE_GET_MY_SCHEDULE", "COURSE_GET_MY_ENROLLMENTS")) {
             assertThat(route(router, command, "admin", validBody(command)).code())
                     .as(command).isEqualTo("COMMON_FORBIDDEN");
@@ -155,11 +156,38 @@ class CourseHandlersTest {
         CourseWriteExecutor writes = (request, identity, action) -> { ids.add(request.requestId()); return action.get(); };
         MessageRouter router = new MessageRouter(Map.of());
         new CourseHandlers(service, auth, writes).register(router);
-        assertThat(route(router, "COURSE_ADJUSTMENT_DROP", "student", new DropCommand("e-1", 0)).data())
+        assertThat(route(router, "COURSE_DROP", "student", new DropCommand("e-primary", 1)).data())
+                .isEqualTo(EmptyResponse.INSTANCE);
+        assertThat(route(router, "COURSE_ADJUSTMENT_DROP", "student", new DropCommand("e-alias", 2)).data())
                 .isEqualTo(EmptyResponse.INSTANCE);
         assertThat(route(router, "COURSE_IMPORT_OUTCOMES", "admin", validBody("COURSE_IMPORT_OUTCOMES")).data())
                 .isEqualTo(EmptyResponse.INSTANCE);
-        assertThat(ids).contains("r-COURSE_ADJUSTMENT_DROP", "r-COURSE_IMPORT_OUTCOMES");
+        assertThat(ids).contains("r-COURSE_DROP", "r-COURSE_ADJUSTMENT_DROP", "r-COURSE_IMPORT_OUTCOMES");
+        assertThat(service.dropTokens).containsExactly("student", "student");
+        assertThat(service.dropCommands).containsExactly(
+                new DropCommand("e-primary", 1), new DropCommand("e-alias", 2));
+    }
+
+    @Test void bothDropCommandsAreAuthoritativelyStudentOnly() {
+        MessageRouter router = router();
+
+        for (String command : List.of("COURSE_DROP", "COURSE_ADJUSTMENT_DROP")) {
+            assertThat(route(router, command, "teacher", new DropCommand("e-1", 0)).code())
+                    .as(command).isEqualTo("COMMON_FORBIDDEN");
+            assertThat(route(router, command, "admin", new DropCommand("e-1", 0)).code())
+                    .as(command).isEqualTo("COMMON_FORBIDDEN");
+        }
+
+        assertThat(service.dropCommands).isEmpty();
+    }
+
+    @Test void mapsGeneralDropWindowFailureToExactUserFacingText() {
+        service.dropFailure = new DropClosedException();
+
+        ResponseBody<?> response = route(router(), "COURSE_DROP", "student", new DropCommand("e-1", 0));
+
+        assertThat(response.code()).isEqualTo("COURSE_DROP_NOT_OPEN");
+        assertThat(response.message()).isEqualTo("当前不在可退选时间内，请查看选课与退改选开放时间");
     }
 
     private MessageRouter router() { MessageRouter r = new MessageRouter(Map.of()); new CourseHandlers(service, auth, CourseWriteExecutor.direct()).register(r); return r; }
@@ -177,7 +205,7 @@ class CourseHandlersTest {
             case "COURSE_GET_TERM_PHASE" -> new EntityIdRequest("t");
             case "COURSE_ENROLL" -> new EnrollCommand("o-1");
             case "COURSE_ADJUSTMENT_ADD" -> new LateAddCommand("o-1");
-            case "COURSE_ADJUSTMENT_DROP" -> new DropCommand("e-1", 0);
+            case "COURSE_DROP", "COURSE_ADJUSTMENT_DROP" -> new DropCommand("e-1", 0);
             case "COURSE_ADJUSTMENT_CHANGE" -> new ChangeOfferingCommand("e-1", "o-2", 0);
             case "COURSE_RETAKE_CHECK" -> new EntityIdRequest("c-1");
             case "COURSE_RETAKE_ENROLL" -> new RetakeCommand("o-1");
@@ -210,7 +238,10 @@ class CourseHandlersTest {
         final List<CourseCatalogQuery> catalogQueries = new ArrayList<>();
         final List<AdjustmentAuditQuery> auditQueries = new ArrayList<>();
         final List<String> phaseTermIds = new ArrayList<>();
+        final List<String> dropTokens = new ArrayList<>();
+        final List<DropCommand> dropCommands = new ArrayList<>();
         RuntimeException enrollFailure;
+        RuntimeException dropFailure;
         public List<TermView> listTerms(){listTermsCalls++;return termListResult;} public TermView getCurrentTerm(){currentTermCalls++;return currentTermResult;} public TermView createTerm(CreateTermCommand c){createTermCommands.add(c);return createdTermResult;} public TermView updateTerm(UpdateTermCommand c){updateTermCommands.add(c);return updatedTermResult;}
         public edu.seu.vcampus.common.paging.PageResult<CourseView> searchCatalog(CourseCatalogQuery q){catalogQueries.add(q);return catalogResult;}
         public edu.seu.vcampus.common.paging.PageResult<AdjustmentAuditView> searchAdjustmentAudits(AdjustmentAuditQuery q){auditQueries.add(q);return auditResult;}
@@ -219,7 +250,9 @@ class CourseHandlersTest {
         public OfferingView createOffering(CreateOfferingCommand c){return null;} public OfferingView updateOffering(UpdateOfferingCommand c){return null;}
         public edu.seu.vcampus.common.paging.PageResult<OfferingSummary> searchOfferings(OfferingSearchQuery q){return new edu.seu.vcampus.common.paging.PageResult<>(List.of(),0,20,0);}
         public EnrollmentView enroll(String t, EnrollCommand c){if(enrollFailure!=null)throw enrollFailure; return new EnrollmentView("e","o","s","NORMAL","ACTIVE",java.time.Instant.EPOCH,null,0);}
-        public EnrollmentView addDuringAdjustment(String t,LateAddCommand c){return enroll(t,new EnrollCommand(c.offeringId()));} public void dropDuringAdjustment(String t,DropCommand c){}
+        public EnrollmentView addDuringAdjustment(String t,LateAddCommand c){return enroll(t,new EnrollCommand(c.offeringId()));}
+        public void drop(String t,DropCommand c){if(dropFailure!=null)throw dropFailure;dropTokens.add(t);dropCommands.add(c);}
+        public void dropDuringAdjustment(String t,DropCommand c){}
         public EnrollmentView changeDuringAdjustment(String t,ChangeOfferingCommand c){return enroll(t,new EnrollCommand(c.targetOfferingId()));}
         public EnrollmentView enrollRetake(String t,RetakeCommand c){return enroll(t,new EnrollCommand(c.offeringId()));}
         public List<ScheduleItem> getCurrentSchedule(String t){return List.of();} public List<EnrollmentView> getCurrentEnrollments(String t){return List.of();}
