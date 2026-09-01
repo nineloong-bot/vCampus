@@ -134,7 +134,7 @@ class ShopUiTest {
     }
 
     @Test
-    void myPageShowsReadOnlyIdentityAndExpandsPaidOrdersInServerOrder() throws Exception {
+    void myPageUsesShopIdentityAndExpandsPaidOrdersInServerOrder() throws Exception {
         PaidOrderHistory history = paidOrders();
         ShopClientPort client = paidOrdersClient(CompletableFuture.completedFuture(history));
         MyShopPanel panel = onEdt(() -> new MyShopPanel(
@@ -143,28 +143,8 @@ class ShopUiTest {
         onEdt(panel::load);
         flushEdt();
 
-        assertThat(component(panel, "my.user-id.label", JLabel.class).getText())
-                .isEqualTo("用户编号：");
-        assertThat(component(panel, "my.login-id.label", JLabel.class).getText())
-                .isEqualTo("登录名：");
-        assertThat(component(panel, "my.role.label", JLabel.class).getText())
-                .isEqualTo("角色：");
-        assertThat(component(panel, "my.account-status.label", JLabel.class).getText())
-                .isEqualTo("账户状态：");
-        assertThat(component(panel, "my.user-id", JLabel.class).getText())
-                .isEqualTo("buyer-7");
-        assertThat(component(panel, "my.login-id", JLabel.class).getText())
-                .isEqualTo("DEMO_BUYER");
-        assertThat(component(panel, "my.role", JLabel.class).getText())
-                .isEqualTo("STUDENT");
-        assertThat(component(panel, "my.account-status", JLabel.class).getText())
-                .isEqualTo("ACTIVE");
-        for (String name : List.of("my.user-id", "my.login-id", "my.role",
-                "my.account-status")) {
-            JLabel value = component(panel, name, JLabel.class);
-            assertThat(value.getAccessibleContext().getAccessibleName()).isNotBlank();
-            assertThat(value.getAccessibleContext().getAccessibleDescription()).isNotBlank();
-        }
+        assertThat(component(panel, "my.title", JLabel.class).getText())
+                .isEqualTo("商城个人中心");
         JPanel orders = component(panel, "my.orders", JPanel.class);
         assertThat(Arrays.asList(orders.getComponents()))
                 .extracting(Component::getName)

@@ -4,14 +4,64 @@ import edu.seu.vcampus.common.shop.HomeProductQuery;
 import edu.seu.vcampus.common.shop.ProductSearchQuery;
 import edu.seu.vcampus.common.shop.ProductSortMode;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ShopNavigatorTest {
+    @ParameterizedTest
+    @MethodSource("utilitySequences")
+    void utilityPagesReturnOnceToTheirContentAnchor(List<ShopRoute> sequence) {
+        ShopRoute home = new ShopRoute.Home(new HomeProductQuery(
+                null, null, ProductSortMode.SALES_DESC, 0, 20));
+        ShopNavigator navigator = new ShopNavigator(route -> { });
+        navigator.open(home);
+        sequence.forEach(navigator::open);
+
+        navigator.back();
+
+        assertThat(navigator.current()).contains(home);
+        assertThat(navigator.history()).isEmpty();
+    }
+
+    static Stream<List<ShopRoute>> utilitySequences() {
+        return Stream.of(
+                List.of(new ShopRoute.My()),
+                List.of(new ShopRoute.Cart()),
+                List.of(new ShopRoute.My(), new ShopRoute.Cart()),
+                List.of(new ShopRoute.Cart(), new ShopRoute.My()),
+                List.of(new ShopRoute.My(), new ShopRoute.Cart(), new ShopRoute.My()),
+                List.of(new ShopRoute.Cart(), new ShopRoute.My(), new ShopRoute.My()));
+    }
+
+    @Test
+    void leaveGuardCommitsNoNavigationStateUntilProceedRuns() {
+        AtomicReference<Runnable> held = new AtomicReference<>();
+        ShopRoute home = new ShopRoute.Home(new HomeProductQuery(
+                null, null, ProductSortMode.SALES_DESC, 0, 20));
+        ShopRoute product = new ShopRoute.Product("p1");
+        ShopNavigator navigator = new ShopNavigator(route -> { });
+        navigator.open(home);
+        navigator.setLeaveGuard(held::set);
+
+        navigator.open(product);
+
+        assertThat(navigator.current()).contains(home);
+        assertThat(navigator.history()).isEmpty();
+
+        held.get().run();
+
+        assertThat(navigator.current()).contains(product);
+        assertThat(navigator.history()).containsExactly(home);
+    }
+
     @Test
     void startsWithoutCurrentRouteOrHistoryAndBackIsSafe() {
         List<ShopRoute> rendered = new ArrayList<>();

@@ -16,6 +16,9 @@ public final class ShopNavigator {
     private final Deque<ShopRoute> history = new ArrayDeque<>();
     private final List<Consumer<ShopRoute>> listeners = new ArrayList<>();
     private ShopRoute current;
+    private ShopRoute utilityAnchor;
+    private ShopLeaveGuard leaveGuard = ShopLeaveGuard.immediate();
+    private long transitionVersion;
 
     public ShopNavigator(ShopRouteHost host) {
         this.host = Objects.requireNonNull(host, "host");
@@ -25,26 +28,43 @@ public final class ShopNavigator {
         Objects.requireNonNull(route, "route");
         if (current != null) {
             boolean sameRoute = route.equals(current);
-            current = Objects.requireNonNull(host.capture(current), "captured route");
             if (sameRoute) {
+                current = Objects.requireNonNull(host.capture(current), "captured route");
                 publish();
                 return;
             }
-            addHistory(current);
         }
-        current = route;
-        publish();
+        requestTransition(() -> openNow(route));
     }
 
     public void back() {
+        if (isUtility(current) && utilityAnchor != null) {
+            requestTransition(() -> {
+                if (!history.isEmpty() && history.peekLast().equals(utilityAnchor)) {
+                    history.removeLast();
+                }
+                current = utilityAnchor;
+                utilityAnchor = null;
+                publish();
+            });
+            return;
+        }
         if (history.isEmpty()) {
             return;
         }
-        current = history.removeLast();
-        publish();
+        requestTransition(() -> {
+            current = history.removeLast();
+            publish();
+        });
     }
 
-    public boolean canGoBack() { return !history.isEmpty(); }
+    public boolean canGoBack() {
+        return (isUtility(current) && utilityAnchor != null) || !history.isEmpty();
+    }
+
+    public void setLeaveGuard(ShopLeaveGuard leaveGuard) {
+        this.leaveGuard = Objects.requireNonNull(leaveGuard, "leaveGuard");
+    }
 
     public void addListener(Consumer<ShopRoute> listener) {
         listeners.add(Objects.requireNonNull(listener, "listener"));
@@ -57,6 +77,7 @@ public final class ShopNavigator {
 
     public void reset(ShopRoute route) {
         history.clear();
+        utilityAnchor = null;
         current = Objects.requireNonNull(route, "route");
         publish();
     }
@@ -66,6 +87,7 @@ public final class ShopNavigator {
         ShopRoute safeRoot = Objects.requireNonNull(root, "root");
         ShopRoute destination = Objects.requireNonNull(target, "target");
         history.clear();
+        utilityAnchor = isUtility(destination) ? safeRoot : null;
         addHistory(safeRoot);
         current = destination;
         publish();
@@ -101,6 +123,38 @@ public final class ShopNavigator {
     private void publish() {
         host.render(current);
         List.copyOf(listeners).forEach(listener -> listener.accept(current));
+    }
+
+    private void openNow(ShopRoute route) {
+        if (current != null) {
+            ShopRoute captured = Objects.requireNonNull(host.capture(current), "captured route");
+            if (isUtility(route)) {
+                if (!isUtility(captured)) {
+                    utilityAnchor = captured;
+                    addHistory(captured);
+                }
+            } else {
+                addHistory(captured);
+            }
+        }
+        current = route;
+        publish();
+    }
+
+    private void requestTransition(Runnable transition) {
+        long requestedVersion = ++transitionVersion;
+        ShopLeaveGuard requestedGuard = leaveGuard;
+        requestedGuard.requestLeave(() -> {
+            if (requestedVersion != transitionVersion) {
+                return;
+            }
+            leaveGuard = ShopLeaveGuard.immediate();
+            transition.run();
+        });
+    }
+
+    private static boolean isUtility(ShopRoute route) {
+        return route instanceof ShopRoute.My || route instanceof ShopRoute.Cart;
     }
 
     private void addHistory(ShopRoute route) {
