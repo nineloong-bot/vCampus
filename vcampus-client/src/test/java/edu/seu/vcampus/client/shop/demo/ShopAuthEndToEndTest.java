@@ -26,6 +26,7 @@ import edu.seu.vcampus.common.shop.SimulatePaymentCommand;
 import edu.seu.vcampus.common.shop.HomeProductQuery;
 import edu.seu.vcampus.common.shop.ProductSortMode;
 import edu.seu.vcampus.common.shop.SellerApplicationQuery;
+import edu.seu.vcampus.common.shop.SellerApplicationListMode;
 import edu.seu.vcampus.common.shop.SellerApplicationStatus;
 import edu.seu.vcampus.common.user.LoginResult;
 import edu.seu.vcampus.common.user.LoginCommand;
@@ -92,11 +93,11 @@ class ShopAuthEndToEndTest {
             assertThat(teacher.getMyApplication().join()).hasValueSatisfying(application ->
                     assertThat(application.status()).isEqualTo(SellerApplicationStatus.REJECTED));
             assertThat(admin.searchApplications(new SellerApplicationQuery(null,
-                    SellerApplicationStatus.REJECTED, 0, 20)).join().items())
+                    SellerApplicationListMode.PROCESSED, 0, 20)).join().items())
                     .extracting(application -> application.applicantUserId())
                     .contains("demo-teacher");
             assertThatThrownBy(() -> buyer.searchApplications(new SellerApplicationQuery(
-                    null, null, 0, 20)).join())
+                    null, SellerApplicationListMode.PENDING, 0, 20)).join())
                     .hasRootCauseInstanceOf(ShopClientException.class)
                     .rootCause().extracting("code").isEqualTo("AUTH_FORBIDDEN");
             assertThatThrownBy(() -> admin.addToCart(new AddCartItemCommand(

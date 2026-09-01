@@ -5,6 +5,7 @@ import edu.seu.vcampus.common.protocol.Message;
 import edu.seu.vcampus.common.protocol.MessageType;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.shop.SellerApplicationQuery;
+import edu.seu.vcampus.common.shop.SellerApplicationListMode;
 import edu.seu.vcampus.server.routing.ClientContext;
 import edu.seu.vcampus.server.routing.MessageRouter;
 import edu.seu.vcampus.server.routing.RequestDeduplicator;
@@ -31,7 +32,7 @@ class AdminShopHandlersTest {
         MessageRouter router = new MessageRouter(Map.of());
         ShopUserPort users = mock(ShopUserPort.class);
         ShopAdminService service = mock(ShopAdminService.class);
-        SellerApplicationQuery query = new SellerApplicationQuery(null, null, 0, 20);
+        SellerApplicationQuery query = new SellerApplicationQuery(null, SellerApplicationListMode.PENDING, 0, 20);
         when(users.requireUser("admin-token"))
                 .thenReturn(new ShopUser("admin-1", ShopUserKind.ADMINISTRATOR, true));
         when(service.searchApplications("admin-token", query))

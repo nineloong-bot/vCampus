@@ -190,7 +190,7 @@ class ShopClientServiceTest {
     void sendsAdministrativeSearchAndStatusCommands() {
         ClientConnection connection = mock(ClientConnection.class);
         AdminShopClientPort service = new ShopClientService(connection, TIMEOUT);
-        SellerApplicationQuery applications = new SellerApplicationQuery(null, null, 0, 20);
+        SellerApplicationQuery applications = new SellerApplicationQuery(null, SellerApplicationListMode.PENDING, 0, 20);
         SuspendShopCommand suspend = new SuspendShopCommand("shop-1", "违规", 2);
         when(connection.<PageResult<SellerApplicationView>>send(eq("SHOP_ADMIN_SEARCH_APPLICATIONS"),
                 eq(applications), eq(TIMEOUT))).thenReturn(CompletableFuture.completedFuture(

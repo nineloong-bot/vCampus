@@ -2,6 +2,7 @@ package edu.seu.vcampus.server.shop.repository;
 
 import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.shop.SellerApplicationQuery;
+import edu.seu.vcampus.common.shop.SellerApplicationListMode;
 import edu.seu.vcampus.common.shop.SellerApplicationStatus;
 import edu.seu.vcampus.common.shop.ProductSearchQuery;
 import edu.seu.vcampus.common.shop.ProductSortMode;
@@ -116,11 +117,13 @@ public final class AccessShopRepository implements ShopRepository {
             sql.append(" AND applicantUserId = ?");
             values.add(query.applicantUserId());
         }
-        if (query.status() != null) {
-            sql.append(" AND applicationStatus = ?");
-            values.add(query.status().name());
+        SellerApplicationListMode mode = query.mode() == null
+                ? SellerApplicationListMode.PENDING : query.mode();
+        if (mode == SellerApplicationListMode.PENDING) {
+            sql.append(" AND applicationStatus = 'PENDING' ORDER BY submittedAt DESC, applicationId");
+        } else {
+            sql.append(" AND applicationStatus IN ('APPROVED', 'REJECTED') ORDER BY reviewedAt DESC, applicationId");
         }
-        sql.append(" ORDER BY applicationId");
         List<SellerApplication> all = new ArrayList<>();
         try (PreparedStatement statement = connection.prepareStatement(sql.toString())) {
             for (int index = 0; index < values.size(); index++) {

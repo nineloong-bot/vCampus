@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.swing.JButton;
 import javax.swing.JTable;
+import javax.swing.JTabbedPane;
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -24,15 +25,19 @@ class ApplicationReviewPanelTest {
         SellerApplicationView pending = new SellerApplicationView("application-1", "student-1",
                 "文具店", "简介", "文具", "contact", "经营计划",
                 SellerApplicationStatus.PENDING, null, null, Instant.EPOCH, null, 4);
-        when(port.searchApplications(any())).thenReturn(CompletableFuture.completedFuture(
-                new PageResult<>(List.of(pending), 0, 50, 1)));
+        when(port.searchApplications(argThat(query -> query != null && query.mode() == SellerApplicationListMode.PENDING)))
+                .thenReturn(CompletableFuture.completedFuture(new PageResult<>(List.of(pending), 0, 50, 1)));
+        when(port.searchApplications(argThat(query -> query != null && query.mode() == SellerApplicationListMode.PROCESSED)))
+                .thenReturn(CompletableFuture.completedFuture(new PageResult<>(List.of(), 0, 50, 0)));
         when(port.reviewApplication(any())).thenReturn(CompletableFuture.completedFuture(pending));
         ApplicationReviewPanel panel = ShopSwingTestSupport.onEdt(() ->
                 new ApplicationReviewPanel(port, new DefaultShopUiKit(), () -> { }));
 
         ShopSwingTestSupport.onEdt(panel::load);
         ShopSwingTestSupport.flushEdt();
-        JTable table = ShopSwingTestSupport.component(panel, "admin.applications.table", JTable.class);
+        JTabbedPane tabs = ShopSwingTestSupport.component(panel, "admin.applications.tabs", JTabbedPane.class);
+        assertThat(tabs.getSelectedIndex()).isZero();
+        JTable table = ShopSwingTestSupport.component(panel, "admin.applications.pending", JTable.class);
         assertThat(table.getRowCount()).isEqualTo(1);
         assertThat(table.getValueAt(0, 2)).isEqualTo("文具店");
         ShopSwingTestSupport.onEdt(() -> {
