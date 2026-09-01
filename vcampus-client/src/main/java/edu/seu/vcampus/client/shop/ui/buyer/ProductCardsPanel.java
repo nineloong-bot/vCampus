@@ -3,7 +3,7 @@ package edu.seu.vcampus.client.shop.ui.buyer;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopRoute;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
-import edu.seu.vcampus.client.shop.ui.catalog.HttpsProductImageLoader;
+import edu.seu.vcampus.client.shop.ui.catalog.BuiltinProductImageLoader;
 import edu.seu.vcampus.client.shop.ui.catalog.ProductCardRenderer;
 import edu.seu.vcampus.client.shop.ui.catalog.ProductGridPanel;
 import edu.seu.vcampus.common.shop.ProductSummary;
@@ -30,7 +30,7 @@ public final class ProductCardsPanel extends JPanel {
     public ProductCardsPanel(ShopNavigator navigator, ShopUiKit uiKit) {
         ShopNavigator routes = Objects.requireNonNull(navigator, "navigator");
         this.uiKit = Objects.requireNonNull(uiKit, "uiKit");
-        grid = new ProductGridPanel(new HttpsProductImageLoader(), renderer(),
+        grid = new ProductGridPanel(new BuiltinProductImageLoader(), renderer(),
                 productId -> routes.open(new ShopRoute.Product(productId)));
         setLayout(new java.awt.BorderLayout());
         add(grid, java.awt.BorderLayout.CENTER);

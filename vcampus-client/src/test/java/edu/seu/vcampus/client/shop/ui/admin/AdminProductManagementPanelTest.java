@@ -77,8 +77,8 @@ class AdminProductManagementPanelTest {
         assertThat(ShopSwingTestSupport.component(panel, "seller.editor.name",
                 JTextField.class).getText()).isEqualTo("签字笔");
         JTable skus = ShopSwingTestSupport.component(panel, "seller.editor.skus", JTable.class);
-        assertThat(skus.getValueAt(0, 0)).isEqualTo("sku-1");
-        assertThat(skus.getValueAt(0, 3)).isEqualTo(10L);
+        assertThat(skus.getValueAt(0, 0)).isEqualTo("黑色");
+        assertThat(skus.getValueAt(0, 2)).isEqualTo(10L);
 
         JButton update = ShopSwingTestSupport.component(panel, "admin.products.update", JButton.class);
         ShopSwingTestSupport.onEdt(() -> { update.doClick(); });

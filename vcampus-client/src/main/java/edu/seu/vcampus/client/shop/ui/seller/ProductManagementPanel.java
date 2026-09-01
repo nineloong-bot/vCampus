@@ -50,7 +50,7 @@ public final class ProductManagementPanel extends JPanel {
         toggle.addActionListener(event -> toggle());
         JPanel actions = uiKit.filterPanel("seller.products.actions", new java.awt.FlowLayout());
         actions.add(create); actions.add(update); actions.add(toggle); actions.add(status);
-        JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT, new JScrollPane(table), editor);
+        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(table), editor);
         split.setResizeWeight(0.55); add(split, BorderLayout.CENTER); add(actions, BorderLayout.SOUTH);
     }
 

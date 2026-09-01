@@ -10,6 +10,8 @@ import org.junit.jupiter.api.Test;
 import javax.swing.JButton;
 import javax.swing.JTable;
 import javax.swing.JTextField;
+import java.awt.Component;
+import java.awt.Container;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -19,6 +21,19 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 class ProductManagementPanelTest {
+    @Test
+    void sellerNeverEditsSkuIdVersionOrRawCoverUrl() throws Exception {
+        ProductEditorPanel editor = ShopSwingTestSupport.onEdt(() ->
+                new ProductEditorPanel(new DefaultShopUiKit()));
+
+        assertThat(findNamed(editor, "seller.editor.cover")).isNull();
+        JTable table = ShopSwingTestSupport.component(editor, "seller.editor.skus", JTable.class);
+        assertThat(java.util.stream.IntStream.range(0, table.getColumnCount())
+                .mapToObj(table::getColumnName).toList())
+                .containsExactly("规格名称", "单价", "库存", "状态", "操作");
+        assertThat(table.getModel().isCellEditable(0, 0)).isFalse();
+    }
+
     @Test
     void rendersOneRowPerProductWithSkuInventoryAndSalesAggregates() throws Exception {
         SellerShopClientPort port = mock(SellerShopClientPort.class);
@@ -66,9 +81,9 @@ class ProductManagementPanelTest {
         assertThat(ShopSwingTestSupport.component(panel, "seller.editor.name",
                 JTextField.class).getText()).isEqualTo("签字笔");
         JTable skus = ShopSwingTestSupport.component(panel, "seller.editor.skus", JTable.class);
-        assertThat(skus.getValueAt(0, 0)).isEqualTo("sku-1");
-        assertThat(skus.getValueAt(0, 3)).isEqualTo(10L);
-        assertThat(skus.getValueAt(0, 5)).isEqualTo(3L);
+        assertThat(skus.getValueAt(0, 0)).isEqualTo("黑色");
+        assertThat(skus.getValueAt(0, 2)).isEqualTo(10L);
+        assertThat(skus.getColumnCount()).isEqualTo(5);
 
         JButton update = ShopSwingTestSupport.component(panel, "seller.products.update", JButton.class);
         ShopSwingTestSupport.onEdt(() -> { update.doClick(); });
@@ -76,5 +91,16 @@ class ProductManagementPanelTest {
         verify(port).updateOwnedProduct(new UpdateProductCommand("product-1", "签字笔", "文具",
                 "说明", null, List.of(new UpsertSkuCommand("sku-1", "黑色",
                         new BigDecimal("2.50"), 10, true, 3)), 7));
+    }
+
+    private static Component findNamed(Container root, String name) {
+        for (Component child : root.getComponents()) {
+            if (name.equals(child.getName())) return child;
+            if (child instanceof Container nested) {
+                Component match = findNamed(nested, name);
+                if (match != null) return match;
+            }
+        }
+        return null;
     }
 }
