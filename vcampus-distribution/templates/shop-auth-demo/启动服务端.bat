@@ -21,11 +21,11 @@ if %JAVA_MAJOR% LSS 21 (
     goto :failed
 )
 
-echo Starting the vCampus Shop Demo server on port 19090...
+echo Starting the vCampus Shop Demo server on port 8888...
 echo Keep this window open, then double-click the client BAT.
-java -Dlogback.configurationFile=config\logback.xml -cp lib\vCampusServer.jar edu.seu.vcampus.server.shop.demo.ShopAuthDemoServerMain database\vcampus-shop-auth-demo.accdb 19090 database\schema database\seed
+java -Dlogback.configurationFile=config\logback.xml -cp lib\vCampusServer.jar edu.seu.vcampus.server.shop.demo.ShopAuthDemoServerMain database\vcampus-shop-auth-demo.accdb 8888 database\schema database\seed
 if errorlevel 1 (
-    echo [ERROR] Server startup failed. Check port 19090 and the logs directory.
+    echo [ERROR] Server startup failed. Check port 8888 and the logs directory.
     goto :failed
 )
 goto :eof

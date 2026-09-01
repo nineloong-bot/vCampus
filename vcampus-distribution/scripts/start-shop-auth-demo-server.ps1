@@ -21,7 +21,7 @@ try {
     & java "-Dlogback.configurationFile=$logbackConfig" `
         -cp $serverJar `
         edu.seu.vcampus.server.shop.demo.ShopAuthDemoServerMain `
-        $database 19090 $schemas $seeds
+        $database 8888 $schemas $seeds
     if ($LASTEXITCODE -ne 0) {
         throw "Shop Demo 服务端退出，退出码：$LASTEXITCODE"
     }

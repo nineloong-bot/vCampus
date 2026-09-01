@@ -1,6 +1,6 @@
 param(
     [string] $ServerHost = '127.0.0.1',
-    [string] $ServerPort = '19090'
+    [string] $ServerPort = '8888'
 )
 
 $ErrorActionPreference = 'Stop'

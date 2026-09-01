@@ -24,7 +24,6 @@ import javax.swing.JScrollPane;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
-import java.awt.GridLayout;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
@@ -32,7 +31,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Objects;
 
-/** Read-only buyer identity and paid-order history. */
+/** Shop-specific actions and paid-order history for the signed-in user. */
 public final class MyShopPanel extends JPanel {
     private static final ZoneId DISPLAY_ZONE = ZoneId.of("Asia/Shanghai");
     private static final DateTimeFormatter PAID_AT_FORMAT =
@@ -69,7 +68,7 @@ public final class MyShopPanel extends JPanel {
         businessAction = uiKit.primaryButton("my.business.action", businessLabel());
         businessAction.addActionListener(event -> openBusinessPage());
         JPanel north = uiKit.filterPanel("my.header", new BorderLayout(8, 8));
-        north.add(identity(activeUser), BorderLayout.CENTER);
+        north.add(named(new JLabel("商城个人中心"), "my.title"), BorderLayout.CENTER);
         if (navigator != null && (role == UserRole.ADMIN || seller != null)) {
             north.add(businessAction, BorderLayout.EAST);
         }
@@ -143,19 +142,6 @@ public final class MyShopPanel extends JPanel {
         navigator.open(status == SellerApplicationStatus.APPROVED
                 ? new ShopRoute.SellerWorkspace()
                 : new ShopRoute.SellerApplication());
-    }
-
-    private JPanel identity(UserView user) {
-        JPanel panel = uiKit.filterPanel("my.identity", new GridLayout(4, 2, 8, 4));
-        addIdentity(panel, "my.user-id", "用户编号：", user.userId(),
-                "当前登录用户的编号");
-        addIdentity(panel, "my.login-id", "登录名：", user.loginId(),
-                "当前登录用户的登录名");
-        addIdentity(panel, "my.role", "角色：", user.role().name(),
-                "当前登录用户的角色");
-        addIdentity(panel, "my.account-status", "账户状态：", user.accountStatus().name(),
-                "当前登录用户的账户状态");
-        return panel;
     }
 
     private void finish(long request, PaidOrderHistory history, Throwable failure) {
@@ -263,17 +249,6 @@ public final class MyShopPanel extends JPanel {
     private void refresh() {
         content.revalidate();
         content.repaint();
-    }
-
-    private static void addIdentity(JPanel panel, String name, String labelText,
-            String valueText, String description) {
-        JLabel value = named(new JLabel(valueText), name);
-        value.getAccessibleContext().setAccessibleName(labelText.replace("：", ""));
-        value.getAccessibleContext().setAccessibleDescription(description);
-        JLabel label = named(new JLabel(labelText), name + ".label");
-        label.setLabelFor(value);
-        panel.add(label);
-        panel.add(value);
     }
 
     private static String money(BigDecimal amount) {

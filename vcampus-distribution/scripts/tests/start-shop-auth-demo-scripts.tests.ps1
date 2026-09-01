@@ -46,7 +46,7 @@ try {
         'Server must use an absolute Logback configuration path after changing directory.'
     Assert-Contains $serverArgs "-cp $(Join-Path $repoRoot 'vcampus-distribution\lib\vCampusServer.jar') edu.seu.vcampus.server.shop.demo.ShopAuthDemoServerMain" `
         'Server must launch the Shop Auth Demo server main class from its absolute shaded JAR path.'
-    Assert-Contains $serverArgs "$(Join-Path $repoRoot 'vcampus-database\demo\vcampus-shop-auth-demo.accdb') 19090" `
+    Assert-Contains $serverArgs "$(Join-Path $repoRoot 'vcampus-database\demo\vcampus-shop-auth-demo.accdb') 8888" `
         'Server must preserve the documented database path and port.'
     Assert-Contains $serverArgs "$(Join-Path $repoRoot 'vcampus-database\schema') $(Join-Path $repoRoot 'vcampus-database\seed')" `
         'Server must preserve the schema and seed paths after changing directory.'
@@ -65,7 +65,7 @@ try {
         'Client must use an absolute Logback configuration path after changing directory.'
     Assert-Contains $clientArgs "-cp $(Join-Path $repoRoot 'vcampus-distribution\lib\vCampusClient.jar') edu.seu.vcampus.client.shop.demo.ShopAuthDemoClientMain" `
         'Client must launch the Shop Auth Demo client main class from its absolute shaded JAR path.'
-    Assert-Contains $clientArgs 'edu.seu.vcampus.client.shop.demo.ShopAuthDemoClientMain 127.0.0.1 19090' `
+    Assert-Contains $clientArgs 'edu.seu.vcampus.client.shop.demo.ShopAuthDemoClientMain 127.0.0.1 8888' `
         'Client must pass the local Shop Demo server defaults to the Java main class.'
 
     $remoteClientCapture = Join-Path $testRoot 'remote-client'

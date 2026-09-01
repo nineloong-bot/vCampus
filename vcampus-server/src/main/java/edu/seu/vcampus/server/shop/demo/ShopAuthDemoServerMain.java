@@ -9,7 +9,7 @@ public final class ShopAuthDemoServerMain {
             Path.of("vcampus-database/demo/vcampus-shop-auth-demo.accdb");
     private static final Path DEFAULT_SCHEMA_DIRECTORY = Path.of("vcampus-database/schema");
     private static final Path DEFAULT_SEED_DIRECTORY = Path.of("vcampus-database/seed");
-    private static final int DEFAULT_PORT = 19090;
+    private static final int DEFAULT_PORT = 8888;
 
     private ShopAuthDemoServerMain() {
     }
@@ -36,6 +36,10 @@ public final class ShopAuthDemoServerMain {
                 "Port: " + port,
                 "Demo logins: DEMO_BUYER, DEMO_OTHER_BUYER, DEMO_TEACHER, DEMO_ADMIN",
                 "Demo password: 123456");
+    }
+
+    static int defaultPort() {
+        return DEFAULT_PORT;
     }
 
     private static void close(ShopAuthDemoRuntime runtime) {

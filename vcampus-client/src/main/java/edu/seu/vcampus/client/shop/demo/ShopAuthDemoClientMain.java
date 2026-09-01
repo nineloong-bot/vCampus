@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /** Starts the authenticated buyer Shop demo against the selected composed server. */
 public final class ShopAuthDemoClientMain {
     private static final String DEFAULT_HOST = "127.0.0.1";
-    private static final int DEFAULT_PORT = 19090;
+    private static final int DEFAULT_PORT = 8888;
     private static final Duration TIMEOUT = Duration.ofSeconds(10);
 
     private ShopAuthDemoClientMain() {

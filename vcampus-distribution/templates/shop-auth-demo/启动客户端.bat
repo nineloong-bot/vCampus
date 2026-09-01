@@ -22,7 +22,7 @@ if %JAVA_MAJOR% LSS 21 (
 )
 
 echo Starting the vCampus Shop Demo client...
-java -Dlogback.configurationFile=config\logback.xml -cp lib\vCampusClient.jar edu.seu.vcampus.client.shop.demo.ShopAuthDemoClientMain 127.0.0.1 19090
+java -Dlogback.configurationFile=config\logback.xml -cp lib\vCampusClient.jar edu.seu.vcampus.client.shop.demo.ShopAuthDemoClientMain 127.0.0.1 8888
 if errorlevel 1 (
     echo [ERROR] Client startup failed. Confirm the server is running and check logs.
     goto :failed

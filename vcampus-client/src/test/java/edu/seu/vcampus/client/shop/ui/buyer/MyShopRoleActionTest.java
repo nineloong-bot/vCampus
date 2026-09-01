@@ -16,6 +16,8 @@ import edu.seu.vcampus.common.user.UserView;
 import org.junit.jupiter.api.Test;
 
 import javax.swing.JButton;
+import java.awt.Component;
+import java.awt.Container;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -28,6 +30,20 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class MyShopRoleActionTest {
+    @Test
+    void shopPersonalPageDoesNotDuplicateUserManagerAccountFields() throws Exception {
+        SellerShopClientPort seller = mock(SellerShopClientPort.class);
+        when(seller.getMyApplication()).thenReturn(
+                CompletableFuture.completedFuture(Optional.empty()));
+        Fixture fixture = fixture(UserRole.STUDENT, seller);
+
+        assertThat(findNamed(fixture.panel(), "my.user-id")).isNull();
+        assertThat(findNamed(fixture.panel(), "my.login-id")).isNull();
+        assertThat(findNamed(fixture.panel(), "my.account-status")).isNull();
+        assertThat(ShopSwingTestSupport.component(
+                fixture.panel(), "my.business.action", JButton.class)).isNotNull();
+    }
+
     @Test
     void studentWithoutApplicationCanOpenApplicationPage() throws Exception {
         SellerShopClientPort seller = mock(SellerShopClientPort.class);
@@ -85,4 +101,16 @@ class MyShopRoleActionTest {
     }
 
     private record Fixture(MyShopPanel panel, List<ShopRoute> routes) { }
+
+    private static Component findNamed(Container root, String name) {
+        if (name.equals(root.getName())) return root;
+        for (Component child : root.getComponents()) {
+            if (name.equals(child.getName())) return child;
+            if (child instanceof Container nested) {
+                Component match = findNamed(nested, name);
+                if (match != null) return match;
+            }
+        }
+        return null;
+    }
 }

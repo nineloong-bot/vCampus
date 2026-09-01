@@ -14,6 +14,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.swing.JButton;
 import javax.swing.JLabel;
+import java.awt.Component;
+import java.awt.Container;
 import java.awt.GraphicsEnvironment;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -48,10 +50,9 @@ class ShopAuthDemoClientMainTest {
         onEdt(() -> component(main.content(), "shop.my", JButton.class).doClick());
         flushEdt();
 
-        assertThat(component(main.content(), "my.user-id", JLabel.class).getText())
-                .isEqualTo("buyer-main");
-        assertThat(component(main.content(), "my.login-id", JLabel.class).getText())
-                .isEqualTo("DEMO_BUYER");
+        assertThat(findNamed(main.content(), "my.user-id")).isNull();
+        assertThat(findNamed(main.content(), "my.login-id")).isNull();
+        assertThat(findNamed(main.content(), "my.account-status")).isNull();
         assertThat(component(main.header(), "identity.summary", JLabel.class).getText())
                 .contains("DEMO_BUYER");
         assertThat(component(main.header(), "connection.status", JLabel.class).getText())
@@ -65,7 +66,7 @@ class ShopAuthDemoClientMainTest {
                 ShopAuthDemoClientMain.serverAddress(new String[0]);
 
         assertThat(address.host()).isEqualTo("127.0.0.1");
-        assertThat(address.port()).isEqualTo(19090);
+        assertThat(address.port()).isEqualTo(8888);
     }
 
     @Test
@@ -74,7 +75,7 @@ class ShopAuthDemoClientMainTest {
                 ShopAuthDemoClientMain.serverAddress(new String[] {"100.64.12.34"});
 
         assertThat(address.host()).isEqualTo("100.64.12.34");
-        assertThat(address.port()).isEqualTo(19090);
+        assertThat(address.port()).isEqualTo(8888);
     }
 
     @Test
@@ -117,5 +118,17 @@ class ShopAuthDemoClientMainTest {
                 .isThrownBy(() -> ShopAuthDemoClientMain.serverAddress(
                         new String[] {"127.0.0.1", port}))
                 .withMessageContaining("服务器端口必须在 1..65535 范围内");
+    }
+
+    private static Component findNamed(Container root, String name) {
+        if (name.equals(root.getName())) return root;
+        for (Component child : root.getComponents()) {
+            if (name.equals(child.getName())) return child;
+            if (child instanceof Container nested) {
+                Component match = findNamed(nested, name);
+                if (match != null) return match;
+            }
+        }
+        return null;
     }
 }
