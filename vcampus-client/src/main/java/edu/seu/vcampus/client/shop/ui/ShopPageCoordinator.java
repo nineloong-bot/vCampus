@@ -122,6 +122,9 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
             return;
         }
         ShopRoute requested = Objects.requireNonNull(route, "route");
+        navigator.setLeaveGuard(requested instanceof ShopRoute.SellerApplication
+                ? pages::requestSellerApplicationLeave
+                : edu.seu.vcampus.client.shop.ui.navigation.ShopLeaveGuard.immediate());
         switch (requested) {
             case ShopRoute.Home(var state) -> {
                 pages.loadHome(state);
@@ -218,6 +221,7 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         void loadPaymentResult(PaymentView payment);
         void loadMy();
         default void loadSellerApplication() { }
+        default void requestSellerApplicationLeave(Runnable proceed) { proceed.run(); }
         default void loadSellerWorkspace() { }
         default void loadAdminWorkspace() { }
         default void syncCartCount() { }
@@ -381,6 +385,10 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         @Override public void loadMy() { my.load(); }
         @Override public void loadSellerApplication() {
             if (sellerApplication != null) sellerApplication.load();
+        }
+        @Override public void requestSellerApplicationLeave(Runnable proceed) {
+            if (sellerApplication == null) proceed.run();
+            else sellerApplication.requestLeave(proceed);
         }
         @Override public void loadSellerWorkspace() {
             if (sellerWorkspace != null) sellerWorkspace.load();
