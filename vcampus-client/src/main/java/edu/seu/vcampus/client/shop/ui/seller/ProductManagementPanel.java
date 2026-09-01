@@ -24,21 +24,28 @@ public final class ProductManagementPanel extends JPanel {
         @Override public boolean isCellEditable(int row, int column) { return false; }
     };
     private final JTable table = named(new JTable(model), "seller.products.table");
-    private final ProductEditorPanel editor;
+    private final ProductEditorDialogPort dialogs;
     private final JLabel status = named(new JLabel(), "seller.products.status");
     private final JButton create;
     private final JButton update;
     private final JButton toggle;
     private final List<ProductManagementSummary> rows = new ArrayList<>();
+    private ProductView selectedProduct;
+    private String shopCategory = "文具";
     private boolean writable = true;
     private boolean disposed;
 
     public ProductManagementPanel(SellerShopClientPort port, ShopUiKit uiKit,
             Runnable sessionExpired) {
+        this(port, uiKit, sessionExpired, new SwingProductEditorDialogs(uiKit));
+    }
+
+    ProductManagementPanel(SellerShopClientPort port, ShopUiKit uiKit,
+            Runnable sessionExpired, ProductEditorDialogPort dialogs) {
         super(new BorderLayout(8, 8));
         this.port = Objects.requireNonNull(port, "port");
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
-        editor = new ProductEditorPanel(uiKit);
+        this.dialogs = Objects.requireNonNull(dialogs, "dialogs");
         table.getSelectionModel().addListSelectionListener(event -> {
             if (!event.getValueIsAdjusting()) selectProduct();
         });
@@ -50,8 +57,8 @@ public final class ProductManagementPanel extends JPanel {
         toggle.addActionListener(event -> toggle());
         JPanel actions = uiKit.filterPanel("seller.products.actions", new java.awt.FlowLayout());
         actions.add(create); actions.add(update); actions.add(toggle); actions.add(status);
-        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(table), editor);
-        split.setResizeWeight(0.55); add(split, BorderLayout.CENTER); add(actions, BorderLayout.SOUTH);
+        add(new JScrollPane(table), BorderLayout.CENTER);
+        add(actions, BorderLayout.SOUTH);
     }
 
     public void load() {
@@ -61,7 +68,7 @@ public final class ProductManagementPanel extends JPanel {
                 .whenComplete((page, failure) -> SwingUtilities.invokeLater(() -> {
                     if (!requests.accepts(request)) return;
                     if (failure != null) { fail(failure); return; }
-                    table.clearSelection(); update.setEnabled(false);
+                    table.clearSelection(); selectedProduct = null; update.setEnabled(false);
                     rows.clear(); rows.addAll(page.items()); model.setRowCount(0);
                     for (ProductManagementSummary value : rows) model.addRow(new Object[]{
                             value.productName(), value.status().name(), value.skuCount(),
@@ -71,8 +78,10 @@ public final class ProductManagementPanel extends JPanel {
     }
 
     public void setShop(ShopView shop) {
-        writable = shop.status() == ShopStatus.ACTIVE; editor.clear(shop.category());
-        editor.setWritable(writable); create.setEnabled(writable); update.setEnabled(false);
+        writable = shop.status() == ShopStatus.ACTIVE;
+        shopCategory = shop.category();
+        selectedProduct = null;
+        create.setEnabled(writable); update.setEnabled(false);
         toggle.setEnabled(writable);
     }
     public void disposePage() {
@@ -83,13 +92,13 @@ public final class ProductManagementPanel extends JPanel {
         int selected = table.getSelectedRow();
         if (selected < 0 || selected >= rows.size()) return;
         String productId = rows.get(selected).productId();
-        update.setEnabled(false);
+        selectedProduct = null; update.setEnabled(false);
         long request = detailRequests.begin();
         port.getOwnedProduct(productId).whenComplete((product, failure) ->
                 SwingUtilities.invokeLater(() -> {
                     if (!detailRequests.accepts(request) || !isSelected(productId)) return;
                     if (failure != null) { fail(failure); return; }
-                    editor.load(product); editor.setWritable(writable);
+                    selectedProduct = product;
                     update.setEnabled(writable);
                 }));
     }
@@ -103,15 +112,21 @@ public final class ProductManagementPanel extends JPanel {
     private void create() {
         if (!writable) return;
         try {
-            port.createOwnedProduct(editor.createCommand()).whenComplete((ignored, failure) ->
-                    SwingUtilities.invokeLater(() -> { if (failure != null) fail(failure); else load(); }));
+            dialogs.create(this, shopCategory).ifPresent(command ->
+                    port.createOwnedProduct(command).whenComplete((ignored, failure) ->
+                            SwingUtilities.invokeLater(() -> {
+                                if (failure != null) fail(failure); else load();
+                            })));
         } catch (RuntimeException failure) { status.setText("COMMON_VALIDATION_FAILED"); }
     }
     private void update() {
-        if (!writable) return;
+        if (!writable || selectedProduct == null) return;
         try {
-            port.updateOwnedProduct(editor.updateCommand()).whenComplete((ignored, failure) ->
-                    SwingUtilities.invokeLater(() -> { if (failure != null) fail(failure); else load(); }));
+            dialogs.update(this, selectedProduct).ifPresent(command ->
+                    port.updateOwnedProduct(command).whenComplete((ignored, failure) ->
+                            SwingUtilities.invokeLater(() -> {
+                                if (failure != null) fail(failure); else load();
+                            })));
         } catch (RuntimeException failure) { status.setText("COMMON_VALIDATION_FAILED"); }
     }
     private void toggle() {

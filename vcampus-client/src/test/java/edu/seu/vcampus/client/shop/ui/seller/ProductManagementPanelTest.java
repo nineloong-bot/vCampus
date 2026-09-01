@@ -8,12 +8,15 @@ import edu.seu.vcampus.common.shop.*;
 import org.junit.jupiter.api.Test;
 
 import javax.swing.JButton;
+import javax.swing.JSplitPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import java.awt.Component;
 import java.awt.Container;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -21,6 +24,74 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 class ProductManagementPanelTest {
+    @Test
+    void productListUsesFullMainAreaWithoutPersistentEditorSplit() throws Exception {
+        SellerShopClientPort port = mock(SellerShopClientPort.class);
+        ProductManagementPanel panel = ShopSwingTestSupport.onEdt(() ->
+                new ProductManagementPanel(port, new DefaultShopUiKit(), () -> { }));
+
+        assertThat(findType(panel, JSplitPane.class)).isNull();
+        assertThat(findNamed(panel, "seller.editor.name")).isNull();
+        assertThat(ShopSwingTestSupport.component(panel, "seller.products.table", JTable.class))
+                .isNotNull();
+    }
+
+    @Test
+    void createButtonUsesProductDialogAndSubmitsConfirmedCommand() throws Exception {
+        SellerShopClientPort port = mock(SellerShopClientPort.class);
+        ProductEditorDialogPort dialogs = mock(ProductEditorDialogPort.class);
+        CreateProductCommand command = new CreateProductCommand("签字笔", "文具", "说明", null,
+                List.of(new CreateSkuCommand("黑色", new BigDecimal("2.50"), 10, true)));
+        ProductView created = new ProductView("product-1", "签字笔", "文具", "说明", null,
+                ProductStatus.DRAFT, 0, 1, List.of());
+        when(dialogs.create(any(), eq("文具"))).thenReturn(Optional.of(command));
+        when(port.createOwnedProduct(command)).thenReturn(CompletableFuture.completedFuture(created));
+        when(port.searchOwnedProducts(any())).thenReturn(CompletableFuture.completedFuture(
+                new PageResult<>(List.of(), 0, 50, 0)));
+        ProductManagementPanel panel = ShopSwingTestSupport.onEdt(() ->
+                new ProductManagementPanel(port, new DefaultShopUiKit(), () -> { }, dialogs));
+        ShopSwingTestSupport.onEdt(() -> panel.setShop(activeShop()));
+
+        ShopSwingTestSupport.onEdt(() -> ShopSwingTestSupport.component(panel,
+                "seller.products.create", JButton.class).doClick());
+        ShopSwingTestSupport.flushEdt();
+
+        verify(dialogs).create(panel, "文具");
+        verify(port).createOwnedProduct(command);
+    }
+
+    @Test
+    void updateButtonUsesProductDialogForSelectedAggregate() throws Exception {
+        SellerShopClientPort port = mock(SellerShopClientPort.class);
+        ProductEditorDialogPort dialogs = mock(ProductEditorDialogPort.class);
+        ProductManagementSummary summary = new ProductManagementSummary("product-1", "签字笔",
+                ProductStatus.DRAFT, 1, new BigDecimal("2.50"), 10, 0, 0, 7);
+        ProductView detail = new ProductView("product-1", "签字笔", "文具", "说明", null,
+                ProductStatus.DRAFT, 0, 7, List.of());
+        UpdateProductCommand command = new UpdateProductCommand("product-1", "签字笔", "文具",
+                "更新说明", null, List.of(), 7);
+        when(port.searchOwnedProducts(any())).thenReturn(CompletableFuture.completedFuture(
+                new PageResult<>(List.of(summary), 0, 50, 1)));
+        when(port.getOwnedProduct("product-1")).thenReturn(CompletableFuture.completedFuture(detail));
+        when(dialogs.update(any(), eq(detail))).thenReturn(Optional.of(command));
+        when(port.updateOwnedProduct(command)).thenReturn(CompletableFuture.completedFuture(detail));
+        ProductManagementPanel panel = ShopSwingTestSupport.onEdt(() ->
+                new ProductManagementPanel(port, new DefaultShopUiKit(), () -> { }, dialogs));
+        ShopSwingTestSupport.onEdt(() -> panel.setShop(activeShop()));
+
+        ShopSwingTestSupport.onEdt(panel::load);
+        ShopSwingTestSupport.flushEdt();
+        JTable products = ShopSwingTestSupport.component(panel, "seller.products.table", JTable.class);
+        ShopSwingTestSupport.onEdt(() -> products.setRowSelectionInterval(0, 0));
+        ShopSwingTestSupport.flushEdt();
+        ShopSwingTestSupport.onEdt(() -> ShopSwingTestSupport.component(panel,
+                "seller.products.update", JButton.class).doClick());
+        ShopSwingTestSupport.flushEdt();
+
+        verify(dialogs).update(panel, detail);
+        verify(port).updateOwnedProduct(command);
+    }
+
     @Test
     void sellerNeverEditsSkuIdVersionOrRawCoverUrl() throws Exception {
         ProductEditorPanel editor = ShopSwingTestSupport.onEdt(() ->
@@ -56,39 +127,24 @@ class ProductManagementPanelTest {
     }
 
     @Test
-    void selectingExistingProductLoadsStableSkuIdentityAndUpdatesIt() throws Exception {
-        SellerShopClientPort port = mock(SellerShopClientPort.class);
-        ProductManagementSummary summary = new ProductManagementSummary("product-1", "签字笔",
-                ProductStatus.DRAFT, 1, new BigDecimal("2.50"), 10, 4, 0, 7);
+    void productEditorRetainsStableSkuIdentityForDialogUpdate() throws Exception {
         ProductView detail = new ProductView("product-1", "签字笔", "文具", "说明", null,
                 ProductStatus.DRAFT, 0, 7, List.of(new ProductSkuView("sku-1", "黑色",
                         new BigDecimal("2.50"), 6, 10, 4, true, 3)));
-        when(port.searchOwnedProducts(any())).thenReturn(CompletableFuture.completedFuture(
-                new PageResult<>(List.of(summary), 0, 50, 1)));
-        when(port.getOwnedProduct("product-1")).thenReturn(
-                CompletableFuture.completedFuture(detail));
-        when(port.updateOwnedProduct(any())).thenReturn(CompletableFuture.completedFuture(detail));
-        ProductManagementPanel panel = ShopSwingTestSupport.onEdt(() ->
-                new ProductManagementPanel(port, new DefaultShopUiKit(), () -> { }));
+        ProductEditorPanel editor = ShopSwingTestSupport.onEdt(() ->
+                new ProductEditorPanel(new DefaultShopUiKit()));
 
-        ShopSwingTestSupport.onEdt(panel::load);
-        ShopSwingTestSupport.flushEdt();
-        JTable products = ShopSwingTestSupport.component(panel, "seller.products.table", JTable.class);
-        ShopSwingTestSupport.onEdt(() -> products.setRowSelectionInterval(0, 0));
-        ShopSwingTestSupport.flushEdt();
+        ShopSwingTestSupport.onEdt(() -> editor.load(detail));
 
-        verify(port).getOwnedProduct("product-1");
-        assertThat(ShopSwingTestSupport.component(panel, "seller.editor.name",
+        assertThat(ShopSwingTestSupport.component(editor, "seller.editor.name",
                 JTextField.class).getText()).isEqualTo("签字笔");
-        JTable skus = ShopSwingTestSupport.component(panel, "seller.editor.skus", JTable.class);
+        JTable skus = ShopSwingTestSupport.component(editor, "seller.editor.skus", JTable.class);
         assertThat(skus.getValueAt(0, 0)).isEqualTo("黑色");
         assertThat(skus.getValueAt(0, 2)).isEqualTo(10L);
         assertThat(skus.getColumnCount()).isEqualTo(5);
 
-        JButton update = ShopSwingTestSupport.component(panel, "seller.products.update", JButton.class);
-        ShopSwingTestSupport.onEdt(() -> { update.doClick(); });
-        ShopSwingTestSupport.flushEdt();
-        verify(port).updateOwnedProduct(new UpdateProductCommand("product-1", "签字笔", "文具",
+        assertThat(ShopSwingTestSupport.onEdt(editor::updateCommand)).isEqualTo(
+                new UpdateProductCommand("product-1", "签字笔", "文具",
                 "说明", null, List.of(new UpsertSkuCommand("sku-1", "黑色",
                         new BigDecimal("2.50"), 10, true, 3)), 7));
     }
@@ -102,5 +158,21 @@ class ProductManagementPanelTest {
             }
         }
         return null;
+    }
+
+    private static <T extends Component> T findType(Container root, Class<T> type) {
+        for (Component child : root.getComponents()) {
+            if (type.isInstance(child)) return type.cast(child);
+            if (child instanceof Container nested) {
+                T match = findType(nested, type);
+                if (match != null) return match;
+            }
+        }
+        return null;
+    }
+
+    private static ShopView activeShop() {
+        return new ShopView("shop-1", "owner-1", "店铺", "简介", "文具", "contact",
+                ShopStatus.ACTIVE, null, null, (Instant) null, 1);
     }
 }
