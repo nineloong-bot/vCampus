@@ -13,6 +13,7 @@ import edu.seu.vcampus.client.core.ui.theme.UiDimensions;
 import edu.seu.vcampus.common.user.UserView;
 
 import javax.swing.JButton;
+import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -167,6 +168,11 @@ public final class MainFrame extends JFrame {
 
     /** Returns the card-layout page content region. */
     public JPanel content() { return content; }
+
+    /** Replaces one of the fixed top-level module pages. */
+    public void installPage(String pageId, JComponent page) {
+        pageNavigator.replace(pageId, page);
+    }
 
     /** Returns the shared application status bar. */
     public JPanel footer() { return footer; }

@@ -91,6 +91,10 @@ class LogoutUiTest {
         MainFrame main = showing(MainFrame.class);
         SwingUtilities.invokeAndWait(() -> component(
                 main, "navigation.account", AbstractButton.class).doClick());
+        assertThat(Arrays.stream(main.content().getComponents())
+                .filter(component -> "page.account".equals(component.getName())))
+                .hasSize(1)
+                .allSatisfy(component -> assertThat(component.isVisible()).isTrue());
         AbstractButton detail = component(main, "account.detail", AbstractButton.class);
         JButton logout = component(main, "account.logout", JButton.class);
 

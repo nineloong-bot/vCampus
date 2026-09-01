@@ -47,19 +47,10 @@ public final class UserUiCoordinator {
     }
 
     private void replaceAccountPage(MainFrame main, LoginResult result) {
-        for (java.awt.Component component : main.content().getComponents()) {
-            if ("page.account".equals(component.getName())) {
-                main.content().remove(component);
-                break;
-            }
-        }
-        AccountPanel account = new AccountPanel(
+        main.installPage("account", new AccountPanel(
                 users, result.user(), result.permissions(),
                 () -> returnToLogin(main, PASSWORD_CHANGED),
-                () -> returnToLogin(main, LOGGED_OUT));
-        main.content().add(account, "account");
-        main.content().revalidate();
-        main.content().repaint();
+                () -> returnToLogin(main, LOGGED_OUT)));
     }
 
     private void returnToLogin(MainFrame main, String notice) {
