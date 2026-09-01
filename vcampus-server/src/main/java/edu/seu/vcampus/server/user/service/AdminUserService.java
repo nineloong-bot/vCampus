@@ -16,6 +16,8 @@ import edu.seu.vcampus.server.user.domain.UserAccount;
 import edu.seu.vcampus.server.user.repository.AuditRepository;
 import edu.seu.vcampus.server.user.repository.UserRepository;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -28,14 +30,16 @@ final class AdminUserService {
     private final AuditRepository audits;
     private final Consumer<String> sessionRevoker;
     private final UserAuditWriter auditWriter;
+    private final Clock clock;
 
     AdminUserService(TransactionManager transactions, ResourceLockManager locks, UserRepository users,
-            AuditRepository audits, Consumer<String> sessionRevoker) {
+            AuditRepository audits, Consumer<String> sessionRevoker, Clock clock) {
         this.transactions = Objects.requireNonNull(transactions, "transactions");
         this.locks = Objects.requireNonNull(locks, "locks");
         this.users = Objects.requireNonNull(users, "users");
         this.audits = Objects.requireNonNull(audits, "audits");
         this.sessionRevoker = Objects.requireNonNull(sessionRevoker, "sessionRevoker");
+        this.clock = Objects.requireNonNull(clock, "clock");
         auditWriter = new UserAuditWriter(transactions, audits);
     }
 
@@ -57,7 +61,7 @@ final class AdminUserService {
         Objects.requireNonNull(command, "command");
         try {
             return withAccountLocks(command.userId(), () -> {
-                UserView result = transactions.inTransaction(connection -> {
+                RoleUpdate result = transactions.inTransaction(connection -> {
                     UserAccount account = account(connection, command.userId());
                     if (command.newRole() == UserRole.STUDENT
                             && account.role() != UserRole.STUDENT) {
@@ -65,14 +69,15 @@ final class AdminUserService {
                     }
                     protectOnlyAdministrator(connection, account,
                             command.newRole() != UserRole.ADMIN);
-                    UserAccount updated = account.withRole(command.newRole());
+                    UserAccount updated = account.withRole(command.newRole(), now());
                     users.updateWithVersion(connection, updated, command.expectedVersion());
                     audits.record(connection, actorUserId, "USER_UPDATE_ROLE", "USER",
                             account.userId(), "SUCCESS", address(context));
-                    return view(updated, command.expectedVersion() + 1);
+                    return new RoleUpdate(view(updated, command.expectedVersion() + 1),
+                            account.role() != command.newRole());
                 });
-                sessionRevoker.accept(command.userId());
-                return result;
+                if (result.changed()) sessionRevoker.accept(command.userId());
+                return result.view();
             });
         } catch (RuntimeException error) {
             auditWriter.failure(actorUserId, "USER_UPDATE_ROLE", command.userId(),
@@ -97,7 +102,7 @@ final class AdminUserService {
                     }
                     protectOnlyAdministrator(connection, account,
                             command.newStatus() != AccountStatus.ACTIVE);
-                    UserAccount updated = account.withStatus(command.newStatus());
+                    UserAccount updated = account.withStatus(command.newStatus(), now());
                     users.updateWithVersion(connection, updated, command.expectedVersion());
                     audits.record(connection, actorUserId, "USER_CHANGE_STATUS", "USER",
                             account.userId(), "SUCCESS", address(context));
@@ -119,6 +124,10 @@ final class AdminUserService {
     private <T> T withAccountLocks(String userId, java.util.function.Supplier<T> action) {
         return locks.withLocks(List.of(new ResourceKey("ADMIN", "ACTIVE"),
                 new ResourceKey("USER", userId)), action);
+    }
+
+    private LocalDateTime now() {
+        return LocalDateTime.ofInstant(clock.instant(), clock.getZone());
     }
 
     private UserAccount account(java.sql.Connection connection, String userId) {
@@ -151,5 +160,8 @@ final class AdminUserService {
 
     private static String address(ClientContext context) {
         return context == null ? null : context.clientAddress();
+    }
+
+    private record RoleUpdate(UserView view, boolean changed) {
     }
 }

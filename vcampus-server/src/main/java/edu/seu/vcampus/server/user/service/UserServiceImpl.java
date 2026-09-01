@@ -65,7 +65,7 @@ public final class UserServiceImpl implements UserService, UserQueryPort {
         authentication = new AuthenticationService(transactions, locks, users, permissions,
                 audits, hasher, sessions, clock);
         administration = new AdminUserService(transactions, locks, users, audits,
-                authentication::revokeSessionsForUser);
+                authentication::revokeSessionsForUser, clock);
     }
 
     /** Creates a pending teacher account application. */
