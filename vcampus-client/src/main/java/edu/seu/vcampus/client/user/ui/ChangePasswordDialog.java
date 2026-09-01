@@ -87,6 +87,7 @@ public final class ChangePasswordDialog extends JDialog {
         if (!Arrays.equals(newValue, confirmation)) {
             clear(oldValue, newValue, confirmation);
             error.setText("两次输入的新密码不一致");
+            confirm.requestFocusInWindow();
             return;
         }
         setBusy(true);

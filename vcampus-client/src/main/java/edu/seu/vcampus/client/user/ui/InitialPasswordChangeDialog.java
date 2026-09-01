@@ -119,7 +119,7 @@ public final class InitialPasswordChangeDialog extends JDialog {
         if (!Arrays.equals(newValue, confirmation)) {
             clear(oldValue, newValue, confirmation);
             error.setText("两次输入的新密码不一致");
-            oldPassword.requestFocusInWindow();
+            confirmPassword.requestFocusInWindow();
             return;
         }
         setBusy(true);
@@ -138,7 +138,8 @@ public final class InitialPasswordChangeDialog extends JDialog {
         if (!isDisplayable()) return;
         setBusy(false);
         if (failure != null) {
-            error.setText("密码修改失败，请检查输入后重试");
+            error.setText(UserErrorMessages.operation(
+                    failure, "密码修改失败，请稍后重试"));
             oldPassword.requestFocusInWindow();
             return;
         }
