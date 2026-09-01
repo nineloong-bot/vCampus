@@ -66,7 +66,13 @@ public final class WrappingGridLayout implements LayoutManager {
 
     private int availableWidth(Container parent, Insets insets) {
         int width = parent.getWidth() - insets.left - insets.right;
-        return width > 0 ? width : minimumCardWidth;
+        if (width > 0) return width;
+        Container ancestor = parent.getParent();
+        while (ancestor != null) {
+            if (ancestor.getWidth() > 0) return ancestor.getWidth();
+            ancestor = ancestor.getParent();
+        }
+        return minimumCardWidth;
     }
 
     private int columns(int availableWidth) {

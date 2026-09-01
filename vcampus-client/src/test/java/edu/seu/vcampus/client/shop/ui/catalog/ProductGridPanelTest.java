@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Test;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JComponent;
+import javax.swing.JPanel;
+import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.image.BufferedImage;
 import java.math.BigDecimal;
@@ -79,6 +81,30 @@ class ProductGridPanelTest {
         });
 
         assertThat(onEdt(() -> grid.getPreferredSize().height)).isGreaterThan(500);
+    }
+
+    @Test
+    void firstPreferredHeightUsesLaidOutAncestorWidthBeforeGridReceivesBounds() throws Exception {
+        ProductCardRenderer cards = (product, image, open) -> {
+            JButton card = new JButton(product.productName());
+            card.setPreferredSize(new Dimension(160, 180));
+            return card;
+        };
+        ProductGridPanel grid = onEdt(() -> new ProductGridPanel(images(), cards, id -> { }));
+        JPanel viewportContent = onEdt(() -> {
+            JPanel wrapper = new JPanel(new BorderLayout());
+            wrapper.setSize(900, 700);
+            wrapper.add(grid, BorderLayout.CENTER);
+            return wrapper;
+        });
+
+        onEdt(() -> grid.showProducts(java.util.stream.IntStream.range(0, 20)
+                .mapToObj(index -> summary("p" + index, "商品" + index, "1.00"))
+                .toList()));
+
+        assertThat(onEdt(grid::getWidth)).isZero();
+        assertThat(onEdt(viewportContent::getWidth)).isEqualTo(900);
+        assertThat(onEdt(() -> grid.getPreferredSize().height)).isEqualTo(948);
     }
 
     private static ProductImageLoader images() {
