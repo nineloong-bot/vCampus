@@ -485,7 +485,6 @@ class ShopUiTest {
 
         assertThat(component(panel, "keyword", JTextField.class).isVisible()).isTrue();
         assertThat(component(panel, "search", JButton.class).isVisible()).isTrue();
-        assertThat(component(panel, "search.filters.toggle", JButton.class).isVisible()).isFalse();
         assertThat(component(panel, "search.filters", JPanel.class).isVisible()).isFalse();
 
         onEdt(() -> {
@@ -495,12 +494,9 @@ class ShopUiTest {
         assertThat(navigator.current()).contains(new ShopRoute.Search(new SearchViewState(
                 new ProductSearchQuery("雨伞", null, null, null,
                         ProductSortMode.SALES_DESC, 0, 20), false, false, 0)));
-        assertThat(component(panel, "search.filters.toggle", JButton.class).isVisible()).isFalse();
 
         result.complete(new PageResult<>(List.of(), 0, 20, 0));
         flushEdt();
-        assertThat(component(panel, "search.filters.toggle", JButton.class).isVisible()).isTrue();
-        onEdt(() -> component(panel, "search.filters.toggle", JButton.class).doClick());
         assertThat(component(panel, "search.filters", JPanel.class).isVisible()).isTrue();
         JComboBox<?> categories = component(panel, "category", JComboBox.class);
         assertThat(IntStream.range(0, categories.getItemCount())
@@ -521,7 +517,6 @@ class ShopUiTest {
         failure.completeExceptionally(new IllegalStateException("SHOP_UNAVAILABLE"));
         flushEdt();
 
-        assertThat(component(panel, "search.filters.toggle", JButton.class).isVisible()).isFalse();
         assertThat(component(panel, "search.filters", JPanel.class).isVisible()).isFalse();
     }
 
@@ -563,7 +558,8 @@ class ShopUiTest {
                         "home.results");
         assertThat(component(home, "home.recommendations", JLabel.class).getText()).isEqualTo("猜你喜欢");
         assertThat(component(home, "product-product-1.name", JLabel.class).getText()).isEqualTo("笔记本");
-        assertThat(component(home, "product-product-1.shop", JLabel.class).getText()).isEqualTo("校园文具店");
+        assertThatThrownBy(() -> component(home, "product-product-1.shop", JLabel.class))
+                .isInstanceOf(AssertionError.class);
         assertThat(component(home, "product-product-1.category", JLabel.class).getText()).isEqualTo("文具");
         assertThat(component(home, "product-product-1.price", JLabel.class).getText()).isEqualTo("¥6.50 起");
         assertThat(component(home, "product-product-1.sales", JLabel.class).getText()).isEqualTo("销量 12");

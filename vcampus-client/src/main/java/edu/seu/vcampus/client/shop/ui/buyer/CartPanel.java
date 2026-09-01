@@ -20,6 +20,7 @@ import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
+import edu.seu.vcampus.client.shop.ui.catalog.WrappingGridLayout;
 import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -159,21 +160,21 @@ public final class CartPanel extends JPanel {
         content.removeAll(); updateButtons.clear(); removeButtons.clear();
         JPanel normal = uiKit.filterPanel("cart.normal", new BorderLayout(4, 4));
         normal.add(uiKit.stateView("cart.state", state, message, null), BorderLayout.NORTH);
-        JPanel rows = uiKit.filterPanel("cart.rows", new FlowLayout(FlowLayout.LEFT));
+        JPanel rows = uiKit.filterPanel("cart.rows", new WrappingGridLayout(280, 12, 12));
         for (CartItemView item : cart.items()) {
-            JPanel row = uiKit.productCard("cart-item-" + item.cartItemId(), new FlowLayout(FlowLayout.LEFT));
-            row.add(new JLabel("%s | ¥%s | %d".formatted(item.productName(), item.displayedUnitPrice().toPlainString(), item.quantity())));
-            JSpinner quantity = new JSpinner(new SpinnerNumberModel(item.quantity(), 1, Integer.MAX_VALUE, 1));
-            JButton update = uiKit.secondaryButton("cart.update-" + item.cartItemId(), "更新");
-            JButton remove = uiKit.secondaryButton("cart.remove-" + item.cartItemId(), "删除");
-            update.addActionListener(e -> updateQuantity(item.cartItemId(), (Integer) quantity.getValue())); remove.addActionListener(e -> remove(item.cartItemId()));
+            CartItemCard row = new CartItemCard(item, uiKit,
+                    () -> navigator.open(new ShopRoute.Product(item.productId())),
+                    quantity -> updateQuantity(item.cartItemId(), quantity), () -> remove(item.cartItemId()));
+            JButton update = row.update; JButton remove = row.remove;
             if (queuedKeys.contains("U:" + item.cartItemId())) update.setEnabled(false);
             if (queuedKeys.contains("R:" + item.cartItemId())) remove.setEnabled(false);
             updateButtons.put(item.cartItemId(), update); removeButtons.put(item.cartItemId(), remove);
-            row.add(quantity); row.add(update); row.add(remove); rows.add(row);
+            rows.add(row);
         }
         JButton checkout = uiKit.primaryButton("cart.checkout", "去结算"); checkout.addActionListener(e -> navigator.open(new ShopRoute.Checkout()));
-        normal.add(rows, BorderLayout.CENTER); normal.add(checkout, BorderLayout.SOUTH); content.add(normal, BorderLayout.CENTER); refresh();
+        JLabel total = new JLabel("总计：" + CartItemCard.money(cart.displayedTotal())); total.setName("cart.total");
+        JPanel summary = new JPanel(new BorderLayout()); summary.add(total, BorderLayout.WEST); summary.add(checkout, BorderLayout.EAST);
+        normal.add(rows, BorderLayout.CENTER); normal.add(summary, BorderLayout.SOUTH); content.add(normal, BorderLayout.CENTER); refresh();
     }
     private CartItemView item(String id) { return cart == null ? null : cart.items().stream().filter(i -> i.cartItemId().equals(id)).findFirst().orElse(null); }
     private void showState(ShopPageState state, String message, Runnable retry) { content.removeAll(); content.add(uiKit.stateView("cart.state", state, message, retry), BorderLayout.CENTER); refresh(); }

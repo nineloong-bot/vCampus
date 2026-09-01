@@ -7,12 +7,12 @@ import java.awt.Insets;
 import java.awt.LayoutManager;
 
 /** Equal-width catalog grid whose preferred height accounts for wrapped rows. */
-final class WrappingGridLayout implements LayoutManager {
+public final class WrappingGridLayout implements LayoutManager {
     private final int minimumCardWidth;
     private final int horizontalGap;
     private final int verticalGap;
 
-    WrappingGridLayout(int minimumCardWidth, int horizontalGap, int verticalGap) {
+    public WrappingGridLayout(int minimumCardWidth, int horizontalGap, int verticalGap) {
         this.minimumCardWidth = minimumCardWidth;
         this.horizontalGap = horizontalGap;
         this.verticalGap = verticalGap;
