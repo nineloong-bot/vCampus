@@ -59,7 +59,7 @@ public final class ServerMain {
         }
         String databaseUrl = "jdbc:ucanaccess://" + config.databasePath()
                 + (config.databaseCreateIfMissing()
-                ? ";newDatabaseVersion=V2010" : ";immediatelyReleaseResources=true");
+                ? ";newDatabaseVersion=V2010" : "");
         ConnectionProvider connections = () -> DriverManager.getConnection(databaseUrl);
         return ApplicationRuntime.create(connections, config.databaseResourceRoot(), Clock.systemUTC(),
                 Duration.ofMinutes(config.sessionTimeoutMinutes()));
