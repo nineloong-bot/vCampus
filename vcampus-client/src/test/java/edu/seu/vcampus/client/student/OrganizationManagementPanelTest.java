@@ -44,7 +44,7 @@ class OrganizationManagementPanelTest {
 
         var fixture = new OrgFixture(client, ConnectionState.CONNECTED);
         SwingUtilities.invokeAndWait(fixture::showPanel);
-        fixture.waitForTreeLoaded(2);
+        fixture.waitForHierarchyLoaded();
 
         JTree tree = fixture.component("student.org.tree", JTree.class);
         DefaultMutableTreeNode root = (DefaultMutableTreeNode) tree.getModel().getRoot();
@@ -77,7 +77,7 @@ class OrganizationManagementPanelTest {
 
         var fixture = new OrgFixture(client, ConnectionState.CONNECTED);
         SwingUtilities.invokeAndWait(fixture::showPanel);
-        fixture.waitForTreeLoaded(2);
+        fixture.waitForHierarchyLoaded();
 
         JTree tree = fixture.component("student.org.tree", JTree.class);
         DefaultMutableTreeNode root = (DefaultMutableTreeNode) tree.getModel().getRoot();
@@ -279,6 +279,26 @@ class OrganizationManagementPanelTest {
             throw new AssertionError("Tree did not load within timeout");
         }
 
+        void waitForHierarchyLoaded() throws Exception {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            while (System.nanoTime() < deadline) {
+                flushEdt();
+                boolean[] loaded = new boolean[1];
+                SwingUtilities.invokeAndWait(() -> {
+                    var tree = component("student.org.tree", JTree.class);
+                    var root = (DefaultMutableTreeNode) tree.getModel().getRoot();
+                    if (root.getChildCount() < 2) return;
+                    var department = (DefaultMutableTreeNode) root.getChildAt(0);
+                    if (department.getChildCount() < 1) return;
+                    var major = (DefaultMutableTreeNode) department.getChildAt(0);
+                    loaded[0] = major.getChildCount() >= 1;
+                });
+                if (loaded[0]) return;
+                TimeUnit.MILLISECONDS.sleep(10);
+            }
+            throw new AssertionError("Organization hierarchy did not load within timeout");
+        }
+
         void waitForErrorContaining(String expectedText) throws Exception {
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
             while (System.nanoTime() < deadline) {
@@ -336,7 +356,9 @@ class OrganizationManagementPanelTest {
             ResponseBody<?> response = pending.poll();
             consumed.incrementAndGet();
             CompletableFuture<ResponseBody<T>> future = new CompletableFuture<>();
-            if (response != null) future.complete((ResponseBody) response);
+            if (response != null) {
+                SwingUtilities.invokeLater(() -> future.complete((ResponseBody) response));
+            }
             return future;
         }
 

@@ -16,8 +16,10 @@ public final class StudentAccessTestDatabase {
     public StudentAccessTestDatabase() throws Exception {
         Path testData = Path.of("target", "test-data");
         Files.createDirectories(testData);
+        // Do not enable immediatelyReleaseResources here: concurrent student tests
+        // otherwise race UCanAccess connection startup against mirror shutdown.
         String url = "jdbc:ucanaccess://" + testData.resolve(UUID.randomUUID() + ".accdb")
-                + ";newDatabaseVersion=V2010;immediatelyReleaseResources=true";
+                + ";newDatabaseVersion=V2010";
         provider = () -> DriverManager.getConnection(url);
         try (Connection connection = provider.open()) {
             executeSchema(connection, Path.of("..", "vcampus-database", "schema", "001_common.sql"));
