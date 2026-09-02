@@ -4,9 +4,7 @@ import edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopRoute;
 import edu.seu.vcampus.client.shop.ui.style.ShopPageState;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
-import edu.seu.vcampus.common.shop.HomeProductQuery;
 import edu.seu.vcampus.common.shop.PaymentView;
-import edu.seu.vcampus.common.shop.ProductSortMode;
 
 import javax.swing.JButton;
 import javax.swing.JLabel;
@@ -30,12 +28,10 @@ public final class PaymentResultPanel extends JPanel {
     }
 
     public void openHome() {
-        navigator.reset(new ShopRoute.Home(new HomeProductQuery(null, null,
-                ProductSortMode.SALES_DESC, 0, 20)));
+        navigator.resetToDefaultHome();
     }
     public void openPaidOrders() {
-        navigator.openFromRoot(new ShopRoute.Home(new HomeProductQuery(null, null,
-                ProductSortMode.SALES_DESC, 0, 20)), new ShopRoute.My());
+        navigator.openFromRoot(ShopRoute.defaultHome(), new ShopRoute.My());
     }
 
     private void render() {

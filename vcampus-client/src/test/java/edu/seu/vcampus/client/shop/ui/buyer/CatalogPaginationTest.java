@@ -138,7 +138,7 @@ class CatalogPaginationTest {
                 "雨伞", "生活用品", new BigDecimal("10.00"), new BigDecimal("80.00"),
                 ProductSortMode.PRICE_DESC, 0, 1);
 
-        onEdt(() -> navigator.reset(new ShopRoute.Search(
+        onEdt(() -> navigator.openFromRoot(ShopRoute.defaultHome(), new ShopRoute.Search(
                 new SearchViewState(first, true, true, 0))));
         flushUi();
         assertThat(component(panel, "keyword", JTextField.class)
@@ -165,7 +165,7 @@ class CatalogPaginationTest {
         assertThat(client.searchQueries).containsExactly(first, second);
         assertThat(navigator.current()).contains(new ShopRoute.Search(
                 new SearchViewState(second, true, true, 0)));
-        assertThat(navigator.history()).isEmpty();
+        assertThat(navigator.history()).containsExactly(ShopRoute.defaultHome());
 
         onEdt((Runnable) next::doClick);
         flushUi();
@@ -190,7 +190,7 @@ class CatalogPaginationTest {
         assertThat(client.searchQueries.getLast()).isEqualTo(submitted);
         assertThat(navigator.current()).contains(new ShopRoute.Search(
                 new SearchViewState(submitted, true, true, 0)));
-        assertThat(navigator.history()).isEmpty();
+        assertThat(navigator.history()).containsExactly(ShopRoute.defaultHome());
     }
 
     @Test
@@ -218,7 +218,7 @@ class CatalogPaginationTest {
                 "shop-1", "本", "图书", new BigDecimal("20.00"), new BigDecimal("90.00"),
                 ProductSortMode.SALES_DESC, 0, 1);
 
-        onEdt(() -> navigator.reset(new ShopRoute.Storefront(
+        onEdt(() -> navigator.openFromRoot(ShopRoute.defaultHome(), new ShopRoute.Storefront(
                 new StorefrontViewState(first, 0))));
         flushUi();
         JButton next = component(panel, "storefront.pagination.next", JButton.class);
@@ -233,7 +233,7 @@ class CatalogPaginationTest {
         assertThat(client.shopQueries).containsExactly(first, second);
         assertThat(navigator.current()).contains(new ShopRoute.Storefront(
                 new StorefrontViewState(second, 0)));
-        assertThat(navigator.history()).isEmpty();
+        assertThat(navigator.history()).containsExactly(ShopRoute.defaultHome());
     }
 
     private static void flushUi() throws Exception {

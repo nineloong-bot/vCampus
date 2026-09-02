@@ -62,6 +62,21 @@ import static org.mockito.Mockito.when;
 
 class PurchasePanelsTest {
     @Test
+    void cartProductPreviewReturnsToCartAndCheckoutPreviewReturnsToCheckout() {
+        ShopNavigator navigator = new ShopNavigator(route -> { });
+        navigator.open(ShopRoute.defaultHome());
+        navigator.open(new ShopRoute.Cart());
+        navigator.open(new ShopRoute.Product("cart-product"));
+        navigator.back();
+        assertThat(navigator.current()).contains(new ShopRoute.Cart());
+
+        navigator.open(new ShopRoute.Checkout());
+        navigator.open(new ShopRoute.Product("checkout-product"));
+        navigator.back();
+        assertThat(navigator.current()).contains(new ShopRoute.Checkout());
+    }
+
+    @Test
     void cartUsesItemIdentityAndRowVersionAndRendersReturnedCart() throws Exception {
         ShopClientPort client = mock(ShopClientPort.class);
         CartView initial = ShopClientFixtures.cartView();
@@ -411,6 +426,8 @@ class PurchasePanelsTest {
         assertThat(navigator.current()).contains(new ShopRoute.PaymentResult(
                 payment(PaymentStatus.SUCCEEDED, PaymentChannel.ALIPAY)));
         assertThat(navigator.history()).noneMatch(ShopRoute.Checkout.class::isInstance);
+        navigator.back();
+        assertThat(navigator.current()).contains(ShopRoute.defaultHome());
         assertThat(cashier.isClosed()).isTrue();
     }
 
@@ -443,7 +460,7 @@ class PurchasePanelsTest {
 
         assertThat(count.totalQuantity()).isZero();
         assertThat(navigator.current()).contains(new ShopRoute.PaymentResult(success));
-        assertThat(navigator.history()).isEmpty();
+        assertThat(navigator.history()).containsExactly(ShopRoute.defaultHome());
     }
 
     @Test

@@ -50,14 +50,14 @@ public final class SimulatedCashierDialog extends JDialog implements CheckoutPan
     public SimulatedCashierDialog(Window owner, ShopClientPort client, ShopNavigator navigator,
             ShopUiKit uiKit, CheckoutResult checkout, Runnable sessionExpired) {
         this(owner, client, navigator, uiKit, checkout, sessionExpired,
-                payment -> navigator.replaceCurrent(new ShopRoute.PaymentResult(payment)),
+                payment -> navigator.completeCheckout(new ShopRoute.PaymentResult(payment)),
                 () -> { }, () -> { });
     }
 
     SimulatedCashierDialog(Window owner, ShopClientPort client, ShopNavigator navigator,
             ShopUiKit uiKit, CheckoutResult checkout, Runnable sessionExpired, Runnable closed) {
         this(owner, client, navigator, uiKit, checkout, sessionExpired,
-                payment -> navigator.replaceCurrent(new ShopRoute.PaymentResult(payment)),
+                payment -> navigator.completeCheckout(new ShopRoute.PaymentResult(payment)),
                 () -> { }, closed);
     }
 
