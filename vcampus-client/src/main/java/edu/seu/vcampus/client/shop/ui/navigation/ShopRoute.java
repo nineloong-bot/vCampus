@@ -13,6 +13,11 @@ public sealed interface ShopRoute permits ShopRoute.Home, ShopRoute.Search,
         ShopRoute.Product, ShopRoute.Storefront, ShopRoute.Cart,
         ShopRoute.Checkout, ShopRoute.PaymentResult, ShopRoute.My,
         ShopRoute.SellerApplication, ShopRoute.SellerWorkspace, ShopRoute.AdminWorkspace {
+    static Home defaultHome() {
+        return new Home(new HomeProductQuery(null, null,
+                ProductSortMode.SALES_DESC, 0, 20));
+    }
+
     record Home(HomeViewState state) implements ShopRoute {
         public Home { Objects.requireNonNull(state, "state"); }
         public Home(HomeProductQuery query) { this(new HomeViewState(query, 0)); }
