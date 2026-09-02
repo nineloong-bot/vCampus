@@ -7,6 +7,7 @@ import edu.seu.vcampus.client.user.service.UserClientService;
 import edu.seu.vcampus.client.user.ui.UserUiCoordinator;
 
 import javax.swing.SwingUtilities;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,7 +30,7 @@ public final class ClientMain {
             int connectTimeout = integer(properties, "connection.timeoutSeconds", 1, 300);
             ClientConnection connection = new ClientConnection(host, port);
             Duration timeout = Duration.ofSeconds(connectTimeout);
-            connection.connect(timeout);
+            connectForStartup(connection, timeout);
             Runtime.getRuntime().addShutdownHook(new Thread(connection::close, "vcampus-client-close"));
             UserClientService users = new UserClientService(
                     connection, UUID.randomUUID().toString(), timeout);
@@ -41,6 +42,14 @@ public final class ClientMain {
         } catch (Exception error) {
             System.err.println("客户端启动失败：" + error.getMessage());
             System.exit(2);
+        }
+    }
+
+    static void connectForStartup(ClientConnection connection, Duration timeout) {
+        try {
+            connection.connect(timeout);
+        } catch (IOException error) {
+            System.err.println("服务器连接失败，可在登录页查看连接状态：" + error.getMessage());
         }
     }
 

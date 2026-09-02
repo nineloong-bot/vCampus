@@ -4,6 +4,8 @@ import edu.seu.vcampus.client.core.navigation.PageNavigator;
 import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.course.service.CourseClientService;
 import edu.seu.vcampus.client.course.ui.CourseUiComposition;
+import edu.seu.vcampus.client.library.service.LibraryClientService;
+import edu.seu.vcampus.client.library.ui.LibraryWorkspacePanel;
 import edu.seu.vcampus.client.core.ui.shell.ApplicationStatusBar;
 import edu.seu.vcampus.client.core.ui.shell.IdentityHeader;
 import edu.seu.vcampus.client.core.ui.shell.ModulePlaceholderPage;
@@ -24,6 +26,7 @@ import java.awt.GridLayout;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Shared application shell containing identity, navigation, content, and status seams. */
@@ -103,6 +106,15 @@ public final class MainFrame extends JFrame {
                 removeAuthenticationFailureListener.run();
             }
         });
+    }
+
+    /** Creates the user shell with the permission-filtered library workspace. */
+    public MainFrame(UserView user, ClientConnection connection,
+                     LibraryClientService library, Set<String> permissions) {
+        this(user, connection, (StudentClientService) null);
+        Objects.requireNonNull(library, "library");
+        installPage("library", new LibraryWorkspacePanel(library,
+                Objects.requireNonNull(permissions, "permissions"), user.role()));
     }
 
     private void registerPages(UserView user, ClientConnection connection,
