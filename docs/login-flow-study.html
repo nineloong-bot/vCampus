@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>vCampus 登录链路学习笔记</title>
+  <style>
+    :root { color-scheme: light; --ink:#172033; --muted:#667085; --line:#dbe2ea; --brand:#2457d6; --soft:#f5f7fb; }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; color:var(--ink); background:white; font:16px/1.75 "Microsoft YaHei",system-ui,sans-serif; }
+    aside { position:fixed; inset:0 auto 0 0; width:270px; overflow:auto; padding:28px 20px; background:var(--soft); border-right:1px solid var(--line); }
+    aside h1 { margin:0 0 4px; font-size:20px; }
+    aside p { margin:0 0 18px; color:var(--muted); font-size:13px; }
+    nav a { display:block; padding:6px 8px; color:#344054; text-decoration:none; border-radius:6px; font-size:14px; }
+    nav a:hover { color:var(--brand); background:#e9eefc; }
+    main { max-width:980px; margin-left:270px; padding:48px 64px 100px; }
+    header { padding-bottom:28px; border-bottom:1px solid var(--line); }
+    header h1 { margin:0 0 8px; font-size:34px; }
+    header p { margin:0; color:var(--muted); }
+    section { scroll-margin-top:20px; padding-top:32px; }
+    h2 { margin:0 0 14px; font-size:24px; }
+    h2 code { color:var(--brand); background:#eef3ff; }
+    code { padding:.12em .35em; border-radius:4px; background:#f0f2f5; font-family:Consolas,monospace; }
+    pre { overflow:auto; padding:18px; border:1px solid var(--line); border-radius:10px; background:#111827; color:#e5e7eb; line-height:1.55; }
+    pre code { padding:0; background:none; color:inherit; }
+    .flow { color:#d1fae5; }
+    .note { padding:14px 16px; border-left:4px solid var(--brand); background:#f3f6ff; }
+    .good { border-left-color:#16865b; background:#effaf5; }
+    .warn { border-left-color:#d97706; background:#fff8eb; }
+    ul,ol { padding-left:24px; }
+    footer { margin-top:52px; padding-top:20px; color:var(--muted); border-top:1px solid var(--line); }
+    @media (max-width:800px) { aside { position:static; width:auto; } main { margin:0; padding:28px 22px 70px; } }
+  </style>
+</head>
+<body>
+<aside>
+  <h1>vCampus 登录链路</h1>
+  <p>第一次回答 · 学习导航版</p>
+  <nav>
+    <a href="#overview">总览</a>
+    <a href="#login-1">登录-1 客户端启动</a>
+    <a href="#login-2">登录-2 展示登录窗口</a>
+    <a href="#login-3">登录-3 提交登录</a>
+    <a href="#login-4">登录-4 公共登录协议</a>
+    <a href="#login-5">登录-5 Socket 请求</a>
+    <a href="#login-6">登录-6 服务端路由</a>
+    <a href="#login-7">登录-7 账户查询与锁</a>
+    <a href="#login-8">登录-8 密码验证与锁定</a>
+    <a href="#login-9">登录-9 创建会话</a>
+    <a href="#login-10">登录-10 保存 Token</a>
+    <a href="#login-11">登录-11 后续鉴权</a>
+    <a href="#login-12">登录-12 当前评价</a>
+    <a href="#ask">如何针对性提问</a>
+  </nav>
+</aside>
+
+<main>
+  <header>
+    <h1>从登录线路理解 vCampus</h1>
+    <p>Java 多模块桌面 C/S：Swing 客户端、Socket 协议、服务端分层和 Access 数据库。</p>
+  </header>
+
+  <section id="overview">
+    <h2>总览</h2>
+    <ul>
+      <li><code>vcampus-client</code>：Swing 桌面客户端</li>
+      <li><code>vcampus-common</code>：共享协议、命令和 DTO</li>
+      <li><code>vcampus-server</code>：Socket 服务、业务、鉴权和持久化</li>
+      <li><code>vcampus-database</code>：Access 数据库结构和种子数据</li>
+    </ul>
+    <pre class="flow"><code>ClientMain
+  → UserUiCoordinator
+  → LoginFrame
+  → UserClientService
+  → ClientConnection / Socket
+  → MessageRouter
+  → UserLoginHandler
+  → AuthenticationService
+  → CredentialAuthenticator
+  → AccessUserRepository
+  → SessionRegistry
+  → LoginResult
+  → MainFrame</code></pre>
+  </section>
+
+  <section id="login-1">
+    <h2><code>登录-1</code> 客户端启动</h2>
+    <p>入口是 <code>ClientMain.main()</code>。它读取 <code>config/client.properties</code>，取得服务器地址、端口和超时时间，创建共享连接与各客户端服务，最后在 Swing EDT 中安装主题并启动认证协调器。</p>
+    <pre><code>ClientConnection connection = new ClientConnection(host, port);
+connection.connect(timeout);
+UserClientService users = new UserClientService(
+        connection, UUID.randomUUID().toString(), timeout);
+SwingUtilities.invokeLater(() ->
+        new UserUiCoordinator(users, connection, library).start());</code></pre>
+    <p class="note">现在的代码已调整为：服务器暂时连接失败也会进入登录页，连接状态显示失败；配置文件本身无效仍属于启动错误。</p>
+  </section>
+
+  <section id="login-2">
+    <h2><code>登录-2</code> 展示登录窗口</h2>
+    <p><code>UserUiCoordinator</code> 负责认证窗口之间的流转。启动时显示 <code>LoginFrame</code>；成功后根据 <code>mustChangePassword</code> 分流。</p>
+    <pre class="flow"><code>mustChangePassword = true
+  → InitialPasswordChangeDialog
+  → 修改成功后返回登录页重新登录
+
+mustChangePassword = false
+  → MainFrame
+  → 进入系统主界面</code></pre>
+    <p>首次密码账户不会先看到主界面，这是客户端的第一层隔离。</p>
+  </section>
+
+  <section id="login-3">
+    <h2><code>登录-3</code> 用户提交登录</h2>
+    <p><code>LoginFrame.submitLogin()</code> 从密码框取得 <code>char[]</code>，清空输入框并禁用按钮，然后异步调用登录服务。</p>
+    <pre><code>CompletableFuture&lt;LoginResult&gt; response;
+response = users.login(loginId.getText(), submittedPassword);
+response.whenComplete((result, failure) -&gt;
+        onEdt(() -&gt; finish(result, failure)));</code></pre>
+    <p><code>CompletableFuture</code> 代表“未来才会取得的登录结果”。网络线程不会阻塞 Swing EDT，因此窗口不会卡死；完成后再回 EDT 更新界面。</p>
+  </section>
+
+  <section id="login-4">
+    <h2><code>登录-4</code> 公共登录协议与密码保护</h2>
+    <p><code>UserClientService</code> 使用命令名 <code>USER_LOGIN</code>，请求体是公共模块中的 <code>LoginCommand</code>：</p>
+    <pre><code>public record LoginCommand(
+        String loginId,
+        char[] password,
+        String clientInstanceId) implements Serializable</code></pre>
+    <p>密码不用不可变的 <code>String</code>，而使用可清除的 <code>char[]</code>。命令构造时复制密码并清除调用者数组；访问密码时返回防御性副本；发送结束、服务端处理结束和 UI 层都会清零各自持有的数组。</p>
+  </section>
+
+  <section id="login-5">
+    <h2><code>登录-5</code> Socket 请求发送</h2>
+    <p><code>ClientConnection</code> 为每个请求生成 UUID，并将命令、token、请求体和时间戳包装为 <code>Message</code>。</p>
+    <pre><code>Message request = new Message(
+        requestId, MessageType.REQUEST, command,
+        sessionToken, body, System.currentTimeMillis());</code></pre>
+    <p>登录前 token 为空。连接内部由一个读线程接收响应，<code>PendingRequests</code> 按 requestId 将响应交给对应 Future；写锁保证多个线程不会把对象流写乱。</p>
+  </section>
+
+  <section id="login-6">
+    <h2><code>登录-6</code> 服务端路由</h2>
+    <p><code>MessageRouter</code> 根据 <code>message.command()</code> 查找处理器。<code>UserHandlers</code> 把 <code>USER_LOGIN</code> 注册给 <code>UserLoginHandler</code>。</p>
+    <p>登录处理器检查消息体、调用 <code>UserService.login()</code>、包装成功响应、映射安全错误，并在 finally 中清除命令密码。登录结果含有效 token，因此登录请求刻意不进入持久化响应去重器。</p>
+  </section>
+
+  <section id="login-7">
+    <h2><code>登录-7</code> 账户查询与同账户并发锁</h2>
+    <p><code>AuthenticationService</code> 先将登录标识执行 <code>strip().toUpperCase(Locale.ROOT)</code>，所以大小写和首尾空格不会影响查询。</p>
+    <p><code>AccessUserRepository</code> 使用参数化 SQL 查询账户。账户不存在时统一返回无效凭据并写失败审计；账户存在时按 userId 获取资源锁，使同一账户的并发登录尝试串行执行，避免失败次数和锁定时间相互覆盖。</p>
+  </section>
+
+  <section id="login-8">
+    <h2><code>登录-8</code> 密码验证、账户状态与锁定</h2>
+    <pre class="flow"><code>重新读取账户
+  → 校验密码
+  → 密码错误：增加失败次数
+  → 密码正确：检查账户状态和锁定状态
+  → 重置失败次数并更新最后登录时间
+  → 查询角色权限
+  → 写成功审计</code></pre>
+    <p>密码使用 PBKDF2-HMAC-SHA256、16 字节随机盐、120,000 次迭代和 256 位哈希，并使用 <code>MessageDigest.isEqual()</code> 比较。</p>
+    <ul>
+      <li>连续密码错误达到 5 次，锁定 15 分钟。</li>
+      <li>锁定期间继续尝试不会继续增加次数。</li>
+      <li>成功登录会把失败次数归零并清除锁定时间。</li>
+      <li>数据库更新带 <code>rowVersion</code> 乐观锁。</li>
+    </ul>
+  </section>
+
+  <section id="login-9">
+    <h2><code>登录-9</code> 创建会话</h2>
+    <p>认证成功后，<code>SessionRegistry</code> 使用 <code>SecureRandom</code> 生成 32 个随机字节并编码为 URL-safe Base64 token。</p>
+    <ul>
+      <li>会话只保存在服务端内存。</li>
+      <li>默认空闲超时为 30 分钟。</li>
+      <li>成功鉴权会刷新空闲时间。</li>
+      <li>服务端重启后所有会话失效。</li>
+      <li>修改密码会撤销该用户全部会话。</li>
+    </ul>
+    <p><code>LoginResult</code> 返回 token、用户视图、权限集合和首次改密标志，不包含密码、哈希或盐。</p>
+  </section>
+
+  <section id="login-10">
+    <h2><code>登录-10</code> 客户端保存 Token 并进入主界面</h2>
+    <p>客户端收到成功响应后，把 token 放进共享 <code>ClientConnection</code>。后续请求自动携带该 token。token 只驻留内存，不写配置或数据库，退出客户端即丢失。</p>
+    <p>普通账户进入 <code>MainFrame</code>。目前图书馆接入真实工作区，学籍、课程、商城和账户设置仍以占位页面为主；五个一级入口固定显示，权限主要用于图书馆内部功能过滤。</p>
+  </section>
+
+  <section id="login-11">
+    <h2><code>登录-11</code> 登录后的服务端鉴权</h2>
+    <p><code>requireSession(token)</code> 只要求会话存在且未超时；<code>requirePermission(token, code)</code> 还要求会话不是首次改密受限状态，并包含指定权限。</p>
+    <p class="note good">客户端隐藏按钮只是用户体验，真正的安全边界在服务端。首次密码账户即使绕过客户端，也不能调用普通受保护功能。</p>
+  </section>
+
+  <section id="login-12">
+    <h2><code>登录-12</code> 当前实现评价</h2>
+    <p><strong>做得比较扎实：</strong>模块职责清晰、异步 UI、密码数组清零、PBKDF2 加盐哈希、失败锁定、资源锁、乐观锁、服务端权限、随机内存 token、会话超时与审计。</p>
+    <p class="note warn"><strong>当前限制：</strong>普通 TCP 没有 TLS；Java 原生反序列化要求两端可信；目前没有自动重连；会话不持久化；一级导航尚未真正按权限过滤；除图书馆外多数业务入口仍未完成。</p>
+  </section>
+
+  <section id="ask">
+    <h2>如何针对性提问</h2>
+    <p>在 Codex 里直接输入页面左侧的编号即可，无需复制整段：</p>
+    <pre><code>解释 登录-8
+登录-5 的 PendingRequests 是怎么匹配响应的？
+登录-7 为什么事务里还要重新读取账户？
+对比 登录-4 和 登录-8 中的密码保护。</code></pre>
+  </section>
+
+  <footer>本地学习文档 · vCampus 登录链路</footer>
+</main>
+</body>
+</html>

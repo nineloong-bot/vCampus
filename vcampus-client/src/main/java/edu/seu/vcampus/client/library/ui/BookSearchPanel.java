@@ -13,6 +13,8 @@ import java.util.List;
 public final class BookSearchPanel extends LibraryDataPanel {
     private final LibraryClientService service;
     private final JTextField keyword = new JTextField(24);
+    private final JComboBox<String> field = new JComboBox<>(new String[]{
+            "全部栏目", "书名", "作者", "ISBN", "分类", "出版社"});
     private final JButton search = new JButton("查询馆藏");
     private List<BookSummary> books = List.of();
     private BookDetailPanel detail;
@@ -28,6 +30,8 @@ public final class BookSearchPanel extends LibraryDataPanel {
                 BorderFactory.createEmptyBorder(8, 10, 8, 10)));
         filters.add(new JLabel("关键词"));
         filters.add(keyword);
+        field.setName("library.book-search-field");
+        filters.add(field);
         filters.add(search);
         add(filters, BorderLayout.SOUTH);
         search.addActionListener(event -> search());
@@ -43,7 +47,8 @@ public final class BookSearchPanel extends LibraryDataPanel {
         long request = beginRequest();
         search.setEnabled(false);
         status.setText("正在加载馆藏……");
-        service.searchBooks(new BookSearchQuery(keyword.getText().trim(), null, false, 1, 20))
+        service.searchBooks(new BookSearchQuery(keyword.getText().trim(), selectedField(),
+                null, false, 1, 20))
                 .whenComplete((page, failure) -> SwingUtilities.invokeLater(() -> {
                     if (!accepts(request)) return;
                     search.setEnabled(true);
@@ -59,6 +64,10 @@ public final class BookSearchPanel extends LibraryDataPanel {
                     status.setText(page.items().isEmpty() ? "未找到符合条件的馆藏，可调整关键词重试"
                             : "共 " + page.total() + " 条");
                 }));
+    }
+
+    private BookSearchField selectedField() {
+        return BookSearchField.values()[field.getSelectedIndex()];
     }
 
     private void loadSelectedDetail() {

@@ -56,7 +56,25 @@ public final class LibraryWorkspacePanel extends JPanel {
             addTab("设置", settings, settings::refreshStatus);
         }
         tabs.addChangeListener(event -> refreshSelected());
-        add(tabs, BorderLayout.CENTER);
+        JButton refresh = new JButton("刷新当前页");
+        refresh.setName("library.refresh-current");
+        refresh.setMargin(new Insets(0, 10, 0, 10));
+        refresh.addActionListener(event -> refreshSelected());
+        JLayeredPane tabArea = new JLayeredPane() {
+            @Override public void doLayout() {
+                tabs.setBounds(0, 0, getWidth(), getHeight());
+                tabs.doLayout();
+                Dimension size = refresh.getPreferredSize();
+                Rectangle lastTab = tabs.getBoundsAt(tabs.getTabCount() - 1);
+                int x = Math.max(lastTab.x + lastTab.width + 8,
+                        getWidth() - size.width - 12);
+                int width = Math.max(0, Math.min(size.width, getWidth() - x - 12));
+                refresh.setBounds(x, lastTab.y, width, lastTab.height);
+            }
+        };
+        tabArea.add(tabs, JLayeredPane.DEFAULT_LAYER);
+        tabArea.add(refresh, JLayeredPane.PALETTE_LAYER);
+        add(tabArea, BorderLayout.CENTER);
         LibraryUiStyle.styleTabs(tabs);
         LibraryUiStyle.apply(this);
     }

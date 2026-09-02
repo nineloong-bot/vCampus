@@ -1,6 +1,7 @@
 package edu.seu.vcampus.server.library.repository;
 
 import edu.seu.vcampus.common.library.BookSearchQuery;
+import edu.seu.vcampus.common.library.BookSearchField;
 import edu.seu.vcampus.common.library.CopyStatus;
 import edu.seu.vcampus.server.library.domain.Book;
 import edu.seu.vcampus.server.library.domain.BookCopy;
@@ -59,6 +60,27 @@ class LibraryCatalogRepositoryTest {
             });
             assertThat(books.requireDetail(connection, "book-1").copies())
                     .singleElement().extracting(copy -> copy.barcode()).isEqualTo("BC-1");
+        }
+    }
+
+    @Test
+    void searchesTheSelectedMetadataFieldOrAnyMetadataField() throws Exception {
+        try (Connection connection = connections.open()) {
+            books.insertBook(connection, book("book-1", "9787300000001", "Java 21"));
+            books.insertBook(connection, book("book-2", "9787300000002", "数据库系统"));
+
+            assertThat(books.search(connection, new BookSearchQuery("Author",
+                    BookSearchField.TITLE, null, false, 1, 20)).total()).isZero();
+            assertThat(books.search(connection, new BookSearchQuery("Author",
+                    BookSearchField.AUTHOR, null, false, 1, 20)).total()).isEqualTo(2);
+            assertThat(books.search(connection, new BookSearchQuery("0001",
+                    BookSearchField.ISBN, null, false, 1, 20)).total()).isEqualTo(1);
+            assertThat(books.search(connection, new BookSearchQuery("COMPUTER",
+                    BookSearchField.CATEGORY, null, false, 1, 20)).total()).isEqualTo(2);
+            assertThat(books.search(connection, new BookSearchQuery("SEU Press",
+                    BookSearchField.PUBLISHER, null, false, 1, 20)).total()).isEqualTo(2);
+            assertThat(books.search(connection, new BookSearchQuery("SEU Press",
+                    BookSearchField.ANY, null, false, 1, 20)).total()).isEqualTo(2);
         }
     }
 

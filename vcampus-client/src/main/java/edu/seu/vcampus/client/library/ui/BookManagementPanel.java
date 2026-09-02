@@ -10,6 +10,8 @@ import javax.swing.table.DefaultTableModel;
 public final class BookManagementPanel extends LibraryDataPanel {
     private final LibraryClientService service;
     private final JTextField keyword = new JTextField(18);
+    private final JComboBox<String> field = new JComboBox<>(new String[]{
+            "全部栏目", "书名", "作者", "ISBN", "分类", "出版社"});
     private List<BookSummary> books = List.of();
     public BookManagementPanel(LibraryClientService service) {
         super("library.book-management", "书目管理", "新增、搜索或维护书目元数据。", "ISBN", "书名", "作者", "状态");
@@ -20,7 +22,7 @@ public final class BookManagementPanel extends LibraryDataPanel {
         create.addActionListener(event -> openCreateDialog());
         edit.addActionListener(event -> editSelected());
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT)); actions.setOpaque(false);
-        actions.add(new JLabel("书名 / 作者 / ISBN")); actions.add(keyword);
+        actions.add(new JLabel("关键词")); actions.add(keyword); actions.add(field);
         actions.add(refresh); actions.add(edit); actions.add(create); add(actions, BorderLayout.SOUTH);
         keyword.addActionListener(event -> refresh());
     }
@@ -62,7 +64,8 @@ public final class BookManagementPanel extends LibraryDataPanel {
 
     public void refresh() {
         long request = beginRequest(); status.setText("正在加载书目……");
-        service.searchManagedBooks(new BookSearchQuery(keyword.getText().trim(), null, false, 1, 100)).whenComplete((page, failure) ->
+        service.searchManagedBooks(new BookSearchQuery(keyword.getText().trim(),
+                BookSearchField.values()[field.getSelectedIndex()], null, false, 1, 100)).whenComplete((page, failure) ->
                 SwingUtilities.invokeLater(() -> {
                     if (!accepts(request)) return;
                     if (failure != null) { LibraryFeedback.failure(this, status, failure, "书目加载失败，请重试。"); return; }

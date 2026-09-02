@@ -32,7 +32,8 @@ public final class BookDetailPanel extends LibraryDataPanel {
         copies = book.copies();
         DefaultTableModel model = (DefaultTableModel) table.getModel();
         model.setRowCount(0);
-        for (BookCopyView copy : copies) model.addRow(new Object[]{copy.barcode(), copy.locationCode(), copy.status().name()});
+        for (BookCopyView copy : copies) model.addRow(new Object[]{copy.barcode(), copy.locationCode(),
+                LibraryStatusText.copy(copy.status())});
         status.setText(book.title() + " · " + book.author() + " · " + book.isbn());
     }
 

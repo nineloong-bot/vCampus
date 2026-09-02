@@ -83,10 +83,11 @@ public final class CopyManagementPanel extends LibraryDataPanel {
                 || row.title().toLowerCase(Locale.ROOT).contains(query)
                 || row.copy().barcode().toLowerCase(Locale.ROOT).contains(query)
                 || row.copy().locationCode().toLowerCase(Locale.ROOT).contains(query)
-                || row.copy().status().name().toLowerCase(Locale.ROOT).contains(query)).toList();
+                || LibraryStatusText.copy(row.copy().status()).contains(query)).toList();
         copies = visible.stream().map(CopyRow::copy).toList();
         DefaultTableModel model = (DefaultTableModel) table.getModel(); model.setRowCount(0);
-        for (CopyRow row : visible) model.addRow(new Object[]{row.copy().barcode(), row.title(), row.copy().locationCode(), row.copy().status()});
+        for (CopyRow row : visible) model.addRow(new Object[]{row.copy().barcode(), row.title(),
+                row.copy().locationCode(), LibraryStatusText.copy(row.copy().status())});
         status.setText(visible.isEmpty() ? "未找到符合条件的副本" : "显示 " + visible.size() + " / " + allCopies.size() + " 个副本");
     }
 
@@ -112,6 +113,12 @@ public final class CopyManagementPanel extends LibraryDataPanel {
                         ? new CopyStatus[]{CopyStatus.DAMAGED}
                         : new CopyStatus[]{CopyStatus.AVAILABLE};
         JComboBox<CopyStatus> state = new JComboBox<>(targets);
+        state.setRenderer((list, value, index, selected, focused) -> {
+            JLabel label = (JLabel) new DefaultListCellRenderer().getListCellRendererComponent(
+                    list, value, index, selected, focused);
+            label.setText(value == null ? "" : LibraryStatusText.copy(value));
+            return label;
+        });
         JPanel form = form(new String[]{"馆藏条码", "目标状态"}, new JComponent[]{new JLabel(copy.barcode()), state});
         String title = copy.status() == CopyStatus.LOST ? "登记遗失副本已找回" : "变更副本状态";
         if (JOptionPane.showConfirmDialog(this, form, title, JOptionPane.OK_CANCEL_OPTION,

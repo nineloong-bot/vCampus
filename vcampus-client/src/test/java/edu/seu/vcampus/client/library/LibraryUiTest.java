@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.swing.JTabbedPane;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JTable;
 import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
@@ -278,7 +279,7 @@ class LibraryUiTest {
         panel.loadCopies(); SwingUtilities.invokeAndWait(() -> { });
         panel.changeStatus(command); SwingUtilities.invokeAndWait(() -> { });
 
-        assertThat(first(panel, JTable.class).getValueAt(0, 3)).isEqualTo(CopyStatus.AVAILABLE);
+        assertThat(first(panel, JTable.class).getValueAt(0, 3)).isEqualTo("可借");
         assertThat(labels(panel)).contains("副本状态已更新");
     }
 
@@ -400,6 +401,69 @@ class LibraryUiTest {
         verify(service, atLeastOnce()).searchManagedBooks(
                 new BookSearchQuery("", null, false, 1, 100));
         verify(service).searchAllLoans(new AdminLoanSearchQuery(null, null, 1, 20));
+    }
+
+    @Test
+    void unifiedRefreshButtonReloadsTheCurrentlySelectedLibraryPage() throws Exception {
+        when(service.searchBooks(any())).thenReturn(CompletableFuture.completedFuture(
+                new PageResult<>(List.of(), 1, 20, 0)));
+        LibraryWorkspacePanel workspace = new LibraryWorkspacePanel(service, Set.of());
+
+        JButton refresh = (JButton) button(workspace, "刷新当前页");
+        assertThat(refresh).isNotNull();
+        refresh.doClick();
+        SwingUtilities.invokeAndWait(() -> { });
+
+        verify(service).searchBooks(new BookSearchQuery("", null, false, 1, 20));
+    }
+
+    @Test
+    void catalogSearchOffersEveryBookFieldAndAnAnyFieldOption() {
+        BookSearchPanel panel = new BookSearchPanel(service);
+
+        JComboBox<?> field = (JComboBox<?>) named(panel, "library.book-search-field");
+
+        assertThat(field).isNotNull();
+        assertThat(java.util.stream.IntStream.range(0, field.getItemCount())
+                .mapToObj(index -> String.valueOf(field.getItemAt(index))).toList())
+                .containsExactly("全部栏目", "书名", "作者", "ISBN", "分类", "出版社");
+    }
+
+    @Test
+    void bookCopyStatusesAreDisplayedInConsistentChinese() {
+        BookDetailPanel panel = new BookDetailPanel(service);
+        panel.showBook(new BookDetail("book-1", "978", "Java 核心技术", "作者", "出版社",
+                LocalDate.of(2026, 1, 1), "计算机", "", true, 0,
+                java.util.Arrays.stream(CopyStatus.values())
+                        .map(status -> new BookCopyView(status.name(), "book-1", status.name(),
+                                "A-01", status, 0))
+                        .toList()));
+
+        JTable table = first(panel, JTable.class);
+        assertThat(java.util.stream.IntStream.range(0, table.getRowCount())
+                .mapToObj(row -> table.getValueAt(row, 2)).toList())
+                .containsExactly("可借", "已借出", "已遗失", "已损坏");
+    }
+
+    @Test
+    void unifiedRefreshButtonSharesTheTabStripInsteadOfAddingAnotherRow() {
+        LibraryWorkspacePanel workspace = new LibraryWorkspacePanel(service, Set.of());
+        workspace.setSize(1000, 700);
+        workspace.doLayout();
+        JTabbedPane tabs = (JTabbedPane) named(workspace, "library.tabs");
+        JButton refresh = (JButton) button(workspace, "刷新当前页");
+        tabs.getParent().doLayout();
+        refresh.getParent().doLayout();
+
+        Rectangle refreshBounds = SwingUtilities.convertRectangle(
+                refresh.getParent(), refresh.getBounds(), workspace);
+
+        Rectangle lastTab = tabs.getBoundsAt(tabs.getTabCount() - 1);
+        Rectangle lastTabBounds = SwingUtilities.convertRectangle(tabs, lastTab, workspace);
+        assertThat(refreshBounds.y).isEqualTo(lastTabBounds.y);
+        assertThat(refreshBounds.x).isGreaterThanOrEqualTo(lastTabBounds.x + lastTabBounds.width);
+        assertThat(refreshBounds.y + refreshBounds.height)
+                .isLessThanOrEqualTo(lastTabBounds.y + lastTabBounds.height);
     }
 
     @Test

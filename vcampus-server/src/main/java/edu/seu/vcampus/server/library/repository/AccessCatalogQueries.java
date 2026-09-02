@@ -3,6 +3,7 @@ package edu.seu.vcampus.server.library.repository;
 import edu.seu.vcampus.common.library.BookCopyView;
 import edu.seu.vcampus.common.library.BookDetail;
 import edu.seu.vcampus.common.library.BookSearchQuery;
+import edu.seu.vcampus.common.library.BookSearchField;
 import edu.seu.vcampus.common.library.BookSummary;
 import edu.seu.vcampus.common.library.CopyStatus;
 import edu.seu.vcampus.common.paging.PageResult;
@@ -26,11 +27,24 @@ final class AccessCatalogQueries {
         if (!includeInactive) sql.append(" AND isActive = TRUE");
         List<String> values = new ArrayList<>();
         if (hasText(query.keyword())) {
-            sql.append(" AND (title LIKE ? OR author LIKE ? OR isbn LIKE ?)");
             String pattern = "%" + query.keyword().trim() + "%";
-            values.add(pattern);
-            values.add(pattern);
-            values.add(pattern);
+            BookSearchField field = query.field() == null ? BookSearchField.ANY : query.field();
+            if (field == BookSearchField.ANY) {
+                sql.append(" AND (title LIKE ? OR author LIKE ? OR isbn LIKE ?"
+                        + " OR category LIKE ? OR publisher LIKE ?)");
+                for (int index = 0; index < 5; index++) values.add(pattern);
+            } else {
+                String column = switch (field) {
+                    case TITLE -> "title";
+                    case AUTHOR -> "author";
+                    case ISBN -> "isbn";
+                    case CATEGORY -> "category";
+                    case PUBLISHER -> "publisher";
+                    case ANY -> throw new IllegalStateException("ANY handled above");
+                };
+                sql.append(" AND ").append(column).append(" LIKE ?");
+                values.add(pattern);
+            }
         }
         if (hasText(query.category())) {
             sql.append(" AND category = ?");
