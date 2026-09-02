@@ -2,6 +2,8 @@ package edu.seu.vcampus.client.user.ui;
 
 import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.core.ui.MainFrame;
+import edu.seu.vcampus.client.course.service.CourseClientService;
+import edu.seu.vcampus.client.course.ui.CourseUiComposition;
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.client.user.service.UserClientService;
 import edu.seu.vcampus.common.user.LoginResult;
@@ -10,6 +12,7 @@ import javax.swing.SwingUtilities;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Coordinates authentication windows so restricted sessions never see the application shell. */
 public final class UserUiCoordinator {
@@ -19,6 +22,7 @@ public final class UserUiCoordinator {
     private static final String SESSION_INVALID = "登录状态已失效，请重新登录";
     private final UserClientService users;
     private final StudentClientService students;
+    private final CourseClientService courses;
     private final ClientConnection connection;
     private LoginFrame activeLogin;
     private MainFrame activeMain;
@@ -27,7 +31,7 @@ public final class UserUiCoordinator {
 
     /** Creates the client-side authentication and shell coordinator. */
     public UserUiCoordinator(UserClientService users, ClientConnection connection) {
-        this(users, null, connection);
+        this(users, (StudentClientService) null, connection);
     }
 
     /** Creates the authentication coordinator with optional student self-service support. */
@@ -35,6 +39,16 @@ public final class UserUiCoordinator {
                              ClientConnection connection) {
         this.users = Objects.requireNonNull(users, "users");
         this.students = students;
+        this.courses = null;
+        this.connection = Objects.requireNonNull(connection, "connection");
+    }
+
+    /** Creates the authentication coordinator with optional course support. */
+    public UserUiCoordinator(UserClientService users, CourseClientService courses,
+                             ClientConnection connection) {
+        this.users = Objects.requireNonNull(users, "users");
+        this.students = null;
+        this.courses = courses;
         this.connection = Objects.requireNonNull(connection, "connection");
     }
 
@@ -66,6 +80,11 @@ public final class UserUiCoordinator {
             return;
         }
         MainFrame main = new MainFrame(result.user(), connection, students);
+        if (courses != null) {
+            main.installPage("course", new CourseUiComposition(courses, users)
+                    .workspaceFor(result.user().role()));
+            bindCourseAuthenticationFailure(main);
+        }
         activeMain = main;
         sessionEnding = false;
         replaceAccountPage(main, result);
@@ -79,6 +98,19 @@ public final class UserUiCoordinator {
         });
         main.setVisible(true);
         startSessionMonitor(main);
+    }
+
+    private void bindCourseAuthenticationFailure(MainFrame main) {
+        AtomicBoolean handedOff = new AtomicBoolean();
+        Runnable remove = courses.addAuthenticationFailureListener(failure -> {
+            if (!handedOff.compareAndSet(false, true)) return;
+            onEdt(() -> returnToLogin(main, SESSION_INVALID));
+        });
+        main.addWindowListener(new WindowAdapter() {
+            @Override public void windowClosed(WindowEvent event) {
+                remove.run();
+            }
+        });
     }
 
     private void replaceAccountPage(MainFrame main, LoginResult result) {

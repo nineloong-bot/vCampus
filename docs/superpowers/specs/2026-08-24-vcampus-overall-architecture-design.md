@@ -229,7 +229,7 @@ public final class ErrorDetail implements Serializable {
 
 服务端输出 `server.log`、`business.log`、`security.log` 和 `database.log`。上下文包含 `traceId`、`requestId`、`sessionId`、`userId`、`command` 和客户端地址。密码、盐、会话令牌、银行卡信息及完整支付请求禁止入日志。日志滚动并保留 14 天。
 
-`client.properties` 配置服务器地址、端口、请求超时和重连次数；`server.properties` 配置端口、连接数、线程数、数据库路径、会话超时、库存预留时长和去重保留时间。配置失败必须阻止启动并给出可操作提示。
+`client.properties` 配置服务器地址、端口、请求超时和重连次数；发行包的 `server-with-data.properties` 配置端口、连接数、线程数、带数据 Demo 数据库路径、会话超时、库存预留时长和去重保留时间。配置失败必须阻止启动并给出可操作提示。
 
 ## 15. 构建与部署
 

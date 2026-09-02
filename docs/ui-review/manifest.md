@@ -7,3 +7,46 @@ the dedicated UI design-system implementation plan.
 - Design source: `docs/superpowers/specs/2026-08-26-vcampus-ui-design-system.md`
 - Foundation status: shell seam implemented; visual feature pages pending
 - Required states for later review: loading, normal, empty, error, disconnected
+
+## Course module visual baseline
+
+- Branch baseline: `course`; screenshots were regenerated from the current tested branch state
+  on 2026-08-29.
+- Shared source: theme tokens copied byte-for-byte from teammate branch `origin/as811`;
+  the course module does not modify `MainFrame` or the shared shell.
+- Reviewed locally at 1280 × 800: C-01 normal/loading/empty/error/disconnected,
+  C-03 through C-11 normal student/management surfaces, plus C-04 empty/disconnected states.
+  The dense C-01, C-04, C-05, and C-07 layouts also have 1024 × 680 minimum-size captures
+  (`course/*--1024x680.png`) and 150% device-scale captures at the same logical window size
+  (`course/*--150pct.png`, 1536 × 1020 device pixels).
+  The 720/680/640 px dialog review set
+  includes C-02 atomic-change confirmation, C-07 term create, C-08 course create, and
+  C-09 offering edit (`course/c02-*`, `course/c07-term-editor-*`,
+  `course/c08-course-editor-*`, `course/c09-offering-editor-*`).
+- Automated coverage: shared palette/dimensions, query-list structure, table rules,
+  dynamic seven-day/late-period weekly-grid structure with split-week entries, stable navigation
+  IDs, loading/empty/disconnected states,
+  complete term windows, optimistic versions, aggregate offering schedules, latest-request
+  ordering, CardLayout hide/show lifecycle guards, successful adjustment refreshes, real list
+  pagination, failed-refresh data preservation, keyboard focus/accessibility names on every
+  business control, and full-text tooltips for width-constrained table cells. The real-socket
+  suite also exercises two independent students competing for the one-seat Demo offering.
+- External UI review: pending a non-course teammate, as required by the UI specification.
+- Shared-component dependency: no fetched teammate branch currently contains the
+  specification-named shared buttons, paged table, state panels, or confirm dialog;
+  course pages therefore use shared tokens with standard Swing components until the
+  shared owner publishes those components.
+
+## Unified course and user workflow evidence
+
+- Generated on 2026-09-02 from the production `LoginFrame`, `MainFrame` with an embedded
+  student `CourseWorkspacePanel`, and the Task 7 structured `OfferingEditorDialog` using
+  deterministic `CourseUiGateway.preview()` data.
+- `course/integrated-login.png`: 1280 × 800; shared login and the three consistent local
+  Demo accounts are visible.
+- `course/integrated-student-course.png`: 1280 × 800; the five-module navigation and the
+  student course workspace are visible without clipping or stale course-only sidebar items.
+- `course/integrated-admin-offering-editor.png`: 661 × 626 packed dialog size; localized
+  term/course/teacher choices and a structured schedule row replace raw IDs and CSV input.
+- Visual inspection: all three images are nonblank; Chinese labels, controls, and table
+  content render without clipping at their recorded dimensions.

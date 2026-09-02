@@ -47,15 +47,29 @@ public record UserAccount(
         return copy(role, status);
     }
 
+    /** Returns a status-updated copy stamped by the application clock. */
+    public UserAccount withStatus(AccountStatus status, LocalDateTime changedAt) {
+        return copy(role, status, changedAt);
+    }
+
     /** Returns a copy with a different base role. */
     public UserAccount withRole(UserRole newRole) {
         return copy(newRole, accountStatus);
     }
 
+    /** Returns a role-updated copy stamped by the application clock. */
+    public UserAccount withRole(UserRole newRole, LocalDateTime changedAt) {
+        return copy(newRole, accountStatus, changedAt);
+    }
+
     private UserAccount copy(UserRole newRole, AccountStatus newStatus) {
+        return copy(newRole, newStatus, updatedAt);
+    }
+
+    private UserAccount copy(UserRole newRole, AccountStatus newStatus, LocalDateTime changedAt) {
         return new UserAccount(userId, loginId, passwordHash, passwordSalt,
                 passwordIterations, newRole, newStatus, mustChangePassword,
                 failedLoginCount, lockedUntil, lastLoginAt, rowVersion,
-                createdAt, updatedAt);
+                createdAt, Objects.requireNonNull(changedAt, "changedAt"));
     }
 }

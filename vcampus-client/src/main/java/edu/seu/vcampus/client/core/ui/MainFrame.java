@@ -2,6 +2,8 @@ package edu.seu.vcampus.client.core.ui;
 
 import edu.seu.vcampus.client.core.navigation.PageNavigator;
 import edu.seu.vcampus.client.core.network.ClientConnection;
+import edu.seu.vcampus.client.course.service.CourseClientService;
+import edu.seu.vcampus.client.course.ui.CourseUiComposition;
 import edu.seu.vcampus.client.core.ui.shell.ApplicationStatusBar;
 import edu.seu.vcampus.client.core.ui.shell.IdentityHeader;
 import edu.seu.vcampus.client.core.ui.shell.ModulePlaceholderPage;
@@ -13,8 +15,16 @@ import edu.seu.vcampus.client.student.ui.StudentModulePageFactory;
 import edu.seu.vcampus.common.user.UserView;
 
 import javax.swing.JFrame;
+import javax.swing.JComponent;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
+import java.awt.GridLayout;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Shared application shell containing identity, navigation, content, and status seams. */
 public final class MainFrame extends JFrame {
@@ -23,15 +33,17 @@ public final class MainFrame extends JFrame {
     private final JPanel content = new JPanel();
     private final JPanel footer;
     private final PageNavigator pageNavigator = new PageNavigator(content);
+    private final AtomicBoolean authenticationHandoffStarted = new AtomicBoolean();
+    private Runnable removeAuthenticationFailureListener = () -> { };
 
     /** Creates the structural shell for compatibility with existing layout tests. */
     public MainFrame() {
-        this(null, null, null);
+        this(null, null, (StudentClientService) null);
     }
 
     /** Creates the shell with a signed-in identity and no connection binding. */
     public MainFrame(UserView user) {
-        this(user, null, null);
+        this(user, null, (StudentClientService) null);
     }
 
     /** Creates the complete demo shell with identity and live connection status. */
@@ -59,6 +71,40 @@ public final class MainFrame extends JFrame {
         setLocationRelativeTo(null);
     }
 
+    /** Creates a role-restricted course shell using the shared authenticated connection. */
+    public MainFrame(UserView user, CourseClientService courses, ClientConnection connection) {
+        this(user, courses, connection, () -> { });
+    }
+
+    /** Creates a course shell and supplies the one login-return handoff. */
+    public MainFrame(UserView user, CourseClientService courses, ClientConnection connection,
+                     Runnable onAuthenticationFailure) {
+        this(user, connection, (StudentClientService) null);
+        Objects.requireNonNull(user, "user");
+        Objects.requireNonNull(courses, "courses");
+        Objects.requireNonNull(connection, "connection");
+        Runnable handoff = Objects.requireNonNull(onAuthenticationFailure, "onAuthenticationFailure");
+        setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        removeAuthenticationFailureListener = courses.addAuthenticationFailureListener(failure -> {
+            if (!authenticationHandoffStarted.compareAndSet(false, true)) return;
+            connection.setSessionToken(null);
+            SwingUtilities.invokeLater(() -> {
+                dispose();
+                handoff.run();
+            });
+        });
+        installPage("course", new CourseUiComposition(courses).workspaceFor(user.role()));
+        addWindowListener(new WindowAdapter() {
+            @Override public void windowClosing(WindowEvent event) {
+                if (!authenticationHandoffStarted.get()) connection.close();
+            }
+
+            @Override public void windowClosed(WindowEvent event) {
+                removeAuthenticationFailureListener.run();
+            }
+        });
+    }
+
     private void registerPages(UserView user, ClientConnection connection,
                                StudentClientService students) {
         pageNavigator.register("student", StudentModulePageFactory.create(user, students, connection));
@@ -71,6 +117,21 @@ public final class MainFrame extends JFrame {
 
     private void register(String id, String title, String description) {
         pageNavigator.register(id, new ModulePlaceholderPage(title, description));
+    }
+
+    static void configureLoggedInContent(JPanel header, PageNavigator pageNavigator, UserView user) {
+        header.add(new JLabel("当前用户：" + user.loginId() + "（" + user.role().name() + "）"),
+                BorderLayout.CENTER);
+        JPanel home = new JPanel(new GridLayout(0, 1, 8, 8));
+        for (String module : new String[]{"学籍", "选课", "图书馆", "商城"}) {
+            home.add(new JLabel(module + "：建设中"));
+        }
+        pageNavigator.register("home", home);
+    }
+
+    /** Replaces one of the fixed top-level module pages. */
+    public void installPage(String pageId, JComponent page) {
+        pageNavigator.replace(pageId, page);
     }
 
     /** Returns the shared identity header. */

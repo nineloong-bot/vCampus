@@ -90,6 +90,22 @@ class MainFrameShellTest {
     }
 
     @Test
+    void installPageReplacesTheCoursePlaceholderWithoutChangingGlobalNavigation() throws Exception {
+        MainFrame[] frame = new MainFrame[1];
+        JPanel course = new JPanel();
+        course.setName("page.course");
+        SwingUtilities.invokeAndWait(() -> {
+            frame[0] = new MainFrame(user(), connected());
+            frame[0].installPage("course", course);
+            component(frame[0], "navigation.course", AbstractButton.class).doClick();
+        });
+        assertThat(course.isVisible()).isTrue();
+        assertThat(frame[0].navigation().getComponentCount()).isEqualTo(5);
+        assertThat(Arrays.stream(frame[0].content().getComponents())
+                .filter(child -> "page.course".equals(child.getName()))).containsExactly(course);
+    }
+
+    @Test
     void navigationUsesCompactFullWidthAcademicRowsWithoutPlatformButtonChrome()
             throws Exception {
         MainFrame[] frame = new MainFrame[1];

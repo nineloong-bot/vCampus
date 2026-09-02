@@ -9,5 +9,13 @@ public final class UiSpacing {
     public static final int SPACE_6 = 24;
     public static final int SPACE_8 = 32;
 
+    // Course UI aliases for the shared spacing scale.
+    public static final int XS = SPACE_1;
+    public static final int SM = SPACE_2;
+    public static final int MD = SPACE_3;
+    public static final int LG = SPACE_4;
+    public static final int XL = SPACE_6;
+    public static final int PAGE_PADDING = XL;
+
     private UiSpacing() { }
 }

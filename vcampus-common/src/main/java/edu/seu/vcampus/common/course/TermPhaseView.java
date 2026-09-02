@@ -1,0 +1,2 @@
+package edu.seu.vcampus.common.course; import java.io.*; import java.time.Instant;
+/** Server-time phase snapshot used by adjustment pages. */ public record TermPhaseView(String termId,String termStatus,String phase,Instant serverTime,Instant enrollmentStartAt,Instant enrollmentEndAt,Instant adjustmentStartAt,Instant adjustmentEndAt)implements Serializable{@Serial private static final long serialVersionUID=1L;}

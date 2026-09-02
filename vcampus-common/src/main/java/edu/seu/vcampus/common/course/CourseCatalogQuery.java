@@ -1,0 +1,2 @@
+package edu.seu.vcampus.common.course; import java.io.*;
+/** Catalog filters and paging. */ public record CourseCatalogQuery(String keyword,Boolean activeOnly,int page,int pageSize)implements Serializable{@Serial private static final long serialVersionUID=1L;public CourseCatalogQuery{if(page<0||pageSize<1||pageSize>100||(long)page*pageSize+pageSize>Integer.MAX_VALUE)throw new IllegalArgumentException("invalid page");}}

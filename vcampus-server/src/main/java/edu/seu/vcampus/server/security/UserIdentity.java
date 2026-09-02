@@ -20,4 +20,10 @@ public record UserIdentity(String userId, String loginId, UserRole role,
         Objects.requireNonNull(role, "role");
         Objects.requireNonNull(accountStatus, "accountStatus");
     }
+
+    /** Retains the pre-session-snapshot constructor used by course-side adapters. */
+    public UserIdentity(String userId, String loginId, UserRole role,
+                        java.util.Set<String> ignoredPermissions, boolean ignoredRestricted) {
+        this(userId, loginId, role, AccountStatus.ACTIVE);
+    }
 }
