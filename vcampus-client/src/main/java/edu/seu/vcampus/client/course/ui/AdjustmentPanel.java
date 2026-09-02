@@ -66,9 +66,11 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
         enrollmentTable.setModel(enrollmentModel);
         enrollmentTable.getTableHeader().setBackground(UiColors.BACKGROUND_SUBTLE);
         enrollmentTable.getAccessibleContext().setAccessibleName("当前选课记录");
+        enrollmentTable.getSelectionModel().addListSelectionListener(event -> updateEnrollmentActions());
         offeringTable.setModel(offeringModel);
         offeringTable.getTableHeader().setBackground(UiColors.BACKGROUND_SUBTLE);
         offeringTable.getAccessibleContext().setAccessibleName("可调整教学班");
+        offeringTable.getSelectionModel().addListSelectionListener(event -> updateEnrollmentActions());
 
         phaseSummary.setOpaque(true);
         phaseSummary.setBackground(UiColors.BACKGROUND_SUBTLE);
@@ -221,7 +223,11 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
     private void drop(JButton button) {
         int source = enrollmentTable.getSelectedRow();
         if (source < 0) { showState(ViewState.ERROR, "请先选择要退选的记录"); return; }
-        EnrollmentView selected = enrollments.get(source);
+        EnrollmentView selected = enrollments.get(enrollmentTable.convertRowIndexToModel(source));
+        if (!"ACTIVE".equals(selected.enrollmentStatus())) {
+            showState(ViewState.ERROR, "该选课记录已退选，请刷新后重试");
+            return;
+        }
         submit(button, "正在退选…", gateway.drop(new DropCommand(selected.enrollmentId(), selected.rowVersion())), "退选成功，课表已更新");
     }
 
@@ -229,8 +235,12 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
         int source = enrollmentTable.getSelectedRow();
         int target = offeringTable.getSelectedRow();
         if (source < 0 || target < 0) { showState(ViewState.ERROR, "请同时选择原选课记录和目标教学班"); return; }
-        EnrollmentView selected = enrollments.get(source);
-        OfferingSummary targetOffering = offerings.get(target);
+        EnrollmentView selected = enrollments.get(enrollmentTable.convertRowIndexToModel(source));
+        if (!"ACTIVE".equals(selected.enrollmentStatus())) {
+            showState(ViewState.ERROR, "该选课记录已退选，请刷新后重试");
+            return;
+        }
+        OfferingSummary targetOffering = offerings.get(offeringTable.convertRowIndexToModel(target));
         OfferingSummary sourceOffering = findOffering(selected.offeringId());
         if (sourceOffering == null) { showState(ViewState.ERROR, "原教学班信息尚未同步，请刷新后重试"); return; }
         String conflict = conflictResult(sourceOffering, targetOffering);
@@ -266,8 +276,9 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
         showState(ViewState.SUBMITTING, busyText + " 请勿重复操作");
         request.whenComplete((ignored, error) -> SwingUtilities.invokeLater(() -> {
             if (!acceptsAsyncResult(asyncRequest)) return;
-            button.setEnabled(adjustmentOpen);
             button.setText(idleText);
+            button.setEnabled(adjustmentOpen);
+            updateEnrollmentActions();
             if (error == null) {
                 refresh(success);
                 return;
@@ -285,8 +296,24 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
 
     private void setActionButtonsEnabled(boolean enabled) {
         add.setEnabled(enabled);
-        drop.setEnabled(enabled);
-        change.setEnabled(enabled);
+        if (enabled) {
+            updateEnrollmentActions();
+        } else {
+            drop.setEnabled(false);
+            change.setEnabled(false);
+        }
+    }
+
+    private void updateEnrollmentActions() {
+        int selected = enrollmentTable.getSelectedRow();
+        boolean active = false;
+        if (selected >= 0) {
+            int modelRow = enrollmentTable.convertRowIndexToModel(selected);
+            active = modelRow < enrollments.size()
+                    && "ACTIVE".equals(enrollments.get(modelRow).enrollmentStatus());
+        }
+        drop.setEnabled(adjustmentOpen && active);
+        change.setEnabled(adjustmentOpen && active && offeringTable.getSelectedRow() >= 0);
     }
 
     private static DefaultTableModel readOnlyModel(Object... columns) {

@@ -47,6 +47,7 @@ public final class MyEnrollmentPanel extends AbstractCoursePanel {
     private final List<EnrollmentView> enrollments = new ArrayList<>();
     private boolean dropPhaseOpen;
     private boolean dropPending;
+    private long mutationSequence;
 
     public MyEnrollmentPanel(CourseUiGateway gateway) {
         this(gateway, (owner, courseLabel) -> JOptionPane.showConfirmDialog(
@@ -94,7 +95,6 @@ public final class MyEnrollmentPanel extends AbstractCoursePanel {
 
     public void refresh() {
         long request = beginAsyncRequest();
-        dropPending = false;
         dropPhaseOpen = false;
         updateDropEnabled();
         showState(ViewState.LOADING, "正在加载我的选课，请稍候");
@@ -151,24 +151,32 @@ public final class MyEnrollmentPanel extends AbstractCoursePanel {
     }
 
     private void submitDrop(DropCommand command) {
-        long request = beginAsyncRequest();
+        if (dropPending) return;
+        long mutation = ++mutationSequence;
         dropPending = true;
         updateDropEnabled();
         showState(ViewState.SUBMITTING, "正在退选，请勿重复操作");
         gateway.drop(command).whenComplete((ignored, error) -> SwingUtilities.invokeLater(() -> {
-            if (!acceptsAsyncResult(request)) return;
+            if (mutationSequence != mutation) return;
             dropPending = false;
             updateDropEnabled();
             if (error == null) {
                 onEnrollmentChanged.run();
-                refresh();
+                if (isVisible()) refresh();
                 return;
             }
+            if (!isVisible()) return;
             Throwable cause = error;
             while (cause instanceof CompletionException && cause.getCause() != null) cause = cause.getCause();
             showState(ViewState.ERROR,
                     cause.getMessage() == null ? "退选失败，请刷新后重试" : cause.getMessage());
         }));
+    }
+
+    @Override public void removeNotify() {
+        mutationSequence++;
+        dropPending = false;
+        super.removeNotify();
     }
 
     private void updateDropEnabled() {
