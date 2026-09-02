@@ -21,6 +21,42 @@ import static org.mockito.Mockito.*;
 
 class ApplicationReviewPanelTest {
     @Test
+    void refreshReloadsBothListsAndStaysDisabledUntilBothComplete() throws Exception {
+        AdminShopClientPort port = mock(AdminShopClientPort.class);
+        CompletableFuture<PageResult<SellerApplicationView>> pendingFirst = new CompletableFuture<>();
+        CompletableFuture<PageResult<SellerApplicationView>> processedFirst = new CompletableFuture<>();
+        CompletableFuture<PageResult<SellerApplicationView>> pendingSecond = new CompletableFuture<>();
+        CompletableFuture<PageResult<SellerApplicationView>> processedSecond = new CompletableFuture<>();
+        when(port.searchApplications(argThat(query -> query != null && query.mode() == SellerApplicationListMode.PENDING)))
+                .thenReturn(pendingFirst, pendingSecond);
+        when(port.searchApplications(argThat(query -> query != null && query.mode() == SellerApplicationListMode.PROCESSED)))
+                .thenReturn(processedFirst, processedSecond);
+        ApplicationReviewPanel panel = ShopSwingTestSupport.onEdt(() ->
+                new ApplicationReviewPanel(port, new DefaultShopUiKit(), () -> { }));
+
+        ShopSwingTestSupport.onEdt(panel::load);
+        JButton refresh = ShopSwingTestSupport.component(panel,
+                "admin.applications.refresh", JButton.class);
+        assertThat(refresh.isEnabled()).isFalse();
+        pendingFirst.complete(new PageResult<>(List.of(), 0, 50, 0));
+        ShopSwingTestSupport.flushEdt();
+        assertThat(refresh.isEnabled()).isFalse();
+        processedFirst.complete(new PageResult<>(List.of(), 0, 50, 0));
+        ShopSwingTestSupport.flushEdt();
+        assertThat(refresh.isEnabled()).isTrue();
+
+        ShopSwingTestSupport.onEdt(() -> refresh.doClick());
+        assertThat(refresh.isEnabled()).isFalse();
+        pendingSecond.complete(new PageResult<>(List.of(), 0, 50, 0));
+        ShopSwingTestSupport.flushEdt();
+        assertThat(refresh.isEnabled()).isFalse();
+        processedSecond.complete(new PageResult<>(List.of(), 0, 50, 0));
+        ShopSwingTestSupport.flushEdt();
+        assertThat(refresh.isEnabled()).isTrue();
+        verify(port, times(4)).searchApplications(any());
+    }
+
+    @Test
     void loadsPendingApplicationAndApprovesSelectedVersion() throws Exception {
         AdminShopClientPort port = mock(AdminShopClientPort.class);
         SellerApplicationView pending = new SellerApplicationView("application-1", "student-1",

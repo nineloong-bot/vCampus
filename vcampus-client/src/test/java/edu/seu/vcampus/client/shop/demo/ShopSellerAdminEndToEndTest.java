@@ -188,7 +188,9 @@ class ShopSellerAdminEndToEndTest {
     private static ProductView createActiveProduct(ShopClientService owner, String name) {
         ProductView draft = owner.createOwnedProduct(product(name)).join();
         owner.changeOwnedProductStatus(new ChangeProductStatusCommand(draft.productId(),
-                ProductStatus.ACTIVE, draft.rowVersion())).join();
+                ProductStatus.INACTIVE, draft.rowVersion())).join();
+        owner.changeOwnedProductStatus(new ChangeProductStatusCommand(draft.productId(),
+                ProductStatus.ACTIVE, draft.rowVersion() + 1)).join();
         return owner.getOwnedProduct(draft.productId()).join();
     }
 

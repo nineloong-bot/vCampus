@@ -112,7 +112,7 @@ public final class MyShopPanel extends JPanel {
                     if (!businessRequests.accepts(request)) return;
                     if (failure != null) {
                         String code = ShopUiErrors.code(failure);
-                        businessAction.setText(code);
+                        businessAction.setText(ShopUiErrors.message(code));
                         if (ShopUiErrors.sessionExpired(code)) sessionExpired.run();
                         return;
                     }
@@ -234,11 +234,11 @@ public final class MyShopPanel extends JPanel {
         if (ShopUiErrors.sessionExpired(code)) {
             disconnected = true;
             requests.dispose();
-            showState(ShopPageState.DISCONNECTED, code, null);
+            showState(ShopPageState.DISCONNECTED, ShopUiErrors.message(code), null);
             sessionExpired.run();
             return;
         }
-        showState(ShopPageState.ERROR, code, this::load);
+        showState(ShopPageState.ERROR, ShopUiErrors.message(code), this::load);
     }
 
     private void showState(ShopPageState state, String message, Runnable retry) {

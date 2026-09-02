@@ -54,7 +54,8 @@ public final class SellerOrdersPanel extends JPanel {
         card.add(header, BorderLayout.NORTH); card.add(detail, BorderLayout.CENTER); return card;
     }
     private void fail(Throwable failure) {
-        String code = ShopUiErrors.code(failure); content.removeAll(); content.add(new JLabel(code));
+        String code = ShopUiErrors.code(failure); content.removeAll();
+        content.add(new JLabel(ShopUiErrors.message(code)));
         if (ShopUiErrors.sessionExpired(code)) sessionExpired.run();
     }
     private static String money(java.math.BigDecimal value) {

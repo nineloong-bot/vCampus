@@ -466,12 +466,13 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         return new ShopDialogs() {
             @Override
             public void showError(String code) {
-                JOptionPane.showMessageDialog(null, code, "校园商城", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(null, ShopUiErrors.message(code),
+                        "校园商城", JOptionPane.ERROR_MESSAGE);
             }
 
             @Override
             public void confirm(String code, Runnable accepted) {
-                if (JOptionPane.showConfirmDialog(null, code, "校园商城",
+                if (JOptionPane.showConfirmDialog(null, ShopUiErrors.message(code), "校园商城",
                         JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE) == JOptionPane.YES_OPTION) {
                     accepted.run();
                 }

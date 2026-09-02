@@ -65,7 +65,7 @@ class ProductServiceTest {
     }
 
     @Test
-    void ownerCreatesProductWithExactMoneyAndCanActivateIt() {
+    void ownerCreatesProductWithExactMoneyAndCanCompleteThenActivateIt() {
         var created = products.createProduct("owner-token", new CreateProductCommand(
                 "签字笔", "文具", "顺滑书写", List.of(
                         new CreateSkuCommand("黑色", new BigDecimal("2.50"), 20, true))));
@@ -77,7 +77,22 @@ class ProductServiceTest {
         });
 
         products.changeProductStatus("owner-token", new ChangeProductStatusCommand(
-                created.productId(), ProductStatus.ACTIVE, created.rowVersion()));
+                created.productId(), ProductStatus.INACTIVE, created.rowVersion()));
+        products.changeProductStatus("owner-token", new ChangeProductStatusCommand(
+                created.productId(), ProductStatus.ACTIVE, created.rowVersion() + 1));
+    }
+
+    @Test
+    void draftCannotBeActivatedDirectly() {
+        var created = products.createProduct("owner-token", new CreateProductCommand(
+                "草稿商品", "文具", "待完善", List.of(
+                        new CreateSkuCommand("默认", new BigDecimal("2.50"), 20, true))));
+
+        assertThatThrownBy(() -> products.changeProductStatus("owner-token",
+                new ChangeProductStatusCommand(created.productId(), ProductStatus.ACTIVE,
+                        created.rowVersion())))
+                .isInstanceOfSatisfying(ShopException.class, error -> assertThat(error.code())
+                        .isEqualTo(ShopErrorCode.SHOP_STATUS_INVALID));
     }
 
     @Test

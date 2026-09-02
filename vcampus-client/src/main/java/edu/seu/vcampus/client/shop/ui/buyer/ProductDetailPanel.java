@@ -3,6 +3,7 @@ package edu.seu.vcampus.client.shop.ui.buyer;
 import edu.seu.vcampus.client.shop.service.ShopClientPort;
 import edu.seu.vcampus.client.shop.ui.async.LatestRequest;
 import edu.seu.vcampus.client.shop.ui.CartCountModel;
+import edu.seu.vcampus.client.shop.ui.ShopUiErrors;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopRoute;
 import edu.seu.vcampus.client.shop.ui.style.ShopPageState;
@@ -194,9 +195,10 @@ public final class ProductDetailPanel extends JPanel {
     }
 
     private void showFailure(Throwable failure, Runnable retry) {
-        String code = failureCode(failure);
-        if ("AUTH_SESSION_EXPIRED".equals(code)) { showState(ShopPageState.DISCONNECTED, code, retry); sessionExpired.run(); }
-        else showState(ShopPageState.ERROR, code, retry);
+        String code = ShopUiErrors.code(failure);
+        if (ShopUiErrors.sessionExpired(code)) { showState(ShopPageState.DISCONNECTED,
+                ShopUiErrors.message(code), retry); sessionExpired.run(); }
+        else showState(ShopPageState.ERROR, ShopUiErrors.message(code), retry);
     }
 
     private void showState(ShopPageState state, String message, Runnable retry) {
@@ -207,6 +209,5 @@ public final class ProductDetailPanel extends JPanel {
     private record SkuChoice(String skuId, String label) {
         @Override public String toString() { return label; }
     }
-    private static String failureCode(Throwable failure) { Throwable cause = failure; while (cause.getCause() != null) cause = cause.getCause(); return cause.getMessage() == null ? "COMMON_INTERNAL_ERROR" : cause.getMessage(); }
     private static <T extends Component> T named(T component, String name) { component.setName(name); return component; }
 }

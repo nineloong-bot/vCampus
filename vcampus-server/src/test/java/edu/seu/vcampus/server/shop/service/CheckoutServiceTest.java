@@ -1,6 +1,8 @@
 package edu.seu.vcampus.server.shop.service;
 
 import edu.seu.vcampus.common.shop.AddCartItemCommand;
+import edu.seu.vcampus.common.shop.CheckoutCommand;
+import edu.seu.vcampus.common.shop.CheckoutItem;
 import edu.seu.vcampus.common.shop.ShopErrorCode;
 import edu.seu.vcampus.server.shop.ShopException;
 import org.junit.jupiter.api.Test;
@@ -12,6 +14,26 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CheckoutServiceTest extends CheckoutServiceTestSupport {
+    @Test
+    void selectedCheckoutRemovesOnlySelectedCartItems() {
+        seedShop("shop-1", "owner-1", "文具店");
+        seedProductAndSku("product-1", "签字笔", "shop-1", "sku-1", "黑色", "2.50", 10);
+        seedProductAndSku("product-2", "笔记本", "shop-1", "sku-2", "横线", "5.00", 10);
+        carts.addToCart("buyer-token", new AddCartItemCommand("sku-1", 1));
+        carts.addToCart("buyer-token", new AddCartItemCommand("sku-2", 2));
+        var cart = carts.getCart("buyer-token");
+        var selected = cart.items().getFirst();
+        var unselected = cart.items().get(1);
+
+        checkout.checkout("buyer-token", new CheckoutCommand(List.of(
+                new CheckoutItem(selected.cartItemId(), selected.displayedUnitPrice())), false));
+
+        var remaining = carts.getCart("buyer-token");
+        assertThat(remaining.items()).hasSize(1);
+        assertThat(remaining.items().getFirst().cartItemId()).isEqualTo(unselected.cartItemId());
+        assertThat(remaining.items().getFirst().quantity()).isEqualTo(unselected.quantity());
+    }
+
     @Test
     void crossShopCheckoutCreatesOneGroupTwoOrdersSnapshotsAndReservations() {
         seedShop("shop-1", "owner-1", "文具店");

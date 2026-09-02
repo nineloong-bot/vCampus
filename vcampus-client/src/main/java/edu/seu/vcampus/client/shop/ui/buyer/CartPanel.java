@@ -15,6 +15,7 @@ import edu.seu.vcampus.common.shop.UpdateCartItemCommand;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JOptionPane;
 import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
@@ -28,13 +29,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.LinkedHashSet;
+import java.math.BigDecimal;
 
 /** Cart page serializes writes so every authoritative cart response is published in request order. */
 public final class CartPanel extends JPanel {
+    @FunctionalInterface
+    interface RemovePrompt { boolean confirm(String message); }
+
     private final ShopClientPort client;
     private final ShopNavigator navigator;
     private final ShopUiKit uiKit;
     private final Runnable sessionExpired;
+    private final RemovePrompt removePrompt;
     private final CartCountModel cartCount;
     private final LatestRequest loads = new LatestRequest();
     private final JPanel content = new JPanel(new BorderLayout());
@@ -42,6 +49,7 @@ public final class CartPanel extends JPanel {
     private final Map<String, JButton> removeButtons = new HashMap<>();
     private final ArrayDeque<Write> queued = new ArrayDeque<>();
     private final Set<String> queuedKeys = new HashSet<>();
+    private final Set<String> selectedItemIds = new LinkedHashSet<>();
     private CartView cart;
     private long routeGeneration;
     private boolean disposed;
@@ -56,10 +64,18 @@ public final class CartPanel extends JPanel {
     }
     public CartPanel(ShopClientPort client, ShopNavigator navigator, ShopUiKit uiKit,
             CartCountModel cartCount, Runnable sessionExpired) {
+        this(client, navigator, uiKit, cartCount, sessionExpired,
+                message -> JOptionPane.showConfirmDialog(null, message, "校园商城",
+                        JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE)
+                        == JOptionPane.YES_OPTION);
+    }
+    CartPanel(ShopClientPort client, ShopNavigator navigator, ShopUiKit uiKit,
+            CartCountModel cartCount, Runnable sessionExpired, RemovePrompt removePrompt) {
         super(new BorderLayout(8, 8));
         this.client = Objects.requireNonNull(client); this.navigator = Objects.requireNonNull(navigator);
         this.uiKit = Objects.requireNonNull(uiKit); this.cartCount = Objects.requireNonNull(cartCount);
         this.sessionExpired = Objects.requireNonNull(sessionExpired);
+        this.removePrompt = Objects.requireNonNull(removePrompt);
         navigator.addListener(route -> {
             if (!(route instanceof ShopRoute.Cart)) leaveRoute();
         });
@@ -77,6 +93,7 @@ public final class CartPanel extends JPanel {
                 finishLoad(request, cartRevision, result, failure));
     }
     public List<CartItemView> visibleItems() { return cart == null ? List.of() : cart.items(); }
+    public Set<String> selectedItemIds() { return Set.copyOf(selectedItemIds); }
     public void updateQuantity(String id, int quantity) { enqueue(new Write(true, id, quantity)); }
     public void remove(String id) { enqueue(new Write(false, id, 0)); }
     public void disposePage() { disposed = true; loads.dispose(); queued.clear(); queuedKeys.clear(); active = null; }
@@ -142,21 +159,23 @@ public final class CartPanel extends JPanel {
     private boolean showWriteFailure(Throwable failure, boolean current) {
         String code = ShopUiErrors.code(failure);
         if (ShopUiErrors.sessionExpired(code)) { disconnect(code); return true; }
-        if (current) renderCart(ShopPageState.ERROR, code);
+        if (current) renderCart(ShopPageState.ERROR, ShopUiErrors.message(code));
         return false;
     }
     private void showFailure(Throwable failure) {
         String code = ShopUiErrors.code(failure);
         if (ShopUiErrors.sessionExpired(code)) disconnect(code);
-        else showState(ShopPageState.ERROR, code, this::load);
+        else showState(ShopPageState.ERROR, ShopUiErrors.message(code), this::load);
     }
     private void disconnect(String code) {
         if (disconnected) return;
         disconnected = true; loads.dispose(); queued.clear(); queuedKeys.clear(); reloadAfterWrites = false;
-        showState(ShopPageState.DISCONNECTED, code, null); sessionExpired.run();
+        showState(ShopPageState.DISCONNECTED, ShopUiErrors.message(code), null);
+        sessionExpired.run();
     }
     private void renderCart(ShopPageState state, String message) {
         if (cart == null || cart.items().isEmpty()) { showState(ShopPageState.EMPTY, "购物车为空", this::load); return; }
+        selectedItemIds.retainAll(cart.items().stream().map(CartItemView::cartItemId).toList());
         content.removeAll(); updateButtons.clear(); removeButtons.clear();
         JPanel normal = uiKit.filterPanel("cart.normal", new BorderLayout(4, 4));
         normal.add(uiKit.stateView("cart.state", state, message, null), BorderLayout.NORTH);
@@ -164,17 +183,49 @@ public final class CartPanel extends JPanel {
         for (CartItemView item : cart.items()) {
             CartItemCard row = new CartItemCard(item, uiKit,
                     () -> navigator.open(new ShopRoute.Product(item.productId())),
-                    quantity -> updateQuantity(item.cartItemId(), quantity), () -> remove(item.cartItemId()));
+                    quantity -> updateQuantity(item.cartItemId(), quantity),
+                    () -> confirmRemove(item.cartItemId()),
+                    selectedItemIds.contains(item.cartItemId()),
+                    selected -> changeSelection(item.cartItemId(), selected));
             JButton update = row.update; JButton remove = row.remove;
             if (queuedKeys.contains("U:" + item.cartItemId())) update.setEnabled(false);
             if (queuedKeys.contains("R:" + item.cartItemId())) remove.setEnabled(false);
             updateButtons.put(item.cartItemId(), update); removeButtons.put(item.cartItemId(), remove);
             rows.add(row);
         }
-        JButton checkout = uiKit.primaryButton("cart.checkout", "去结算"); checkout.addActionListener(e -> navigator.open(new ShopRoute.Checkout()));
-        JLabel total = new JLabel("总计：" + CartItemCard.money(cart.displayedTotal())); total.setName("cart.total");
-        JPanel summary = new JPanel(new BorderLayout()); summary.add(total, BorderLayout.WEST); summary.add(checkout, BorderLayout.EAST);
+        JButton selectAll = uiKit.secondaryButton("cart.select-all", "全选");
+        selectAll.addActionListener(event -> { selectedItemIds.clear();
+            cart.items().forEach(item -> selectedItemIds.add(item.cartItemId()));
+            renderCart(ShopPageState.NORMAL, ""); });
+        JButton clear = uiKit.secondaryButton("cart.clear-selection", "取消全选");
+        clear.addActionListener(event -> { selectedItemIds.clear(); renderCart(ShopPageState.NORMAL, ""); });
+        JPanel selectionActions = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        selectionActions.add(selectAll); selectionActions.add(clear);
+        normal.add(selectionActions, BorderLayout.WEST);
+        JButton checkout = uiKit.primaryButton("cart.checkout", "去结算");
+        checkout.setEnabled(!selectedItemIds.isEmpty());
+        checkout.addActionListener(e -> navigator.open(new ShopRoute.Checkout(selectedItemIds)));
+        JLabel total = new JLabel("已选总计：" + CartItemCard.money(selectedTotal()));
+        total.setName("cart.selected-total");
+        JLabel guidance = new JLabel(selectedItemIds.isEmpty() ? "请至少选择一件商品" : "");
+        guidance.setName("cart.selection-guidance");
+        JPanel summary = new JPanel(new BorderLayout());
+        JPanel amounts = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        amounts.add(total); amounts.add(guidance);
+        summary.add(amounts, BorderLayout.WEST); summary.add(checkout, BorderLayout.EAST);
         normal.add(rows, BorderLayout.CENTER); normal.add(summary, BorderLayout.SOUTH); content.add(normal, BorderLayout.CENTER); refresh();
+    }
+    private void changeSelection(String id, boolean selected) {
+        if (selected) selectedItemIds.add(id); else selectedItemIds.remove(id);
+        renderCart(ShopPageState.NORMAL, "");
+    }
+    private BigDecimal selectedTotal() {
+        return cart.items().stream().filter(item -> selectedItemIds.contains(item.cartItemId()))
+                .map(item -> item.displayedUnitPrice().multiply(BigDecimal.valueOf(item.quantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+    private void confirmRemove(String id) {
+        if (removePrompt.confirm("确定移除此商品？")) remove(id);
     }
     private CartItemView item(String id) { return cart == null ? null : cart.items().stream().filter(i -> i.cartItemId().equals(id)).findFirst().orElse(null); }
     private void showState(ShopPageState state, String message, Runnable retry) { content.removeAll(); content.add(uiKit.stateView("cart.state", state, message, retry), BorderLayout.CENTER); refresh(); }

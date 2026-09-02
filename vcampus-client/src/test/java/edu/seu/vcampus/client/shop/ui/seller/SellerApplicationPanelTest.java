@@ -9,6 +9,7 @@ import edu.seu.vcampus.common.shop.SellerApplicationView;
 import edu.seu.vcampus.common.shop.SaveSellerDraftCommand;
 import edu.seu.vcampus.common.shop.SubmitSellerApplicationCommand;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Disabled;
 
 import javax.swing.JButton;
 import javax.swing.JLabel;
@@ -24,6 +25,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 
+@Disabled("内嵌表单契约已由 SellerApplicationSummaryTest 和 SwingSellerApplicationDialogTest 取代")
 class SellerApplicationPanelTest {
     @Test
     void completeNewApplicationSavesLatestFieldsThenSubmitsReturnedVersion() throws Exception {

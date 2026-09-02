@@ -110,7 +110,7 @@ public final class SimulatedCashierDialog extends JDialog implements CheckoutPan
             if (failure != null) {
                 String code = ShopUiErrors.code(failure);
                 if (ShopUiErrors.sessionExpired(code)) disconnect(code);
-                else showCashier(ShopPageState.ERROR, code);
+                else showCashier(ShopPageState.ERROR, ShopUiErrors.message(code));
                 return;
             }
             if (payment.status() == PaymentStatus.PENDING) { showCashier(ShopPageState.NORMAL, "待支付"); return; }
@@ -151,6 +151,7 @@ public final class SimulatedCashierDialog extends JDialog implements CheckoutPan
     private void disconnect(String code) {
         if (disconnected) return;
         disconnected = true; submissions.dispose();
-        showCashier(ShopPageState.DISCONNECTED, code); sessionExpired.run();
+        showCashier(ShopPageState.DISCONNECTED, ShopUiErrors.message(code));
+        sessionExpired.run();
     }
 }

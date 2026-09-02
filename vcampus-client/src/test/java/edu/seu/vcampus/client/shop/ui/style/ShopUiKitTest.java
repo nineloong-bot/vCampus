@@ -119,7 +119,7 @@ class ShopUiKitTest {
                 ShopPageState.ERROR, ShopPageState.DISCONNECTED);
         assertThat(expiredSignals).containsExactly("expired");
         assertThat(component(panel, "search.state", JLabel.class).getText())
-                .isEqualTo("AUTH_SESSION_EXPIRED");
+                .isEqualTo("登录状态已失效，请重新登录");
     }
 
     @Test
@@ -180,7 +180,7 @@ class ShopUiKitTest {
                 ShopPageState.NORMAL, ShopPageState.SUBMITTING, ShopPageState.ERROR,
                 ShopPageState.EMPTY);
         assertThat(component(detailPanel, "detail.state", JLabel.class).getText())
-                .isEqualTo("SHOP_UNAVAILABLE");
+                .isEqualTo("操作失败，请稍后重试");
         assertThat(component(storePanel, "storefront.state", JLabel.class).getText())
                 .isEqualTo("暂无商品");
     }

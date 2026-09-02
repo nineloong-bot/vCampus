@@ -33,8 +33,8 @@ class ProductManagementPanelTest {
 
         assertThat(findType(panel, JSplitPane.class)).isNull();
         assertThat(findNamed(panel, "seller.editor.name")).isNull();
-        assertThat(ShopSwingTestSupport.component(panel, "seller.products.table", JTable.class))
-                .isNotNull();
+        assertThat(ShopSwingTestSupport.component(panel, "seller.products.active-table", JTable.class)).isNotNull();
+        assertThat(ShopSwingTestSupport.component(panel, "seller.products.inactive-table", JTable.class)).isNotNull();
     }
 
     @Test
@@ -82,7 +82,7 @@ class ProductManagementPanelTest {
 
         ShopSwingTestSupport.onEdt(panel::load);
         ShopSwingTestSupport.flushEdt();
-        JTable products = ShopSwingTestSupport.component(panel, "seller.products.table", JTable.class);
+        JTable products = ShopSwingTestSupport.component(panel, "seller.products.inactive-table", JTable.class);
         ShopSwingTestSupport.onEdt(() -> products.setRowSelectionInterval(0, 0));
         ShopSwingTestSupport.flushEdt();
         ShopSwingTestSupport.onEdt(() -> ShopSwingTestSupport.component(panel,
@@ -138,7 +138,7 @@ class ProductManagementPanelTest {
 
         ShopSwingTestSupport.onEdt(panel::load);
         ShopSwingTestSupport.flushEdt();
-        JTable table = ShopSwingTestSupport.component(panel, "seller.products.table", JTable.class);
+        JTable table = ShopSwingTestSupport.component(panel, "seller.products.active-table", JTable.class);
 
         assertThat(table.getColumnName(2)).isEqualTo("商品种类数");
         assertThat(ShopSwingTestSupport.component(panel,
@@ -148,6 +148,42 @@ class ProductManagementPanelTest {
         assertThat(table.getValueAt(0, 2)).isEqualTo(2L);
         assertThat(table.getValueAt(0, 5)).isEqualTo(4L);
         assertThat(table.getValueAt(0, 6)).isEqualTo(99L);
+    }
+
+    @Test
+    void partitionsActiveFromInactiveAndDraftAndUsesStateSpecificActions() throws Exception {
+        SellerShopClientPort port = mock(SellerShopClientPort.class);
+        ProductManagementSummary active = summary("active", ProductStatus.ACTIVE, 1);
+        ProductManagementSummary inactive = summary("inactive", ProductStatus.INACTIVE, 2);
+        ProductManagementSummary draft = summary("draft", ProductStatus.DRAFT, 3);
+        when(port.searchOwnedProducts(any())).thenReturn(CompletableFuture.completedFuture(
+                new PageResult<>(List.of(active, inactive, draft), 0, 50, 3)));
+        when(port.getOwnedProduct(any())).thenAnswer(invocation -> CompletableFuture.completedFuture(
+                new ProductView(invocation.getArgument(0), "商品", "文具", "说明", null,
+                        ProductStatus.DRAFT, 0, 3, List.of())));
+        when(port.changeOwnedProductStatus(any())).thenReturn(CompletableFuture.completedFuture(null));
+        ProductManagementPanel panel = ShopSwingTestSupport.onEdt(() ->
+                new ProductManagementPanel(port, new DefaultShopUiKit(), () -> { }));
+        ShopSwingTestSupport.onEdt(() -> panel.setShop(activeShop()));
+        ShopSwingTestSupport.onEdt(panel::load); ShopSwingTestSupport.flushEdt();
+        JTable activeTable = ShopSwingTestSupport.component(panel,
+                "seller.products.active-table", JTable.class);
+        JTable inactiveTable = ShopSwingTestSupport.component(panel,
+                "seller.products.inactive-table", JTable.class);
+        JButton action = ShopSwingTestSupport.component(panel,
+                "seller.products.status-action", JButton.class);
+
+        assertThat(activeTable.getRowCount()).isEqualTo(1);
+        assertThat(inactiveTable.getRowCount()).isEqualTo(2);
+        assertThat(inactiveTable.getValueAt(1, 1)).isEqualTo("草稿");
+        ShopSwingTestSupport.onEdt(() -> inactiveTable.setRowSelectionInterval(1, 1));
+        ShopSwingTestSupport.flushEdt();
+        assertThat(activeTable.getSelectedRow()).isEqualTo(-1);
+        assertThat(action.getText()).isEqualTo("完成商品编辑");
+        ShopSwingTestSupport.onEdt(() -> action.doClick());
+        ShopSwingTestSupport.flushEdt();
+        verify(port).changeOwnedProductStatus(new ChangeProductStatusCommand(
+                "draft", ProductStatus.INACTIVE, 3));
     }
 
     @Test
@@ -205,5 +241,10 @@ class ProductManagementPanelTest {
     private static ShopView activeShop() {
         return new ShopView("shop-1", "owner-1", "店铺", "简介", "文具", "contact",
                 ShopStatus.ACTIVE, null, null, (Instant) null, 1);
+    }
+
+    private static ProductManagementSummary summary(String id, ProductStatus status, long version) {
+        return new ProductManagementSummary(id, id, status, 1, new BigDecimal("2.50"),
+                10, 0, 0, version);
     }
 }

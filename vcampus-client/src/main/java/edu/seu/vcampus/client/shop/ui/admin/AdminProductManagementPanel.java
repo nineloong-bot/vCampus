@@ -157,7 +157,9 @@ public final class AdminProductManagementPanel extends JPanel {
             dialogs.create(this, shop.category()).ifPresent(command ->
                     port.createProduct(new AdminCreateProductCommand(shop.shopId(), command))
                             .whenComplete((ignored, failure) -> finishMutation(shop.shopId(), failure)));
-        } catch (RuntimeException failure) { status.setText("COMMON_VALIDATION_FAILED"); }
+        } catch (RuntimeException failure) {
+            status.setText(ShopUiErrors.message("COMMON_VALIDATION_FAILED"));
+        }
     }
 
     private void update() {
@@ -167,7 +169,9 @@ public final class AdminProductManagementPanel extends JPanel {
             dialogs.update(this, product).ifPresent(command ->
                     port.updateProduct(new AdminUpdateProductCommand(shop.shopId(), command))
                             .whenComplete((ignored, failure) -> finishMutation(shop.shopId(), failure)));
-        } catch (RuntimeException failure) { status.setText("COMMON_VALIDATION_FAILED"); }
+        } catch (RuntimeException failure) {
+            status.setText(ShopUiErrors.message("COMMON_VALIDATION_FAILED"));
+        }
     }
 
     private void toggle() {
@@ -190,7 +194,7 @@ public final class AdminProductManagementPanel extends JPanel {
     }
 
     private void fail(Throwable failure) {
-        String code = ShopUiErrors.code(failure); status.setText(code);
+        String code = ShopUiErrors.code(failure); status.setText(ShopUiErrors.message(code));
         if (ShopUiErrors.sessionExpired(code)) sessionExpired.run();
     }
     private static DefaultTableModel readonly(Object[] columns) {

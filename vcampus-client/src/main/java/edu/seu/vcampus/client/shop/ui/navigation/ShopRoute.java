@@ -7,6 +7,7 @@ import edu.seu.vcampus.common.shop.ProductSortMode;
 import edu.seu.vcampus.common.shop.ShopProductQuery;
 
 import java.util.Objects;
+import java.util.Set;
 
 /** The complete set of buyer pages hosted by the Shop UI. */
 public sealed interface ShopRoute permits ShopRoute.Home, ShopRoute.Search,
@@ -46,7 +47,10 @@ public sealed interface ShopRoute permits ShopRoute.Home, ShopRoute.Search,
 
     record Cart() implements ShopRoute { }
 
-    record Checkout() implements ShopRoute { }
+    record Checkout(Set<String> cartItemIds) implements ShopRoute {
+        public Checkout { cartItemIds = Set.copyOf(cartItemIds); }
+        public Checkout() { this(Set.of()); }
+    }
 
     record PaymentResult(PaymentView payment) implements ShopRoute {
         public PaymentResult { Objects.requireNonNull(payment, "payment"); }

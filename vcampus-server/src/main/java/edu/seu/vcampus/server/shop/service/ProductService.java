@@ -194,8 +194,23 @@ public final class ProductService {
                 transactions.inTransaction(connection -> {
                     Shop shop = requireOwnedActiveShop(connection, actor.userId());
                     Product product = requireOwnedProduct(connection, command.productId(), shop.shopId());
-                    if (command.targetStatus() == ProductStatus.ACTIVE && repository
-                            .findSkusByProduct(connection, product.productId()).stream()
+                    boolean allowed = product.status() == ProductStatus.DRAFT
+                            && command.targetStatus() == ProductStatus.INACTIVE
+                            || product.status() == ProductStatus.INACTIVE
+                            && command.targetStatus() == ProductStatus.ACTIVE
+                            || product.status() == ProductStatus.ACTIVE
+                            && command.targetStatus() == ProductStatus.INACTIVE;
+                    if (!allowed) {
+                        throw SellerApplicationService.error(ShopErrorCode.SHOP_STATUS_INVALID,
+                                "Invalid seller product status transition");
+                    }
+                    var skus = repository.findSkusByProduct(connection, product.productId());
+                    if (product.status() == ProductStatus.DRAFT
+                            && skus.stream().noneMatch(sku -> sku.active())) {
+                        throw SellerApplicationService.error(ShopErrorCode.SHOP_SKU_UNAVAILABLE,
+                                "A completed draft requires an enabled SKU");
+                    }
+                    if (command.targetStatus() == ProductStatus.ACTIVE && skus.stream()
                             .noneMatch(sku -> sku.active() && sku.availableQuantity() > 0)) {
                         throw SellerApplicationService.error(ShopErrorCode.SHOP_SKU_UNAVAILABLE,
                                 "An active product requires a sellable SKU");

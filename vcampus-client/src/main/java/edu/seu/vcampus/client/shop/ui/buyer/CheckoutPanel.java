@@ -26,6 +26,7 @@ import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.awt.Window;
 import java.util.List;
+import java.util.Set;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -42,6 +43,7 @@ public final class CheckoutPanel extends JPanel {
     private final LatestRequest cartRefreshes = new LatestRequest();
     private final JPanel content = new JPanel(new BorderLayout());
     private CartCountModel cartCount = new CartCountModel();
+    private CartView sourceCart;
     private CartView cart;
     private CheckoutResult checkout;
     private long activeLoad;
@@ -124,9 +126,12 @@ public final class CheckoutPanel extends JPanel {
         SwingUtilities.invokeLater(() -> {
             if (disposed || !loads.accepts(request)) return;
             if (failure != null) { showFailure(failure, this::load); return; }
-            cart = result;
+            sourceCart = result;
+            cart = selectedCart(result);
             cartCount.update(cartRevision, result);
-            if (cart.items().isEmpty()) showState(ShopPageState.EMPTY, "购物车为空", this::load);
+            if (selectionMissing(result)) showState(ShopPageState.EMPTY,
+                    "所选商品已变化，请返回购物车重新选择", this::load);
+            else if (cart.items().isEmpty()) showState(ShopPageState.EMPTY, "购物车为空", this::load);
             else showCheckout(ShopPageState.NORMAL, "");
         });
     }
@@ -138,7 +143,8 @@ public final class CheckoutPanel extends JPanel {
             checkoutInFlight = false;
             if (failure == null) {
                 checkout = result;
-                cartCount.clear();
+                publishRemainingCartCount(snapshot);
+                refreshCartCount();
                 showCheckout(ShopPageState.NORMAL, "");
                 openCashier(result);
                 return;
@@ -147,10 +153,10 @@ public final class CheckoutPanel extends JPanel {
             if (ShopUiErrors.sessionExpired(code)) {
                 disconnect(code);
             } else if ("SHOP_PRICE_CHANGED".equals(code)) {
-                showCheckout(ShopPageState.ERROR, code);
+                showCheckout(ShopPageState.ERROR, ShopUiErrors.message(code));
                 dialogs.confirm(code, () -> submit(snapshot, loadAtSubmit, true));
             } else {
-                showCheckout(ShopPageState.ERROR, code);
+                showCheckout(ShopPageState.ERROR, ShopUiErrors.message(code));
                 dialogs.showError(code);
             }
         });
@@ -203,13 +209,55 @@ public final class CheckoutPanel extends JPanel {
     private void showFailure(Throwable failure, Runnable retry) {
         String code = ShopUiErrors.code(failure);
         if (ShopUiErrors.sessionExpired(code)) disconnect(code);
-        else showState(ShopPageState.ERROR, code, retry);
+        else showState(ShopPageState.ERROR, ShopUiErrors.message(code), retry);
     }
     private void disconnect(String code) {
         if (disconnected) return;
         disconnected = true; checkoutInFlight = false;
         loads.dispose(); submissions.dispose(); cartRefreshes.dispose();
-        showState(ShopPageState.DISCONNECTED, code, null); sessionExpired.run();
+        showState(ShopPageState.DISCONNECTED, ShopUiErrors.message(code), null);
+        sessionExpired.run();
+    }
+
+    private CartView selectedCart(CartView source) {
+        Set<String> selected = routeSelection();
+        if (selected.isEmpty()) return source;
+        List<CartItemView> items = source.items().stream()
+                .filter(item -> selected.contains(item.cartItemId())).toList();
+        if (items.size() != selected.size()) return new CartView(source.cartId(), List.of(),
+                java.math.BigDecimal.ZERO);
+        java.math.BigDecimal total = items.stream()
+                .map(item -> item.displayedUnitPrice().multiply(
+                        java.math.BigDecimal.valueOf(item.quantity())))
+                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+        return new CartView(source.cartId(), items, total);
+    }
+
+    private boolean selectionMissing(CartView source) {
+        Set<String> selected = routeSelection();
+        return !selected.isEmpty() && source.items().stream()
+                .filter(item -> selected.contains(item.cartItemId())).count() != selected.size();
+    }
+
+    private Set<String> routeSelection() {
+        return navigator.current()
+                .filter(ShopRoute.Checkout.class::isInstance)
+                .map(ShopRoute.Checkout.class::cast)
+                .map(ShopRoute.Checkout::cartItemIds)
+                .orElse(Set.of());
+    }
+
+    private void publishRemainingCartCount(CartView submitted) {
+        if (sourceCart == null) return;
+        Set<String> submittedIds = submitted.items().stream()
+                .map(CartItemView::cartItemId).collect(java.util.stream.Collectors.toSet());
+        List<CartItemView> remaining = sourceCart.items().stream()
+                .filter(item -> !submittedIds.contains(item.cartItemId())).toList();
+        java.math.BigDecimal total = remaining.stream()
+                .map(item -> item.displayedUnitPrice().multiply(
+                        java.math.BigDecimal.valueOf(item.quantity())))
+                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+        cartCount.update(new CartView(sourceCart.cartId(), remaining, total));
     }
 
     private void routeChanged(ShopRoute route) {

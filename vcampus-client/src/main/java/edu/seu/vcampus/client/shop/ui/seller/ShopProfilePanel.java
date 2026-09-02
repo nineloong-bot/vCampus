@@ -77,7 +77,7 @@ public final class ShopProfilePanel extends JPanel {
     }
 
     private void fail(Throwable failure) {
-        String code = ShopUiErrors.code(failure); status.setText(code);
+        String code = ShopUiErrors.code(failure); status.setText(ShopUiErrors.message(code));
         if (ShopUiErrors.sessionExpired(code)) sessionExpired.run();
     }
 

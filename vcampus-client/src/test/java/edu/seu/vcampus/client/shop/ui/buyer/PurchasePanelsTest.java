@@ -31,6 +31,7 @@ import edu.seu.vcampus.common.shop.UpdateCartItemCommand;
 import org.junit.jupiter.api.Test;
 
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
@@ -45,6 +46,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -99,6 +101,136 @@ class PurchasePanelsTest {
         onEdt(() -> panel.remove("cart-item-1"));
         flushEdt();
         verify(client).removeCartItem("cart-item-1");
+    }
+
+    @Test
+    void cartShowsRemoveAndRequiresConfirmation() throws Exception {
+        ShopClientPort client = mock(ShopClientPort.class);
+        when(client.getCart()).thenReturn(CompletableFuture.completedFuture(
+                ShopClientFixtures.cartView()));
+        when(client.removeCartItem("cart-item-1")).thenReturn(
+                CompletableFuture.completedFuture(new CartView(
+                        "cart-1", List.of(), BigDecimal.ZERO)));
+        List<Boolean> decisions = new ArrayList<>(List.of(false, true));
+        List<String> prompts = new ArrayList<>();
+        CartPanel panel = onEdt(() -> new CartPanel(client,
+                new ShopNavigator(route -> { }), new RecordingKit(), new CartCountModel(),
+                () -> { }, message -> {
+                    prompts.add(message);
+                    return decisions.removeFirst();
+                }));
+
+        onEdt(panel::load);
+        flushEdt();
+        JButton remove = component(panel, "cart.remove-cart-item-1", JButton.class);
+        assertThat(remove.getText()).isEqualTo("移除");
+
+        onEdt(() -> remove.doClick());
+        verify(client, never()).removeCartItem(any());
+        onEdt(() -> remove.doClick());
+        flushEdt();
+
+        assertThat(prompts).containsExactly("确定移除此商品？", "确定移除此商品？");
+        verify(client).removeCartItem("cart-item-1");
+        assertThat(panel.visibleItems()).isEmpty();
+    }
+
+    @Test
+    void cartStartsUnselectedAndOpensCheckoutWithOnlySelectedItems() throws Exception {
+        ShopClientPort client = mock(ShopClientPort.class);
+        when(client.getCart()).thenReturn(CompletableFuture.completedFuture(twoItemCart()));
+        List<ShopRoute> routes = new ArrayList<>();
+        CartPanel panel = onEdt(() -> new CartPanel(client, new ShopNavigator(routes::add),
+                new RecordingKit(), () -> { }));
+
+        onEdt(panel::load);
+        flushEdt();
+
+        JButton checkout = component(panel, "cart.checkout", JButton.class);
+        assertThat(panel.selectedItemIds()).isEmpty();
+        assertThat(checkout.isEnabled()).isFalse();
+        assertThat(component(panel, "cart.selection-guidance", JLabel.class).getText())
+                .isEqualTo("请至少选择一件商品");
+
+        onEdt(() -> component(panel, "cart.select-cart-item-2", JCheckBox.class).doClick());
+
+        assertThat(panel.selectedItemIds()).containsExactly("cart-item-2");
+        assertThat(component(panel, "cart.selected-total", JLabel.class).getText())
+                .isEqualTo("已选总计：¥5.00");
+        JButton selectedCheckout = component(panel, "cart.checkout", JButton.class);
+        assertThat(selectedCheckout.isEnabled()).isTrue();
+        onEdt(() -> selectedCheckout.doClick());
+        assertThat(routes.getLast()).isEqualTo(
+                new ShopRoute.Checkout(Set.of("cart-item-2")));
+    }
+
+    @Test
+    void checkoutDisplaysAndSubmitsOnlyTheRouteSelection() throws Exception {
+        ShopClientPort client = mock(ShopClientPort.class);
+        when(client.getCart()).thenReturn(CompletableFuture.completedFuture(twoItemCart()));
+        when(client.checkout(any())).thenReturn(CompletableFuture.completedFuture(
+                ShopClientFixtures.checkoutResult()));
+        ShopNavigator navigator = new ShopNavigator(route -> { });
+        navigator.open(new ShopRoute.Checkout(Set.of("cart-item-2")));
+        CheckoutPanel panel = onEdt(() -> new CheckoutPanel(client, navigator,
+                new RecordingKit(), new RecordingDialogs(), () -> { }));
+
+        onEdt(panel::load);
+        flushEdt();
+        onEdt(panel::submit);
+        flushEdt();
+
+        assertThat(panel.visibleItems()).extracting(CartItemView::cartItemId)
+                .containsExactly("cart-item-2");
+        assertThat(component(panel, "checkout.total", JLabel.class).getText())
+                .isEqualTo("总计：¥5.00");
+        verify(client).checkout(new CheckoutCommand(List.of(
+                new CheckoutItem("cart-item-2", new BigDecimal("5.00"))), false));
+    }
+
+    @Test
+    void checkoutExplainsWhenTheRouteSelectionNoLongerExists() throws Exception {
+        ShopClientPort client = mock(ShopClientPort.class);
+        when(client.getCart()).thenReturn(CompletableFuture.completedFuture(
+                ShopClientFixtures.cartView()));
+        ShopNavigator navigator = new ShopNavigator(route -> { });
+        navigator.open(new ShopRoute.Checkout(Set.of("removed-cart-item")));
+        CheckoutPanel panel = onEdt(() -> new CheckoutPanel(client, navigator,
+                new RecordingKit(), new RecordingDialogs(), () -> { }));
+
+        onEdt(panel::load);
+        flushEdt();
+
+        assertThat(component(panel, "checkout.state", JLabel.class).getText())
+                .isEqualTo("所选商品已变化，请返回购物车重新选择");
+        verify(client, never()).checkout(any());
+    }
+
+    @Test
+    void partialCheckoutImmediatelyKeepsUnselectedQuantityInCartCount() throws Exception {
+        ShopClientPort client = mock(ShopClientPort.class);
+        RecordingCashierFactory factory = new RecordingCashierFactory();
+        CartCountModel count = new CartCountModel();
+        CartView remaining = new CartView("cart-1", List.of(twoItemCart().items().getFirst()),
+                new BigDecimal("6.00"));
+        when(client.getCart()).thenReturn(
+                CompletableFuture.completedFuture(twoItemCart()),
+                CompletableFuture.completedFuture(remaining));
+        when(client.checkout(any())).thenReturn(CompletableFuture.completedFuture(
+                ShopClientFixtures.checkoutResult()));
+        ShopNavigator navigator = new ShopNavigator(route -> { });
+        navigator.open(new ShopRoute.Checkout(Set.of("cart-item-2")));
+        CheckoutPanel panel = onEdt(() -> new CheckoutPanel(client, navigator,
+                new RecordingKit(), new RecordingDialogs(), () -> { }, factory));
+        onEdt(() -> panel.setCartCountModel(count));
+
+        onEdt(panel::load);
+        flushEdt();
+        onEdt(panel::submit);
+        flushEdt();
+
+        assertThat(count.totalQuantity()).isEqualTo(2);
+        verify(client, times(2)).getCart();
     }
 
     @Test
@@ -504,7 +636,7 @@ class PurchasePanelsTest {
         assertThat(navigator.current()).contains(new ShopRoute.PaymentResult(cancelled));
         assertThat(navigator.history()).noneMatch(ShopRoute.Checkout.class::isInstance);
         assertThat(count.totalQuantity()).isZero();
-        verify(client, times(5)).getCart();
+        verify(client, times(6)).getCart();
 
         ShopClientPort closeClient = mock(ShopClientPort.class);
         RecordingCashierFactory closeFactory = new RecordingCashierFactory();
@@ -526,7 +658,7 @@ class PurchasePanelsTest {
         flushEdt();
 
         assertThat(closeCount.totalQuantity()).isZero();
-        verify(closeClient, times(2)).getCart();
+        verify(closeClient, times(3)).getCart();
     }
 
     @Test
