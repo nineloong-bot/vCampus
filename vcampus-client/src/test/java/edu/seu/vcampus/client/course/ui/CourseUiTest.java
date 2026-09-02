@@ -2504,6 +2504,8 @@ class CourseUiTest {
 
     private static boolean isInteractiveControl(Component component) {
         if (component instanceof JButton && component.getParent() instanceof JComboBox<?>) return false;
+        if (component instanceof JButton
+                && component.getParent() instanceof javax.swing.JScrollBar) return false;
         return component instanceof JButton || component instanceof JTextField
                 || component instanceof JTextArea || component instanceof JComboBox<?>
                 || component instanceof JCheckBox || component instanceof JTable;

@@ -1,7 +1,7 @@
 @echo off
 setlocal
-set "DEMO_DATABASE=%~dp0..\data\course-user-demo.accdb"
-echo 确认删除 data/course-user-demo.accdb 并恢复初始 Demo 数据？[y/N]
+set "DEMO_DATABASE=%~dp0..\data\vCampus.accdb"
+echo 确认删除 data/vCampus.accdb 并恢复虚拟校园测试数据？[y/N]
 set "ANSWER="
 set /p "ANSWER=> "
 if /i not "%ANSWER%"=="y" (
@@ -9,4 +9,4 @@ if /i not "%ANSWER%"=="y" (
   exit /b 0
 )
 if exist "%DEMO_DATABASE%" del /f /q "%DEMO_DATABASE%"
-echo 已重置带数据 Demo；下次启动服务端会重新创建。
+echo 已重置虚拟校园数据；下次启动服务端会重新创建。

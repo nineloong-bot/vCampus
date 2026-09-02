@@ -21,8 +21,8 @@ INSERT INTO tblUser
      lockedUntil, lastLoginAt, rowVersion, createdAt, updatedAt)
 VALUES
     ('00000000-0000-0000-0000-000000000002', 'TEACHER01',
-     'M1ugBCfSgAJo783+gcwzquDQVReMTum8FhPOuhiVkGM=',
-     'w0HAs1RaS7syKoOJIwBhoA==', 120000, 'TEACHER', 'ACTIVE', FALSE, 0,
+     'qX+wANpmojiY0I1qjpBBoUCjiFP6bZJnWg5qgeHmNh4=',
+     'mW5pbqIFUpGT2Zlkq7TsSA==', 120000, 'TEACHER', 'ACTIVE', FALSE, 0,
      NULL, NULL, 0, NOW(), NOW());
 
 INSERT INTO tblUser
@@ -31,8 +31,8 @@ INSERT INTO tblUser
      lockedUntil, lastLoginAt, rowVersion, createdAt, updatedAt)
 VALUES
     ('00000000-0000-0000-0000-000000000003', '213230001',
-     'FtNp+sYhvrqEZzDBbVS6tsK5gQJV2h4jIvXtKhiZjbg=',
-     'ea2khaykRdPtuvyuFbeskw==', 120000, 'STUDENT', 'ACTIVE', FALSE, 0,
+     'qX+wANpmojiY0I1qjpBBoUCjiFP6bZJnWg5qgeHmNh4=',
+     'mW5pbqIFUpGT2Zlkq7TsSA==', 120000, 'STUDENT', 'ACTIVE', FALSE, 0,
      NULL, NULL, 0, NOW(), NOW());
 
 INSERT INTO tblStudent

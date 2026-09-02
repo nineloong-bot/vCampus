@@ -13,16 +13,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class DemoDistributionAccountsTest {
     @Test
-    void distributionDatabaseContainsTheThreeVerifiedCourseDemoAccounts() throws Exception {
+    void distributionDatabaseContainsTheVerifiedUnifiedCampusAccounts() throws Exception {
         Path database = distributionDatabase();
         assertThat(database).isRegularFile().isNotEmptyFile();
         Map<String, Expected> expected = new LinkedHashMap<>();
-        expected.put("DEMO_ADMIN", new Expected("ADMIN", false,
-                "admin123456".toCharArray()));
-        expected.put("DEMO_TEACHER", new Expected("TEACHER", false,
-                "Teacher123456".toCharArray()));
-        expected.put("213242478", new Expected("STUDENT", true,
-                "12345678".toCharArray()));
+        expected.put("ADMIN", new Expected("ADMIN", true, "admin123".toCharArray()));
+        expected.put("TEACHER01", new Expected("TEACHER", false, "admin123".toCharArray()));
+        expected.put("213230001", new Expected("STUDENT", false, "admin123".toCharArray()));
+        expected.put("SHOPOWNER", new Expected("STUDENT", false, "admin123".toCharArray()));
+        expected.put("SHOPDRAFT", new Expected("STUDENT", false, "admin123".toCharArray()));
+        expected.put("SHOPPENDING", new Expected("STUDENT", false, "admin123".toCharArray()));
         PasswordHasher hasher = new PasswordHasher();
         try (var connection = DriverManager.getConnection("jdbc:ucanaccess://" + database
                 + ";immediatelyReleaseResources=true")) {

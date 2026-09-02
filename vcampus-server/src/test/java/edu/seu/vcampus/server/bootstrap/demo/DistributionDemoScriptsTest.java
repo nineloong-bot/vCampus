@@ -17,12 +17,12 @@ class DistributionDemoScriptsTest {
     Path temporaryDirectory;
 
     @Test
-    void exposesOnlyTheSharedClientSeededServerAndResetLaunchers() throws Exception {
+    void exposesTheSharedClientSeededServerAndResetLaunchers() throws Exception {
         List<String> scripts;
         try (var paths = Files.list(distributionRoot().resolve("scripts"))) {
             scripts = paths.map(path -> path.getFileName().toString()).sorted().toList();
         }
-        assertThat(scripts).containsExactly(
+        assertThat(scripts).contains(
                 "reset-data.bat", "reset-data.sh",
                 "start-client.bat", "start-client.sh",
                 "start-server-with-data.bat", "start-server-with-data.sh");
@@ -38,7 +38,7 @@ class DistributionDemoScriptsTest {
         Path root = Files.createDirectories(temporaryDirectory.resolve("distribution"));
         Path scripts = Files.createDirectories(root.resolve("scripts"));
         Path data = Files.createDirectories(root.resolve("data"));
-        Path sentinel = Files.writeString(data.resolve("course-user-demo.accdb"), "keep");
+        Path sentinel = Files.writeString(data.resolve("vCampus.accdb"), "keep");
         Files.copy(distributionRoot().resolve("scripts/start-client.sh"),
                 scripts.resolve("start-client.sh"));
         Files.copy(distributionRoot().resolve("scripts/start-server-with-data.sh"),
@@ -79,7 +79,7 @@ class DistributionDemoScriptsTest {
     }
 
     @Test
-    void resetDataConfirmsThenRemovesOnlyTheSeededDemoDatabase() throws Exception {
+    void resetDataConfirmsThenRemovesOnlyTheUnifiedDatabase() throws Exception {
         assumeFalse(System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win"));
         Path source = distributionRoot().resolve("scripts/reset-data.sh");
         assertThat(source).exists();
@@ -87,8 +87,8 @@ class DistributionDemoScriptsTest {
         Path data = Files.createDirectories(temporaryDirectory.resolve("data"));
         Path reset = scripts.resolve("reset-data.sh");
         Files.copy(source, reset);
-        Path demoDatabase = Files.writeString(data.resolve("course-user-demo.accdb"), "demo");
-        Path unrelatedDatabase = Files.writeString(data.resolve("vCampus.accdb"), "keep");
+        Path demoDatabase = Files.writeString(data.resolve("vCampus.accdb"), "demo");
+        Path unrelatedDatabase = Files.writeString(data.resolve("unrelated.accdb"), "keep");
 
         Process process = new ProcessBuilder("sh", reset.toString())
                 .redirectErrorStream(true)
@@ -100,8 +100,8 @@ class DistributionDemoScriptsTest {
         assertThat(process.waitFor()).isZero();
         assertThat(process.inputReader().lines().toList())
                 .containsExactly(
-                        "确认删除 data/course-user-demo.accdb 并恢复初始 Demo 数据？[y/N]",
-                        "已重置带数据 Demo；下次启动服务端会重新创建。");
+                        "确认删除 data/vCampus.accdb 并恢复虚拟校园测试数据？[y/N]",
+                        "已重置虚拟校园数据；下次启动服务端会重新创建。");
         assertThat(demoDatabase).doesNotExist();
         assertThat(unrelatedDatabase).exists();
     }

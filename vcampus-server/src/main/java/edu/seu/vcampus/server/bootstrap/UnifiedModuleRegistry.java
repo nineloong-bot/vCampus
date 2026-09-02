@@ -48,6 +48,7 @@ import edu.seu.vcampus.server.student.repository.StudentRepository;
 import edu.seu.vcampus.server.student.service.StudentAdmissionCoordinator;
 import edu.seu.vcampus.server.student.service.StudentOrganizationAdminService;
 import edu.seu.vcampus.server.student.service.StudentProfileServiceImpl;
+import edu.seu.vcampus.server.student.service.StudentQueryPort;
 import edu.seu.vcampus.server.student.service.StudentServiceImpl;
 import edu.seu.vcampus.server.user.repository.AccessAuditRepository;
 import edu.seu.vcampus.server.user.repository.AccessUserRepository;
@@ -69,23 +70,19 @@ final class UnifiedModuleRegistry {
     private UnifiedModuleRegistry() {
     }
 
-    static void registerAll(MessageRouter router, TransactionManager transactions,
-                            ResourceLockManager locks,
-                            SessionRegistry sessions, AuthorizationService authorization,
-                            RequestDeduplicator deduplicator, UserServiceImpl users,
-                            AccessUserRepository userRepository, AccessAuditRepository audits,
-                            PasswordHasher passwords, Clock clock) {
-        registerStudent(router, transactions, locks, sessions, deduplicator, users,
-                userRepository, audits, passwords);
+    static void registerLibraryAndShop(MessageRouter router, TransactionManager transactions,
+                                       ResourceLockManager locks,
+                                       SessionRegistry sessions, AuthorizationService authorization,
+                                       RequestDeduplicator deduplicator, Clock clock) {
         registerLibrary(router, transactions, locks, authorization, deduplicator, clock);
         registerShop(router, transactions, locks, sessions, authorization, deduplicator, clock);
     }
 
-    private static void registerStudent(MessageRouter router, TransactionManager transactions,
-                                        ResourceLockManager locks, SessionRegistry sessions,
-                                        RequestDeduplicator deduplicator, UserQueryPort users,
-                                        AccessUserRepository userRepository,
-                                        AccessAuditRepository audits, PasswordHasher passwords) {
+    static StudentQueryPort registerStudent(MessageRouter router, TransactionManager transactions,
+                                            ResourceLockManager locks, SessionRegistry sessions,
+                                            RequestDeduplicator deduplicator, UserQueryPort users,
+                                            AccessUserRepository userRepository,
+                                            AccessAuditRepository audits, PasswordHasher passwords) {
         StudentRepository students = new StudentRepository();
         StudentChangeRepository changes = new StudentChangeRepository();
         OrganizationRepository organizations = new AccessOrganizationRepository();
@@ -116,6 +113,7 @@ final class UnifiedModuleRegistry {
                 new StudentOrganizationAdminService(transactions, locks, organizations),
                 studentAuthorization, new DeduplicatingStudentWriteExecutor(deduplicator),
                 profiles, new StudentProfilePdfService()).register(router);
+        return service;
     }
 
     private static void registerLibrary(MessageRouter router, TransactionManager transactions,

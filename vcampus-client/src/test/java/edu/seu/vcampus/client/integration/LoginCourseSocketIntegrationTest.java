@@ -60,6 +60,7 @@ class LoginCourseSocketIntegrationTest {
     private static final Instant NOW = Instant.parse("2026-08-31T08:00:00Z");
     private static final String PASSWORD = "Password7";
     private static final String STUDENT_USER_ID = "student-user-001";
+    private static final String STUDENT_ID = "student-record-001";
     private static final String TEACHER_USER_ID = "teacher-user-001";
 
     @TempDir
@@ -80,6 +81,7 @@ class LoginCourseSocketIntegrationTest {
         ApplicationRuntime runtime = ApplicationRuntime.create(
                 connections, databaseRoot(), Clock.fixed(NOW, ZoneOffset.UTC));
         insertUser(connections, STUDENT_USER_ID, "STUDENT1", UserRole.STUDENT, false);
+        insertStudent(connections, STUDENT_ID, STUDENT_USER_ID);
         insertUser(connections, TEACHER_USER_ID, "TEACHER1", UserRole.TEACHER, false);
         insertUser(connections, "admin-user-001", "ADMIN1", UserRole.ADMIN, false);
         insertUser(connections, "admin-user-002", "ADMIN2", UserRole.ADMIN, false);
@@ -141,8 +143,8 @@ class LoginCourseSocketIntegrationTest {
                 .extracting("offeringId").containsExactly(offering.offeringId());
         EnrollmentView enrollment = courses.enroll(new EnrollCommand(offering.offeringId())).join();
         assertThat(enrollment.studentId())
-                .as("temporary active-STUDENT mapping keeps studentId equal to userId")
-                .isEqualTo(STUDENT_USER_ID);
+                .as("course enrollment uses the student module's studentId mapping")
+                .isEqualTo(STUDENT_ID);
         int beforeDrop = courses.searchOfferings(query).join().items().getFirst().enrolledCount();
         courses.drop(new DropCommand(enrollment.enrollmentId(), enrollment.rowVersion())).join();
         assertThat(courses.getCurrentEnrollments().join())
@@ -172,7 +174,7 @@ class LoginCourseSocketIntegrationTest {
     }
 
     @Test
-    void demotingAnAdministratorExpiresEveryOldTokenForUserAndCourseAdminCommands() throws Exception {
+    void disabledRoleChangeDoesNotMutateTheAdministratorOrRevokeItsSession() throws Exception {
         ClientConnection targetConnection = new ClientConnection("127.0.0.1", server.localPort());
         targetConnection.connect(Duration.ofSeconds(5));
         try {
@@ -186,14 +188,13 @@ class LoginCourseSocketIntegrationTest {
             var update = connection.send("USER_UPDATE_ROLE", new UpdateUserRoleCommand(
                     "admin-user-002", UserRole.TEACHER, target.user().rowVersion() + 1),
                     Duration.ofSeconds(10)).join();
-            assertThat(update.success()).withFailMessage("role update failed: %s", update.code()).isTrue();
+            assertThat(update.success()).isFalse();
+            assertThat(update.code()).isEqualTo("COMMON_VALIDATION_FAILED");
 
             var userAdminResponse = targetConnection.send("USER_SEARCH",
                     new UserSearchQuery(null, null, null, 0, 10), Duration.ofSeconds(10)).join();
-            assertThat(userAdminResponse.success()).isFalse();
-            assertThat(userAdminResponse.code()).isEqualTo("AUTH_SESSION_EXPIRED");
-            assertCourseFailure(() -> targetCourses.createTerm(term()).join(),
-                    "AUTH_SESSION_EXPIRED");
+            assertThat(userAdminResponse.success()).isTrue();
+            assertThat(targetCourses.listTerms().join()).isNotEmpty();
         } finally {
             targetConnection.close();
         }
@@ -298,6 +299,35 @@ class LoginCourseSocketIntegrationTest {
             statement.setInt(12, 0);
             statement.setTimestamp(13, Timestamp.valueOf(now));
             statement.setTimestamp(14, Timestamp.valueOf(now));
+            statement.executeUpdate();
+        }
+    }
+
+    private static void insertStudent(ConnectionProvider connections, String studentId,
+                                      String userId) throws Exception {
+        try (var connection = connections.open();
+             var classQuery = connection.createStatement();
+             var classes = classQuery.executeQuery("SELECT TOP 1 classId FROM tblClass");
+             var statement = connection.prepareStatement("""
+                     INSERT INTO tblStudent (studentId, userId, studentNumber, studentType,
+                         studentName, gender, classId, enrollmentDate, studentStatus,
+                         rowVersion, createdAt, updatedAt)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     """)) {
+            assertThat(classes.next()).isTrue();
+            LocalDateTime now = LocalDateTime.ofInstant(NOW, ZoneOffset.UTC);
+            statement.setString(1, studentId);
+            statement.setString(2, userId);
+            statement.setString(3, "23990001");
+            statement.setString(4, "UNDERGRADUATE");
+            statement.setString(5, "课程集成学生");
+            statement.setString(6, "UNKNOWN");
+            statement.setString(7, classes.getString(1));
+            statement.setTimestamp(8, Timestamp.valueOf(now));
+            statement.setString(9, "ACTIVE");
+            statement.setInt(10, 0);
+            statement.setTimestamp(11, Timestamp.valueOf(now));
+            statement.setTimestamp(12, Timestamp.valueOf(now));
             statement.executeUpdate();
         }
     }

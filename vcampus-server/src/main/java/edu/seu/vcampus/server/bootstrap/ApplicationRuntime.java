@@ -6,7 +6,6 @@ import edu.seu.vcampus.server.concurrency.ResourceLockManager;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.course.composition.CourseComposition;
 import edu.seu.vcampus.server.course.composition.CourseRuntimeAdapters;
-import edu.seu.vcampus.server.course.composition.TemporaryUserStudentGateway;
 import edu.seu.vcampus.server.course.service.CourseAuthorizationGateway;
 import edu.seu.vcampus.server.course.service.CourseStudentGateway;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
@@ -23,6 +22,7 @@ import edu.seu.vcampus.server.user.repository.AccessUserRepository;
 import edu.seu.vcampus.server.user.service.PasswordHasher;
 import edu.seu.vcampus.server.user.service.SecurityAuditService;
 import edu.seu.vcampus.server.user.service.UserServiceImpl;
+import edu.seu.vcampus.server.student.service.StudentQueryPort;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -85,17 +85,24 @@ public final class ApplicationRuntime {
                 snapshot -> !snapshot.restricted(),
                 (userId, role) -> users.findActiveUser(userId)
                         .map(identity -> identity.role().name().equals(role)).orElse(false));
-        CourseStudentGateway students = TemporaryUserStudentGateway.create(users);
-        CourseComposition courses = CourseComposition.create(connections, courseAuthorization,
-                students, clock, locks);
         MessageRouter router = new MessageRouter(Map.of(
                 "PING", (request, context) -> ResponseBody.success(EmptyResponse.INSTANCE)));
         new UserHandlers(router, users, authorization, deduplicator);
         router.register("SECURITY_AUDIT_SEARCH", new SecurityAuditHandler(authorization,
                 new SecurityAuditService(transactions, audits)));
+        StudentQueryPort studentQueries = UnifiedModuleRegistry.registerStudent(router,
+                transactions, locks, sessions, deduplicator, users, userRepository, audits,
+                passwords);
+        CourseStudentGateway students = CourseRuntimeAdapters.students(
+                studentQueries::getEnrollmentEligibility,
+                eligibility -> eligibility.studentId(),
+                eligibility -> eligibility.status().name(),
+                studentQueries::existsActiveStudent);
+        CourseComposition courses = CourseComposition.create(connections, courseAuthorization,
+                students, clock, locks);
         courses.register(router);
-        UnifiedModuleRegistry.registerAll(router, transactions, locks, sessions,
-                authorization, deduplicator, users, userRepository, audits, passwords, clock);
+        UnifiedModuleRegistry.registerLibraryAndShop(router, transactions, locks, sessions,
+                authorization, deduplicator, clock);
         return new ApplicationRuntime(router, courses, locks, authorization);
     }
 

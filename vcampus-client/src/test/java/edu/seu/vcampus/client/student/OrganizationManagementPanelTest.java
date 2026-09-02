@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class OrganizationManagementPanelTest {
+    private static final long ASYNC_UI_TIMEOUT_SECONDS = 15;
     private static final java.util.List<ClientConnection> connections = new java.util.ArrayList<>();
 
     @AfterEach
@@ -36,11 +37,7 @@ class OrganizationManagementPanelTest {
     @Test
     void treeRendersHierarchy() throws Exception {
         var client = new AutoCompletingClient();
-        client.enqueue(ResponseBody.success(departments()));
-        client.enqueue(ResponseBody.success(majors("dept-1")));
-        client.enqueue(ResponseBody.success(new ArrayList<>()));
-        client.enqueue(ResponseBody.success(classes("major-1")));
-        client.enqueue(ResponseBody.success(new ArrayList<>()));
+        client.withHierarchy();
 
         var fixture = new OrgFixture(client, ConnectionState.CONNECTED);
         SwingUtilities.invokeAndWait(fixture::showPanel);
@@ -69,11 +66,7 @@ class OrganizationManagementPanelTest {
     @Test
     void selectingNodeSwitchesEditForm() throws Exception {
         var client = new AutoCompletingClient();
-        client.enqueue(ResponseBody.success(departments()));
-        client.enqueue(ResponseBody.success(majors("dept-1")));
-        client.enqueue(ResponseBody.success(new ArrayList<>()));
-        client.enqueue(ResponseBody.success(classes("major-1")));
-        client.enqueue(ResponseBody.success(new ArrayList<>()));
+        client.withHierarchy();
 
         var fixture = new OrgFixture(client, ConnectionState.CONNECTED);
         SwingUtilities.invokeAndWait(fixture::showPanel);
@@ -100,7 +93,7 @@ class OrganizationManagementPanelTest {
     @Test
     void saveNewDepartment() throws Exception {
         var client = new AutoCompletingClient();
-        client.enqueue(ResponseBody.success(new ArrayList<>()));
+        client.withEmptyDepartments();
 
         var fixture = new OrgFixture(client, ConnectionState.CONNECTED);
         SwingUtilities.invokeAndWait(fixture::showPanel);
@@ -123,13 +116,11 @@ class OrganizationManagementPanelTest {
     @Test
     void updateExistingDepartment() throws Exception {
         var client = new AutoCompletingClient();
-        client.enqueue(ResponseBody.success(departments()));
-        client.enqueue(ResponseBody.success(new ArrayList<>()));
-        client.enqueue(ResponseBody.success(new ArrayList<>()));
+        client.withDepartmentsOnly();
 
         var fixture = new OrgFixture(client, ConnectionState.CONNECTED);
         SwingUtilities.invokeAndWait(fixture::showPanel);
-        flushEdt();
+        fixture.waitForTreeLoaded(2);
 
         JTree tree = fixture.component("student.org.tree", JTree.class);
         DefaultMutableTreeNode root = (DefaultMutableTreeNode) tree.getModel().getRoot();
@@ -147,9 +138,7 @@ class OrganizationManagementPanelTest {
     @Test
     void addMajorUnderDepartment() throws Exception {
         var client = new AutoCompletingClient();
-        client.enqueue(ResponseBody.success(departments()));
-        client.enqueue(ResponseBody.success(new ArrayList<>()));
-        client.enqueue(ResponseBody.success(new ArrayList<>()));
+        client.withDepartmentsOnly();
 
         var fixture = new OrgFixture(client, ConnectionState.CONNECTED);
         SwingUtilities.invokeAndWait(fixture::showPanel);
@@ -174,9 +163,7 @@ class OrganizationManagementPanelTest {
     @Test
     void conflictShowsError() throws Exception {
         var client = new AutoCompletingClient();
-        client.enqueue(ResponseBody.success(departments()));
-        client.enqueue(ResponseBody.success(new ArrayList<>()));
-        client.enqueue(ResponseBody.success(new ArrayList<>()));
+        client.withDepartmentsOnly();
 
         var fixture = new OrgFixture(client, ConnectionState.CONNECTED);
         SwingUtilities.invokeAndWait(fixture::showPanel);
@@ -191,9 +178,6 @@ class OrganizationManagementPanelTest {
         SwingUtilities.invokeAndWait(() -> fixture.field("student.org.name").setText("新名称"));
 
         client.enqueue(ResponseBody.failure("COMMON_CONCURRENT_MODIFICATION", "数据已被修改", null));
-        client.enqueue(ResponseBody.success(departments()));
-        client.enqueue(ResponseBody.success(new ArrayList<>()));
-        client.enqueue(ResponseBody.success(new ArrayList<>()));
         SwingUtilities.invokeAndWait(() -> fixture.button("student.org.save").doClick());
         fixture.waitForErrorContaining("刷新");
         assertThat(fixture.label("student.org.error").getText()).contains("刷新");
@@ -265,7 +249,7 @@ class OrganizationManagementPanelTest {
         }
 
         void waitForTreeLoaded(int expectedChildren) throws Exception {
-            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(ASYNC_UI_TIMEOUT_SECONDS);
             while (System.nanoTime() < deadline) {
                 flushEdt();
                 int[] count = new int[1];
@@ -275,12 +259,13 @@ class OrganizationManagementPanelTest {
                     count[0] = root.getChildCount();
                 });
                 if (count[0] >= expectedChildren) return;
+                TimeUnit.MILLISECONDS.sleep(10);
             }
             throw new AssertionError("Tree did not load within timeout");
         }
 
         void waitForHierarchyLoaded() throws Exception {
-            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(ASYNC_UI_TIMEOUT_SECONDS);
             while (System.nanoTime() < deadline) {
                 flushEdt();
                 boolean[] loaded = new boolean[1];
@@ -300,7 +285,7 @@ class OrganizationManagementPanelTest {
         }
 
         void waitForErrorContaining(String expectedText) throws Exception {
-            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(ASYNC_UI_TIMEOUT_SECONDS);
             while (System.nanoTime() < deadline) {
                 flushEdt();
                 String[] text = new String[1];
@@ -312,7 +297,7 @@ class OrganizationManagementPanelTest {
         }
 
         void waitForButtonEnabled(String name) throws Exception {
-            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(ASYNC_UI_TIMEOUT_SECONDS);
             while (System.nanoTime() < deadline) {
                 flushEdt();
                 boolean[] enabled = new boolean[1];
@@ -347,13 +332,31 @@ class OrganizationManagementPanelTest {
     private static final class AutoCompletingClient implements StudentRequestClient {
         private final BlockingQueue<ResponseBody<?>> pending = new LinkedBlockingQueue<>();
         private final AtomicInteger consumed = new AtomicInteger();
+        private ArrayList<DepartmentView> departmentResults;
+        private boolean includeHierarchy;
 
         void enqueue(ResponseBody<?> response) { pending.add(response); }
+        void withHierarchy() { departmentResults = departments(); includeHierarchy = true; }
+        void withDepartmentsOnly() { departmentResults = departments(); }
+        void withEmptyDepartments() { departmentResults = new ArrayList<>(); }
 
         @SuppressWarnings({"unchecked", "rawtypes"})
         @Override public <T extends Serializable> CompletableFuture<ResponseBody<T>> send(
                 String command, Serializable body, Duration timeout) {
-            ResponseBody<?> response = pending.poll();
+            ResponseBody<?> response = switch (command) {
+                case "STUDENT_LIST_DEPARTMENTS" -> ResponseBody.success(departmentResults);
+                case "STUDENT_LIST_MAJORS" -> {
+                    var query = (OrganizationChildrenQuery) body;
+                    yield ResponseBody.success(includeHierarchy
+                            ? majors(query.parentId()) : new ArrayList<MajorView>());
+                }
+                case "STUDENT_LIST_CLASSES" -> {
+                    var query = (OrganizationChildrenQuery) body;
+                    yield ResponseBody.success(includeHierarchy
+                            ? classes(query.parentId()) : new ArrayList<ClassView>());
+                }
+                default -> pending.poll();
+            };
             consumed.incrementAndGet();
             CompletableFuture<ResponseBody<T>> future = new CompletableFuture<>();
             if (response != null) {

@@ -37,7 +37,7 @@
                         <transformers>
                             <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                             <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                <mainClass>edu.seu.vcampus.server.bootstrap.demo.IntegratedDemoServerMain</mainClass>
+                                <mainClass>edu.seu.vcampus.server.bootstrap.ServerMain</mainClass>
                             </transformer>
                         </transformers>
                     </configuration>
@@ -59,10 +59,10 @@
                         <configuration><outputDirectory>${project.parent.basedir}/vcampus-distribution/database</outputDirectory>
                             <resources>
                                 <resource><directory>${project.parent.basedir}/vcampus-database/schema</directory><targetPath>schema</targetPath>
-                                    <includes><include>001_common.sql</include><include>010_user.sql</include><include>030_course.sql</include></includes>
+                                    <includes><include>*.sql</include></includes>
                                 </resource>
                                 <resource><directory>${project.parent.basedir}/vcampus-database/seed</directory><targetPath>seed</targetPath>
-                                    <includes><include>010_roles_permissions.sql</include></includes>
+                                    <includes><include>*.sql</include></includes>
                                 </resource>
                             </resources>
                         </configuration>

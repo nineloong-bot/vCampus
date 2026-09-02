@@ -96,8 +96,43 @@ public final class IntegratedDemoServerMain {
                 "TEACHER", false, clock.instant());
         seedUser(connections, "demo-admin", "DEMO_ADMIN", DEMO_PASSWORD,
                 "ADMIN", true, clock.instant());
+        seedDemoStudent(connections);
         seedCourses(runtime.course().service(), connections, clock);
         return runtime;
+    }
+
+    private static void seedDemoStudent(ConnectionProvider connections) throws Exception {
+        try (var connection = connections.open(); var query = connection.prepareStatement(
+                "SELECT 1 FROM tblStudent WHERE studentId=?")) {
+            query.setString(1, "demo-student");
+            try (var rows = query.executeQuery()) {
+                if (rows.next()) return;
+            }
+        }
+        try (var connection = connections.open(); var insert = connection.prepareStatement("""
+                INSERT INTO tblStudent
+                    (studentId, userId, studentNumber, studentType, studentName, gender,
+                     email, phone, classId, enrollmentDate, studentStatus, rowVersion,
+                     createdAt, updatedAt)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """)) {
+            insert.setString(1, "demo-student");
+            insert.setString(2, "demo-student");
+            insert.setString(3, "09999999");
+            insert.setString(4, "UNDERGRADUATE");
+            insert.setString(5, "课程演示学生");
+            insert.setString(6, "未知");
+            insert.setString(7, "demo.student@seu.edu.cn");
+            insert.setString(8, null);
+            insert.setString(9, "00000000-0000-0000-0000-000000000103");
+            Timestamp now = Timestamp.from(Instant.now());
+            insert.setTimestamp(10, now);
+            insert.setString(11, "ACTIVE");
+            insert.setLong(12, 0);
+            insert.setTimestamp(13, now);
+            insert.setTimestamp(14, now);
+            insert.executeUpdate();
+        }
     }
 
     private static void seedUser(ConnectionProvider connections, String userId, String loginId,

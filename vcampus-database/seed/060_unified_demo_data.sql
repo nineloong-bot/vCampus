@@ -3,8 +3,8 @@ INSERT INTO tblUser
      accountStatus, mustChangePassword, failedLoginCount, lockedUntil, lastLoginAt,
      rowVersion, createdAt, updatedAt)
 VALUES ('demo-shop-draft-user', 'SHOPDRAFT',
-    'FtNp+sYhvrqEZzDBbVS6tsK5gQJV2h4jIvXtKhiZjbg=',
-    'ea2khaykRdPtuvyuFbeskw==', 120000, 'STUDENT', 'ACTIVE', FALSE, 0,
+    'qX+wANpmojiY0I1qjpBBoUCjiFP6bZJnWg5qgeHmNh4=',
+    'mW5pbqIFUpGT2Zlkq7TsSA==', 120000, 'STUDENT', 'ACTIVE', FALSE, 0,
     NULL, NULL, 0, NOW(), NOW());
 
 INSERT INTO tblUser
@@ -12,8 +12,8 @@ INSERT INTO tblUser
      accountStatus, mustChangePassword, failedLoginCount, lockedUntil, lastLoginAt,
      rowVersion, createdAt, updatedAt)
 VALUES ('demo-shop-pending-user', 'SHOPPENDING',
-    'FtNp+sYhvrqEZzDBbVS6tsK5gQJV2h4jIvXtKhiZjbg=',
-    'ea2khaykRdPtuvyuFbeskw==', 120000, 'STUDENT', 'ACTIVE', FALSE, 0,
+    'qX+wANpmojiY0I1qjpBBoUCjiFP6bZJnWg5qgeHmNh4=',
+    'mW5pbqIFUpGT2Zlkq7TsSA==', 120000, 'STUDENT', 'ACTIVE', FALSE, 0,
     NULL, NULL, 0, NOW(), NOW());
 
 INSERT INTO tblUser
@@ -21,8 +21,8 @@ INSERT INTO tblUser
      accountStatus, mustChangePassword, failedLoginCount, lockedUntil, lastLoginAt,
      rowVersion, createdAt, updatedAt)
 VALUES ('demo-shop-owner-user', 'SHOPOWNER',
-    'FtNp+sYhvrqEZzDBbVS6tsK5gQJV2h4jIvXtKhiZjbg=',
-    'ea2khaykRdPtuvyuFbeskw==', 120000, 'STUDENT', 'ACTIVE', FALSE, 0,
+    'qX+wANpmojiY0I1qjpBBoUCjiFP6bZJnWg5qgeHmNh4=',
+    'mW5pbqIFUpGT2Zlkq7TsSA==', 120000, 'STUDENT', 'ACTIVE', FALSE, 0,
     NULL, NULL, 0, NOW(), NOW());
 
 INSERT INTO tblTerm
