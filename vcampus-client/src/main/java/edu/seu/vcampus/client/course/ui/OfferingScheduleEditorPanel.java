@@ -69,20 +69,23 @@ public final class OfferingScheduleEditorPanel extends JPanel {
 
     private void addRow(ScheduleRow row) {
         rows.add(row);
-        rowsPanel.add(row);
-        rowsPanel.add(Box.createVerticalStrut(UiSpacing.SM));
-        renameRows();
+        renderRows();
     }
 
     private void removeRow(ScheduleRow row) {
-        int index = rows.indexOf(row);
-        if (index < 0) return;
-        rows.remove(index);
-        rowsPanel.remove(row);
-        if (index < rowsPanel.getComponentCount()) rowsPanel.remove(index);
-        renameRows();
+        if (!rows.remove(row)) return;
+        renderRows();
         revalidate();
         repaint();
+    }
+
+    private void renderRows() {
+        rowsPanel.removeAll();
+        for (ScheduleRow row : rows) {
+            rowsPanel.add(row);
+            rowsPanel.add(Box.createVerticalStrut(UiSpacing.SM));
+        }
+        renameRows();
     }
 
     private void renameRows() {

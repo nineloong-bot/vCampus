@@ -31,6 +31,7 @@ import edu.seu.vcampus.common.user.UserRole;
 import edu.seu.vcampus.common.user.UserSummary;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 /** Narrow asynchronous seam used by course Swing pages. */
@@ -47,6 +48,7 @@ public interface CourseUiGateway {
     default CompletableFuture<PageResult<AdjustmentAuditView>> searchAdjustmentAudits(AdjustmentAuditQuery query) { return unsupported(); }
     default CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery query) { return unsupported(); }
     default CompletableFuture<PageResult<UserSummary>> searchTeachers(String keyword) { return unsupported(); }
+    default CompletableFuture<Optional<UserSummary>> resolveTeacher(String userId) { return unsupported(); }
     default CompletableFuture<List<TermView>> listTerms() { return unsupported(); }
     default CompletableFuture<EmptyResponse> importOutcomes(ImportCourseOutcomesCommand command) { return unsupported(); }
     default CompletableFuture<CourseView> createCourse(CreateCourseCommand command) { return unsupported(); }
@@ -64,9 +66,9 @@ public interface CourseUiGateway {
 
     static CourseUiGateway preview() {
         List<ScheduleItem> schedule = List.of(
-                new ScheduleItem("s1", "o1", "MATH101", "高等数学", "01班", "张老师", "MONDAY", 1, 2, 1, 16, "教一-201"),
-                new ScheduleItem("s2", "o2", "CS201", "数据结构", "02班", "李老师", "WEDNESDAY", 3, 4, 1, 16, "计算中心-305"),
-                new ScheduleItem("s3", "o3", "PHYS101", "大学物理", "01班", "王老师", "FRIDAY", 5, 6, 1, 16, "教三-108"));
+                new ScheduleItem("s1", "o1", "MATH101", "高等数学", "01班", "teacher-zhang", "MONDAY", 1, 2, 1, 16, "教一-201"),
+                new ScheduleItem("s2", "o2", "CS201", "数据结构", "02班", "teacher-li", "WEDNESDAY", 3, 4, 1, 16, "计算中心-305"),
+                new ScheduleItem("s3", "o3", "PHYS101", "大学物理", "01班", "teacher-wang", "FRIDAY", 5, 6, 1, 16, "教三-108"));
         List<OfferingSummary> offerings = schedule.stream().map(item -> new OfferingSummary(
                 item.offeringId(), "2026-autumn", switch (item.courseCode()) {
                     case "MATH101" -> "c1"; case "CS201" -> "c2"; default -> "c3";
@@ -126,8 +128,14 @@ public interface CourseUiGateway {
                         new UserSummary("teacher-zhang", "zhang.teacher", UserRole.TEACHER,
                                 AccountStatus.ACTIVE, java.time.LocalDateTime.parse("2026-08-27T09:00:00"), 1),
                         new UserSummary("teacher-li", "li.teacher", UserRole.TEACHER,
-                                AccountStatus.ACTIVE, java.time.LocalDateTime.parse("2026-08-28T10:30:00"), 2));
+                                AccountStatus.ACTIVE, java.time.LocalDateTime.parse("2026-08-28T10:30:00"), 2),
+                        new UserSummary("teacher-wang", "wang.teacher", UserRole.TEACHER,
+                                AccountStatus.ACTIVE, java.time.LocalDateTime.parse("2026-08-29T11:00:00"), 1));
                 return CompletableFuture.completedFuture(new PageResult<>(teachers, 0, 100, teachers.size()));
+            }
+            public CompletableFuture<Optional<UserSummary>> resolveTeacher(String userId) {
+                return searchTeachers("").thenApply(page -> page.items().stream()
+                        .filter(teacher -> userId.equals(teacher.userId())).findFirst());
             }
             public CompletableFuture<List<TermView>> listTerms() {
                 return CompletableFuture.completedFuture(List.of(new TermView(

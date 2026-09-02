@@ -66,6 +66,7 @@ import java.awt.Container;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -84,6 +85,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class CourseUiTest {
     @Test
@@ -114,6 +116,37 @@ class CourseUiTest {
                     assertThat(teacher.role()).isEqualTo(UserRole.TEACHER);
                     assertThat(teacher.accountStatus()).isEqualTo(AccountStatus.ACTIVE);
                 });
+    }
+
+    @Test
+    void previewOfferingTeacherIdsResolveToHumanReadableLoginLabels() {
+        CourseUiGateway preview = CourseUiGateway.preview();
+        OfferingSummary offering = preview.searchOfferings(
+                new OfferingSearchQuery("2026-autumn", "", null, false, 0, 20)).join().items().get(0);
+
+        assertThat(preview.resolveTeacher(offering.teacherUserId()).join().map(UserSummary::loginId))
+                .contains("zhang.teacher");
+    }
+
+    @Test
+    void courseGatewayResolvesTeacherByIdAcrossActiveTeacherPages() {
+        UserClientService users = mock(UserClientService.class);
+        CourseClientGateway gateway = new CourseClientGateway(mock(CourseClientService.class), users);
+        List<UserSummary> firstHundred = IntStream.range(0, 100)
+                .mapToObj(index -> teacher("teacher-" + index, "teacher.login." + index))
+                .toList();
+        UserSummary target = teacher("teacher-target", "human.readable.login");
+        UserSearchQuery firstQuery = new UserSearchQuery(null, UserRole.TEACHER, AccountStatus.ACTIVE, 0, 100);
+        UserSearchQuery secondQuery = new UserSearchQuery(null, UserRole.TEACHER, AccountStatus.ACTIVE, 1, 100);
+        when(users.searchUsers(firstQuery)).thenReturn(
+                CompletableFuture.completedFuture(new PageResult<>(firstHundred, 0, 100, 101)));
+        when(users.searchUsers(secondQuery)).thenReturn(
+                CompletableFuture.completedFuture(new PageResult<>(List.of(target), 1, 100, 101)));
+
+        assertThat(gateway.resolveTeacher("teacher-target").join())
+                .contains(target);
+        verify(users).searchUsers(firstQuery);
+        verify(users).searchUsers(secondQuery);
     }
 
     @Test
@@ -180,6 +213,28 @@ class CourseUiTest {
 
         assertThatThrownBy(() -> component(editor, name, JSpinner.class).setValue(value))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void deletingThirdScheduleRowKeepsVisibleRowsAndSubmittedRowsInSync() throws Exception {
+        OfferingScheduleEditorPanel editor = onEdt(OfferingScheduleEditorPanel::new);
+        SwingUtilities.invokeAndWait(() -> {
+            button(editor, "添加上课时间").doClick();
+            button(editor, "添加上课时间").doClick();
+            button(editor, "添加上课时间").doClick();
+            textField(editor, "第 1 行教室").setText("教室一");
+            textField(editor, "第 2 行教室").setText("教室二");
+            textField(editor, "第 3 行教室").setText("教室三");
+            button(editor, "删除第 3 行").doClick();
+        });
+
+        assertThat(textField(editor, "第 1 行教室").getText()).isEqualTo("教室一");
+        assertThat(textField(editor, "第 2 行教室").getText()).isEqualTo("教室二");
+        assertThat(component(editor, "第 3 行教室", JTextField.class)).isNull();
+        assertThat(buttons(editor)).contains("删除第 1 行", "删除第 2 行")
+                .doesNotContain("删除第 3 行");
+        assertThat(editor.scheduleInputs()).extracting(CreateOfferingCommand.ScheduleInput::classroom)
+                .containsExactly("教室一", "教室二");
     }
 
     @ParameterizedTest
@@ -2154,6 +2209,9 @@ class CourseUiTest {
             @Override public CompletableFuture<PageResult<UserSummary>> searchTeachers(String keyword) {
                 return CompletableFuture.completedFuture(new PageResult<>(List.of(), 0, 100, 0));
             }
+            @Override public CompletableFuture<Optional<UserSummary>> resolveTeacher(String userId) {
+                return CompletableFuture.completedFuture(Optional.of(teacher(userId, "legacy.teacher")));
+            }
             @Override public CompletableFuture<OfferingView> updateOffering(UpdateOfferingCommand command) {
                 submitted.set(command);
                 return CompletableFuture.completedFuture(new OfferingView(command.offeringId(), command.termId(),
@@ -2181,6 +2239,105 @@ class CourseUiTest {
                 "offering-7", "term-legacy", "course-legacy", "teacher-legacy", "01班", 40, "OPEN", 7,
                 List.of(new CreateOfferingCommand.ScheduleInput("MONDAY", 1, 2, 1, 16, "教一-101"),
                         new CreateOfferingCommand.ScheduleInput("THURSDAY", 5, 6, 2, 15, "教二-301"))));
+        SwingUtilities.invokeAndWait(dialog::dispose);
+    }
+
+    @Test
+    void offeringEditorKeepsChangedCourseAndTeacherSelectionsAcrossReferenceSearches() throws Exception {
+        ScheduleItem schedule = new ScheduleItem("s1", "offering-edit", "C1", "课程一", "01班",
+                "teacher-1", "MONDAY", 1, 2, 1, 16, "教室一");
+        OfferingSummary existing = new OfferingSummary("offering-edit", "2026-autumn", "course-1",
+                "C1", "课程一", "teacher-1", "01班", 40, 5, "OPEN", 9, List.of(schedule));
+        CourseView courseOne = courseView("course-1", "C1", "课程一");
+        CourseView courseTwo = courseView("course-2", "C2", "课程二");
+        UserSummary teacherOne = teacher("teacher-1", "teacher.one");
+        UserSummary teacherTwo = teacher("teacher-2", "teacher.two");
+        AtomicReference<UpdateOfferingCommand> submitted = new AtomicReference<>();
+        CourseUiGateway base = CourseUiGateway.preview();
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(base) {
+            @Override public CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery query) {
+                return CompletableFuture.completedFuture(new PageResult<>(List.of(courseOne, courseTwo), 0, 100, 2));
+            }
+            @Override public CompletableFuture<PageResult<UserSummary>> searchTeachers(String keyword) {
+                return CompletableFuture.completedFuture(new PageResult<>(List.of(teacherOne, teacherTwo), 0, 100, 2));
+            }
+            @Override public CompletableFuture<OfferingView> updateOffering(UpdateOfferingCommand command) {
+                submitted.set(command);
+                return CompletableFuture.completedFuture(new OfferingView(command.offeringId(), command.termId(),
+                        command.courseId(), command.teacherUserId(), command.className(), command.capacity(), 5,
+                        command.offeringStatus(), command.expectedVersion() + 1, Instant.now(), Instant.now(), List.of()));
+            }
+        };
+        OfferingEditorDialog dialog = onEdt(() -> new OfferingEditorDialog(null, gateway, existing, () -> { }));
+        flushEdt(5);
+
+        SwingUtilities.invokeAndWait(() -> {
+            selectChoice(component(dialog, "课程", JComboBox.class), "course-2");
+            textField(dialog, "教师关键字").setText("teacher");
+            button(dialog, "查询教师").doClick();
+        });
+        flushEdt(5);
+        assertThat(((OfferingReferenceChoice) component(dialog, "课程", JComboBox.class).getSelectedItem()).id())
+                .isEqualTo("course-2");
+
+        SwingUtilities.invokeAndWait(() -> {
+            selectChoice(component(dialog, "教师", JComboBox.class), "teacher-2");
+            textField(dialog, "课程关键字").setText("C");
+            button(dialog, "查询课程").doClick();
+        });
+        flushEdt(5);
+        assertThat(((OfferingReferenceChoice) component(dialog, "教师", JComboBox.class).getSelectedItem()).id())
+                .isEqualTo("teacher-2");
+
+        SwingUtilities.invokeAndWait(() -> button(dialog, "保存修改").doClick());
+        flushEdt(2);
+        assertThat(submitted.get().courseId()).isEqualTo("course-2");
+        assertThat(submitted.get().teacherUserId()).isEqualTo("teacher-2");
+        assertThat(submitted.get().expectedVersion()).isEqualTo(9);
+        SwingUtilities.invokeAndWait(dialog::dispose);
+    }
+
+    @Test
+    void offeringEditorResolvesOutOfPageExistingTeacherToLoginLabelAndSubmitsUserId() throws Exception {
+        ScheduleItem schedule = new ScheduleItem("s1", "offering-teacher", "C1", "课程一", "01班",
+                "teacher-target", "MONDAY", 1, 2, 1, 16, "教室一");
+        OfferingSummary existing = new OfferingSummary("offering-teacher", "2026-autumn", "course-1",
+                "C1", "课程一", "teacher-target", "01班", 40, 5, "OPEN", 12, List.of(schedule));
+        UserSummary resolved = teacher("teacher-target", "human.readable.login");
+        AtomicReference<UpdateOfferingCommand> submitted = new AtomicReference<>();
+        CourseUiGateway base = CourseUiGateway.preview();
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(base) {
+            @Override public CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery query) {
+                return CompletableFuture.completedFuture(new PageResult<>(
+                        List.of(courseView("course-1", "C1", "课程一")), 0, 100, 1));
+            }
+            @Override public CompletableFuture<PageResult<UserSummary>> searchTeachers(String keyword) {
+                return CompletableFuture.completedFuture(new PageResult<>(
+                        List.of(teacher("teacher-page-1", "first.page.teacher")), 0, 100, 101));
+            }
+            @Override public CompletableFuture<Optional<UserSummary>> resolveTeacher(String userId) {
+                return CompletableFuture.completedFuture(Optional.of(resolved));
+            }
+            @Override public CompletableFuture<OfferingView> updateOffering(UpdateOfferingCommand command) {
+                submitted.set(command);
+                return CompletableFuture.completedFuture(new OfferingView(command.offeringId(), command.termId(),
+                        command.courseId(), command.teacherUserId(), command.className(), command.capacity(), 5,
+                        command.offeringStatus(), command.expectedVersion() + 1, Instant.now(), Instant.now(), List.of()));
+            }
+        };
+        OfferingEditorDialog dialog = onEdt(() -> new OfferingEditorDialog(null, gateway, existing, () -> { }));
+        flushEdt(5);
+
+        OfferingReferenceChoice selected = (OfferingReferenceChoice) component(dialog, "教师", JComboBox.class)
+                .getSelectedItem();
+        assertThat(selected.id()).isEqualTo("teacher-target");
+        assertThat(selected.toString()).isEqualTo("human.readable.login");
+        assertThat(selected.toString()).isNotEqualTo("teacher-target");
+
+        SwingUtilities.invokeAndWait(() -> button(dialog, "保存修改").doClick());
+        flushEdt(2);
+        assertThat(submitted.get().teacherUserId()).isEqualTo("teacher-target");
+        assertThat(submitted.get().expectedVersion()).isEqualTo(12);
         SwingUtilities.invokeAndWait(dialog::dispose);
     }
 
@@ -2307,6 +2464,17 @@ class CourseUiTest {
     private static UserSummary teacher(String id, String loginId) {
         return new UserSummary(id, loginId, UserRole.TEACHER, AccountStatus.ACTIVE,
                 LocalDateTime.parse("2026-08-27T09:00:00"), 0);
+    }
+
+    private static void selectChoice(JComboBox<?> combo, String id) {
+        for (int index = 0; index < combo.getItemCount(); index++) {
+            Object value = combo.getItemAt(index);
+            if (value instanceof OfferingReferenceChoice choice && id.equals(choice.id())) {
+                combo.setSelectedIndex(index);
+                return;
+            }
+        }
+        throw new AssertionError("Missing offering reference choice: " + id);
     }
 
     private static void flushEdt(int rounds) throws Exception {
@@ -2482,6 +2650,9 @@ class CourseUiTest {
         }
         @Override public CompletableFuture<PageResult<UserSummary>> searchTeachers(String keyword) {
             return delegate.searchTeachers(keyword);
+        }
+        @Override public CompletableFuture<Optional<UserSummary>> resolveTeacher(String userId) {
+            return delegate.resolveTeacher(userId);
         }
         @Override public CompletableFuture<OfferingView> createOffering(CreateOfferingCommand command) {
             return delegate.createOffering(command);

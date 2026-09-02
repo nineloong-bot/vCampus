@@ -34,6 +34,7 @@ import java.awt.Window;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
@@ -60,6 +61,7 @@ final class OfferingEditorDialog extends JDialog {
     private long referenceSequence;
     private boolean referenceReady;
     private boolean active = true;
+    private OfferingReferenceChoice resolvedExistingTeacher;
 
     OfferingEditorDialog(Window owner, CourseUiGateway gateway, OfferingSummary existing, Runnable onSaved) {
         super(owner, existing == null ? "新建教学班" : "编辑教学班", ModalityType.APPLICATION_MODAL);
@@ -202,12 +204,19 @@ final class OfferingEditorDialog extends JDialog {
 
         CompletableFuture<String> selectedTerm = existing == null
                 ? gateway.currentTermId() : CompletableFuture.completedFuture(existing.termId());
+        CompletableFuture<Optional<UserSummary>> existingTeacher = existing == null
+                || resolvedExistingTeacher != null
+                ? CompletableFuture.completedFuture(Optional.empty())
+                : gateway.resolveTeacher(existing.teacherUserId());
         CompletableFuture<ReferenceData> loaded = gateway.listTerms()
                 .thenCombine(selectedTerm, TermAndCurrent::new)
                 .thenCombine(gateway.searchCatalog(new CourseCatalogQuery(courseSearch, true, 0, 100)),
                         (termData, courses) -> new PartialReferenceData(termData, courses))
                 .thenCombine(gateway.searchTeachers(teacherSearch),
-                        (partial, teachers) -> new ReferenceData(partial.termData(), partial.courses(), teachers));
+                        (partial, teachers) -> new ReferenceData(
+                                partial.termData(), partial.courses(), teachers, Optional.empty()))
+                .thenCombine(existingTeacher, (data, resolved) -> new ReferenceData(
+                        data.termData(), data.courses(), data.teachers(), resolved));
         loaded.whenComplete((data, failure) -> SwingUtilities.invokeLater(() -> {
             if (!active || referenceSequence != request) return;
             if (failure != null) {
@@ -225,9 +234,14 @@ final class OfferingEditorDialog extends JDialog {
     }
 
     private void installReferences(ReferenceData data) {
-        String desiredTerm = existing == null ? selectedId(term) : existing.termId();
-        String desiredCourse = existing == null ? selectedId(course) : existing.courseId();
-        String desiredTeacher = existing == null ? selectedId(teacher) : existing.teacherUserId();
+        data.existingTeacher().ifPresent(value -> resolvedExistingTeacher =
+                new OfferingReferenceChoice(value.userId(), value.loginId()));
+        OfferingReferenceChoice currentTerm = selectedChoice(term);
+        OfferingReferenceChoice currentCourse = selectedChoice(course);
+        OfferingReferenceChoice currentTeacher = selectedChoice(teacher);
+        String desiredTerm = currentTerm == null && existing != null ? existing.termId() : id(currentTerm);
+        String desiredCourse = currentCourse == null && existing != null ? existing.courseId() : id(currentCourse);
+        String desiredTeacher = currentTeacher == null && existing != null ? existing.teacherUserId() : id(currentTeacher);
         if (desiredTerm == null) desiredTerm = data.termData().currentTermId();
 
         List<OfferingReferenceChoice> terms = data.termData().terms().stream()
@@ -240,12 +254,15 @@ final class OfferingEditorDialog extends JDialog {
                 .map(value -> new OfferingReferenceChoice(value.userId(), value.loginId()))
                 .toList();
         installChoices(term, terms, desiredTerm,
-                existing == null ? null : new OfferingReferenceChoice(existing.termId(), existing.termId()));
+                currentTerm != null ? currentTerm : existing == null
+                        ? null : new OfferingReferenceChoice(existing.termId(), existing.termId()));
         installChoices(course, courses, desiredCourse,
-                existing == null ? null : new OfferingReferenceChoice(existing.courseId(),
-                        existing.courseCode() + " · " + existing.courseName()));
+                currentCourse != null ? currentCourse : existing == null ? null
+                        : new OfferingReferenceChoice(existing.courseId(),
+                                existing.courseCode() + " · " + existing.courseName()));
         installChoices(teacher, teachers, desiredTeacher,
-                existing == null ? null : new OfferingReferenceChoice(existing.teacherUserId(), existing.teacherUserId()));
+                currentTeacher != null ? currentTeacher : existing == null
+                        ? null : resolvedExistingTeacher);
     }
 
     private static void installChoices(JComboBox<OfferingReferenceChoice> combo,
@@ -341,9 +358,13 @@ final class OfferingEditorDialog extends JDialog {
         return cause;
     }
 
-    private static String selectedId(JComboBox<OfferingReferenceChoice> combo) {
+    private static OfferingReferenceChoice selectedChoice(JComboBox<OfferingReferenceChoice> combo) {
         Object selected = combo.getSelectedItem();
-        return selected instanceof OfferingReferenceChoice choice ? choice.id() : null;
+        return selected instanceof OfferingReferenceChoice choice ? choice : null;
+    }
+
+    private static String id(OfferingReferenceChoice choice) {
+        return choice == null ? null : choice.id();
     }
 
     private static void selectId(JComboBox<OfferingReferenceChoice> combo, String id) {
@@ -419,7 +440,8 @@ final class OfferingEditorDialog extends JDialog {
     private record TermAndCurrent(List<TermView> terms, String currentTermId) { }
     private record PartialReferenceData(TermAndCurrent termData, PageResult<CourseView> courses) { }
     private record ReferenceData(TermAndCurrent termData, PageResult<CourseView> courses,
-                                 PageResult<UserSummary> teachers) { }
+                                 PageResult<UserSummary> teachers,
+                                 Optional<UserSummary> existingTeacher) { }
 
     private static final class BoundedIntegerSpinnerModel extends SpinnerNumberModel {
         private final int minimum;

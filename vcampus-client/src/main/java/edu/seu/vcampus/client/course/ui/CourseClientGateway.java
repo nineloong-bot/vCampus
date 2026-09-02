@@ -35,6 +35,7 @@ import edu.seu.vcampus.common.user.UserSummary;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 /** Production adapter from Swing's narrow seam to the typed course client. */
@@ -81,6 +82,27 @@ public final class CourseClientGateway implements CourseUiGateway {
         }
         return users.searchUsers(new UserSearchQuery(
                 keyword, UserRole.TEACHER, AccountStatus.ACTIVE, 0, 100));
+    }
+    public CompletableFuture<Optional<UserSummary>> resolveTeacher(String userId) {
+        Objects.requireNonNull(userId, "userId");
+        if (users == null) {
+            return CompletableFuture.failedFuture(new IllegalStateException("User client is not connected"));
+        }
+        return resolveTeacher(userId, 0);
+    }
+
+    private CompletableFuture<Optional<UserSummary>> resolveTeacher(String userId, int pageNumber) {
+        return users.searchUsers(new UserSearchQuery(
+                        null, UserRole.TEACHER, AccountStatus.ACTIVE, pageNumber, 100))
+                .thenCompose(page -> {
+                    Optional<UserSummary> match = page.items().stream()
+                            .filter(teacher -> userId.equals(teacher.userId())).findFirst();
+                    long consumed = ((long) pageNumber + 1) * 100;
+                    if (match.isPresent() || page.items().isEmpty() || consumed >= page.total()) {
+                        return CompletableFuture.completedFuture(match);
+                    }
+                    return resolveTeacher(userId, pageNumber + 1);
+                });
     }
     public CompletableFuture<List<TermView>> listTerms() { return client.listTerms(); }
     public CompletableFuture<EmptyResponse> importOutcomes(ImportCourseOutcomesCommand command) { return client.importOutcomes(command); }
