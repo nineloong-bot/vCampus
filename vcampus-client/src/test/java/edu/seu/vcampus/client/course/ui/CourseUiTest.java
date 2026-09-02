@@ -43,6 +43,8 @@ import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JSpinner;
+import javax.swing.SpinnerNumberModel;
 import javax.swing.JTable;
 import javax.swing.JTabbedPane;
 import javax.swing.JTextArea;
@@ -55,6 +57,7 @@ import java.awt.CardLayout;
 import java.awt.Component;
 import java.awt.Container;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -1635,6 +1638,86 @@ class CourseUiTest {
     }
 
     @Test
+    void courseAndTermEditorsUseStructuredControlsWithLocalizedStatusChoices() throws Exception {
+        CourseEditorDialog course = onEdt(() -> new CourseEditorDialog(
+                null, CourseUiGateway.preview(), null, () -> { }));
+        TermEditorDialog term = onEdt(() -> new TermEditorDialog(
+                null, CourseUiGateway.preview(), null, () -> { }));
+
+        JSpinner credit = component(course, "学分", JSpinner.class);
+        JSpinner hours = component(course, "总学时", JSpinner.class);
+        assertThat(credit).isNotNull();
+        assertThat(hours).isNotNull();
+        SpinnerNumberModel creditModel = (SpinnerNumberModel) credit.getModel();
+        SpinnerNumberModel hoursModel = (SpinnerNumberModel) hours.getModel();
+        assertThat(List.of(creditModel.getValue(), creditModel.getMinimum(), creditModel.getMaximum(),
+                creditModel.getStepSize())).containsExactly(new BigDecimal("1.0"), new BigDecimal("0.5"),
+                        new BigDecimal("20.0"), new BigDecimal("0.5"));
+        assertThat(List.of(hoursModel.getValue(), hoursModel.getMinimum(), hoursModel.getMaximum(),
+                hoursModel.getStepSize())).containsExactly(32, 1, 1000, 1);
+        assertThat(component(term, "开学日期", JSpinner.class)).isNotNull();
+        assertThat(component(term, "结束日期", JSpinner.class)).isNotNull();
+        assertThat(component(term, "选课开始", JSpinner.class)).isNotNull();
+        assertThat(component(term, "选课结束", JSpinner.class)).isNotNull();
+        assertThat(component(term, "退改补开始", JSpinner.class)).isNotNull();
+        assertThat(component(term, "退改补结束", JSpinner.class)).isNotNull();
+        assertThat(Stream.concat(descendants(course).stream(), descendants(term).stream())
+                .filter(JTextField.class::isInstance).map(JTextField.class::cast)
+                .map(field -> field.getAccessibleContext().getAccessibleName()))
+                .doesNotContain("学分", "总学时", "开学日期", "结束日期", "选课开始", "选课结束",
+                        "退改补开始", "退改补结束");
+        JComboBox<?> status = component(term, "学期状态", JComboBox.class);
+        assertThat(IntStream.range(0, status.getItemCount()).mapToObj(index -> status.getItemAt(index).toString()))
+                .containsExactly("计划中", "进行中", "已关闭");
+
+        SwingUtilities.invokeAndWait(() -> {
+            course.dispose();
+            term.dispose();
+        });
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "开学日期,结束日期,结束日期必须晚于开学日期",
+            "选课开始,选课结束,选课结束必须晚于选课开始",
+            "退改补开始,退改补结束,退改补结束必须晚于退改补开始"
+    })
+    void termEditorIdentifiesTheInvalidOrdering(String startName, String endName, String expectedMessage)
+            throws Exception {
+        AtomicReference<CreateTermCommand> submitted = new AtomicReference<>();
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(CourseUiGateway.preview()) {
+            @Override public CompletableFuture<TermView> createTerm(CreateTermCommand command) {
+                submitted.set(command);
+                return CompletableFuture.failedFuture(new AssertionError("invalid ordering was submitted"));
+            }
+        };
+        TermEditorDialog dialog = onEdt(() -> new TermEditorDialog(null, gateway, null, () -> { }));
+
+        SwingUtilities.invokeAndWait(() -> {
+            textField(dialog, "学期代码").setText("2027-2028-1");
+            textField(dialog, "学期名称").setText("2027—2028学年秋季学期");
+            setTemporalValue(dialog, "开学日期", "2027-09-01", "2027-08-31T16:00:00Z");
+            setTemporalValue(dialog, "结束日期", "2028-01-15", "2028-01-14T16:00:00Z");
+            setTemporalValue(dialog, "选课开始", "2027-08-20 08:00", "2027-08-20T00:00:00Z");
+            setTemporalValue(dialog, "选课结束", "2027-08-31 23:59", "2027-08-31T15:59:00Z");
+            setTemporalValue(dialog, "退改补开始", "2027-09-01 08:00", "2027-09-01T00:00:00Z");
+            setTemporalValue(dialog, "退改补结束", "2027-09-08 23:59", "2027-09-08T15:59:00Z");
+            Component start = namedComponent(dialog, startName);
+            Component end = namedComponent(dialog, endName);
+            if (start instanceof JSpinner startSpinner && end instanceof JSpinner endSpinner) {
+                endSpinner.setValue(startSpinner.getValue());
+            } else {
+                ((JTextField) end).setText(((JTextField) start).getText());
+            }
+            button(dialog, "创建学期").doClick();
+        });
+
+        assertThat(submitted.get()).isNull();
+        assertThat(labels(dialog)).contains(expectedMessage);
+        SwingUtilities.invokeAndWait(dialog::dispose);
+    }
+
+    @Test
     void courseEditorSubmitsTypedCreateCommandFromVisibleFields() throws Exception {
         AtomicReference<CreateCourseCommand> submitted = new AtomicReference<>();
         AtomicReference<Boolean> saved = new AtomicReference<>(false);
@@ -1653,12 +1736,12 @@ class CourseUiTest {
         CourseEditorDialog dialog = onEdt(() -> new CourseEditorDialog(null, gateway, null, () -> saved.set(true)));
 
         SwingUtilities.invokeAndWait(() -> {
-            textField(dialog, "课程代码").setText("SE101");
-            textField(dialog, "课程名称").setText("软件工程导论");
-            textField(dialog, "学分").setText("4.5");
-            textField(dialog, "总学时").setText("72");
+            textField(dialog, "课程代码").setText(" SE101 ");
+            textField(dialog, "课程名称").setText(" 软件工程导论 ");
+            component(dialog, "学分", JSpinner.class).setValue(new BigDecimal("4.5"));
+            component(dialog, "总学时", JSpinner.class).setValue(72);
             descendants(dialog).stream().filter(JTextArea.class::isInstance).map(JTextArea.class::cast).findFirst().orElseThrow()
-                    .setText("软件工程基础课程");
+                    .setText(" 软件工程基础课程 ");
             descendants(dialog).stream().filter(JCheckBox.class::isInstance).map(JCheckBox.class::cast).findFirst().orElseThrow()
                     .setSelected(true);
             descendants(dialog).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
@@ -1686,8 +1769,8 @@ class CourseUiTest {
         SwingUtilities.invokeAndWait(() -> {
             textField(dialog, "课程代码").setText("LATE101");
             textField(dialog, "课程名称").setText("迟到响应测试");
-            textField(dialog, "学分").setText("2.0");
-            textField(dialog, "总学时").setText("32");
+            component(dialog, "学分", JSpinner.class).setValue(new BigDecimal("2.0"));
+            component(dialog, "总学时", JSpinner.class).setValue(32);
             descendants(dialog).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
                     .filter(button -> "创建课程".equals(button.getText())).findFirst().orElseThrow().doClick();
             dialog.dispose();
@@ -1743,16 +1826,16 @@ class CourseUiTest {
         TermEditorDialog dialog = onEdt(() -> new TermEditorDialog(null, gateway, null, () -> { }));
 
         SwingUtilities.invokeAndWait(() -> {
-            textField(dialog, "学期代码").setText("2027-2028-1");
-            textField(dialog, "学期名称").setText("2027—2028学年秋季学期");
-            textField(dialog, "开学日期").setText("2027-09-01");
-            textField(dialog, "结束日期").setText("2028-01-15");
-            textField(dialog, "选课开始").setText("2027-08-20 08:00");
-            textField(dialog, "选课结束").setText("2027-08-31 23:59");
-            textField(dialog, "退改补开始").setText("2027-09-01 08:00");
-            textField(dialog, "退改补结束").setText("2027-09-08 23:59");
+            textField(dialog, "学期代码").setText(" 2027-2028-1 ");
+            textField(dialog, "学期名称").setText(" 2027—2028学年秋季学期 ");
+            setTemporalValue(dialog, "开学日期", "2027-09-01", "2027-08-31T16:00:00Z");
+            setTemporalValue(dialog, "结束日期", "2028-01-15", "2028-01-14T16:00:00Z");
+            setTemporalValue(dialog, "选课开始", "2027-08-20 08:00", "2027-08-20T00:00:00Z");
+            setTemporalValue(dialog, "选课结束", "2027-08-31 23:59", "2027-08-31T15:59:00Z");
+            setTemporalValue(dialog, "退改补开始", "2027-09-01 08:00", "2027-09-01T00:00:00Z");
+            setTemporalValue(dialog, "退改补结束", "2027-09-08 23:59", "2027-09-08T15:59:00Z");
             descendants(dialog).stream().filter(JComboBox.class::isInstance).map(JComboBox.class::cast)
-                    .findFirst().orElseThrow().setSelectedItem("ACTIVE");
+                    .findFirst().orElseThrow().setSelectedIndex(1);
             descendants(dialog).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
                     .filter(button -> "创建学期".equals(button.getText())).findFirst().orElseThrow().doClick();
         });
@@ -1785,9 +1868,10 @@ class CourseUiTest {
         });
         SwingUtilities.invokeAndWait(() -> { });
 
-        assertThat(submitted.get().termId()).isEqualTo(existing.termId());
-        assertThat(submitted.get().termName()).isEqualTo("秋季学期（调整）");
-        assertThat(submitted.get().expectedVersion()).isEqualTo(existing.rowVersion());
+        assertThat(submitted.get()).isEqualTo(new UpdateTermCommand(existing.termId(), existing.termCode(),
+                "秋季学期（调整）", existing.startDate(), existing.endDate(),
+                existing.enrollmentStartAt(), existing.enrollmentEndAt(), existing.adjustmentStartAt(),
+                existing.adjustmentEndAt(), existing.termStatus(), existing.rowVersion()));
         SwingUtilities.invokeAndWait(dialog::dispose);
     }
 
@@ -1927,6 +2011,29 @@ class CourseUiTest {
     private static JButton button(Container root, String text) {
         return descendants(root).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
                 .filter(candidate -> text.equals(candidate.getText())).findFirst().orElseThrow();
+    }
+
+    private static <T extends Component> T component(Container root, String accessibleName, Class<T> type) {
+        return descendants(root).stream().filter(type::isInstance).map(type::cast)
+                .filter(candidate -> accessibleName.equals(candidate.getAccessibleContext().getAccessibleName()))
+                .findFirst().orElse(null);
+    }
+
+    private static Component namedComponent(Container root, String accessibleName) {
+        return descendants(root).stream()
+                .filter(candidate -> candidate instanceof JTextField || candidate instanceof JSpinner)
+                .filter(candidate -> candidate.getAccessibleContext() != null
+                        && accessibleName.equals(candidate.getAccessibleContext().getAccessibleName()))
+                .findFirst().orElseThrow();
+    }
+
+    private static void setTemporalValue(Container root, String accessibleName, String text, String instant) {
+        Component component = namedComponent(root, accessibleName);
+        if (component instanceof JSpinner spinner) {
+            spinner.setValue(Date.from(Instant.parse(instant)));
+        } else {
+            ((JTextField) component).setText(text);
+        }
     }
 
     private static JTable enrollmentTable(Container root) {

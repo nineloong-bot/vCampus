@@ -17,10 +17,13 @@ import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JSpinner;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
+import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Window;
 import java.math.BigDecimal;
@@ -34,8 +37,9 @@ final class CourseEditorDialog extends JDialog {
     private final Runnable onSaved;
     private final JTextField code = field("课程代码");
     private final JTextField name = field("课程名称");
-    private final JTextField credit = field("学分");
-    private final JTextField hours = field("总学时");
+    private final JSpinner credit = spinner(new BigDecimal("1.0"),
+            new BigDecimal("0.5"), new BigDecimal("20.0"), new BigDecimal("0.5"), "学分");
+    private final JSpinner hours = spinner(32, 1, 1000, 1, "总学时");
     private final JTextArea description = new JTextArea(5, 40);
     private final JCheckBox active = new JCheckBox("启用课程", true);
     private final JLabel error = label(" ", UiColors.ACCENT);
@@ -101,7 +105,7 @@ final class CourseEditorDialog extends JDialog {
         return panel;
     }
 
-    private JPanel row(String labelText, JTextField field) {
+    private JPanel row(String labelText, Component field) {
         JPanel row = new JPanel();
         row.setOpaque(false);
         row.setLayout(new BoxLayout(row, BoxLayout.Y_AXIS));
@@ -133,8 +137,8 @@ final class CourseEditorDialog extends JDialog {
         try {
             String cleanCode = required(code, "请输入课程代码");
             String cleanName = required(name, "请输入课程名称");
-            BigDecimal cleanCredit = new BigDecimal(required(credit, "请输入学分"));
-            int cleanHours = Integer.parseInt(required(hours, "请输入总学时"));
+            BigDecimal cleanCredit = (BigDecimal) credit.getValue();
+            int cleanHours = ((Number) hours.getValue()).intValue();
             if (existing == null) {
                 request = gateway.createCourse(new CreateCourseCommand(cleanCode, cleanName, cleanCredit, cleanHours,
                         description.getText().trim(), active.isSelected()));
@@ -142,9 +146,6 @@ final class CourseEditorDialog extends JDialog {
                 request = gateway.updateCourse(new UpdateCourseCommand(existing.courseId(), cleanCode, cleanName,
                         cleanCredit, cleanHours, description.getText().trim(), active.isSelected(), existing.rowVersion()));
             }
-        } catch (NumberFormatException invalid) {
-            error.setText("学分和总学时必须填写有效数字");
-            return;
         } catch (IllegalArgumentException invalid) {
             error.setText(invalid.getMessage() == null ? "请检查必填字段" : invalid.getMessage());
             return;
@@ -174,8 +175,8 @@ final class CourseEditorDialog extends JDialog {
     private void fill(CourseView value) {
         code.setText(value.courseCode());
         name.setText(value.courseName());
-        credit.setText(value.credit().toPlainString());
-        hours.setText(Integer.toString(value.totalHours()));
+        credit.setValue(value.credit());
+        hours.setValue(value.totalHours());
         description.setText(value.description());
         active.setSelected(value.active());
     }
@@ -187,6 +188,16 @@ final class CourseEditorDialog extends JDialog {
         field.setPreferredSize(new Dimension(480, UiDimensions.CONTROL_HEIGHT));
         field.getAccessibleContext().setAccessibleName(accessibleName);
         return field;
+    }
+
+    private static JSpinner spinner(Number value, Comparable<?> minimum, Comparable<?> maximum,
+                                    Number stepSize, String accessibleName) {
+        JSpinner spinner = new JSpinner(new SpinnerNumberModel(value, minimum, maximum, stepSize));
+        spinner.setFont(UiTypography.BODY);
+        spinner.setMaximumSize(new Dimension(Integer.MAX_VALUE, UiDimensions.CONTROL_HEIGHT));
+        spinner.setPreferredSize(new Dimension(480, UiDimensions.CONTROL_HEIGHT));
+        spinner.getAccessibleContext().setAccessibleName(accessibleName);
+        return spinner;
     }
 
     private static String required(JTextField field, String message) {

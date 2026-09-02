@@ -16,36 +16,41 @@ import javax.swing.JComboBox;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JSpinner;
 import javax.swing.JTextField;
+import javax.swing.SpinnerDateModel;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.Window;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.TimeZone;
 import java.util.concurrent.CompletableFuture;
 
 /** Modal create/edit form for a complete server-authoritative academic term. */
 final class TermEditorDialog extends JDialog {
     private final UiAsyncGuard asyncGuard = new UiAsyncGuard();
     private static final ZoneId CAMPUS_ZONE = ZoneId.of("Asia/Shanghai");
-    private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
     private final CourseUiGateway gateway;
     private final TermView existing;
     private final Runnable onSaved;
     private final JTextField code = field("学期代码");
     private final JTextField name = field("学期名称");
-    private final JTextField startDate = field("开学日期");
-    private final JTextField endDate = field("结束日期");
-    private final JTextField enrollmentStart = field("选课开始");
-    private final JTextField enrollmentEnd = field("选课结束");
-    private final JTextField adjustmentStart = field("退改补开始");
-    private final JTextField adjustmentEnd = field("退改补结束");
-    private final JComboBox<String> status = new JComboBox<>(new String[]{"PLANNED", "ACTIVE", "CLOSED"});
+    private final JSpinner startDate;
+    private final JSpinner endDate;
+    private final JSpinner enrollmentStart;
+    private final JSpinner enrollmentEnd;
+    private final JSpinner adjustmentStart;
+    private final JSpinner adjustmentEnd;
+    private final JComboBox<StatusChoice> status = new JComboBox<>(new StatusChoice[]{
+            new StatusChoice("PLANNED", "计划中"),
+            new StatusChoice("ACTIVE", "进行中"),
+            new StatusChoice("CLOSED", "已关闭")
+    });
     private final JLabel error = label(" ", UiColors.ACCENT);
     private final JButton save;
 
@@ -54,6 +59,18 @@ final class TermEditorDialog extends JDialog {
         this.gateway = gateway;
         this.existing = existing;
         this.onSaved = onSaved;
+        LocalDate defaultStart = LocalDate.now(CAMPUS_ZONE);
+        startDate = dateSpinner(atStartOfDay(defaultStart), Calendar.DAY_OF_MONTH, "yyyy-MM-dd", "开学日期");
+        endDate = dateSpinner(atStartOfDay(defaultStart.plusMonths(4)), Calendar.DAY_OF_MONTH,
+                "yyyy-MM-dd", "结束日期");
+        enrollmentStart = dateSpinner(at(defaultStart.minusDays(14), 8, 0), Calendar.MINUTE,
+                "yyyy-MM-dd HH:mm", "选课开始");
+        enrollmentEnd = dateSpinner(at(defaultStart.minusDays(1), 23, 59), Calendar.MINUTE,
+                "yyyy-MM-dd HH:mm", "选课结束");
+        adjustmentStart = dateSpinner(at(defaultStart, 8, 0), Calendar.MINUTE,
+                "yyyy-MM-dd HH:mm", "退改补开始");
+        adjustmentEnd = dateSpinner(at(defaultStart.plusDays(7), 23, 59), Calendar.MINUTE,
+                "yyyy-MM-dd HH:mm", "退改补结束");
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         JPanel root = new JPanel(new BorderLayout(0, UiSpacing.LG));
         root.setBackground(UiColors.BACKGROUND_PAGE);
@@ -143,13 +160,18 @@ final class TermEditorDialog extends JDialog {
         try {
             String cleanCode = required(code, "请输入学期代码");
             String cleanName = required(name, "请输入学期名称");
-            LocalDate cleanStart = LocalDate.parse(required(startDate, "请输入开学日期"));
-            LocalDate cleanEnd = LocalDate.parse(required(endDate, "请输入结束日期"));
-            Instant cleanEnrollmentStart = instant(enrollmentStart, "请输入选课开始时间");
-            Instant cleanEnrollmentEnd = instant(enrollmentEnd, "请输入选课结束时间");
-            Instant cleanAdjustmentStart = instant(adjustmentStart, "请输入退改补开始时间");
-            Instant cleanAdjustmentEnd = instant(adjustmentEnd, "请输入退改补结束时间");
-            String cleanStatus = (String) status.getSelectedItem();
+            LocalDate cleanStart = date(startDate);
+            LocalDate cleanEnd = date(endDate);
+            Instant cleanEnrollmentStart = instant(enrollmentStart);
+            Instant cleanEnrollmentEnd = instant(enrollmentEnd);
+            Instant cleanAdjustmentStart = instant(adjustmentStart);
+            Instant cleanAdjustmentEnd = instant(adjustmentEnd);
+            CourseFormValidation.requireOrdered(cleanStart, cleanEnd, "结束日期必须晚于开学日期");
+            CourseFormValidation.requireOrdered(cleanEnrollmentStart, cleanEnrollmentEnd,
+                    "选课结束必须晚于选课开始");
+            CourseFormValidation.requireOrdered(cleanAdjustmentStart, cleanAdjustmentEnd,
+                    "退改补结束必须晚于退改补开始");
+            String cleanStatus = ((StatusChoice) status.getSelectedItem()).code();
             if (existing == null) {
                 request = gateway.createTerm(new CreateTermCommand(cleanCode, cleanName, cleanStart, cleanEnd,
                         cleanEnrollmentStart, cleanEnrollmentEnd, cleanAdjustmentStart, cleanAdjustmentEnd, cleanStatus));
@@ -158,9 +180,6 @@ final class TermEditorDialog extends JDialog {
                         cleanStart, cleanEnd, cleanEnrollmentStart, cleanEnrollmentEnd, cleanAdjustmentStart,
                         cleanAdjustmentEnd, cleanStatus, existing.rowVersion()));
             }
-        } catch (DateTimeParseException invalid) {
-            error.setText("日期或时间格式不正确，请按提示格式填写");
-            return;
         } catch (IllegalArgumentException invalid) {
             error.setText(invalid.getMessage() == null || "invalid term".equals(invalid.getMessage())
                     ? "请检查日期顺序和选课时间窗" : invalid.getMessage());
@@ -188,20 +207,56 @@ final class TermEditorDialog extends JDialog {
     private void fill(TermView value) {
         code.setText(value.termCode());
         name.setText(value.termName());
-        startDate.setText(value.startDate().toString());
-        endDate.setText(value.endDate().toString());
-        enrollmentStart.setText(format(value.enrollmentStartAt()));
-        enrollmentEnd.setText(format(value.enrollmentEndAt()));
-        adjustmentStart.setText(format(value.adjustmentStartAt()));
-        adjustmentEnd.setText(format(value.adjustmentEndAt()));
-        status.setSelectedItem(value.termStatus());
+        startDate.setValue(atStartOfDay(value.startDate()));
+        endDate.setValue(atStartOfDay(value.endDate()));
+        enrollmentStart.setValue(Date.from(value.enrollmentStartAt()));
+        enrollmentEnd.setValue(Date.from(value.enrollmentEndAt()));
+        adjustmentStart.setValue(Date.from(value.adjustmentStartAt()));
+        adjustmentEnd.setValue(Date.from(value.adjustmentEndAt()));
+        status.setSelectedItem(statusChoice(value.termStatus()));
     }
 
-    private static Instant instant(JTextField field, String message) {
-        return LocalDateTime.parse(required(field, message), DATE_TIME).atZone(CAMPUS_ZONE).toInstant();
+    private static JSpinner dateSpinner(Date value, int calendarField, String pattern, String accessibleName) {
+        JSpinner spinner = new JSpinner(new SpinnerDateModel(value, null, null, calendarField));
+        spinner.setFont(UiTypography.BODY);
+        spinner.setMaximumSize(new Dimension(Integer.MAX_VALUE, UiDimensions.CONTROL_HEIGHT));
+        spinner.setPreferredSize(new Dimension(260, UiDimensions.CONTROL_HEIGHT));
+        spinner.getAccessibleContext().setAccessibleName(accessibleName);
+        dateEditor(spinner, pattern);
+        return spinner;
     }
 
-    private static String format(Instant value) { return DATE_TIME.format(value.atZone(CAMPUS_ZONE)); }
+    private static JSpinner.DateEditor dateEditor(JSpinner spinner, String pattern) {
+        JSpinner.DateEditor editor = new JSpinner.DateEditor(spinner, pattern);
+        editor.getFormat().setTimeZone(TimeZone.getTimeZone(CAMPUS_ZONE));
+        spinner.setEditor(editor);
+        return editor;
+    }
+
+    private static Instant instant(JSpinner spinner) {
+        return ((Date) spinner.getValue()).toInstant();
+    }
+
+    private static LocalDate date(JSpinner spinner) {
+        return ((Date) spinner.getValue()).toInstant().atZone(CAMPUS_ZONE).toLocalDate();
+    }
+
+    private static Date atStartOfDay(LocalDate value) {
+        return Date.from(value.atStartOfDay(CAMPUS_ZONE).toInstant());
+    }
+
+    private static Date at(LocalDate value, int hour, int minute) {
+        return Date.from(value.atTime(hour, minute).atZone(CAMPUS_ZONE).toInstant());
+    }
+
+    private static StatusChoice statusChoice(String code) {
+        return switch (code) {
+            case "PLANNED" -> new StatusChoice("PLANNED", "计划中");
+            case "ACTIVE" -> new StatusChoice("ACTIVE", "进行中");
+            case "CLOSED" -> new StatusChoice("CLOSED", "已关闭");
+            default -> throw new IllegalArgumentException("invalid term");
+        };
+    }
 
     private static JTextField field(String name) {
         JTextField field = new JTextField();
@@ -223,5 +278,9 @@ final class TermEditorDialog extends JDialog {
         label.setFont(UiTypography.BODY);
         label.setForeground(color);
         return label;
+    }
+
+    private record StatusChoice(String code, String label) {
+        @Override public String toString() { return label; }
     }
 }
