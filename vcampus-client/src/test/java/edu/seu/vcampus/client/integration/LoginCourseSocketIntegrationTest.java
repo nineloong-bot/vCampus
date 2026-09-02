@@ -83,7 +83,7 @@ class LoginCourseSocketIntegrationTest {
         insertUser(connections, TEACHER_USER_ID, "TEACHER1", UserRole.TEACHER, false);
         insertUser(connections, "admin-user-001", "ADMIN1", UserRole.ADMIN, false);
         insertUser(connections, "admin-user-002", "ADMIN2", UserRole.ADMIN, false);
-        insertUser(connections, "restricted-user-001", "RESTRICTED1", UserRole.STUDENT, true);
+        insertUser(connections, "restricted-user-001", "RESTRICTED1", UserRole.ADMIN, true);
 
         server = new SocketServer(0, 4, 20, runtime.router());
         serverThread = Executors.newSingleThreadExecutor();
@@ -197,6 +197,23 @@ class LoginCourseSocketIntegrationTest {
         } finally {
             targetConnection.close();
         }
+    }
+
+    @Test
+    void restrictedAdministratorReceivesPasswordPolicyCodeAcrossProductionSocket() {
+        LoginResult restricted = login("RESTRICTED1");
+        assertThat(restricted.user().role()).isEqualTo(UserRole.ADMIN);
+        assertThat(restricted.mustChangePassword()).isTrue();
+
+        Throwable failure = catchThrowable(() -> users.changePassword(
+                PASSWORD.toCharArray(), "short".toCharArray()).join());
+
+        assertThat(failure).hasRootCauseInstanceOf(IllegalArgumentException.class);
+        Throwable root = failure;
+        while (root.getCause() != null) {
+            root = root.getCause();
+        }
+        assertThat(root).hasMessage("AUTH_PASSWORD_POLICY_VIOLATION");
     }
 
     private LoginResult login(String loginId) {

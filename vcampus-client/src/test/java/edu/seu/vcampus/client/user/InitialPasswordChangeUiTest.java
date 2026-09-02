@@ -120,6 +120,35 @@ class InitialPasswordChangeUiTest {
         assertThat(showingFrames(MainFrame.class)).isEmpty();
     }
 
+    @Test
+    void passwordPolicyFailureExplainsInitialPasswordRequirements() throws Exception {
+        UserClientService users = mock(UserClientService.class);
+        ClientConnection connection = mock(ClientConnection.class);
+        when(connection.state()).thenReturn(ConnectionState.CONNECTED);
+        doReturn(CompletableFuture.completedFuture(loginResult(true)))
+                .when(users).login(anyString(), any(char[].class));
+        doReturn(CompletableFuture.failedFuture(
+                new IllegalArgumentException("AUTH_PASSWORD_POLICY_VIOLATION")))
+                .when(users).changePassword(any(char[].class), any(char[].class));
+        UserUiCoordinator coordinator = new UserUiCoordinator(users, connection);
+        SwingUtilities.invokeAndWait(coordinator::start);
+        submitLogin(showing(LoginFrame.class), "DEMO_ADMIN", "InitialPassword7");
+        flushEdt();
+        InitialPasswordChangeDialog dialog = showing(InitialPasswordChangeDialog.class);
+
+        SwingUtilities.invokeAndWait(() -> {
+            component(dialog, "password.old", JPasswordField.class)
+                    .setText("InitialPassword7");
+            component(dialog, "password.new", JPasswordField.class).setText("short");
+            component(dialog, "password.confirm", JPasswordField.class).setText("short");
+            component(dialog, "password.submit", AbstractButton.class).doClick();
+        });
+        flushEdt();
+
+        assertThat(component(dialog, "password.error", JLabel.class).getText())
+                .isEqualTo("密码需为 8–64 位，并同时包含字母和数字");
+    }
+
     private static void submitLogin(LoginFrame frame, String id, String password)
             throws Exception {
         SwingUtilities.invokeAndWait(() -> {

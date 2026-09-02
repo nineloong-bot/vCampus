@@ -138,7 +138,7 @@ public final class InitialPasswordChangeDialog extends JDialog {
         if (!isDisplayable()) return;
         setBusy(false);
         if (failure != null) {
-            error.setText("密码修改失败，请检查输入后重试");
+            error.setText(UserErrorMessages.operation(failure, "密码修改失败，请稍后重试"));
             oldPassword.requestFocusInWindow();
             return;
         }
