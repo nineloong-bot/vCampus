@@ -82,6 +82,8 @@ CourseStudentGateway students = CourseRuntimeAdapters.students(
 
 ## 可直接运行的带数据 Demo
 
+需要立即交付团队联调时，先阅读 [选课与用户管理快速交付候选版](course-user-management-quick-delivery.md)。该文档明确记录当前可运行能力、固定账号以及尚未完成的最终验收项。
+
 > **以下账号和固定密码只用于本地演示。不要把 Demo 数据库、账号或密码用于部署；正式上线前必须删除
 > `data/course-user-demo.accdb`，并通过正式建号流程初始化账户。**
 
