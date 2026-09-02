@@ -71,9 +71,12 @@ public final class ApplicationRuntime {
         SessionRegistry sessions = new SessionRegistry(clock, sessionIdleTimeout);
         TransactionManager transactions = new TransactionManager(connections);
         AccessAuditRepository audits = new AccessAuditRepository();
+        AccessUserRepository userRepository = new AccessUserRepository();
+        PasswordHasher passwords = new PasswordHasher();
+        RequestDeduplicator deduplicator = new RequestDeduplicator(transactions, locks);
         UserServiceImpl users = new UserServiceImpl(transactions, locks,
-                new AccessUserRepository(), new AccessPermissionRepository(),
-                audits, new PasswordHasher(), sessions, clock);
+                userRepository, new AccessPermissionRepository(),
+                audits, passwords, sessions, clock);
         AuthorizationService authorization = new AuthorizationService(sessions);
         CourseAuthorizationGateway courseAuthorization = CourseRuntimeAdapters.authorization(
                 sessions::requireSnapshot,
@@ -87,10 +90,12 @@ public final class ApplicationRuntime {
                 students, clock, locks);
         MessageRouter router = new MessageRouter(Map.of(
                 "PING", (request, context) -> ResponseBody.success(EmptyResponse.INSTANCE)));
-        new UserHandlers(router, users, authorization, new RequestDeduplicator(transactions, locks));
+        new UserHandlers(router, users, authorization, deduplicator);
         router.register("SECURITY_AUDIT_SEARCH", new SecurityAuditHandler(authorization,
                 new SecurityAuditService(transactions, audits)));
         courses.register(router);
+        UnifiedModuleRegistry.registerAll(router, transactions, locks, sessions,
+                authorization, deduplicator, users, userRepository, audits, passwords, clock);
         return new ApplicationRuntime(router, courses, locks, authorization);
     }
 

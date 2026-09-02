@@ -88,17 +88,22 @@ public final class ServerMain {
     }
 
     private static void run(ServerConfig config) throws Exception {
-        MessageRouter router = new MessageRouter(Map.of(
-                "PING", (request, context) -> ResponseBody.success(EmptyResponse.INSTANCE)));
-        ServerRuntime runtime = createRuntime(config);
-        new UserHandlers(router, runtime.users(), runtime.authorization(), runtime.deduplicator());
-        registerSecurityAudit(router, runtime.auditHandler());
-        runtime.students().register(router);
+        MessageRouter router = createApplicationRouter(config);
         SocketServer server = new SocketServer(config.port(), config.workerThreads(),
                 config.maxConnections(), router);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> shutdown(server), "vcampus-shutdown"));
         LOGGER.info("VCampus 服务端已启动，监听端口 {}", config.port());
         server.serve();
+    }
+
+    private static MessageRouter createApplicationRouter(ServerConfig config) throws Exception {
+        String databaseUrl = "jdbc:ucanaccess://" + config.databasePath()
+                + (config.databaseCreateIfMissing() ? ";newDatabaseVersion=V2010" : "")
+                + ";immediatelyReleaseResources=true";
+        ConnectionProvider connections = () -> DriverManager.getConnection(databaseUrl);
+        return ApplicationRuntime.create(connections, config.databaseResourceRoot(),
+                java.time.Clock.systemUTC(),
+                Duration.ofMinutes(config.sessionTimeoutMinutes())).router();
     }
 
     private static ServerRuntime createRuntime(ServerConfig config) {

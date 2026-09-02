@@ -7,18 +7,24 @@ import edu.seu.vcampus.server.config.ServerConfig;
 import edu.seu.vcampus.server.routing.ClientContext;
 import edu.seu.vcampus.server.routing.MessageRouter;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.lang.reflect.Method;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ServerMainLibraryRegistrationTest {
+    @TempDir
+    Path temporaryDirectory;
+
     @Test
     void applicationRouterRegistersLibraryCommandsAgainstTheSharedSessionRegistry()
             throws Exception {
         ServerConfig config = new ServerConfig(8888, 10, 2,
-                Path.of("target", "unused.accdb").toAbsolutePath(), 7, 15, 24);
+                temporaryDirectory.resolve("unified.accdb"),
+                databaseRoot(), true, 7, 15, 24);
         Method factory = ServerMain.class.getDeclaredMethod("createApplicationRouter",
                 ServerConfig.class);
         factory.setAccessible(true);
@@ -31,5 +37,11 @@ class ServerMainLibraryRegistrationTest {
                 new ClientContext("connection-1", "127.0.0.1"));
         assertThat(response.success()).isFalse();
         assertThat(response.code()).isEqualTo("AUTH_SESSION_EXPIRED");
+    }
+
+    private static Path databaseRoot() {
+        Path root = Path.of("vcampus-database");
+        return (Files.exists(root) ? root : Path.of("..", "vcampus-database"))
+                .toAbsolutePath().normalize();
     }
 }
