@@ -6,6 +6,8 @@ import edu.seu.vcampus.common.shop.PaymentChannel;
 import edu.seu.vcampus.common.shop.PaymentStatus;
 import edu.seu.vcampus.common.shop.PaymentView;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -83,10 +85,11 @@ class ShopNavigationStateTest {
         assertThat(state.nodeCount()).isLessThanOrEqualTo(4);
     }
 
-    @Test
-    void userReportedCycleIsBoundedAndAlwaysReturnsHome() {
+    @ParameterizedTest
+    @ValueSource(ints = {5, 10, 100})
+    void userReportedCycleIsBoundedAndAlwaysReturnsHome(int repetitions) {
         ShopNavigationState state = ShopNavigationState.empty().open(ShopRoute.defaultHome());
-        for (int index = 0; index < 100; index++) {
+        for (int index = 0; index < repetitions; index++) {
             state = state.open(new ShopRoute.Product("home-" + index));
             state = state.open(new ShopRoute.Cart());
             state = state.open(new ShopRoute.Product("cart-" + index));
