@@ -192,9 +192,10 @@ public final class LoginFrame extends JFrame {
         panel.setOpaque(false);
         panel.getAccessibleContext().setAccessibleName("课程演示账号");
         panel.add(demoLabel("演示账号", "login.demoTitle"));
-        panel.add(demoLabel("管理员：DEMO_ADMIN / admin123456", "login.demoAdmin"));
-        panel.add(demoLabel("教师：DEMO_TEACHER / Teacher123456", "login.demoTeacher"));
-        panel.add(demoLabel("学生：213242478 / 12345678（首次登录需修改密码）",
+        panel.add(demoLabel("管理员：DEMO_ADMIN / DemoPassword7（首次登录需改密）",
+                "login.demoAdmin"));
+        panel.add(demoLabel("教师：DEMO_TEACHER / DemoPassword7", "login.demoTeacher"));
+        panel.add(demoLabel("学生：DEMO_STUDENT / DemoPassword7",
                 "login.demoStudent"));
         return panel;
     }

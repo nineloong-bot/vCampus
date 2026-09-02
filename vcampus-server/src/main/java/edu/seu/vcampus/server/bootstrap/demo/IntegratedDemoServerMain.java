@@ -32,6 +32,7 @@ import java.util.List;
 /** Isolated authenticated three-role demo backed by the production application runtime. */
 public final class IntegratedDemoServerMain {
     private static final String DEMO_DATABASE_FILENAME = "course-user-demo.accdb";
+    private static final String DEMO_PASSWORD = "DemoPassword7";
     private static final int PASSWORD_ITERATIONS = 120_000;
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -59,7 +60,8 @@ public final class IntegratedDemoServerMain {
             Runtime.getRuntime().addShutdownHook(new Thread(
                     () -> shutdown(running), "integrated-demo-shutdown"));
             System.out.println("带数据服务端已启动，端口 " + server.localPort());
-            System.out.println("账号：ADMIN / 213000001 / TEACHER_DEMO（详见 docs/course-runtime-integration.md）");
+            System.out.println("账号：DEMO_STUDENT / DEMO_TEACHER / DEMO_ADMIN"
+                    + "（详见 docs/course-user-management-demo-and-test-guide.md）");
             server.serve();
         } catch (Exception failure) {
             if (server != null) shutdown(server);
@@ -88,11 +90,13 @@ public final class IntegratedDemoServerMain {
         ConnectionProvider connections = () -> DriverManager.getConnection(url);
         ApplicationRuntime runtime = ApplicationRuntime.create(connections,
                 databaseResourceRoot, clock, sessionTimeout);
-        seedUser(connections, "213000001", "213000001", "Student1234",
+        seedUser(connections, "demo-student", "DEMO_STUDENT", DEMO_PASSWORD,
                 "STUDENT", false, clock.instant());
-        seedUser(connections, "teacher-demo-001", "TEACHER_DEMO", "Teacher1234",
+        seedUser(connections, "demo-teacher", "DEMO_TEACHER", DEMO_PASSWORD,
                 "TEACHER", false, clock.instant());
-        seedCourses(runtime.course().service(), clock);
+        seedUser(connections, "demo-admin", "DEMO_ADMIN", DEMO_PASSWORD,
+                "ADMIN", true, clock.instant());
+        seedCourses(runtime.course().service(), connections, clock);
         return runtime;
     }
 
@@ -148,7 +152,8 @@ public final class IntegratedDemoServerMain {
         }
     }
 
-    private static void seedCourses(CourseService courses, Clock clock) {
+    private static void seedCourses(CourseService courses, ConnectionProvider connections,
+                                    Clock clock) throws Exception {
         Instant now = clock.instant();
         LocalDate today = LocalDate.ofInstant(now, ZoneOffset.UTC);
         var terms = courses.listTerms();
@@ -158,18 +163,87 @@ public final class IntegratedDemoServerMain {
                         now.minus(Duration.ofDays(1)), now.plus(Duration.ofDays(30)),
                         now.plus(Duration.ofDays(31)), now.plus(Duration.ofDays(60)), "ACTIVE"))
                 : terms.getFirst();
-        var catalog = courses.searchCatalog(new CourseCatalogQuery("MATH101", null, 0, 20)).items();
-        var course = catalog.stream().filter(item -> "MATH101".equals(item.courseCode()))
-                .findFirst().orElseGet(() -> courses.createCourse(new CreateCourseCommand(
-                        "MATH101", "高等数学（带数据演示）", new BigDecimal("5.0"), 80,
-                        "用于验证登录后的真实查询、选课和课表", true)));
-        var offerings = courses.searchOfferings(new OfferingSearchQuery(
-                term.termId(), "MATH101", null, false, 0, 20)).items();
-        if (offerings.isEmpty()) {
-            courses.createOffering(new CreateOfferingCommand(term.termId(), course.courseId(),
-                    "teacher-demo-001", "Demo-01", 40, "OPEN",
-                    List.of(new CreateOfferingCommand.ScheduleInput(
-                            "MONDAY", 1, 2, 1, 16, "Demo-101"))));
+        var mathematics = ensureCourse(courses, "DEMO-MATH101", "高等数学（集成演示）",
+                new BigDecimal("5.0"), 80, "已选教学班用于验证正常阶段立即退选");
+        var programming = ensureCourse(courses, "DEMO-CS201", "Java 程序设计（集成演示）",
+                new BigDecimal("4.0"), 64, "未选教学班用于验证选课后立即退选");
+        String enrolledOffering = ensureOffering(courses, term.termId(), mathematics.courseId(),
+                "DEMO-MATH101", "Demo-Math-A", "MONDAY", 1, 2, "教一-101");
+        ensureOffering(courses, term.termId(), mathematics.courseId(),
+                "DEMO-MATH101", "Demo-Math-B", "TUESDAY", 3, 4, "教一-203");
+        ensureOffering(courses, term.termId(), programming.courseId(),
+                "DEMO-CS201", "Demo-CS-A", "WEDNESDAY", 5, 6, "计算中心-305");
+        seedActiveEnrollment(connections, enrolledOffering, now);
+    }
+
+    private static edu.seu.vcampus.common.course.CourseView ensureCourse(
+            CourseService courses, String code, String name, BigDecimal credit, int hours,
+            String description) {
+        return courses.searchCatalog(new CourseCatalogQuery(code, null, 0, 20)).items().stream()
+                .filter(item -> code.equals(item.courseCode())).findFirst()
+                .orElseGet(() -> courses.createCourse(new CreateCourseCommand(
+                        code, name, credit, hours, description, true)));
+    }
+
+    private static String ensureOffering(CourseService courses, String termId, String courseId,
+                                         String courseCode, String className, String day,
+                                         int startPeriod, int endPeriod, String classroom) {
+        var existing = courses.searchOfferings(new OfferingSearchQuery(
+                termId, courseCode, null, false, 0, 20)).items().stream()
+                .filter(item -> className.equals(item.className())).findFirst();
+        if (existing.isPresent()) return existing.get().offeringId();
+        return courses.createOffering(new CreateOfferingCommand(termId, courseId,
+                "demo-teacher", className, 40, "OPEN",
+                List.of(new CreateOfferingCommand.ScheduleInput(
+                        day, startPeriod, endPeriod, 1, 16, classroom)))).offeringId();
+    }
+
+    private static void seedActiveEnrollment(ConnectionProvider connections, String offeringId,
+                                             Instant now) throws Exception {
+        try (var connection = connections.open()) {
+            connection.setAutoCommit(false);
+            try (var query = connection.prepareStatement(
+                    "SELECT 1 FROM tblEnrollment WHERE studentId=? AND offeringId=?")) {
+                query.setString(1, "demo-student");
+                query.setString(2, offeringId);
+                try (var rows = query.executeQuery()) {
+                    if (rows.next()) {
+                        connection.rollback();
+                        return;
+                    }
+                }
+            }
+            Timestamp timestamp = Timestamp.from(now.minus(Duration.ofHours(2)));
+            try (var insert = connection.prepareStatement("""
+                    INSERT INTO tblEnrollment
+                        (enrollmentId, offeringId, studentId, enrollmentType, enrollmentStatus,
+                         enrolledAt, droppedAt, rowVersion, createdAt, updatedAt)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """)) {
+                insert.setString(1, "demo-enrollment-active");
+                insert.setString(2, offeringId);
+                insert.setString(3, "demo-student");
+                insert.setString(4, "NORMAL");
+                insert.setString(5, "ACTIVE");
+                insert.setTimestamp(6, timestamp);
+                insert.setTimestamp(7, null);
+                insert.setLong(8, 0);
+                insert.setTimestamp(9, timestamp);
+                insert.setTimestamp(10, timestamp);
+                insert.executeUpdate();
+            }
+            try (var update = connection.prepareStatement("""
+                    UPDATE tblCourseOffering
+                    SET enrolledCount=enrolledCount+1, rowVersion=rowVersion+1, updatedAt=?
+                    WHERE offeringId=?
+                    """)) {
+                update.setTimestamp(1, timestamp);
+                update.setString(2, offeringId);
+                if (update.executeUpdate() != 1) {
+                    throw new IllegalStateException("Demo offering missing: " + offeringId);
+                }
+            }
+            connection.commit();
         }
     }
 

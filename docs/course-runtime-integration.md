@@ -36,7 +36,7 @@ jdbc:ucanaccess:///absolute/path/to/vcampus.accdb
 | --- | --- | --- |
 | `STUDENT` | `course.offerings`、`course.enrollments`、`course.schedule`、`course.adjustment`、`course.retake` | 教学班查询、我的选课、我的课表、退改补、重修 |
 | `TEACHER` | `course.offerings`、`course.schedule` | 教学班查询、教师课表 |
-| `ADMIN` | `course.terms`、`course.catalog`、`course.offering-admin`、`course.outcome-import`、`course.adjustment-audit` | 学期管理、课程目录、教学班管理、修读结果导入、退改补审计 |
+| `ADMIN` | `course.terms`、`course.catalog`、`course.offering-admin`、`course.outcome-import`、`course.adjustment-audit` | 学期管理、课程目录、教学班管理、修读结果导入、选退记录 |
 
 `mustChangePassword=true` 的首次改密受限会话不创建选课主窗口，只能修改密码或登出；任何选课命令都在服务端以
 `AUTH_INITIAL_PASSWORD_CHANGE_REQUIRED` 拒绝。密码修改成功或登出后清除内存令牌并回到登录。
@@ -82,80 +82,59 @@ CourseStudentGateway students = CourseRuntimeAdapters.students(
 
 ## 可直接运行的带数据 Demo
 
-需要立即交付团队联调时，先阅读 [选课与用户管理快速交付候选版](course-user-management-quick-delivery.md)。该文档明确记录当前可运行能力、固定账号以及尚未完成的最终验收项。
+需要快速团队联调时，先阅读 [统一课程中心 Demo 与测试指南](course-user-management-demo-and-test-guide.md)；[快速交付说明](course-user-management-quick-delivery.md) 也保留了本轮快速 Demo 的范围和限制。
 
 > **以下账号和固定密码只用于本地演示。不要把 Demo 数据库、账号或密码用于部署；正式上线前必须删除
 > `data/course-user-demo.accdb`，并通过正式建号流程初始化账户。**
 
-Demo 使用独立的 `data/course-user-demo.accdb`，调用生产 `ApplicationRuntime`、生产登录会话、路由、角色校验和
-选课服务。它不会使用旧课程 Demo 的明文 token，也不会向正式 `010_roles_permissions.sql` 添加学生或教师账号。
-带数据服务端入口在任何建库或写入前都会校验数据库文件名必须为 `course-user-demo.accdb`；如果传入指向
-`data/vCampus.accdb` 的其他配置，会直接拒绝，避免向非 Demo 数据库写入固定演示账号。
+Demo 使用独立的 `data/course-user-demo.accdb`，调用生产 `ApplicationRuntime`、生产登录会话、路由、角色校验和选课服务。带数据服务端入口在任何建库或写入前都会校验数据库文件名必须为 `course-user-demo.accdb`；数据文件、初始化和演示种子都只属于服务端。
 
-数据文件、初始化和演示种子都只属于服务端。客户端不携带数据，因此始终共用同一个
-`start-client`，不再提供容易误解的 `integrated-demo-client` 或旧的模拟 token 选课 Demo 入口。
+三种角色使用同一个 `start-client` 入口。初始密码统一为 `DemoPassword7`：
 
-先在第一个终端启动服务端，再在第二个终端启动客户端：
+| 角色 | 登录账号 | 初始登录行为 |
+| --- | --- | --- |
+| 学生 | `DEMO_STUDENT` | 直接进入课程中心 |
+| 教师 | `DEMO_TEACHER` | 直接进入课程中心 |
+| 管理员 | `DEMO_ADMIN` | 首次登录强制修改密码；改密后返回登录页，使用新密码重新登录 |
+
+### 启动顺序
+
+第一个终端先执行服务端，看到监听端口后，第二个终端再执行客户端：
 
 ```bash
 vcampus-distribution/scripts/start-server-with-data.sh
+```
+
+```bash
 vcampus-distribution/scripts/start-client.sh
 ```
 
-Windows 使用对应的 `.bat` 文件。登录账号如下：
+Windows 依次使用 `start-server-with-data.bat`、`start-client.bat`。两个脚本均要求 Java 21 或更高版本。客户端不创建、复制或重置数据库。
 
-| 角色 | 登录账号 | 初始密码 | 说明 |
-| --- | --- | --- | --- |
-| 管理员 | `ADMIN` | `Admin1234` | 首次登录强制修改密码；改密后返回登录页，使用新密码重新登录 |
-| 学生 | `213000001` | `Student1234` | 直接进入学生五个选课页面，临时映射 `studentId=userId=213000001` |
-| 教师 | `TEACHER_DEMO` | `Teacher1234` | 直接进入教学班查询和教师课表 |
+### 课程标签和业务走查
 
-首次启动会幂等创建一个当前开放的演示学期、`MATH101 高等数学（带数据演示）` 和指派给
-`teacher-demo-001` 的 `Demo-01` 教学班。建议按以下顺序验收：
+课程中心只占一个全局导航模块，内部标签按角色过滤：学生为“教学班查询、我的选课、我的课表、退改补、重修”；教师为“教学班查询、教师课表”；管理员为“学期管理、课程目录、教学班管理、修读结果导入、选退记录”。
 
-1. 学生登录，查询 `MATH101`，选择 `Demo-01`，再到“我的选课”和“我的课表”确认结果；
-2. 教师登录，在教学班查询和教师课表中确认同一教学班；
-3. 管理员登录完成首次改密，重新登录后检查学期、课程目录和教学班管理页面；
-4. 用学生账号尝试管理员功能时，服务端必须拒绝，不能只依赖页面隐藏。
+学生可在“教学班查询”选择开放教学班，随后在“我的选课”确认活动记录并立即点击“退选所选课程”；确认后记录保留为退选历史、名额释放，课表在重新选择时刷新。Demo 预置一个活动选课和多个开放教学班，便于完成“选课 → 立即退选”。补选和改选仍只允许在退改补调整窗口，正常选课窗口不能绕过该限制；两个窗口之外服务端拒绝。
 
-要恢复初始账号、密码和空选课记录，先停止 Demo 服务端，再运行：
+管理员必须先完成 `DEMO_ADMIN` 首次改密并重新登录，再从学期、课程、教师选择项录入教学班，使用结构化容量、状态和多行上课时间控件保存。正常流程不要求手填原始 ID、逗号分隔 schedule 或日期时间字符串。容量、时间顺序和乐观锁版本仍由客户端提示并由服务端最终校验。
 
-```bash
-vcampus-distribution/scripts/reset-data.sh
-```
+### 重置
 
-该脚本只删除精确的 `data/course-user-demo.accdb`，不会触碰 `data/vCampus.accdb`。Windows 使用
-`reset-data.bat`。
+先停止服务端，再运行 `vcampus-distribution/scripts/reset-data.sh`（Windows 使用 `.bat`）。脚本只删除精确的 `data/course-user-demo.accdb`，并在删除前要求输入 `y` 或 `Y`；其他输入取消操作。下次启动服务端会重新创建 Demo 数据、账号和初始密码，不会触碰 `data/vCampus.accdb`。
 
-## 运行、测试与打包验证
+## 当前快速 Demo 的最小验证
 
-所有 Maven 命令显式使用 JDK 21：
+所有 Maven 命令显式使用 JDK 21。快速 Demo 只执行聚焦门禁，不宣称全模块最终验收：
 
 ```bash
 export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home
 export PATH="$JAVA_HOME/bin:$PATH"
-
-# 真实登录→选课 socket 边界（需要允许绑定本机临时端口）
-mvn -pl vcampus-client -am \
-  -Dtest=LoginCourseSocketIntegrationTest \
+mvn -pl vcampus-server,vcampus-client -am \
+  -Dtest=IntegratedDemoServerMainTest,DistributionDemoScriptsTest,CourseDemoNetworkTest,LoginCourseSocketIntegrationTest,CourseUiTest,UserClientServiceTask6Test \
   -Dsurefire.failIfNoSpecifiedTests=false test
-
-# 从干净 target 重建、测试并重建两端发行 JAR
-mvn clean verify
-
-# 运行唯一发行入口：带数据服务端 + 共用客户端
-vcampus-distribution/scripts/start-server-with-data.sh
-vcampus-distribution/scripts/start-client.sh
 ```
 
-打包后验证当前 HEAD 的代码、schema 和文档均进入发行目录：
+预期为 `BUILD SUCCESS`；测试覆盖账号/角色/种子幂等性、发行入口、真实登录选课 socket 和课程 UI。完整 `mvn clean test`、全模块合并后的三角色人工验收及最终发行 JAR 复核，延后到所有模块合并后执行；本快速 Demo 文档不虚构固定 `Tests run` 总数。
 
-```bash
-jar tf vcampus-distribution/lib/vCampusServer.jar | rg 'server/(user|course|security|session)/'
-jar tf vcampus-distribution/lib/vCampusClient.jar | rg 'client/(user|course)/'
-test -f vcampus-distribution/database/schema/010_user.sql
-test -f vcampus-distribution/database/schema/030_course.sql
-test -f vcampus-distribution/docs/course-runtime-integration.md
-rg -n 'userId.*studentId|TemporaryUserStudentGateway|StudentQueryPort' \
-  docs/course-runtime-integration.md vcampus-distribution/docs/course-runtime-integration.md
-```
+截图索引见 [UI review manifest](ui-review/manifest.md)，Task 8 生成的文件为：[统一登录](ui-review/course/integrated-login.png)、[学生课程中心](ui-review/course/integrated-student-course.png)、[管理员教学班结构化编辑器](ui-review/course/integrated-admin-offering-editor.png)。

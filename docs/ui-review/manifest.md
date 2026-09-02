@@ -36,3 +36,17 @@ the dedicated UI design-system implementation plan.
   specification-named shared buttons, paged table, state panels, or confirm dialog;
   course pages therefore use shared tokens with standard Swing components until the
   shared owner publishes those components.
+
+## Unified course and user workflow evidence
+
+- Generated on 2026-09-02 from the production `LoginFrame`, `MainFrame` with an embedded
+  student `CourseWorkspacePanel`, and the Task 7 structured `OfferingEditorDialog` using
+  deterministic `CourseUiGateway.preview()` data.
+- `course/integrated-login.png`: 1280 × 800; shared login and the three consistent local
+  Demo accounts are visible.
+- `course/integrated-student-course.png`: 1280 × 800; the five-module navigation and the
+  student course workspace are visible without clipping or stale course-only sidebar items.
+- `course/integrated-admin-offering-editor.png`: 661 × 626 packed dialog size; localized
+  term/course/teacher choices and a structured schedule row replace raw IDs and CSV input.
+- Visual inspection: all three images are nonblank; Chinese labels, controls, and table
+  content render without clipping at their recorded dimensions.

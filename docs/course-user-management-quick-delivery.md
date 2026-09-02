@@ -1,6 +1,6 @@
-# 选课与用户管理快速交付候选版
+# 选课与用户管理快速交付 Demo
 
-> 状态：可运行的团队联调候选版（2026-09-02），不是最终验收版。为满足紧急交付，本次保留关键功能测试、编译打包和真实服务端启动冒烟，但没有等待教学班录入优化、完整回归和三角色全流程人工验收结束。
+> 状态：当前快速 Demo（2026-09-02）。用于团队联调，不是所有模块合并后的最终验收包；完整回归和最终发行复核按后文延期执行。
 
 ## 获取与运行
 
@@ -10,42 +10,72 @@
 /private/tmp/java-summer-course-course-user-integration
 ```
 
-如果主仓库提示 `already used by worktree`，不要在原目录强行切换；直接进入上述目录运行，或在团队机器重新 clone 后 checkout 远端分支。
+如果主仓库提示 `already used by worktree`，不要在原目录强行切换；直接进入上述目录运行，或在团队机器重新 clone 后 checkout 远端分支。该限制来自一个分支不能同时被两个 worktree 检出。
 
-要求 Java 21。先启动服务端，再启动客户端：
+要求 Java 21 或更高版本。先启动服务端，再启动客户端，客户端不负责数据初始化：
 
 ```bash
 cd /private/tmp/java-summer-course-course-user-integration
 vcampus-distribution/scripts/start-server-with-data.sh
+```
+
+看到服务端监听端口后，在第二个终端执行：
+
+```bash
+cd /private/tmp/java-summer-course-course-user-integration
 vcampus-distribution/scripts/start-client.sh
 ```
 
-Windows 使用同名 `.bat` 文件。数据只属于服务端；客户端是三种角色共用的同一个入口。
+Windows 依次使用 `start-server-with-data.bat`、`start-client.bat`。
 
 ## Demo 账号
 
-| 角色 | 账号 | 密码 | 说明 |
-| --- | --- | --- | --- |
-| 管理员 | `ADMIN` | `Admin1234` | 首次登录会要求修改密码 |
-| 学生 | `213000001` | `Student1234` | 可进入学生选课工作区 |
-| 教师 | `TEACHER_DEMO` | `Teacher1234` | 可进入教学班查询和教师课表 |
+所有账号的初始密码均为 `DemoPassword7`：
 
-需要恢复固定密码和初始数据时，先停止服务端，再运行 `vcampus-distribution/scripts/reset-data.sh`。
+| 角色 | 账号 | 初始登录行为 |
+| --- | --- | --- |
+| 学生 | `DEMO_STUDENT` | 进入学生课程中心 |
+| 教师 | `DEMO_TEACHER` | 进入教师课程中心 |
+| 管理员 | `DEMO_ADMIN` | 首次登录强制改密；改密成功后回到登录页，使用新密码重新登录 |
 
-## 本候选版已经具备
+## 当前可走查能力
 
-- 统一登录成功后进入 vCampus 主界面，选课模块嵌入统一左侧导航；
-- 登录会话在客户端和服务端共同控制学生、教师、管理员权限；
-- 学生在选课阶段和退改选阶段都可退选，补选/改选仍只允许在退改选阶段；
-- “我的选课”支持立即退课，并处理重复提交、页面切换与历史退课行；
-- 管理员课程的学分/学时以及学期日期、时间、状态已改为结构化控件并提供明确校验；
-- 客户端和带数据服务端 JAR 已使用 Java 21 重新构建；真实服务端已成功创建 Demo 数据并监听 `8888`。
+- 课程中心作为一个全局模块嵌入共享 vCampus 外壳；内部标签按角色显示：学生为“教学班查询、我的选课、我的课表、退改补、重修”，教师为“教学班查询、教师课表”，管理员为“学期管理、课程目录、教学班管理、修读结果导入、选退记录”。
+- 学生可从“教学班查询”选开放教学班，在“我的选课”确认后立即退选；确认成功后保留退选历史并释放名额。
+- 补选和改选只在退改补调整窗口开放；正常选课窗口和两个窗口之外都不能通过这两个操作绕过服务端规则。退选在正常选课窗口和调整窗口均可用。
+- 管理员课程、学期和教学班录入使用结构化控件：学期/课程/教师通过选择项加载，容量和状态有控件，课程表时间逐行编辑；正常流程不要求原始 ID、逗号分隔 schedule 或手工日期时间字符串。
 
-## 已知未完成项
+## 重置数据
 
-- 教学班管理还未完成最终的“学期/课程/教师下拉搜索 + 多行结构化上课时间编辑器”；当前界面可用，但部分字段仍需手动输入 ID 或按现有格式录入。
-- 学期日期步进器的显示使用上海时区；在系统默认时区存在夏令时的极端日期附近，步进一天仍需后续加强专门的时区模型。
-- 本次紧急包执行了成功的 Java 21 `mvn -DskipTests package`、关键选退课/UI 聚焦测试和真实服务端启动冒烟；没有在最后一次打包后执行完整 `mvn clean test`，也尚未完成三角色全流程人工截图验收。
-- 管理员首次修改密码会改变当前 Demo 数据库中的密码；需要重新演示固定账号时请重置数据。
+先停止服务端，再执行：
 
-完整架构、角色页面和运行说明见 [course-runtime-integration.md](course-runtime-integration.md)。后续开发应继续既有计划的 Task 7–9，不应把本文件的“候选版”状态误标为最终验收完成。
+```bash
+vcampus-distribution/scripts/reset-data.sh
+```
+
+Windows 使用 `reset-data.bat`。脚本只针对 `data/course-user-demo.accdb`，删除前要求输入 `y` 或 `Y` 确认；其他输入取消，不会触碰 `data/vCampus.accdb`。下次启动服务端会恢复 Demo 账号、初始密码和种子数据。管理员改过的密码也会随重置恢复为 `DemoPassword7`。
+
+## 快速 Demo 的最小验证与证据
+
+以下是本轮快速 Demo 的聚焦门禁（Java 21），不是最终全量测试：
+
+```bash
+export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home
+export PATH="$JAVA_HOME/bin:$PATH"
+mvn -pl vcampus-server,vcampus-client -am \
+  -Dtest=IntegratedDemoServerMainTest,DistributionDemoScriptsTest,CourseDemoNetworkTest,LoginCourseSocketIntegrationTest,CourseUiTest,UserClientServiceTask6Test \
+  -Dsurefire.failIfNoSpecifiedTests=false test
+```
+
+预期输出 `BUILD SUCCESS`，覆盖 Demo 账号/角色和种子幂等性、三组发行入口、真实登录选课 socket 及课程 UI。当前快速 Demo 文档不虚构固定 `Tests run` 总数；完整 `mvn clean test`、全模块合并后的三角色人工流程和最终发行 JAR 复核，延后到所有模块合并后执行。
+
+视觉证据见 [统一课程中心 Demo 与测试指南](course-user-management-demo-and-test-guide.md) 及 [UI review manifest](ui-review/manifest.md)，截图路径为：
+
+- `docs/ui-review/course/integrated-login.png`
+- `docs/ui-review/course/integrated-student-course.png`
+- `docs/ui-review/course/integrated-admin-offering-editor.png`
+
+## 仍需最终验收处理
+
+- 全模块合并后执行完整测试、三角色真实人工流程和发行 JAR 复核。
+- 组合根目前仍使用 `TemporaryUserStudentGateway` 将活动学生账号临时映射为选课 `studentId`；正式学籍模块提供 `StudentQueryPort` 并完成 ID 迁移后再替换。
