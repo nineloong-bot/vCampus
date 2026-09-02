@@ -29,13 +29,39 @@ public final class ApplicationSchemaInitializer {
             "(?is)^\\s*CREATE\\s+TABLE\\s+([A-Za-z0-9_]+)");
     private static final Pattern CREATE_INDEX = Pattern.compile(
             "(?is)^\\s*CREATE\\s+(?:UNIQUE\\s+)?INDEX\\s+([A-Za-z0-9_]+)\\s+ON\\s+([A-Za-z0-9_]+)");
+    private static final Pattern ALTER_TABLE = Pattern.compile(
+            "(?is)^\\s*ALTER\\s+TABLE\\s+([A-Za-z0-9_]+)");
     private static final Pattern INSERT = Pattern.compile(
             "(?is)^\\s*INSERT\\s+INTO\\s+([A-Za-z0-9_]+)\\s*\\((.*?)\\)\\s*VALUES\\s*\\((.*)\\)\\s*$");
-    private static final Map<String, List<String>> SEED_KEYS = Map.of(
-            "tblrole", List.of("roleCode"),
-            "tbluser", List.of("userId"),
-            "tblpermission", List.of("permissionCode"),
-            "tblrolepermission", List.of("roleCode", "permissionCode"));
+    private static final Map<String, List<String>> SEED_KEYS = Map.ofEntries(
+            Map.entry("tblrole", List.of("roleCode")),
+            Map.entry("tbluser", List.of("userId")),
+            Map.entry("tblpermission", List.of("permissionCode")),
+            Map.entry("tblrolepermission", List.of("roleCode", "permissionCode")),
+            Map.entry("tbldepartment", List.of("departmentId")),
+            Map.entry("tblmajor", List.of("majorId")),
+            Map.entry("tblclass", List.of("classId")),
+            Map.entry("tblnumbersequence", List.of("sequenceKey")),
+            Map.entry("tblstudent", List.of("studentId")),
+            Map.entry("tbllibrarypolicy", List.of("policyId")),
+            Map.entry("tblterm", List.of("termId")),
+            Map.entry("tblcourse", List.of("courseId")),
+            Map.entry("tblcourseoffering", List.of("offeringId")),
+            Map.entry("tblcourseschedule", List.of("scheduleId")),
+            Map.entry("tblenrollment", List.of("enrollmentId")),
+            Map.entry("tblbook", List.of("bookId")),
+            Map.entry("tblbookcopy", List.of("copyId")),
+            Map.entry("tblbookloan", List.of("loanId")),
+            Map.entry("tblsellerapplication", List.of("applicationId")),
+            Map.entry("tblshop", List.of("shopId")),
+            Map.entry("tblproduct", List.of("productId")),
+            Map.entry("tblproductsku", List.of("skuId")),
+            Map.entry("tblcart", List.of("cartId")),
+            Map.entry("tblcartitem", List.of("cartItemId")),
+            Map.entry("tblordergroup", List.of("orderGroupId")),
+            Map.entry("tblorder", List.of("orderId")),
+            Map.entry("tblorderitem", List.of("orderItemId")),
+            Map.entry("tblpayment", List.of("paymentId")));
 
     private final Path resourceRoot;
 
@@ -44,13 +70,19 @@ public final class ApplicationSchemaInitializer {
         this.resourceRoot = Objects.requireNonNull(resourceRoot, "resourceRoot").toAbsolutePath().normalize();
     }
 
-    /** Repeatedly safe installer: common schema, user schema, role seeds, then course schema. */
+    /** Repeatedly safe installer for all module schemas and the unified manual-test dataset. */
     public void initialize(ConnectionProvider connections) throws IOException, SQLException {
         Objects.requireNonNull(connections, "connections");
         installSchema(connections, schema("001_common.sql"));
         installSchema(connections, schema("010_user.sql"));
-        installSeeds(connections, seed("010_roles_permissions.sql"));
+        installSchema(connections, schema("020_student.sql"));
         new CourseSchemaInitializer(schema("030_course.sql")).initialize(connections);
+        installSchema(connections, schema("040_library.sql"));
+        installSchema(connections, schema("050_shop.sql"));
+        installSeeds(connections, seed("010_roles_permissions.sql"));
+        installSeeds(connections, seed("020_test_accounts.sql"));
+        installSeeds(connections, seed("040_library_policy.sql"));
+        installSeeds(connections, seed("060_unified_demo_data.sql"));
     }
 
     private Path schema(String name) throws IOException {
@@ -72,12 +104,18 @@ public final class ApplicationSchemaInitializer {
             throws IOException, SQLException {
         try (Connection connection = connections.open()) {
             Set<String> tables = tableNames(connection);
+            Set<String> preexistingTables = Set.copyOf(tables);
             Set<String> indexes = indexNames(connection);
             for (String sql : statements(script)) {
                 Matcher table = CREATE_TABLE.matcher(sql);
                 if (table.find() && tables.contains(normalize(table.group(1)))) continue;
                 Matcher index = CREATE_INDEX.matcher(sql);
                 if (index.find() && indexes.contains(normalize(index.group(1)))) continue;
+                Matcher alter = ALTER_TABLE.matcher(sql);
+                if (alter.find() && preexistingTables.contains(normalize(alter.group(1)))) continue;
+                Matcher insert = INSERT.matcher(sql);
+                if (insert.matches() && SEED_KEYS.containsKey(normalize(insert.group(1)))
+                        && seedExists(connection, sql)) continue;
                 try (Statement statement = connection.createStatement()) {
                     statement.execute(sql);
                 }
@@ -91,7 +129,8 @@ public final class ApplicationSchemaInitializer {
             throws IOException, SQLException {
         try (Connection connection = connections.open()) {
             for (String sql : statements(script)) {
-                if (!seedExists(connection, sql)) {
+                Matcher insert = INSERT.matcher(sql);
+                if (!insert.matches() || !seedExists(connection, sql)) {
                     try (Statement statement = connection.createStatement()) {
                         statement.execute(sql);
                     }

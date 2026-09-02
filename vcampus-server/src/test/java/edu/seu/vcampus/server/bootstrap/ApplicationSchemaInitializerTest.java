@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ApplicationSchemaInitializerTest {
     @Test
-    void installsCommonUserSeedsAndCourseSchemaIdempotently() throws Exception {
+    void installsAllModuleSchemasAndPermissionSeedsIdempotently() throws Exception {
         Path database = Files.createTempDirectory("vcampus-schema-").resolve("schema.accdb");
         ConnectionProvider connections = () -> DriverManager.getConnection(
                 "jdbc:ucanaccess://" + database + ";newDatabaseVersion=V2010");
@@ -28,10 +28,11 @@ class ApplicationSchemaInitializerTest {
 
         try (Connection connection = connections.open()) {
             assertThat(tableNames(connection)).contains("tblrequestdedup", "tblrole", "tbluser",
-                    "tblauditlog", "tblterm", "tblcourse", "tblcourseoffering", "tblenrollment");
+                    "tblauditlog", "tblstudent", "tblterm", "tblcourse", "tblcourseoffering",
+                    "tblenrollment", "tblbook", "tblshop", "tblorder");
             assertThat(count(connection, "SELECT COUNT(*) FROM tblRole")).isEqualTo(3);
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblPermission")).isEqualTo(4);
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblRolePermission")).isEqualTo(4);
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblPermission")).isEqualTo(7);
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblRolePermission")).isEqualTo(7);
             assertThat(count(connection,
                     "SELECT COUNT(*) FROM tblUser WHERE loginId = 'ADMIN'")).isEqualTo(1);
         }
