@@ -132,6 +132,52 @@ final class ShopNavigationState {
         return this;
     }
 
+    ShopNavigationState replaceVisible(ShopRoute route) {
+        Objects.requireNonNull(route, "route");
+        ShopRoute visible = current().orElseThrow();
+        if (visible.equals(route)) return this;
+        if (visible instanceof ShopRoute.Home && route instanceof ShopRoute.Home value) {
+            return new ShopNavigationState(value, discovery, detail,
+                    utilityRoot, utilityChild, preview, receipt);
+        }
+        if (visible instanceof ShopRoute.Search && route instanceof ShopRoute.Search value) {
+            return new ShopNavigationState(home, value, detail,
+                    utilityRoot, utilityChild, preview, receipt);
+        }
+        if (visible instanceof ShopRoute.Storefront
+                && route instanceof ShopRoute.Storefront value) {
+            return new ShopNavigationState(home, value, detail,
+                    utilityRoot, utilityChild, preview, receipt);
+        }
+        if (visible instanceof ShopRoute.Product && route instanceof ShopRoute.Product value) {
+            return preview != null
+                    ? new ShopNavigationState(home, discovery, detail,
+                            utilityRoot, utilityChild, value, receipt)
+                    : new ShopNavigationState(home, discovery, value,
+                            utilityRoot, utilityChild, null, receipt);
+        }
+        if (visible instanceof ShopRoute.PaymentResult
+                && route instanceof ShopRoute.PaymentResult value) {
+            return new ShopNavigationState(home, discovery, detail,
+                    null, null, null, value);
+        }
+        throw new IllegalArgumentException(
+                "replacement must target the visible semantic slot");
+    }
+
+    ShopNavigationState captureVisible(ShopRoute route) {
+        return replaceVisible(route);
+    }
+
+    ShopNavigationState reset(ShopRoute.Home route) {
+        return new ShopNavigationState(Objects.requireNonNull(route, "route"),
+                null, null, null, null, null, null);
+    }
+
+    ShopNavigationState openFromRoot(ShopRoute.Home root, ShopRoute target) {
+        return reset(root).open(target);
+    }
+
     boolean canGoBack() {
         return receipt != null || preview != null || utilityChild != null
                 || utilityRoot != null || detail != null || discovery != null;

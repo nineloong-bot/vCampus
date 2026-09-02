@@ -210,7 +210,7 @@ class ShopUiTest {
     }
 
     @Test
-    void navigatorCapturesExactListStateAndNotifiesBoundedHistoryChanges() {
+    void navigatorCapturesExactListStateAndNotifiesSemanticLayerChanges() {
         HomeProductQuery homeQuery = new HomeProductQuery(null, null,
                 ProductSortMode.PRICE_DESC, 2, 20);
         ProductSearchQuery searchQuery = new ProductSearchQuery("签字笔", "文具",
@@ -247,13 +247,13 @@ class ShopUiTest {
                 new HomeViewState(homeQuery, 360)));
         assertThat(navigator.canGoBack()).isFalse();
 
-        navigator.reset(new ShopRoute.Search(searchQuery));
+        openFromDefaultHome(navigator, new ShopRoute.Search(searchQuery));
         navigator.open(new ShopRoute.Product("product-search"));
         navigator.back();
         assertThat(navigator.current()).contains(new ShopRoute.Search(
                 new SearchViewState(searchQuery, true, 420)));
 
-        navigator.reset(new ShopRoute.Storefront(shopQuery));
+        openFromDefaultHome(navigator, new ShopRoute.Storefront(shopQuery));
         navigator.open(new ShopRoute.Product("product-storefront"));
         navigator.back();
         assertThat(navigator.current()).contains(new ShopRoute.Storefront(
@@ -271,7 +271,8 @@ class ShopUiTest {
         navigator.reset(new ShopRoute.Home(homeQuery));
         IntStream.range(0, 25).forEach(index ->
                 navigator.open(new ShopRoute.Product("product-" + index)));
-        assertThat(navigator.history()).hasSize(20);
+        assertThat(navigator.history()).containsExactly(new ShopRoute.Home(
+                new HomeViewState(homeQuery, 360)));
     }
 
     @Test
@@ -283,14 +284,14 @@ class ShopUiTest {
 
         navigator.open(home);
         navigator.open(new ShopRoute.Checkout());
-        navigator.replaceCurrent(result);
+        navigator.completeCheckout(result);
         navigator.back();
 
         assertThat(navigator.current()).contains(home);
-        navigator.reset(result);
-        navigator.reset(new ShopRoute.My());
+        navigator.openFromRoot(ShopRoute.defaultHome(), result);
+        openFromDefaultHome(navigator, new ShopRoute.My());
         assertThat(navigator.current()).contains(new ShopRoute.My());
-        assertThat(navigator.history()).isEmpty();
+        assertThat(navigator.history()).containsExactly(ShopRoute.defaultHome());
         navigator.renderCurrent();
         assertThat(rendered.getLast()).isEqualTo(new ShopRoute.My());
     }
@@ -301,7 +302,7 @@ class ShopUiTest {
         ShopRoute.Home home = new ShopRoute.Home(defaultHome());
         navigator.open(home);
         navigator.open(new ShopRoute.Checkout());
-        navigator.replaceCurrent(new ShopRoute.PaymentResult(payment()));
+        navigator.completeCheckout(new ShopRoute.PaymentResult(payment()));
         PaymentResultPanel homeExit = onEdt(() -> new PaymentResultPanel(
                 navigator, new DefaultShopUiKit(), payment()));
 
@@ -316,7 +317,7 @@ class ShopUiTest {
         assertThat(navigator.current()).contains(home);
 
         navigator.open(new ShopRoute.Checkout());
-        navigator.replaceCurrent(new ShopRoute.PaymentResult(payment()));
+        navigator.completeCheckout(new ShopRoute.PaymentResult(payment()));
         PaymentResultPanel ordersExit = onEdt(() -> new PaymentResultPanel(
                 navigator, new DefaultShopUiKit(), payment()));
         onEdt(() -> component(ordersExit, "payment-result.orders", JButton.class).doClick());
@@ -336,7 +337,7 @@ class ShopUiTest {
         onEdt(() -> {
             coordinator.navigator().open(new ShopRoute.Home(defaultHome()));
             coordinator.navigator().open(new ShopRoute.Checkout());
-            coordinator.navigator().replaceCurrent(new ShopRoute.PaymentResult(payment()));
+            coordinator.navigator().completeCheckout(new ShopRoute.PaymentResult(payment()));
             component(content, "payment-result.orders", JButton.class).doClick();
         });
         flushEdt();
@@ -376,7 +377,7 @@ class ShopUiTest {
                 new ShopRoute.My());
 
         for (ShopRoute route : routes) {
-            onEdt(() -> navigator.reset(route));
+            onEdt(() -> resetToRoute(navigator, route));
             assertThat(component(toolbar, "shop.title", JLabel.class).getText()).isNotBlank();
             assertThat(component(toolbar, "shop.back", JButton.class).isVisible()).isTrue();
             assertThat(component(toolbar, "shop.my", JButton.class).isVisible()).isTrue();
@@ -428,7 +429,7 @@ class ShopUiTest {
         assertThat(client.homeQueries).containsExactly(home, home);
         assertThat(homeScroll.getVerticalScrollBar().getValue()).isEqualTo(360);
 
-        onEdt(() -> coordinator.navigator().reset(new ShopRoute.Search(
+        onEdt(() -> openFromDefaultHome(coordinator.navigator(), new ShopRoute.Search(
                 new SearchViewState(search, true, true, 0))));
         flushEdt();
         JScrollPane searchScroll = component(content, "search.scroll", JScrollPane.class);
@@ -445,7 +446,7 @@ class ShopUiTest {
         assertThat(component(content, "search.filters", JPanel.class).isVisible()).isTrue();
         assertThat(searchScroll.getVerticalScrollBar().getValue()).isEqualTo(420);
 
-        onEdt(() -> coordinator.navigator().reset(new ShopRoute.Storefront(
+        onEdt(() -> openFromDefaultHome(coordinator.navigator(), new ShopRoute.Storefront(
                 new StorefrontViewState(storefront, 0))));
         flushEdt(); flushEdt();
         JScrollPane storefrontScroll = component(content, "storefront.scroll", JScrollPane.class);
@@ -685,7 +686,7 @@ class ShopUiTest {
     }
 
     @Test
-    void backDepartureInvalidatesQueuedScrollRestoreForEveryListPage() throws Exception {
+    void backDepartureInvalidatesQueuedScrollRestoreForRestorableListPages() throws Exception {
         assertEveryListRejectsQueuedRestore(ScrollDeparture.BACK);
     }
 
@@ -1164,6 +1165,9 @@ class ShopUiTest {
     private static void assertEveryListRejectsQueuedRestore(ScrollDeparture departure)
             throws Exception {
         for (ListPage page : ListPage.values()) {
+            if (departure == ScrollDeparture.BACK && page == ListPage.HOME) {
+                continue;
+            }
             ScrollDepartureFixture fixture = new ScrollDepartureFixture(page);
             fixture.start(departure);
             fixture.completeThenDepart(departure);
@@ -1193,6 +1197,18 @@ class ShopUiTest {
 
     private static HomeProductQuery defaultHome() {
         return new HomeProductQuery(null, null, ProductSortMode.SALES_DESC, 0, 20);
+    }
+
+    private static void openFromDefaultHome(ShopNavigator navigator, ShopRoute route) {
+        navigator.openFromRoot(ShopRoute.defaultHome(), route);
+    }
+
+    private static void resetToRoute(ShopNavigator navigator, ShopRoute route) {
+        if (route instanceof ShopRoute.Home home) {
+            navigator.reset(home);
+            return;
+        }
+        openFromDefaultHome(navigator, route);
     }
 
     private static ProductSearchQuery defaultSearch() {
@@ -1553,10 +1569,10 @@ class ShopUiTest {
             onEdt(() -> {
                 scroll.getVerticalScrollBar().setValues(0, 10, 0, 1000);
                 if (departure == ScrollDeparture.BACK) {
-                    navigator.reset(new ShopRoute.My());
+                    openFromDefaultHome(navigator, new ShopRoute.My());
                     navigator.open(listRoute);
                 } else {
-                    navigator.reset(listRoute);
+                    resetToRoute(navigator, listRoute);
                 }
             });
             flushEdt();
@@ -1567,7 +1583,7 @@ class ShopUiTest {
             onEdt(() -> {
                 switch (departure) {
                     case BACK -> navigator.back();
-                    case RESET -> navigator.reset(new ShopRoute.My());
+                    case RESET -> openFromDefaultHome(navigator, new ShopRoute.My());
                     case DISPOSE -> dispose.run();
                 }
                 scroll.getVerticalScrollBar().setValues(17, 10, 0, 1000);

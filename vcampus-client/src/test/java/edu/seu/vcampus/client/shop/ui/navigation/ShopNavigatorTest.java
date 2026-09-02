@@ -76,36 +76,32 @@ class ShopNavigatorTest {
     }
 
     @Test
-    void republishesCurrentRouteAndBoundsRestorableHistory() {
-        List<ShopRoute> rendered = new ArrayList<>();
-        ShopNavigator navigator = new ShopNavigator(rendered::add);
-        ProductSearchQuery pens = new ProductSearchQuery("笔", null, null, null,
-                ProductSortMode.SALES_DESC, 0, 20);
-        ShopRoute home = new ShopRoute.Home(new HomeProductQuery(
-                null, null, ProductSortMode.SALES_DESC, 0, 20));
-        ShopRoute search = new ShopRoute.Search(pens);
+    void repeatedProductsReplaceOneDetailLayerAndKeepHomeReachable() {
+        ShopNavigator navigator = new ShopNavigator(route -> { });
+        navigator.open(ShopRoute.defaultHome());
+        IntStream.range(0, 100).forEach(index ->
+                navigator.open(new ShopRoute.Product("product-" + index)));
 
-        navigator.open(home);
-        navigator.open(search);
-        navigator.open(new ShopRoute.Product("product-1"));
-        navigator.open(new ShopRoute.Product("product-1"));
-        IntStream.range(2, 24).forEach(i ->
-                navigator.open(new ShopRoute.Product("product-" + i)));
-
-        assertThat(navigator.history()).hasSize(20);
-        assertThat(navigator.history()).containsExactlyElementsOf(
-                IntStream.rangeClosed(3, 22)
-                        .mapToObj(i -> new ShopRoute.Product("product-" + i))
-                        .toList());
-        assertThat(rendered.stream()
-                .filter(new ShopRoute.Product("product-1")::equals))
-                .hasSize(2);
+        assertThat(navigator.history()).containsExactly(ShopRoute.defaultHome());
         navigator.back();
-        assertThat(navigator.current()).contains(new ShopRoute.Product("product-22"));
-        assertThat(navigator.history()).containsExactlyElementsOf(
-                IntStream.rangeClosed(3, 21)
-                        .mapToObj(i -> new ShopRoute.Product("product-" + i))
-                        .toList());
+        assertThat(navigator.current()).contains(ShopRoute.defaultHome());
+        assertThat(navigator.canGoBack()).isFalse();
+    }
+
+    @Test
+    void resetToDefaultHomeWaitsForTheActiveLeaveGuard() {
+        AtomicReference<Runnable> held = new AtomicReference<>();
+        ShopNavigator navigator = new ShopNavigator(route -> { });
+        navigator.open(ShopRoute.defaultHome());
+        navigator.open(new ShopRoute.SellerApplication());
+        navigator.setLeaveGuard(held::set);
+
+        navigator.resetToDefaultHome();
+
+        assertThat(navigator.current()).contains(new ShopRoute.SellerApplication());
+        held.get().run();
+        assertThat(navigator.current()).contains(ShopRoute.defaultHome());
+        assertThat(navigator.history()).isEmpty();
     }
 
     @Test
