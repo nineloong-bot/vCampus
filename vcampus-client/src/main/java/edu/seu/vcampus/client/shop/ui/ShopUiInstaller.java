@@ -44,7 +44,7 @@ public final class ShopUiInstaller {
         placeholder.add(module, BorderLayout.CENTER);
         placeholder.revalidate();
         placeholder.repaint();
-        entry.addActionListener(event -> coordinator.enter());
+        entry.addActionListener(event -> coordinator.goHome());
         AtomicBoolean disposed = new AtomicBoolean();
         Runnable disposeOnce = () -> {
             if (disposed.compareAndSet(false, true)) {
@@ -73,6 +73,7 @@ public final class ShopUiInstaller {
     interface InstalledCoordinator {
         edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator navigator();
         void enter();
+        void goHome();
         void dispose();
     }
 

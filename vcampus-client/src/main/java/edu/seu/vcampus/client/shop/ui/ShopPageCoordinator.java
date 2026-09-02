@@ -77,7 +77,7 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         Objects.requireNonNull(uiKit, "uiKit");
         Objects.requireNonNull(sessionExpired, "sessionExpired");
         navigator = new ShopNavigator(this);
-        cards.installToolbar(new ShopToolbar(navigator, cartCount, uiKit));
+        cards.installToolbar(new ShopToolbar(navigator, cartCount, uiKit, this::goHome));
         factory.setCartCountModel(cartCount);
         this.pages = factory.create(user, navigator, uiKit, sessionExpired, sessionExpired,
                 sessionExpired, sessionExpired, sessionExpired, sessionExpired, sessionExpired);
@@ -112,6 +112,17 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
             return;
         }
         cards.show(pageId(current));
+    }
+
+    /** Returns to the canonical first Shop home through the active leave guard. */
+    @Override
+    public void goHome() {
+        requireEdt();
+        if (disposed) {
+            return;
+        }
+        pages.syncCartCount();
+        navigator.resetToDefaultHome();
     }
 
     /** Loads the target fixed page before displaying its card. This must run on the EDT. */

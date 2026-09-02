@@ -20,20 +20,24 @@ public final class ShopToolbar extends JPanel {
     private final JButton cart;
     private final JButton my;
 
-    public ShopToolbar(ShopNavigator navigator, CartCountModel cartCount, ShopUiKit uiKit) {
+    public ShopToolbar(ShopNavigator navigator, CartCountModel cartCount, ShopUiKit uiKit,
+            Runnable returnHome) {
         super(new BorderLayout(8, 0));
         setName("shop.toolbar");
         this.navigator = Objects.requireNonNull(navigator, "navigator");
         this.cartCount = Objects.requireNonNull(cartCount, "cartCount");
         Objects.requireNonNull(uiKit, "uiKit");
+        Objects.requireNonNull(returnHome, "returnHome");
         back = uiKit.secondaryButton("shop.back", "← 返回");
         cart = uiKit.secondaryButton("shop.cart", cartText(cartCount.totalQuantity()));
         my = uiKit.secondaryButton("shop.my", "我的");
+        JButton home = uiKit.secondaryButton("shop.return-home", "返回首页");
         JPanel actions = named(new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0)),
                 "shop.actions");
-        actions.add(my); actions.add(cart);
+        actions.add(home); actions.add(my); actions.add(cart);
         add(back, BorderLayout.WEST); add(title, BorderLayout.CENTER); add(actions, BorderLayout.EAST);
         back.addActionListener(event -> navigator.back());
+        home.addActionListener(event -> returnHome.run());
         cart.addActionListener(event -> navigator.open(new ShopRoute.Cart()));
         my.addActionListener(event -> navigator.open(new ShopRoute.My()));
         navigator.addListener(this::navigationChanged);

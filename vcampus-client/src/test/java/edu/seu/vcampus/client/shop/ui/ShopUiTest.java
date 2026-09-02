@@ -359,13 +359,14 @@ class ShopUiTest {
     void toolbarReflectsEveryRouteAndUsesTheAuthoritativeQuantitySum() throws Exception {
         ShopNavigator navigator = new ShopNavigator(route -> { });
         CartCountModel cartCount = new CartCountModel();
+        AtomicInteger homeRequests = new AtomicInteger();
         ShopToolbar toolbar = onEdt(() -> new ShopToolbar(
-                navigator, cartCount, new DefaultShopUiKit()));
+                navigator, cartCount, new DefaultShopUiKit(), homeRequests::incrementAndGet));
         assertThat(component(toolbar, "shop.back", JButton.class).getText())
                 .isEqualTo("← 返回");
         assertThat(Arrays.stream(component(toolbar, "shop.actions", JPanel.class)
                 .getComponents()).map(Component::getName).toList())
-                .containsExactly("shop.my", "shop.cart");
+                .containsExactly("shop.return-home", "shop.my", "shop.cart");
         List<ShopRoute> routes = List.of(
                 new ShopRoute.Home(defaultHome()),
                 new ShopRoute.Search(defaultSearch()),
@@ -380,6 +381,7 @@ class ShopUiTest {
             onEdt(() -> resetToRoute(navigator, route));
             assertThat(component(toolbar, "shop.title", JLabel.class).getText()).isNotBlank();
             assertThat(component(toolbar, "shop.back", JButton.class).isVisible()).isTrue();
+            assertThat(component(toolbar, "shop.return-home", JButton.class).isVisible()).isTrue();
             assertThat(component(toolbar, "shop.my", JButton.class).isVisible()).isTrue();
             assertThat(component(toolbar, "shop.cart", JButton.class).isVisible())
                     .isEqualTo(!(route instanceof ShopRoute.Search));
@@ -389,6 +391,8 @@ class ShopUiTest {
         onEdt(() -> cartCount.update(fiveItems));
         assertThat(component(toolbar, "shop.cart", JButton.class).getText())
                 .isEqualTo("购物车（5）");
+        onEdt(() -> component(toolbar, "shop.return-home", JButton.class).doClick());
+        assertThat(homeRequests).hasValue(1);
 
         onEdt(() -> navigator.reset(new ShopRoute.Home(defaultHome())));
         assertThat(component(toolbar, "shop.back", JButton.class).isEnabled()).isFalse();
@@ -400,6 +404,53 @@ class ShopUiTest {
         assertThat(navigator.current()).contains(new ShopRoute.My());
         onEdt(() -> component(toolbar, "shop.back", JButton.class).doClick());
         assertThat(navigator.current()).contains(new ShopRoute.Home(defaultHome()));
+    }
+
+    @Test
+    void goHomeResetsEveryLayerToFirstPageTopAndCannotReturn() throws Exception {
+        ShopModulePanel content = onEdt(ShopModulePanel::new);
+        ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(
+                content, buyer(), new RecordingClient(), new DefaultShopUiKit(), () -> { }));
+        onEdt(() -> {
+            coordinator.navigator().open(ShopRoute.defaultHome());
+            coordinator.navigator().open(new ShopRoute.Storefront("shop-1"));
+            coordinator.navigator().open(new ShopRoute.Product("product-1"));
+            coordinator.navigator().open(new ShopRoute.Cart());
+            coordinator.goHome();
+        });
+
+        assertThat(coordinator.navigator().current()).contains(ShopRoute.defaultHome());
+        assertThat(coordinator.navigator().history()).isEmpty();
+        assertThat(coordinator.navigator().canGoBack()).isFalse();
+        assertVisible(content, "shop.home");
+        onEdt(coordinator::dispose);
+    }
+
+    @Test
+    void toolbarAndCoordinatorHomeActionsShareTheSellerApplicationLeaveGuard()
+            throws Exception {
+        List<SequenceEvent> events = new ArrayList<>();
+        SequenceCards cards = new SequenceCards(events);
+        SequencePageSet pages = new SequencePageSet(events);
+        ShopPageCoordinator coordinator = onEdt(() -> new ShopPageCoordinator(
+                cards, buyer(), (user, navigator, uiKit, homeExpired, searchExpired,
+                        productExpired, storefrontExpired, cartExpired, checkoutExpired,
+                        myExpired) -> pages,
+                new DefaultShopUiKit(), () -> { }));
+
+        onEdt(() -> coordinator.navigator().open(new ShopRoute.SellerApplication()));
+        onEdt(coordinator::goHome);
+        assertThat(coordinator.navigator().current())
+                .contains(new ShopRoute.SellerApplication());
+        onEdt(pages.heldProceed.get());
+        assertThat(coordinator.navigator().current()).contains(ShopRoute.defaultHome());
+
+        onEdt(() -> coordinator.navigator().open(new ShopRoute.SellerApplication()));
+        onEdt(() -> component(cards.toolbar, "shop.return-home", JButton.class).doClick());
+        assertThat(coordinator.navigator().current())
+                .contains(new ShopRoute.SellerApplication());
+        onEdt(pages.heldProceed.get());
+        assertThat(coordinator.navigator().current()).contains(ShopRoute.defaultHome());
     }
 
     @Test
@@ -584,7 +635,7 @@ class ShopUiTest {
         CartCountModel count = new CartCountModel();
         ShopNavigator navigator = new ShopNavigator(route -> { });
         ShopToolbar toolbar = onEdt(() -> new ShopToolbar(
-                navigator, count, new DefaultShopUiKit()));
+                navigator, count, new DefaultShopUiKit(), navigator::resetToDefaultHome));
         CartPanel cart = onEdt(() -> new CartPanel(client, navigator,
                 new DefaultShopUiKit(), count, () -> { }));
 
@@ -642,7 +693,7 @@ class ShopUiTest {
         CartCountModel count = new CartCountModel();
         ShopNavigator navigator = new ShopNavigator(route -> { });
         ShopToolbar toolbar = onEdt(() -> new ShopToolbar(
-                navigator, count, new DefaultShopUiKit()));
+                navigator, count, new DefaultShopUiKit(), navigator::resetToDefaultHome));
         CartPanel cart = onEdt(() -> new CartPanel(client, navigator,
                 new DefaultShopUiKit(), count, () -> { }));
         ProductDetailPanel product = onEdt(() -> new ProductDetailPanel(client, navigator,
@@ -930,13 +981,14 @@ class ShopUiTest {
         assertThat(namedComponents(frame.navigation(), "navigation.shop")).hasSize(1);
         assertThat(namedComponents(frame.navigation(), "shop.navigation")).isEmpty();
         assertThat(uiKit.navigationButtons).isEmpty();
-        assertThat(client.homeQueries).containsExactly(new HomeProductQuery(null, null,
-                ProductSortMode.SALES_DESC, 0, 20));
+        assertThat(client.homeQueries).containsExactly(
+                new HomeProductQuery(null, null, ProductSortMode.SALES_DESC, 0, 20),
+                new HomeProductQuery(null, null, ProductSortMode.SALES_DESC, 0, 20));
         assertVisible(frame.content(), "shop.home");
     }
 
     @Test
-    void originalShopEntryCallsEnterExactlyOncePerClick() throws Exception {
+    void originalShopEntryCallsGoHomeExactlyOncePerClick() throws Exception {
         assumeFalse(GraphicsEnvironment.isHeadless());
         MainFrame frame = onEdt((Callable<MainFrame>) MainFrame::new);
         RecordingInstalledCoordinator coordinator = new RecordingInstalledCoordinator();
@@ -947,7 +999,8 @@ class ShopUiTest {
         AbstractButton shop = component(frame.navigation(), "navigation.shop", AbstractButton.class);
         onEdt(() -> shop.doClick());
 
-        assertThat(coordinator.entries).hasValue(1);
+        assertThat(coordinator.homeRequests).hasValue(1);
+        assertThat(coordinator.entries).hasValue(0);
     }
 
     @Test
@@ -1726,11 +1779,13 @@ class ShopUiTest {
     private static final class RecordingInstalledCoordinator implements ShopUiInstaller.InstalledCoordinator {
         private final AtomicInteger disposals = new AtomicInteger();
         private final AtomicInteger entries = new AtomicInteger();
+        private final AtomicInteger homeRequests = new AtomicInteger();
         private final edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator navigator =
                 new edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator(route -> { });
 
         @Override public edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator navigator() { return navigator; }
         @Override public void enter() { entries.incrementAndGet(); }
+        @Override public void goHome() { homeRequests.incrementAndGet(); }
         @Override public void dispose() { disposals.incrementAndGet(); }
     }
 
@@ -1740,10 +1795,12 @@ class ShopUiTest {
 
     private static final class SequenceCards implements ShopPageCoordinator.CardNavigator {
         private final List<SequenceEvent> events;
+        private ShopToolbar toolbar;
 
         private SequenceCards(List<SequenceEvent> events) { this.events = events; }
         @Override public void register(String pageId, JPanel page) { }
         @Override public void show(String pageId) { events.add(new SequenceEvent("show", pageId)); }
+        @Override public void installToolbar(ShopToolbar toolbar) { this.toolbar = toolbar; }
     }
 
     private static final class SequencePageSet implements ShopPageCoordinator.PageSet {
@@ -1756,6 +1813,7 @@ class ShopUiTest {
         private final JPanel checkout = new JPanel();
         private final JPanel paymentResult = new JPanel();
         private final JPanel my = new JPanel();
+        private final AtomicReference<Runnable> heldProceed = new AtomicReference<>();
 
         private SequencePageSet(List<SequenceEvent> events) { this.events = events; }
         @Override public JPanel home() { return home; }
@@ -1776,6 +1834,9 @@ class ShopUiTest {
         @Override public void loadCheckout() { load("shop.checkout", null); }
         @Override public void loadPaymentResult(PaymentView payment) { load("shop.payment-result", payment); }
         @Override public void loadMy() { load("shop.my", null); }
+        @Override public void requestSellerApplicationLeave(Runnable proceed) {
+            heldProceed.set(proceed);
+        }
         @Override public HomeViewState captureHome(HomeViewState state) { return state; }
         @Override public SearchViewState captureSearch(SearchViewState state) { return state; }
         @Override public StorefrontViewState captureStorefront(StorefrontViewState state) { return state; }

@@ -399,7 +399,8 @@ class PurchasePanelsTest {
         RecordingCashierFactory factory = new RecordingCashierFactory();
         ShopNavigator navigator = new ShopNavigator(route -> { });
         ShopToolbar toolbar = onEdt(() -> new ShopToolbar(
-                navigator, new CartCountModel(), new RecordingKit()));
+                navigator, new CartCountModel(), new RecordingKit(),
+                navigator::resetToDefaultHome));
         when(client.getCart()).thenReturn(CompletableFuture.completedFuture(ShopClientFixtures.cartView()));
         when(client.checkout(any())).thenReturn(
                 CompletableFuture.completedFuture(ShopClientFixtures.checkoutResult()));
