@@ -1676,6 +1676,27 @@ class CourseUiTest {
         });
     }
 
+    @Test
+    void creditSpinnerStepsByHalfWithoutJdkNumericTypeFailures() throws Exception {
+        CourseEditorDialog dialog = onEdt(() -> new CourseEditorDialog(
+                null, CourseUiGateway.preview(), null, () -> { }));
+        JSpinner credit = component(dialog, "学分", JSpinner.class);
+
+        Object[] steps = onEdt(() -> {
+            credit.setValue(new BigDecimal("1.0"));
+            Object next = spinnerStep(credit, true);
+            Object previous = spinnerStep(credit, false);
+            credit.setValue(new BigDecimal("20.0"));
+            Object maximumNext = spinnerStep(credit, true);
+            credit.setValue(new BigDecimal("0.5"));
+            Object minimumPrevious = spinnerStep(credit, false);
+            return new Object[]{next, previous, maximumNext, minimumPrevious};
+        });
+
+        assertThat(steps).containsExactly(new BigDecimal("1.5"), new BigDecimal("0.5"), null, null);
+        SwingUtilities.invokeAndWait(dialog::dispose);
+    }
+
     @ParameterizedTest
     @CsvSource({
             "开学日期,结束日期,结束日期必须晚于开学日期",
@@ -2033,6 +2054,14 @@ class CourseUiTest {
             spinner.setValue(Date.from(Instant.parse(instant)));
         } else {
             ((JTextField) component).setText(text);
+        }
+    }
+
+    private static Object spinnerStep(JSpinner spinner, boolean next) {
+        try {
+            return next ? spinner.getNextValue() : spinner.getPreviousValue();
+        } catch (RuntimeException failure) {
+            return failure;
         }
     }
 

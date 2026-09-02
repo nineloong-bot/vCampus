@@ -37,7 +37,7 @@ final class CourseEditorDialog extends JDialog {
     private final Runnable onSaved;
     private final JTextField code = field("课程代码");
     private final JTextField name = field("课程名称");
-    private final JSpinner credit = spinner(new BigDecimal("1.0"),
+    private final JSpinner credit = creditSpinner(new BigDecimal("1.0"),
             new BigDecimal("0.5"), new BigDecimal("20.0"), new BigDecimal("0.5"), "学分");
     private final JSpinner hours = spinner(32, 1, 1000, 1, "总学时");
     private final JTextArea description = new JTextArea(5, 40);
@@ -137,7 +137,7 @@ final class CourseEditorDialog extends JDialog {
         try {
             String cleanCode = required(code, "请输入课程代码");
             String cleanName = required(name, "请输入课程名称");
-            BigDecimal cleanCredit = (BigDecimal) credit.getValue();
+            BigDecimal cleanCredit = decimal((Number) credit.getValue());
             int cleanHours = ((Number) hours.getValue()).intValue();
             if (existing == null) {
                 request = gateway.createCourse(new CreateCourseCommand(cleanCode, cleanName, cleanCredit, cleanHours,
@@ -192,12 +192,25 @@ final class CourseEditorDialog extends JDialog {
 
     private static JSpinner spinner(Number value, Comparable<?> minimum, Comparable<?> maximum,
                                     Number stepSize, String accessibleName) {
-        JSpinner spinner = new JSpinner(new SpinnerNumberModel(value, minimum, maximum, stepSize));
+        return spinner(new SpinnerNumberModel(value, minimum, maximum, stepSize), accessibleName);
+    }
+
+    private static JSpinner creditSpinner(BigDecimal value, BigDecimal minimum, BigDecimal maximum,
+                                          BigDecimal stepSize, String accessibleName) {
+        return spinner(new BigDecimalSpinnerModel(value, minimum, maximum, stepSize), accessibleName);
+    }
+
+    private static JSpinner spinner(SpinnerNumberModel model, String accessibleName) {
+        JSpinner spinner = new JSpinner(model);
         spinner.setFont(UiTypography.BODY);
         spinner.setMaximumSize(new Dimension(Integer.MAX_VALUE, UiDimensions.CONTROL_HEIGHT));
         spinner.setPreferredSize(new Dimension(480, UiDimensions.CONTROL_HEIGHT));
         spinner.getAccessibleContext().setAccessibleName(accessibleName);
         return spinner;
+    }
+
+    private static BigDecimal decimal(Number value) {
+        return value instanceof BigDecimal decimal ? decimal : new BigDecimal(value.toString());
     }
 
     private static String required(JTextField field, String message) {
@@ -211,5 +224,38 @@ final class CourseEditorDialog extends JDialog {
         label.setFont(UiTypography.BODY);
         label.setForeground(color);
         return label;
+    }
+
+    private static final class BigDecimalSpinnerModel extends SpinnerNumberModel {
+        private final BigDecimal minimum;
+        private final BigDecimal maximum;
+        private final BigDecimal stepSize;
+
+        private BigDecimalSpinnerModel(BigDecimal value, BigDecimal minimum, BigDecimal maximum,
+                                       BigDecimal stepSize) {
+            super(value, minimum, maximum, stepSize);
+            this.minimum = minimum;
+            this.maximum = maximum;
+            this.stepSize = stepSize;
+        }
+
+        @Override public void setValue(Object value) {
+            if (!(value instanceof Number number)) throw new IllegalArgumentException("value must be numeric");
+            super.setValue(decimal(number));
+        }
+
+        @Override public Object getNextValue() {
+            return stepped(stepSize);
+        }
+
+        @Override public Object getPreviousValue() {
+            return stepped(stepSize.negate());
+        }
+
+        private BigDecimal stepped(BigDecimal delta) {
+            BigDecimal candidate = decimal(getNumber()).add(delta);
+            if (candidate.compareTo(minimum) < 0 || candidate.compareTo(maximum) > 0) return null;
+            return candidate;
+        }
     }
 }
