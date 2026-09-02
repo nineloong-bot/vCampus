@@ -495,7 +495,8 @@ class UpdateContactDialogTest {
 
     private static StudentView profile(long version, String email, String phone) {
         return new StudentView("student-1", "user-1", "213240001", "09024101", StudentType.UNDERGRADUATE,
-                "张三", "MALE", email, phone, "major-1", "class-1", LocalDate.of(2024, 9, 1), StudentStatus.ACTIVE, version);
+                "张三", "MALE", email, phone, "major-1", "class-1", LocalDate.of(2024, 9, 1), StudentStatus.ACTIVE, version,
+                "计算机学院", "软件工程", "计科2401");
     }
 
     private static <T> T onEdt(Callable<T> work) throws Exception {

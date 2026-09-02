@@ -76,7 +76,9 @@ public final class SocketServer implements AutoCloseable {
                     body = ResponseBody.failure("COMMON_UNKNOWN_COMMAND", "未知命令", null);
                 } catch (RuntimeException error) {
                     LOGGER.error("处理请求 {} 失败", request.command(), error);
-                    body = ResponseBody.failure("COMMON_SERVER_ERROR", "服务器内部错误", null);
+                    String message = error.getMessage();
+                    body = ResponseBody.failure("COMMON_SERVER_ERROR",
+                            message != null && !message.isBlank() ? message : "服务器内部错误", null);
                 }
                 connection.send(new Message(request.requestId(), MessageType.RESPONSE,
                         request.command(), null, body, System.currentTimeMillis()));

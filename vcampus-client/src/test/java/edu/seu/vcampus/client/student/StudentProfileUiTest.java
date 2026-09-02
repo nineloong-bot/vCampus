@@ -93,7 +93,8 @@ class StudentProfileUiTest {
     private static StudentProfileWorkspace workspace(StudentProfileApplicationStatus status, String reason) {
         StudentView core = new StudentView("student-1", "user-1", "213240001", "09024101",
                 StudentType.UNDERGRADUATE, "正式姓名", "男", "formal@seu.edu.cn", "13800000000",
-                "major-1", "class-1", LocalDate.of(2024, 9, 1), StudentStatus.ACTIVE, 7);
+                "major-1", "class-1", LocalDate.of(2024, 9, 1), StudentStatus.ACTIVE, 7,
+                "计算机学院", "软件工程", "计科2401");
         StudentPersonalProfile personal = new StudentPersonalProfile("ZHENGSHI", null, "共青团员", "汉族",
                 "未婚", "居民身份证", "320101200501010011", null, LocalDate.of(2005, 1, 1), "江苏省",
                 "中国", "南京市", "南京市", "非农业家庭户口", "南京市", "南京市", "否", "无",
