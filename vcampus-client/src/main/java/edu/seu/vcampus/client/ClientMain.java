@@ -3,6 +3,9 @@ package edu.seu.vcampus.client;
 import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.core.ui.theme.UiThemeInstaller;
 import edu.seu.vcampus.client.student.service.StudentClientService;
+import edu.seu.vcampus.client.course.service.CourseClientService;
+import edu.seu.vcampus.client.library.service.LibraryClientService;
+import edu.seu.vcampus.client.shop.service.ShopClientService;
 import edu.seu.vcampus.client.user.service.UserClientService;
 import edu.seu.vcampus.client.user.ui.UserUiCoordinator;
 
@@ -35,9 +38,12 @@ public final class ClientMain {
             UserClientService users = new UserClientService(
                     connection, UUID.randomUUID().toString(), timeout);
             StudentClientService students = new StudentClientService(connection, timeout);
+            CourseClientService courses = new CourseClientService(connection);
+            LibraryClientService library = new LibraryClientService(connection, timeout);
+            ShopClientService shop = new ShopClientService(connection, timeout);
             SwingUtilities.invokeLater(() -> {
                 UiThemeInstaller.install();
-                new UserUiCoordinator(users, students, connection).start();
+                new UserUiCoordinator(users, students, courses, library, shop, connection).start();
             });
         } catch (Exception error) {
             System.err.println("客户端启动失败：" + error.getMessage());

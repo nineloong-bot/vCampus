@@ -4,6 +4,8 @@ import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.core.ui.MainFrame;
 import edu.seu.vcampus.client.course.service.CourseClientService;
 import edu.seu.vcampus.client.course.ui.CourseUiComposition;
+import edu.seu.vcampus.client.library.service.LibraryClientService;
+import edu.seu.vcampus.client.shop.service.ShopClientService;
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.client.user.service.UserClientService;
 import edu.seu.vcampus.common.user.LoginResult;
@@ -23,6 +25,8 @@ public final class UserUiCoordinator {
     private final UserClientService users;
     private final StudentClientService students;
     private final CourseClientService courses;
+    private final LibraryClientService library;
+    private final ShopClientService shop;
     private final ClientConnection connection;
     private LoginFrame activeLogin;
     private MainFrame activeMain;
@@ -40,6 +44,8 @@ public final class UserUiCoordinator {
         this.users = Objects.requireNonNull(users, "users");
         this.students = students;
         this.courses = null;
+        this.library = null;
+        this.shop = null;
         this.connection = Objects.requireNonNull(connection, "connection");
     }
 
@@ -49,6 +55,20 @@ public final class UserUiCoordinator {
         this.users = Objects.requireNonNull(users, "users");
         this.students = null;
         this.courses = courses;
+        this.library = null;
+        this.shop = null;
+        this.connection = Objects.requireNonNull(connection, "connection");
+    }
+
+    /** Creates the production coordinator with every campus module on one connection. */
+    public UserUiCoordinator(UserClientService users, StudentClientService students,
+                             CourseClientService courses, LibraryClientService library,
+                             ShopClientService shop, ClientConnection connection) {
+        this.users = Objects.requireNonNull(users, "users");
+        this.students = Objects.requireNonNull(students, "students");
+        this.courses = Objects.requireNonNull(courses, "courses");
+        this.library = Objects.requireNonNull(library, "library");
+        this.shop = Objects.requireNonNull(shop, "shop");
         this.connection = Objects.requireNonNull(connection, "connection");
     }
 
@@ -79,10 +99,18 @@ public final class UserUiCoordinator {
             dialog.setVisible(true);
             return;
         }
-        MainFrame main = new MainFrame(result.user(), connection, students);
-        if (courses != null) {
+        MainFrame main;
+        if (courses != null && library != null && shop != null) {
+            main = new MainFrame(result.user(), connection, students, courses, library, shop,
+                    users, result.permissions(), () -> returnToLogin(activeMain, SESSION_INVALID));
+        } else {
+            main = new MainFrame(result.user(), connection, students);
+        }
+        if (courses != null && library == null) {
             main.installPage("course", new CourseUiComposition(courses, users)
                     .workspaceFor(result.user().role()));
+        }
+        if (courses != null) {
             bindCourseAuthenticationFailure(main);
         }
         activeMain = main;

@@ -7,6 +7,7 @@ import java.awt.CardLayout;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /** Registers and selects pages hosted by a Swing CardLayout container. */
 public final class PageNavigator {
@@ -55,5 +56,17 @@ public final class PageNavigator {
         } else {
             SwingUtilities.invokeLater(display);
         }
+    }
+
+    /** Returns a registered page for shell composition and structural verification. */
+    public JComponent page(String pageId) {
+        JComponent page = pages.get(pageId);
+        if (page == null) throw new IllegalArgumentException("Unknown page id: " + pageId);
+        return page;
+    }
+
+    /** Returns an immutable snapshot of registered top-level page identifiers. */
+    public Set<String> pageIds() {
+        return Set.copyOf(pages.keySet());
     }
 }

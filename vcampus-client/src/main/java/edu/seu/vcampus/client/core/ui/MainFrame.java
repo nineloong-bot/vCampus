@@ -6,6 +6,9 @@ import edu.seu.vcampus.client.course.service.CourseClientService;
 import edu.seu.vcampus.client.course.ui.CourseUiComposition;
 import edu.seu.vcampus.client.library.service.LibraryClientService;
 import edu.seu.vcampus.client.library.ui.LibraryWorkspacePanel;
+import edu.seu.vcampus.client.shop.service.ShopClientService;
+import edu.seu.vcampus.client.shop.ui.ShopUiInstaller;
+import edu.seu.vcampus.client.shop.ui.style.DefaultShopUiKit;
 import edu.seu.vcampus.client.core.ui.shell.ApplicationStatusBar;
 import edu.seu.vcampus.client.core.ui.shell.IdentityHeader;
 import edu.seu.vcampus.client.core.ui.shell.ModulePlaceholderPage;
@@ -14,6 +17,7 @@ import edu.seu.vcampus.client.core.ui.theme.UiColors;
 import edu.seu.vcampus.client.core.ui.theme.UiDimensions;
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.client.student.ui.StudentModulePageFactory;
+import edu.seu.vcampus.client.user.service.UserClientService;
 import edu.seu.vcampus.common.user.UserView;
 
 import javax.swing.JFrame;
@@ -117,6 +121,26 @@ public final class MainFrame extends JFrame {
                 Objects.requireNonNull(permissions, "permissions"), user.role()));
     }
 
+    /** Creates the production authenticated shell with every campus module installed. */
+    public MainFrame(UserView user, ClientConnection connection,
+                     StudentClientService students, CourseClientService courses,
+                     LibraryClientService library, ShopClientService shop,
+                     UserClientService users, Set<String> permissions,
+                     Runnable onAuthenticationFailure) {
+        this(user, connection, students);
+        Objects.requireNonNull(user, "user");
+        Objects.requireNonNull(connection, "connection");
+        Objects.requireNonNull(onAuthenticationFailure, "onAuthenticationFailure");
+        installPage("course", new CourseUiComposition(
+                Objects.requireNonNull(courses, "courses"),
+                Objects.requireNonNull(users, "users")).workspaceFor(user.role()));
+        installPage("library", new LibraryWorkspacePanel(
+                Objects.requireNonNull(library, "library"),
+                Objects.requireNonNull(permissions, "permissions"), user.role()));
+        ShopUiInstaller.install(this, user, Objects.requireNonNull(shop, "shop"),
+                new DefaultShopUiKit(), onAuthenticationFailure);
+    }
+
     private void registerPages(UserView user, ClientConnection connection,
                                StudentClientService students) {
         pageNavigator.register("student", StudentModulePageFactory.create(user, students, connection));
@@ -160,4 +184,7 @@ public final class MainFrame extends JFrame {
 
     /** Returns the shared card-layout page navigator. */
     public PageNavigator pageNavigator() { return pageNavigator; }
+
+    /** Returns the registered top-level page identifiers. */
+    public Set<String> registeredPageIds() { return pageNavigator.pageIds(); }
 }
