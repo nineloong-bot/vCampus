@@ -28,6 +28,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
 /** Adjustment-window page for live add, drop, and atomic change commands. */
 public final class AdjustmentPanel extends AbstractCoursePanel {
@@ -53,6 +55,8 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
     private final JButton drop = secondary("退选所选");
     private final JButton change = primary("确认改选");
     private boolean adjustmentOpen;
+    private boolean mutationPending;
+    private long mutationSequence;
 
     public AdjustmentPanel(CourseUiGateway gateway) {
         this(gateway, (owner, source, target, conflict, request, onSuccess) ->
@@ -128,6 +132,12 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
     }
 
     @Override protected void refreshAfterNavigation() { refresh(); }
+
+    @Override public void removeNotify() {
+        mutationSequence++;
+        mutationPending = false;
+        super.removeNotify();
+    }
 
     private void refresh(String successMessage) {
         long request = beginAsyncRequest();
@@ -215,12 +225,16 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
     }
 
     private void lateAdd(JButton button) {
+        if (mutationPending) return;
         int target = offeringTable.getSelectedRow();
         if (target < 0) { showState(ViewState.ERROR, "请先选择要补选的教学班"); return; }
-        submit(button, "正在补选…", gateway.lateAdd(new LateAddCommand(offerings.get(target).offeringId())), "补选成功，可在我的选课查看");
+        submit(button, "正在补选…",
+                () -> gateway.lateAdd(new LateAddCommand(offerings.get(target).offeringId())),
+                "补选成功，可在我的选课查看");
     }
 
     private void drop(JButton button) {
+        if (mutationPending) return;
         int source = enrollmentTable.getSelectedRow();
         if (source < 0) { showState(ViewState.ERROR, "请先选择要退选的记录"); return; }
         EnrollmentView selected = enrollments.get(enrollmentTable.convertRowIndexToModel(source));
@@ -228,10 +242,13 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
             showState(ViewState.ERROR, "该选课记录已退选，请刷新后重试");
             return;
         }
-        submit(button, "正在退选…", gateway.drop(new DropCommand(selected.enrollmentId(), selected.rowVersion())), "退选成功，课表已更新");
+        submit(button, "正在退选…",
+                () -> gateway.drop(new DropCommand(selected.enrollmentId(), selected.rowVersion())),
+                "退选成功，课表已更新");
     }
 
     private void change(JButton button) {
+        if (mutationPending) return;
         int source = enrollmentTable.getSelectedRow();
         int target = offeringTable.getSelectedRow();
         if (source < 0 || target < 0) { showState(ViewState.ERROR, "请同时选择原选课记录和目标教学班"); return; }
@@ -245,7 +262,7 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
         if (sourceOffering == null) { showState(ViewState.ERROR, "原教学班信息尚未同步，请刷新后重试"); return; }
         String conflict = conflictResult(sourceOffering, targetOffering);
         confirmation.show(SwingUtilities.getWindowAncestor(this), sourceOffering, targetOffering, conflict,
-                () -> gateway.change(new ChangeOfferingCommand(
+                () -> trackedChange(new ChangeOfferingCommand(
                         selected.enrollmentId(), targetOffering.offeringId(), selected.rowVersion())),
                 () -> refresh("改选成功，已刷新选课与教学班状态"));
     }
@@ -268,16 +285,24 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
                 && left.startPeriod() <= right.endPeriod() && right.startPeriod() <= left.endPeriod();
     }
 
-    private void submit(JButton button, String busyText, java.util.concurrent.CompletableFuture<?> request, String success) {
+    private void submit(JButton button, String busyText, Supplier<CompletableFuture<?>> requestFactory, String success) {
+        long mutation = beginMutation();
+        if (mutation < 0) return;
         long asyncRequest = beginAsyncRequest();
         String idleText = button.getText();
-        button.setEnabled(false);
         button.setText(busyText);
         showState(ViewState.SUBMITTING, busyText + " 请勿重复操作");
+        CompletableFuture<?> request;
+        try {
+            request = requestFactory.get();
+        } catch (Throwable error) {
+            request = CompletableFuture.failedFuture(error);
+        }
         request.whenComplete((ignored, error) -> SwingUtilities.invokeLater(() -> {
+            if (mutation != mutationSequence) return;
+            mutationPending = false;
             if (!acceptsAsyncResult(asyncRequest)) return;
             button.setText(idleText);
-            button.setEnabled(adjustmentOpen);
             updateEnrollmentActions();
             if (error == null) {
                 refresh(success);
@@ -294,17 +319,50 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
         }));
     }
 
+    private CompletableFuture<?> trackedChange(ChangeOfferingCommand command) {
+        long mutation = beginMutation();
+        if (mutation < 0) {
+            return CompletableFuture.failedFuture(new IllegalStateException("已有调整操作正在进行"));
+        }
+        CompletableFuture<?> request;
+        try {
+            request = gateway.change(command);
+        } catch (Throwable error) {
+            request = CompletableFuture.failedFuture(error);
+        }
+        request.whenComplete((ignored, error) -> SwingUtilities.invokeLater(() -> {
+            if (mutation != mutationSequence) return;
+            mutationPending = false;
+            updateEnrollmentActions();
+        }));
+        return request;
+    }
+
+    private long beginMutation() {
+        if (mutationPending) return -1;
+        mutationPending = true;
+        long mutation = ++mutationSequence;
+        setActionButtonsEnabled(false);
+        return mutation;
+    }
+
     private void setActionButtonsEnabled(boolean enabled) {
-        add.setEnabled(enabled);
-        if (enabled) {
+        if (enabled && !mutationPending) {
             updateEnrollmentActions();
         } else {
+            add.setEnabled(false);
             drop.setEnabled(false);
             change.setEnabled(false);
         }
     }
 
     private void updateEnrollmentActions() {
+        add.setEnabled(adjustmentOpen && !mutationPending);
+        if (mutationPending) {
+            drop.setEnabled(false);
+            change.setEnabled(false);
+            return;
+        }
         int selected = enrollmentTable.getSelectedRow();
         boolean active = false;
         if (selected >= 0) {

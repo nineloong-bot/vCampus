@@ -1167,12 +1167,80 @@ class CourseUiTest {
 
         assertThat(button(panel, "退选所选").isEnabled()).isTrue();
         assertThat(button(panel, "确认改选").isEnabled()).isTrue();
-        SwingUtilities.invokeAndWait(() -> {
-            button(panel, "确认改选").doClick();
-            button(panel, "退选所选").doClick();
-        });
-        assertThat(drops).hasValue(1);
+        SwingUtilities.invokeAndWait(() -> button(panel, "确认改选").doClick());
         assertThat(changes).hasValue(1);
+        SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> button(panel, "退选所选").doClick());
+        assertThat(drops).hasValue(1);
+    }
+
+    @Test
+    void adjustmentSelectionChangesCannotReenableOrResubmitWhileDropIsPending() throws Exception {
+        CompletableFuture<EmptyResponse> firstDrop = new CompletableFuture<>();
+        AtomicInteger drops = new AtomicInteger();
+        AtomicInteger changes = new AtomicInteger();
+        AtomicInteger lateAdds = new AtomicInteger();
+        CourseUiGateway base = CourseUiGateway.preview();
+        EnrollmentView active = new EnrollmentView(
+                "active-enrollment", "o1", "student-1", "NORMAL", "ACTIVE",
+                Instant.parse("2026-08-29T08:00:00Z"), null, 3);
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(base) {
+            @Override public CompletableFuture<List<EnrollmentView>> currentEnrollments() {
+                return CompletableFuture.completedFuture(List.of(active));
+            }
+
+            @Override public CompletableFuture<EmptyResponse> drop(DropCommand command) {
+                return drops.incrementAndGet() == 1 ? firstDrop : new CompletableFuture<>();
+            }
+
+            @Override public CompletableFuture<EnrollmentView> lateAdd(LateAddCommand command) {
+                lateAdds.incrementAndGet();
+                return new CompletableFuture<>();
+            }
+
+            @Override public CompletableFuture<EnrollmentView> change(ChangeOfferingCommand command) {
+                changes.incrementAndGet();
+                return new CompletableFuture<>();
+            }
+        };
+        AdjustmentPanel panel = onEdt(() -> new AdjustmentPanel(
+                gateway, (owner, source, target, conflict, request, onSuccess) -> request.get()));
+        SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> { });
+        JTable enrollments = table(panel, "当前选课记录");
+        JTable offerings = table(panel, "可调整教学班");
+        JButton add = button(panel, "补选所选");
+        JButton drop = button(panel, "退选所选");
+        JButton change = button(panel, "确认改选");
+
+        SwingUtilities.invokeAndWait(() -> {
+            enrollments.setRowSelectionInterval(0, 0);
+            offerings.setRowSelectionInterval(1, 1);
+            drop.doClick();
+            enrollments.clearSelection();
+            enrollments.setRowSelectionInterval(0, 0);
+            offerings.clearSelection();
+            offerings.setRowSelectionInterval(1, 1);
+        });
+
+        assertThat(drops).hasValue(1);
+        assertThat(List.of(add.isEnabled(), drop.isEnabled(), change.isEnabled()))
+                .containsExactly(false, false, false);
+        fireAction(add);
+        fireAction(drop);
+        fireAction(change);
+        assertThat(drops).hasValue(1);
+        assertThat(changes).hasValue(0);
+        assertThat(lateAdds).hasValue(0);
+
+        firstDrop.completeExceptionally(new CourseClientException(
+                "COURSE_DROP_FAILED", "退选失败", null, false));
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(List.of(add.isEnabled(), drop.isEnabled(), change.isEnabled()))
+                .containsExactly(true, true, true);
+        SwingUtilities.invokeAndWait(drop::doClick);
+        assertThat(drops).hasValue(2);
     }
 
     @Test
@@ -1903,7 +1971,7 @@ class CourseUiTest {
 
             @Override public CompletableFuture<EnrollmentView> change(ChangeOfferingCommand command) {
                 changes.incrementAndGet();
-                return new CompletableFuture<>();
+                return CompletableFuture.completedFuture(active);
             }
         };
     }
