@@ -28,6 +28,8 @@ public final class StudentClientService {
     public CompletableFuture<ResponseBody<StudentView>> updateContact(UpdateStudentContactCommand value) { return sendAsync("STUDENT_UPDATE_CONTACT", value); }
     public CompletableFuture<ResponseBody<StudentView>> updateEnrollment(UpdateStudentEnrollmentCommand value) { return sendAsync("STUDENT_UPDATE_ENROLLMENT", value); }
     public CompletableFuture<ResponseBody<StudentView>> changeStatus(ChangeStudentStatusCommand value) { return sendAsync("STUDENT_CHANGE_STATUS", value); }
+    public CompletableFuture<ResponseBody<StudentView>> updateStudentInfo(UpdateStudentInfoCommand value) { return sendAsync("STUDENT_UPDATE_INFO", value); }
+    public CompletableFuture<ResponseBody<StudentView>> updateStudentAcademic(UpdateStudentAcademicCommand value) { return sendAsync("STUDENT_UPDATE_ACADEMIC", value); }
     public CompletableFuture<ResponseBody<ArrayList<DepartmentView>>> listDepartments(boolean activeOnly) { return sendAsync("STUDENT_LIST_DEPARTMENTS", new ActiveOnlyQuery(activeOnly)); }
     public CompletableFuture<ResponseBody<ArrayList<MajorView>>> listMajors(String departmentId) { return listMajors(departmentId, true); }
     public CompletableFuture<ResponseBody<ArrayList<MajorView>>> listMajors(String departmentId, boolean activeOnly) { return sendAsync("STUDENT_LIST_MAJORS", new OrganizationChildrenQuery(departmentId, activeOnly)); }
@@ -38,6 +40,7 @@ public final class StudentClientService {
     public CompletableFuture<ResponseBody<MajorView>> saveMajor(SaveMajorCommand value) { return sendAsync("STUDENT_SAVE_MAJOR", value); }
     public CompletableFuture<ResponseBody<ClassView>> saveClass(SaveClassCommand value) { return sendAsync("STUDENT_SAVE_CLASS", value); }
     public CompletableFuture<ResponseBody<StudentProfileWorkspace>> getProfileWorkspace() { return sendAsync("STUDENT_PROFILE_GET_WORKSPACE", EmptyRequest.INSTANCE); }
+    public CompletableFuture<ResponseBody<StudentProfileData>> getProfile(String studentId) { return sendAsync("STUDENT_GET_PROFILE", new EntityIdRequest(studentId)); }
     public CompletableFuture<ResponseBody<StudentProfileWorkspace>> savePersonalDraft(SaveStudentPersonalDraftCommand value) { return sendAsync("STUDENT_PROFILE_SAVE_PERSONAL_DRAFT", value); }
     public CompletableFuture<ResponseBody<StudentProfileWorkspace>> saveAttendanceDraft(SaveStudentAttendanceDraftCommand value) { return sendAsync("STUDENT_PROFILE_SAVE_ATTENDANCE_DRAFT", value); }
     public CompletableFuture<ResponseBody<StudentProfileWorkspace>> submitProfile(SubmitStudentProfileCommand value) { return sendAsync("STUDENT_PROFILE_SUBMIT", value); }

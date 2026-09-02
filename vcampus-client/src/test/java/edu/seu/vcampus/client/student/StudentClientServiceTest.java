@@ -84,6 +84,9 @@ class StudentClientServiceTest {
         assertThat(client.command).isEqualTo("STUDENT_PROFILE_REVIEW_LIST");
         service.rejectProfile(new ReviewStudentProfileCommand("app-1", "信息不完整")).join();
         assertThat(client.command).isEqualTo("STUDENT_PROFILE_REJECT");
+        service.getProfile("student-9").join();
+        assertThat(client.command).isEqualTo("STUDENT_GET_PROFILE");
+        assertThat(client.body).isEqualTo(new EntityIdRequest("student-9"));
     }
 
     private static final class RecordingClient implements StudentRequestClient {

@@ -42,7 +42,7 @@ class StudentSearchPanelTest {
                 1, 20, 2)));
 
         var panel = showPanel(client);
-        flushEdt();
+        waitForTableRows(panel, 2);
 
         JTable table = find(panel, "student.search.table");
         JScrollPane scroll = find(panel, "student.search.table.scroll");
@@ -51,9 +51,11 @@ class StudentSearchPanelTest {
         assertThat(table.getValueAt(0, 0)).isEqualTo("09024101");
         assertThat(table.getValueAt(0, 1)).isEqualTo("213240001");
         assertThat(table.getValueAt(0, 2)).isEqualTo("张三");
-        assertThat(table.getValueAt(0, 3)).isEqualTo("正常");
+        assertThat(table.getValueAt(0, 3)).isEqualTo("213240班");
+        assertThat(table.getValueAt(0, 4)).isEqualTo("正常");
         assertThat(table.getValueAt(1, 2)).isEqualTo("李四");
-        assertThat(table.getValueAt(1, 3)).isEqualTo("已毕业");
+        assertThat(table.getValueAt(1, 3)).isEqualTo("213240班");
+        assertThat(table.getValueAt(1, 4)).isEqualTo("已毕业");
     }
 
     @Test void filtersStayOnTwoAlignedRowsAtMinimumWindowWidth() throws Exception {

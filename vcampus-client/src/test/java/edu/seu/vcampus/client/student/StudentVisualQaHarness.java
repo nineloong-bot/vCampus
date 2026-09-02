@@ -220,7 +220,7 @@ public final class StudentVisualQaHarness {
         return new StudentView("student-1", "user-1", "213240001", "09024101",
                 StudentType.UNDERGRADUATE, "张三", "MALE", "zhangsan@seu.edu.cn",
                 "13800000000", "major-1", "class-1", LocalDate.of(2024, 9, 1),
-                StudentStatus.ACTIVE, 1);
+                StudentStatus.ACTIVE, 1, "计算机学院", "软件工程", "计科2401");
     }
 
     private static void connected(ClientConnection connection) {

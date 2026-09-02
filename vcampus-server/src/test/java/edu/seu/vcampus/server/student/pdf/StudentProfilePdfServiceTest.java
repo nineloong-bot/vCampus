@@ -38,7 +38,8 @@ class StudentProfilePdfServiceTest {
         StudentView core = new StudentView("student-1", "user-1", "213230001",
                 "09023101", StudentType.UNDERGRADUATE, "测试学生", "男",
                 "student@seu.edu.cn", "13800000000", "major-1", "class-1",
-                LocalDate.of(2023, 9, 1), StudentStatus.ACTIVE, 2);
+                LocalDate.of(2023, 9, 1), StudentStatus.ACTIVE, 2,
+                "计算机科学与工程学院", "软件工程", "090231班");
         StudentPersonalProfile personal = new StudentPersonalProfile(
                 "CESHI XUESHENG", null, "共青团员", "汉族", "未婚", "居民身份证",
                 "320101200501010011", null, LocalDate.of(2005, 1, 1), "江苏省", "中国",

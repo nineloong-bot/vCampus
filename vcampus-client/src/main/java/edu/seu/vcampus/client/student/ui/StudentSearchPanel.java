@@ -79,7 +79,7 @@ public final class StudentSearchPanel extends JPanel {
         center.setOpaque(false);
         resultsTable = new JTable();
         resultsTable.setName("student.search.table");
-        resultsTable.setModel(new DefaultTableModel(new String[]{"一卡通号", "学号", "姓名", "状态"}, 0) {
+        resultsTable.setModel(new DefaultTableModel(new String[]{"一卡通号", "学号", "姓名", "班级", "状态"}, 0) {
             @Override public boolean isCellEditable(int row, int column) { return false; }
         });
         tableModel = (DefaultTableModel) resultsTable.getModel();
@@ -427,7 +427,8 @@ public final class StudentSearchPanel extends JPanel {
         tableModel.setRowCount(0);
         currentResults.clear();
         for (StudentSummary s : page.items()) {
-            tableModel.addRow(new Object[]{s.campusCardNumber(), s.studentNumber(), s.studentName(), statusText(s.status())});
+            tableModel.addRow(new Object[]{s.campusCardNumber(), s.studentNumber(), s.studentName(),
+                    classDisplayName(s.studentNumber()), statusText(s.status())});
         }
         currentResults.addAll(page.items());
         if (page.items().isEmpty()) {
@@ -524,6 +525,11 @@ public final class StudentSearchPanel extends JPanel {
             case GRADUATED -> "已毕业";
             case WITHDRAWN -> "已退学";
         };
+    }
+
+    private static String classDisplayName(String studentNumber) {
+        if (studentNumber == null || studentNumber.length() < 6) return "";
+        return studentNumber.substring(0, 6) + "班";
     }
 
     private static void onEdt(Runnable task) {

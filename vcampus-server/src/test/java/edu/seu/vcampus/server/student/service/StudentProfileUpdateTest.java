@@ -5,6 +5,7 @@ import edu.seu.vcampus.common.student.StudentStatus;
 import edu.seu.vcampus.common.student.StudentType;
 import edu.seu.vcampus.common.student.UpdateStudentContactCommand;
 import edu.seu.vcampus.common.student.UpdateStudentEnrollmentCommand;
+import edu.seu.vcampus.common.student.UpdateStudentInfoCommand;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.student.domain.Student;
 import edu.seu.vcampus.server.student.domain.StudentClass;
@@ -100,6 +101,67 @@ class StudentProfileUpdateTest {
                 .extracting(error -> ((StudentAdmissionException) error).code())
                 .isEqualTo("STUDENT_STATUS_TRANSITION_INVALID");
         assertThat(database.count("tblStudentChange")).isZero();
+    }
+
+    @Test
+    void academicFieldsAndStatusCommitAtomically() throws Exception {
+        var updated = service.updateStudentInfo(new UpdateStudentInfoCommand(
+                "student-1", "09024109", "class-1", StudentStatus.SUSPENDED,
+                LocalDate.now(), "学籍调整", 0));
+
+        assertThat(updated.studentNumber()).isEqualTo("09024109");
+        assertThat(updated.status()).isEqualTo(StudentStatus.SUSPENDED);
+        assertThat(updated.rowVersion()).isEqualTo(1);
+        assertThat(database.count("tblStudentChange")).isEqualTo(2);
+    }
+
+    @Test
+    void invalidStatusTransitionRollsBackAcademicFieldsAndHistory() throws Exception {
+        database.transactions().inTransaction(connection -> {
+            new StudentRepository().updateStatus(connection, "student-1", "GRADUATED", 0,
+                    Instant.now());
+            return null;
+        });
+
+        assertThatThrownBy(() -> service.updateStudentInfo(new UpdateStudentInfoCommand(
+                "student-1", "09024109", "class-1", StudentStatus.ACTIVE,
+                LocalDate.now(), "错误恢复", 1)))
+                .isInstanceOf(StudentAdmissionException.class)
+                .extracting(error -> ((StudentAdmissionException) error).code())
+                .isEqualTo("STUDENT_STATUS_TRANSITION_INVALID");
+        assertThat(database.stringValue("SELECT studentNumber FROM tblStudent WHERE studentId='student-1'"))
+                .isEqualTo("09024101");
+        assertThat(database.count("tblStudentChange")).isZero();
+    }
+
+    @Test
+    void malformedStudentNumberIsRejectedAtTheServiceBoundary() throws Exception {
+        assertThatThrownBy(() -> service.updateStudentInfo(new UpdateStudentInfoCommand(
+                "student-1", "  ", "class-1", StudentStatus.ACTIVE,
+                LocalDate.now(), "无效学号", 0)))
+                .isInstanceOf(StudentAdmissionException.class)
+                .extracting(error -> ((StudentAdmissionException) error).code())
+                .isEqualTo("STUDENT_NUMBER_INVALID");
+        assertThat(database.stringValue("SELECT studentNumber FROM tblStudent WHERE studentId='student-1'"))
+                .isEqualTo("09024101");
+    }
+
+    @Test
+    void statusCanStillBeChangedWhileCurrentClassIsInactive() throws Exception {
+        database.transactions().inTransaction(connection -> {
+            try (var statement = connection.createStatement()) {
+                statement.executeUpdate("UPDATE tblClass SET isActive=FALSE WHERE classId='class-1'");
+                statement.executeUpdate("UPDATE tblMajor SET isActive=FALSE WHERE majorId='major-1'");
+            }
+            return null;
+        });
+
+        var updated = service.updateStudentInfo(new UpdateStudentInfoCommand(
+                "student-1", "09024101", "class-1", StudentStatus.SUSPENDED,
+                LocalDate.now(), "休学", 0));
+
+        assertThat(updated.status()).isEqualTo(StudentStatus.SUSPENDED);
+        assertThat(updated.classId()).isEqualTo("class-1");
     }
 
     static Student student(StudentStatus status) {

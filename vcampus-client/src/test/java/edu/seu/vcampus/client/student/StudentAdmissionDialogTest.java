@@ -98,7 +98,7 @@ class StudentAdmissionDialogTest {
                 new ClassView("cls-1", "maj-1", "C01", "计科2401", 2024, 1, true, 1)))));
         StudentView sv = new StudentView("student-new", "user-new", "09024101", "213240001",
                 StudentType.UNDERGRADUATE, "张三", "MALE", null, null, "maj-1", "cls-1",
-                null, StudentStatus.ACTIVE, 1);
+                null, StudentStatus.ACTIVE, 1, "计算机学院", "软件工程", "计科2401");
         client.enqueue(ResponseBody.success(new StudentAdmissionResult(sv, "09024101", "213240001", true)));
 
         StudentAdmissionDialog dialog = onEdt(() -> displayed(new StudentAdmissionDialog(

@@ -118,7 +118,8 @@ class EnrollmentChangeDialogTest {
         awaitServiceDependent(call.response());
         StudentView updated = new StudentView("student-1", "user-1", "213240001", "09024101",
                 StudentType.UNDERGRADUATE, "张三", "MALE", null, null, "m1", "c2",
-                LocalDate.of(2024, 9, 1), StudentStatus.ACTIVE, 2);
+                LocalDate.of(2024, 9, 1), StudentStatus.ACTIVE, 2,
+                "计算机学院", "软件工程", "计科2401");
         client.complete(call, ResponseBody.success(updated));
         assertThat(savedSignal.await(2, TimeUnit.SECONDS)).isTrue();
 
@@ -182,7 +183,8 @@ class EnrollmentChangeDialogTest {
         awaitServiceDependent(refresh.response());
         StudentView refreshed = new StudentView("student-1", "user-1", "213240001", "09024101",
                 StudentType.UNDERGRADUATE, "张三", "MALE", null, null, "m1", "class-1",
-                LocalDate.of(2024, 9, 1), StudentStatus.ACTIVE, 3);
+                LocalDate.of(2024, 9, 1), StudentStatus.ACTIVE, 3,
+                "计算机学院", "软件工程", "计科2401");
         client.complete(refresh, ResponseBody.success(refreshed));
         await(refreshedSignal);
 
@@ -233,7 +235,8 @@ class EnrollmentChangeDialogTest {
     private static StudentView profile() {
         return new StudentView("student-1", "user-1", "213240001", "09024101",
                 StudentType.UNDERGRADUATE, "张三", "MALE", null, null, "major-1", "class-1",
-                LocalDate.of(2024, 9, 1), StudentStatus.ACTIVE, 1);
+                LocalDate.of(2024, 9, 1), StudentStatus.ACTIVE, 1,
+                "计算机学院", "软件工程", "计科2401");
     }
 
     private static <T> T onEdt(Callable<T> work) throws Exception {

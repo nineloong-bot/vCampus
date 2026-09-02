@@ -58,7 +58,8 @@ class StudentHandlersTest {
                 return new edu.seu.vcampus.common.student.StudentView("student-1", "user-1",
                         "213240001", "09024101", StudentType.UNDERGRADUATE, "张三", "MALE",
                         null, null, "major-1", "class-1", java.time.LocalDate.of(2024, 9, 1),
-                        edu.seu.vcampus.common.student.StudentStatus.ACTIVE, 1);
+                        edu.seu.vcampus.common.student.StudentStatus.ACTIVE, 1,
+                        "计算机学院", "软件工程", "软工2401");
             }
             public edu.seu.vcampus.common.student.StudentView getCurrentStudent(String id) { return null; }
             public edu.seu.vcampus.common.paging.PageResult<edu.seu.vcampus.common.student.StudentSummary> searchStudents(edu.seu.vcampus.common.student.StudentSearchQuery q) { return null; }
@@ -101,7 +102,7 @@ class StudentHandlersTest {
     }
 
     @Test
-    void teacherDetailResponseRemovesPrivateContactFields() {
+    void teacherDetailResponseKeepsContactFields() {
         var router = new MessageRouter(Map.of());
         StudentService profiles = studentServiceWithProfile();
         new StudentHandlers((command, context) -> null, profiles, organizationQuery(),
@@ -111,8 +112,8 @@ class StudentHandlersTest {
                 new edu.seu.vcampus.common.student.EntityIdRequest("student-1")), client());
         var view = (edu.seu.vcampus.common.student.StudentView) response.data();
 
-        assertThat(view.email()).isNull();
-        assertThat(view.phone()).isNull();
+        assertThat(view.email()).isEqualTo("private@seu.edu.cn");
+        assertThat(view.phone()).isEqualTo("13800000000");
         assertThat(view.studentNumber()).isEqualTo("09024101");
     }
 
@@ -140,7 +141,8 @@ class StudentHandlersTest {
                         "213240001", "09024101", StudentType.UNDERGRADUATE, "张三", "MALE",
                         "private@seu.edu.cn", "13800000000", "major-1", "class-1",
                         java.time.LocalDate.of(2024, 9, 1),
-                        edu.seu.vcampus.common.student.StudentStatus.ACTIVE, 1);
+                        edu.seu.vcampus.common.student.StudentStatus.ACTIVE, 1,
+                        "计算机学院", "软件工程", "软工2401");
             }
             public edu.seu.vcampus.common.student.StudentView getCurrentStudent(String id) { return getStudent(id); }
             public edu.seu.vcampus.common.paging.PageResult<edu.seu.vcampus.common.student.StudentSummary> searchStudents(edu.seu.vcampus.common.student.StudentSearchQuery q) { return null; }

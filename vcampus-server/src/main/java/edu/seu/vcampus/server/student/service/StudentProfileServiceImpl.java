@@ -50,6 +50,16 @@ public final class StudentProfileServiceImpl implements StudentProfileService {
     }
 
     @Override
+    public StudentProfileData getProfileByStudentId(String studentId) {
+        return transactions.inTransaction(connection -> {
+            var student = students.findById(connection, studentId)
+                    .orElseThrow(StudentNotFoundException::new);
+            String campusCard = campusCard(student.userId());
+            return students.findProfileByStudentId(connection, studentId, campusCard);
+        });
+    }
+
+    @Override
     public StudentProfileWorkspace savePersonalDraft(String userId,
             SaveStudentPersonalDraftCommand command) {
         Objects.requireNonNull(command); Objects.requireNonNull(command.personal());

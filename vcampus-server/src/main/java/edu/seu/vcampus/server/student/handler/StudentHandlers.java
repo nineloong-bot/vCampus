@@ -29,7 +29,9 @@ import java.util.function.BiFunction;
 public final class StudentHandlers {
     public static final List<String> COMMANDS = List.of("STUDENT_CREATE", "STUDENT_GET_CURRENT",
             "STUDENT_GET", "STUDENT_SEARCH", "STUDENT_UPDATE_CONTACT",
-            "STUDENT_UPDATE_ENROLLMENT", "STUDENT_CHANGE_STATUS", "STUDENT_LIST_DEPARTMENTS",
+            "STUDENT_UPDATE_ENROLLMENT", "STUDENT_CHANGE_STATUS", "STUDENT_UPDATE_INFO",
+            "STUDENT_UPDATE_ACADEMIC",
+            "STUDENT_LIST_DEPARTMENTS",
             "STUDENT_LIST_MAJORS", "STUDENT_LIST_CLASSES", "STUDENT_GET_CHANGES",
             "STUDENT_SAVE_DEPARTMENT", "STUDENT_SAVE_MAJOR", "STUDENT_SAVE_CLASS");
     public static final List<String> PROFILE_COMMANDS = List.of(
@@ -37,7 +39,8 @@ public final class StudentHandlers {
             "STUDENT_PROFILE_SAVE_ATTENDANCE_DRAFT", "STUDENT_PROFILE_SUBMIT",
             "STUDENT_PROFILE_EXPORT_PDF",
             "STUDENT_PROFILE_REVIEW_LIST", "STUDENT_PROFILE_REVIEW_GET",
-            "STUDENT_PROFILE_APPROVE", "STUDENT_PROFILE_REJECT");
+            "STUDENT_PROFILE_APPROVE", "STUDENT_PROFILE_REJECT",
+            "STUDENT_GET_PROFILE");
 
     private final StudentAdmissionService admissions;
     private final StudentService students;
@@ -92,8 +95,7 @@ public final class StudentHandlers {
         router.register("STUDENT_GET", typed(EntityIdRequest.class, (message, body) -> {
             StudentPrincipal principal = principal(message);
             if (!isStaff(principal)) return forbidden();
-            StudentView value = students.getStudent(body.entityId());
-            return success(principal.hasRole("TEACHER") ? withoutContact(value) : value);
+            return success(students.getStudent(body.entityId()));
         }));
         router.register("STUDENT_SEARCH", typed(StudentSearchQuery.class, (message, body) -> {
             StudentPrincipal principal = principal(message);
@@ -108,6 +110,14 @@ public final class StudentHandlers {
         router.register("STUDENT_CHANGE_STATUS", typed(ChangeStudentStatusCommand.class,
                 (message, body) -> write(message,
                         () -> admin(message, () -> students.changeStatus(body,
+                                principal(message).userId())))));
+        router.register("STUDENT_UPDATE_INFO", typed(UpdateStudentInfoCommand.class,
+                (message, body) -> write(message,
+                        () -> admin(message, () -> students.updateStudentInfo(body,
+                                principal(message).userId())))));
+        router.register("STUDENT_UPDATE_ACADEMIC", typed(UpdateStudentAcademicCommand.class,
+                (message, body) -> write(message,
+                        () -> admin(message, () -> students.updateStudentAcademic(body,
                                 principal(message).userId())))));
         router.register("STUDENT_LIST_DEPARTMENTS", typed(ActiveOnlyQuery.class,
                 (message, body) -> authenticated(message,
@@ -166,6 +176,9 @@ public final class StudentHandlers {
                 (message, body) -> write(message, () -> admin(message,
                         () -> profiles.reject(body.applicationId(), principal(message).userId(),
                                 body.reviewComment())))));
+        router.register("STUDENT_GET_PROFILE", typed(EntityIdRequest.class,
+                (message, body) -> strictAdmin(message,
+                        () -> profiles.getProfileByStudentId(body.entityId()))));
     }
 
     private ResponseBody<? extends Serializable> updateContact(Message message,
@@ -194,6 +207,12 @@ public final class StudentHandlers {
         return principal.hasRole("STUDENT") ? success(action.get()) : forbidden();
     }
 
+    private ResponseBody<? extends Serializable> strictAdmin(Message message,
+            java.util.function.Supplier<? extends Serializable> action) {
+        StudentPrincipal principal = principal(message);
+        return principal.hasRole("ADMIN") ? success(action.get()) : forbidden();
+    }
+
     private ResponseBody<? extends Serializable> authenticated(Message message,
             java.util.function.Supplier<? extends Serializable> action) {
         principal(message);
@@ -208,13 +227,6 @@ public final class StudentHandlers {
 
     private static boolean isStaff(StudentPrincipal principal) {
         return principal.hasRole("TEACHER") || principal.hasRole("ADMIN");
-    }
-
-    private static StudentView withoutContact(StudentView value) {
-        return new StudentView(value.studentId(), value.userId(), value.campusCardNumber(),
-                value.studentNumber(), value.studentType(), value.studentName(), value.gender(),
-                null, null, value.majorId(), value.classId(), value.enrollmentDate(),
-                value.status(), value.rowVersion());
     }
 
     private static RequestContext context(Message message, StudentPrincipal principal) {
