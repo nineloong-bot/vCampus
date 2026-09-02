@@ -50,3 +50,13 @@ the dedicated UI design-system implementation plan.
   term/course/teacher choices and a structured schedule row replace raw IDs and CSV input.
 - Visual inspection: all three images are nonblank; Chinese labels, controls, and table
   content render without clipping at their recorded dimensions.
+
+## Library module
+
+- Review size: 1280 × 800 (minimum supported size: 1024 × 680)
+- Shared foundation: `MainFrame`, theme tokens, page inset, table row height and permission navigation
+- Reader pages: catalog search/detail/borrow, current loans/return/renew, loan history
+- `LIBRARY_ADMIN` pages: book management, copy management, all-loan search, lending policy
+- State copy covered: initial, loading, normal, empty, error, submitting and optimistic-lock refresh guidance
+- Async checks: socket work stays in `LibraryClientService`; Swing updates return to the EDT; catalog search accepts only the latest response
+- Automated review: `LibraryUiTest` and `LibraryHandlersTest`

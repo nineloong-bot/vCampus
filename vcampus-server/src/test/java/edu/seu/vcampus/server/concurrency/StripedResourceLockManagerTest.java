@@ -32,16 +32,19 @@ class StripedResourceLockManagerTest {
     }
 
     @Test
-    void acquiresAnImmutableKeyListInDeclaredOrder() {
+    void acquiresUniqueStripesInCanonicalOrderEvenWhenCallersDisagree() {
         var acquired = new ConcurrentLinkedQueue<ResourceKey>();
         var locks = new StripedResourceLockManager(acquired::add);
-        var ordered = List.of(
-                new ResourceKey("NUMBER_SEQUENCE", "CAMPUS_CARD_GLOBAL"),
-                new ResourceKey("NUMBER_SEQUENCE", "STUDENT_NUMBER:090:24:1"),
-                new ResourceKey("LOGIN_ID", "213242478"));
+        var byStripe = new java.util.TreeMap<Integer, ResourceKey>();
+        for (int index = 0; byStripe.size() < 3; index++) {
+            ResourceKey key = new ResourceKey("RESOURCE", "key-" + index);
+            byStripe.putIfAbsent(StripedResourceLockManager.stripeIndex(key), key);
+        }
+        var reversed = new java.util.ArrayList<>(byStripe.values());
+        java.util.Collections.reverse(reversed);
 
-        locks.withLocks(ordered, () -> null);
+        locks.withLocks(reversed, () -> null);
 
-        assertThat(acquired).containsExactlyElementsOf(ordered);
+        assertThat(acquired).containsExactlyElementsOf(byStripe.values());
     }
 }

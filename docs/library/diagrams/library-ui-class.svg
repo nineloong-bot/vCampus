@@ -1,0 +1,177 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 920" role="img" aria-labelledby="title desc">
+  <title id="title">vCampus 图书管理模块客户端 UI 类图</title>
+  <desc id="desc">展示图书馆工作区、普通用户页面、管理员页面、共享页面基类、确认对话框、反馈工具及异步客户端服务的关系。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#475569"/></marker>
+    <marker id="diamond" markerWidth="13" markerHeight="13" refX="2" refY="6" orient="auto"><path d="M0,6 L6,1 L12,6 L6,11 z" fill="#ffffff" stroke="#475569"/></marker>
+    <marker id="triangle" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto"><path d="M0,0 L0,12 L10,6 z" fill="#ffffff" stroke="#475569"/></marker>
+    <style>
+      text { font-family: "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #172033; }
+      .diagram-title { font-size: 25px; font-weight: 700; }
+      .group-title { font-size: 15px; font-weight: 700; fill: #475569; }
+      .group { fill: #f8fafc; stroke: #cbd5e1; stroke-width: 1.5; rx: 16; }
+      .box { fill: #ffffff; stroke: #64748b; stroke-width: 1.6; rx: 8; }
+      .shell { fill: #eff6ff; stroke: #2563eb; }
+      .user { fill: #f0fdf4; stroke: #16a34a; }
+      .admin { fill: #fff7ed; stroke: #ea580c; }
+      .shared { fill: #f5f3ff; stroke: #7c3aed; }
+      .name { font-size: 15px; font-weight: 700; text-anchor: middle; }
+      .stereotype { font-size: 12px; fill: #64748b; text-anchor: middle; }
+      .member { font-family: Consolas, monospace; font-size: 12px; fill: #334155; }
+      .divider { stroke: #94a3b8; stroke-width: 1; }
+      .rel { fill: none; stroke: #475569; stroke-width: 1.6; marker-end: url(#arrow); }
+      .compose { fill: none; stroke: #475569; stroke-width: 1.6; marker-start: url(#diamond); }
+      .inherit { fill: none; stroke: #475569; stroke-width: 1.6; marker-end: url(#triangle); }
+      .dependency { fill: none; stroke: #64748b; stroke-width: 1.5; stroke-dasharray: 6 4; marker-end: url(#arrow); }
+      .association { fill: none; stroke: #64748b; stroke-width: 1.35; }
+      .label { font-size: 12px; fill: #475569; text-anchor: middle; }
+    </style>
+  </defs>
+
+  <text x="750" y="38" class="diagram-title" text-anchor="middle">vCampus 图书管理模块 · 客户端 UI 类图</text>
+
+  <rect x="35" y="65" width="1430" height="190" class="group"/>
+  <text x="58" y="92" class="group-title">工作区与共享基础设施</text>
+
+  <rect x="70" y="115" width="300" height="105" class="box shell"/>
+  <text x="220" y="145" class="name">LibraryWorkspacePanel</text>
+  <line x1="70" y1="158" x2="370" y2="158" class="divider"/>
+  <text x="88" y="183" class="member">- tabs: JTabbedPane</text>
+  <text x="88" y="206" class="member">+ refreshSelected()</text>
+
+  <rect x="460" y="105" width="300" height="125" class="box shared"/>
+  <text x="610" y="135" class="name">LibraryDataPanel</text>
+  <text x="610" y="154" class="stereotype">shared asynchronous page base</text>
+  <line x1="460" y1="167" x2="760" y2="167" class="divider"/>
+  <text x="478" y="191" class="member">+ beginRequest(): long</text>
+  <text x="478" y="214" class="member">+ accepts(request): boolean</text>
+
+  <rect x="850" y="105" width="300" height="125" class="box shared"/>
+  <text x="1000" y="135" class="name">LibraryClientService</text>
+  <line x1="850" y1="150" x2="1150" y2="150" class="divider"/>
+  <text x="868" y="174" class="member">+ search / borrow / return / renew</text>
+  <text x="868" y="197" class="member">+ catalog / loan / policy admin</text>
+  <text x="868" y="220" class="member">- request(command, body)</text>
+
+  <rect x="1240" y="125" width="185" height="80" class="box shell"/>
+  <text x="1332" y="155" class="name">ClientConnection</text>
+  <line x1="1240" y1="168" x2="1425" y2="168" class="divider"/>
+  <text x="1260" y="192" class="member">+ send(...)</text>
+
+  <rect x="35" y="285" width="1430" height="245" class="group"/>
+  <text x="58" y="312" class="group-title">所有已登录用户页面</text>
+
+  <rect x="70" y="345" width="250" height="100" class="box user"/>
+  <text x="195" y="377" class="name">BookSearchPanel</text>
+  <line x1="70" y1="390" x2="320" y2="390" class="divider"/>
+  <text x="88" y="416" class="member">+ search()</text>
+  <text x="88" y="438" class="member">+ connectDetail(...)</text>
+
+  <rect x="365" y="345" width="250" height="100" class="box user"/>
+  <text x="490" y="377" class="name">BookDetailPanel</text>
+  <line x1="365" y1="390" x2="615" y2="390" class="divider"/>
+  <text x="383" y="416" class="member">+ showBook(bookId)</text>
+  <text x="383" y="438" class="member">+ borrowSelected()</text>
+
+  <rect x="660" y="345" width="250" height="100" class="box user"/>
+  <text x="785" y="377" class="name">CurrentLoansPanel</text>
+  <line x1="660" y1="390" x2="910" y2="390" class="divider"/>
+  <text x="678" y="416" class="member">+ refresh()</text>
+  <text x="678" y="438" class="member">+ return / renew selected</text>
+
+  <rect x="955" y="345" width="250" height="100" class="box user"/>
+  <text x="1080" y="377" class="name">LoanHistoryPanel</text>
+  <line x1="955" y1="390" x2="1205" y2="390" class="divider"/>
+  <text x="973" y="416" class="member">+ refresh()</text>
+  <text x="973" y="438" class="member">+ paged history search</text>
+
+  <rect x="1250" y="345" width="175" height="100" class="box shared"/>
+  <text x="1337" y="377" class="name">LoanActionDialog</text>
+  <line x1="1250" y1="390" x2="1425" y2="390" class="divider"/>
+  <text x="1266" y="416" class="member">+ confirm()</text>
+  <text x="1266" y="438" class="member">+ run action</text>
+
+  <text x="750" y="492" class="label">切换栏目或首次打开时自动刷新；旧异步响应不能覆盖新页面状态</text>
+
+  <rect x="35" y="560" width="1430" height="240" class="group"/>
+  <text x="58" y="587" class="group-title">LIBRARY_ADMIN 管理页面</text>
+
+  <rect x="70" y="620" width="255" height="105" class="box admin"/>
+  <text x="197" y="652" class="name">BookManagementPanel</text>
+  <line x1="70" y1="665" x2="325" y2="665" class="divider"/>
+  <text x="88" y="690" class="member">+ search / create / update</text>
+  <text x="88" y="713" class="member">+ activate / deactivate</text>
+
+  <rect x="375" y="620" width="255" height="105" class="box admin"/>
+  <text x="502" y="652" class="name">CopyManagementPanel</text>
+  <line x1="375" y1="665" x2="630" y2="665" class="divider"/>
+  <text x="393" y="690" class="member">+ load all / search</text>
+  <text x="393" y="713" class="member">+ change status / recover</text>
+
+  <rect x="680" y="620" width="255" height="105" class="box admin"/>
+  <text x="807" y="652" class="name">LoanAdminPanel</text>
+  <line x1="680" y1="665" x2="935" y2="665" class="divider"/>
+  <text x="698" y="690" class="member">+ search by account</text>
+  <text x="698" y="713" class="member">+ return / mark lost</text>
+
+  <rect x="985" y="620" width="255" height="105" class="box admin"/>
+  <text x="1112" y="652" class="name">LibraryPolicyPanel</text>
+  <line x1="985" y1="665" x2="1240" y2="665" class="divider"/>
+  <text x="1003" y="690" class="member">+ load role policies</text>
+  <text x="1003" y="713" class="member">+ update with rowVersion</text>
+
+  <rect x="1275" y="620" width="150" height="105" class="box shared"/>
+  <text x="1350" y="652" class="name">LibraryFeedback</text>
+  <line x1="1275" y1="665" x2="1425" y2="665" class="divider"/>
+  <text x="1290" y="690" class="member">+ success()</text>
+  <text x="1290" y="713" class="member">+ error modal</text>
+
+  <path d="M370 167 H450" class="compose"/>
+  <path d="M1150 167 H1230" class="rel"/>
+
+  <path d="M220 220 V330 H1080" class="compose"/>
+  <line x1="195" y1="330" x2="195" y2="345" class="association"/>
+  <line x1="490" y1="330" x2="490" y2="345" class="association"/>
+  <line x1="785" y1="330" x2="785" y2="345" class="association"/>
+  <line x1="1080" y1="330" x2="1080" y2="345" class="association"/>
+  <text x="335" y="321" class="label">组合普通页面</text>
+
+  <path d="M340 220 V600 H1112" class="compose"/>
+  <line x1="197" y1="600" x2="197" y2="620" class="association"/>
+  <line x1="502" y1="600" x2="502" y2="620" class="association"/>
+  <line x1="807" y1="600" x2="807" y2="620" class="association"/>
+  <line x1="1112" y1="600" x2="1112" y2="620" class="association"/>
+  <text x="430" y="590" class="label">有 LIBRARY_ADMIN 时组合管理页面</text>
+
+  <path d="M610 315 V240" class="inherit"/>
+  <line x1="195" y1="315" x2="1080" y2="315" class="association"/>
+  <line x1="195" y1="315" x2="195" y2="345" class="association"/>
+  <line x1="490" y1="315" x2="490" y2="345" class="association"/>
+  <line x1="785" y1="315" x2="785" y2="345" class="association"/>
+  <line x1="1080" y1="315" x2="1080" y2="345" class="association"/>
+  <line x1="197" y1="535" x2="807" y2="535" class="association"/>
+  <line x1="197" y1="535" x2="197" y2="620" class="association"/>
+  <line x1="502" y1="535" x2="502" y2="620" class="association"/>
+  <line x1="807" y1="535" x2="807" y2="620" class="association"/>
+  <path d="M610 535 V315" class="association"/>
+
+  <path d="M320 395 H355" class="rel"/>
+  <path d="M615 405 C1000 500 1200 470 1250 420" class="dependency"/>
+  <path d="M910 405 C1060 470 1170 465 1250 430" class="dependency"/>
+  <path d="M935 680 H1265" class="dependency"/>
+
+  <path d="M760 190 H840" class="rel"/>
+  <text x="800" y="182" class="label">异步请求</text>
+  <path d="M1112 620 V555 H1000 V240" class="rel"/>
+  <path d="M760 215 C1020 270 1230 560 1350 610" class="dependency"/>
+  <path d="M1112 725 V760 H1350 V735" class="dependency"/>
+
+  <line x1="75" y1="860" x2="120" y2="860" class="compose"/>
+  <text x="135" y="864" class="label" text-anchor="start">工作区组合页面</text>
+  <line x1="335" y1="860" x2="380" y2="860" class="inherit"/>
+  <text x="395" y="864" class="label" text-anchor="start">继承 LibraryDataPanel</text>
+  <line x1="665" y1="860" x2="710" y2="860" class="dependency"/>
+  <text x="725" y="864" class="label" text-anchor="start">弹窗 / 反馈依赖</text>
+  <line x1="960" y1="860" x2="1005" y2="860" class="rel"/>
+  <text x="1020" y="864" class="label" text-anchor="start">异步服务调用</text>
+</svg>

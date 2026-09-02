@@ -24,6 +24,8 @@ INSERT INTO tblPermission (permissionCode, permissionName)
 VALUES ('USER_PASSWORD_RESET', '初始化学生密码');
 INSERT INTO tblPermission (permissionCode, permissionName)
 VALUES ('STUDENT_WRITE', '学籍管理');
+INSERT INTO tblPermission (permissionCode, permissionName)
+VALUES ('LIBRARY_ADMIN', '管理图书馆');
 
 INSERT INTO tblRolePermission (roleCode, permissionCode)
 VALUES ('ADMIN', 'USER_READ_ALL');
@@ -37,3 +39,5 @@ INSERT INTO tblRolePermission (roleCode, permissionCode)
 VALUES ('ADMIN', 'USER_PASSWORD_RESET');
 INSERT INTO tblRolePermission (roleCode, permissionCode)
 VALUES ('ADMIN', 'STUDENT_WRITE');
+INSERT INTO tblRolePermission (roleCode, permissionCode)
+VALUES ('ADMIN', 'LIBRARY_ADMIN');

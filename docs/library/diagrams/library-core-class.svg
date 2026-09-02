@@ -1,0 +1,197 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 1180" role="img" aria-labelledby="title desc">
+  <title id="title">vCampus 图书管理模块核心类图</title>
+  <desc id="desc">展示消息处理、业务服务、授权适配、事务锁、仓储实现及核心领域对象之间的关系。</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#475569"/>
+    </marker>
+    <marker id="triangle" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L0,12 L10,6 z" fill="#ffffff" stroke="#475569"/>
+    </marker>
+    <style>
+      text { font-family: "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif; fill: #172033; }
+      .diagram-title { font-size: 25px; font-weight: 700; }
+      .layer-title { font-size: 16px; font-weight: 700; fill: #475569; }
+      .layer { fill: #f8fafc; stroke: #cbd5e1; stroke-width: 1.5; rx: 16; }
+      .box { fill: #ffffff; stroke: #64748b; stroke-width: 1.7; rx: 8; }
+      .handler { fill: #eff6ff; stroke: #2563eb; }
+      .service { fill: #f5f3ff; stroke: #7c3aed; }
+      .repository { fill: #ecfdf5; stroke: #059669; }
+      .domain { fill: #fff7ed; stroke: #ea580c; }
+      .name { font-size: 16px; font-weight: 700; text-anchor: middle; }
+      .stereotype { font-size: 12px; fill: #64748b; text-anchor: middle; }
+      .member { font-family: Consolas, monospace; font-size: 12px; fill: #334155; }
+      .divider { stroke: #94a3b8; stroke-width: 1; }
+      .rel { fill: none; stroke: #475569; stroke-width: 1.7; marker-end: url(#arrow); }
+      .impl { fill: none; stroke: #475569; stroke-width: 1.7; stroke-dasharray: 7 5; marker-end: url(#triangle); }
+      .association { fill: none; stroke: #475569; stroke-width: 1.7; }
+      .label { font-size: 12px; fill: #475569; text-anchor: middle; }
+      .legend { font-size: 12px; fill: #64748b; }
+    </style>
+  </defs>
+
+  <text x="750" y="38" class="diagram-title" text-anchor="middle">vCampus 图书管理模块 · 核心服务与持久化类图</text>
+
+  <rect x="30" y="65" width="1440" height="220" class="layer"/>
+  <text x="52" y="92" class="layer-title">消息与权限层</text>
+
+  <rect x="70" y="115" width="285" height="130" class="box handler"/>
+  <text x="212" y="142" class="name">LibraryHandlers</text>
+  <line x1="70" y1="155" x2="355" y2="155" class="divider"/>
+  <text x="86" y="178" class="member">+ register(router, service, access, dedup)</text>
+  <text x="86" y="201" class="member">+ LIBRARY_* command routing</text>
+  <text x="86" y="224" class="member">+ session / permission checks</text>
+
+  <rect x="410" y="125" width="280" height="110" class="box handler"/>
+  <text x="550" y="152" class="name">LibraryHandlerErrorMapper</text>
+  <line x1="410" y1="165" x2="690" y2="165" class="divider"/>
+  <text x="427" y="190" class="member">+ failure(error): ResponseBody</text>
+  <text x="427" y="213" class="member">+ stable client error codes</text>
+
+  <rect x="745" y="115" width="270" height="130" class="box handler"/>
+  <text x="880" y="142" class="name">RequestDeduplicator</text>
+  <line x1="745" y1="155" x2="1015" y2="155" class="divider"/>
+  <text x="762" y="178" class="member">+ executeOnce(requestId, action)</text>
+  <text x="762" y="201" class="member">+ replay completed response</text>
+  <text x="762" y="224" class="member">+ persist success and failure</text>
+
+  <rect x="1070" y="105" width="345" height="150" class="box handler"/>
+  <text x="1242" y="132" class="name">LibraryAuthorizationAdapter</text>
+  <text x="1242" y="151" class="stereotype">implements LibraryIdentityPort, LibraryAccessPort</text>
+  <line x1="1070" y1="165" x2="1415" y2="165" class="divider"/>
+  <text x="1088" y="190" class="member">+ requireBorrower(sessionToken)</text>
+  <text x="1088" y="213" class="member">+ requireSession(sessionToken)</text>
+  <text x="1088" y="236" class="member">+ requirePermission(token, code)</text>
+
+  <rect x="30" y="310" width="1440" height="300" class="layer"/>
+  <text x="52" y="337" class="layer-title">业务与一致性层</text>
+
+  <rect x="70" y="375" width="270" height="165" class="box service"/>
+  <text x="205" y="397" class="stereotype">&lt;&lt;interface&gt;&gt;</text>
+  <text x="205" y="421" class="name">LibraryService</text>
+  <line x1="70" y1="434" x2="340" y2="434" class="divider"/>
+  <text x="88" y="457" class="member">+ searchBooks / getBook</text>
+  <text x="88" y="480" class="member">+ borrow / returnBook / renew</text>
+  <text x="88" y="503" class="member">+ resolveLoan / updatePolicy</text>
+  <text x="88" y="526" class="member">+ catalog and loan admin APIs</text>
+
+  <rect x="405" y="350" width="330" height="225" class="box service"/>
+  <text x="570" y="379" class="name">LibraryServiceImpl</text>
+  <line x1="405" y1="393" x2="735" y2="393" class="divider"/>
+  <text x="423" y="417" class="member">- identities: LibraryIdentityPort</text>
+  <text x="423" y="440" class="member">- books / loans / policies</text>
+  <text x="423" y="463" class="member">- transactions: TransactionManager</text>
+  <text x="423" y="486" class="member">- locks: ResourceLockManager</text>
+  <line x1="405" y1="500" x2="735" y2="500" class="divider"/>
+  <text x="423" y="524" class="member">+ atomic borrow / return / renew</text>
+  <text x="423" y="547" class="member">+ admin loan resolution</text>
+
+  <rect x="805" y="365" width="295" height="175" class="box service"/>
+  <text x="952" y="394" class="name">LibraryReadAdminOperations</text>
+  <line x1="805" y1="407" x2="1100" y2="407" class="divider"/>
+  <text x="822" y="432" class="member">+ searchBooks / getBook</text>
+  <text x="822" y="455" class="member">+ createBook / updateBook</text>
+  <text x="822" y="478" class="member">+ addCopy / searchAllLoans</text>
+  <text x="822" y="501" class="member">+ getPolicies / updatePolicy</text>
+  <text x="822" y="524" class="member">+ current loans / history</text>
+
+  <rect x="1170" y="355" width="240" height="90" class="box service"/>
+  <text x="1290" y="383" class="name">ResourceLockManager</text>
+  <text x="1290" y="402" class="stereotype">&lt;&lt;interface&gt;&gt;</text>
+  <line x1="1170" y1="416" x2="1410" y2="416" class="divider"/>
+  <text x="1188" y="436" class="member">+ withLocks(keys, action)</text>
+
+  <rect x="1170" y="475" width="240" height="90" class="box service"/>
+  <text x="1290" y="503" class="name">TransactionManager</text>
+  <line x1="1170" y1="516" x2="1410" y2="516" class="divider"/>
+  <text x="1188" y="540" class="member">+ inTransaction(work)</text>
+
+  <rect x="30" y="635" width="1440" height="280" class="layer"/>
+  <text x="52" y="662" class="layer-title">Repository 层</text>
+
+  <rect x="70" y="690" width="350" height="105" class="box repository"/>
+  <text x="245" y="714" class="stereotype">&lt;&lt;interface&gt;&gt;</text>
+  <text x="245" y="738" class="name">BookRepository</text>
+  <line x1="70" y1="750" x2="420" y2="750" class="divider"/>
+  <text x="88" y="775" class="member">catalog + physical-copy persistence</text>
+  <rect x="95" y="825" width="300" height="55" class="box repository"/>
+  <text x="245" y="858" class="name">AccessBookRepository</text>
+
+  <rect x="575" y="690" width="350" height="105" class="box repository"/>
+  <text x="750" y="714" class="stereotype">&lt;&lt;interface&gt;&gt;</text>
+  <text x="750" y="738" class="name">LoanRepository</text>
+  <line x1="575" y1="750" x2="925" y2="750" class="divider"/>
+  <text x="593" y="775" class="member">loan lifecycle + effective-overdue queries</text>
+  <rect x="600" y="825" width="300" height="55" class="box repository"/>
+  <text x="750" y="858" class="name">AccessLoanRepository</text>
+
+  <rect x="1080" y="690" width="350" height="105" class="box repository"/>
+  <text x="1255" y="714" class="stereotype">&lt;&lt;interface&gt;&gt;</text>
+  <text x="1255" y="738" class="name">LibraryPolicyRepository</text>
+  <line x1="1080" y1="750" x2="1430" y2="750" class="divider"/>
+  <text x="1098" y="775" class="member">role policy + optimistic version</text>
+  <rect x="1105" y="825" width="300" height="55" class="box repository"/>
+  <text x="1255" y="858" class="name">AccessLibraryPolicyRepository</text>
+
+  <rect x="30" y="940" width="1440" height="195" class="layer"/>
+  <text x="52" y="967" class="layer-title">领域对象</text>
+
+  <rect x="80" y="995" width="250" height="105" class="box domain"/>
+  <text x="205" y="1025" class="name">Book</text>
+  <line x1="80" y1="1038" x2="330" y2="1038" class="divider"/>
+  <text x="98" y="1062" class="member">isbn, title, active</text>
+  <text x="98" y="1085" class="member">rowVersion</text>
+
+  <rect x="405" y="995" width="250" height="105" class="box domain"/>
+  <text x="530" y="1025" class="name">BookCopy</text>
+  <line x1="405" y1="1038" x2="655" y2="1038" class="divider"/>
+  <text x="423" y="1062" class="member">barcode, locationCode</text>
+  <text x="423" y="1085" class="member">CopyStatus, rowVersion</text>
+
+  <rect x="730" y="995" width="250" height="105" class="box domain"/>
+  <text x="855" y="1025" class="name">Loan</text>
+  <line x1="730" y1="1038" x2="980" y2="1038" class="divider"/>
+  <text x="748" y="1062" class="member">borrower, dueAt, status</text>
+  <text x="748" y="1085" class="member">renewCount, rowVersion</text>
+
+  <rect x="1055" y="995" width="330" height="105" class="box domain"/>
+  <text x="1220" y="1025" class="name">LoanPolicy</text>
+  <line x1="1055" y1="1038" x2="1385" y2="1038" class="divider"/>
+  <text x="1073" y="1062" class="member">roleCode, limits, loanDays</text>
+  <text x="1073" y="1085" class="member">renewalDays, rowVersion</text>
+
+  <path d="M355 180 H395" class="rel"/>
+  <path d="M355 205 C560 290 170 320 170 365" class="rel"/>
+  <path d="M355 225 C620 310 560 320 560 340" class="rel"/>
+  <path d="M690 180 H735" class="rel"/>
+  <path d="M1015 180 H1060" class="rel"/>
+  <path d="M1242 255 V300 H570 V340" class="rel"/>
+
+  <path d="M405 455 H350" class="impl"/>
+  <path d="M735 445 H795" class="rel"/>
+  <path d="M735 385 V345 H1140 V400 H1160" class="rel"/>
+  <path d="M735 550 V590 H1140 V520 H1160" class="rel"/>
+
+  <path d="M500 575 V625 H245 V680" class="rel"/>
+  <path d="M570 575 V650 H750 V680" class="rel"/>
+  <path d="M650 575 V625 H1255 V680" class="rel"/>
+  <path d="M245 825 V805" class="impl"/>
+  <path d="M750 825 V805" class="impl"/>
+  <path d="M1255 825 V805" class="impl"/>
+
+  <path d="M245 795 V930 H205 V985" class="rel"/>
+  <path d="M245 795 V920 H530 V985" class="rel"/>
+  <path d="M750 795 V985" class="rel"/>
+  <path d="M1255 795 V930 H1220 V985" class="rel"/>
+
+  <path d="M330 1048 H395" class="association"/>
+  <text x="362" y="1038" class="label">1 : 0..*</text>
+  <path d="M655 1048 H720" class="association"/>
+  <text x="687" y="1038" class="label">1 : 0..*</text>
+
+  <line x1="80" y1="1155" x2="125" y2="1155" class="rel"/>
+  <text x="138" y="1159" class="legend">依赖 / 调用</text>
+  <line x1="275" y1="1155" x2="320" y2="1155" class="impl"/>
+  <text x="335" y="1159" class="legend">接口实现</text>
+  <text x="480" y="1159" class="legend">Book 1—0..* BookCopy 1—0..* Loan</text>
+</svg>

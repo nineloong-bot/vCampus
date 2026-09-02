@@ -2,6 +2,8 @@ package edu.seu.vcampus.server.concurrency;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -24,25 +26,30 @@ public final class StripedResourceLockManager implements ResourceLockManager {
         }
     }
 
-    /** Acquires an immutable copy of the keys in the caller's declared order. */
+    /** Acquires each affected stripe once in canonical index order. */
     @Override
     public <T> T withLocks(List<ResourceKey> orderedKeys, Supplier<T> action) {
         List<ResourceKey> keys = List.copyOf(orderedKeys);
         Objects.requireNonNull(action, "action");
+        Map<Integer, ResourceKey> targets = new TreeMap<>();
         for (ResourceKey key : keys) {
-            stripe(key).lock();
-            acquisitionObserver.accept(key);
+            targets.putIfAbsent(stripeIndex(key), key);
+        }
+        for (Map.Entry<Integer, ResourceKey> target : targets.entrySet()) {
+            stripes[target.getKey()].lock();
+            acquisitionObserver.accept(target.getValue());
         }
         try {
             return action.get();
         } finally {
-            for (int index = keys.size() - 1; index >= 0; index--) {
-                stripe(keys.get(index)).unlock();
+            List<Integer> indexes = List.copyOf(targets.keySet());
+            for (int index = indexes.size() - 1; index >= 0; index--) {
+                stripes[indexes.get(index)].unlock();
             }
         }
     }
 
-    private ReentrantLock stripe(ResourceKey key) {
-        return stripes[Math.floorMod(key.hashCode(), stripes.length)];
+    static int stripeIndex(ResourceKey key) {
+        return Math.floorMod(key.hashCode(), STRIPE_COUNT);
     }
 }
