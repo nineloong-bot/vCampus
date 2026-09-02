@@ -1,6 +1,7 @@
 package edu.seu.vcampus.client.course.ui;
 
 import edu.seu.vcampus.client.course.service.CourseClientService;
+import edu.seu.vcampus.client.user.service.UserClientService;
 import edu.seu.vcampus.common.course.EnrollmentView;
 import edu.seu.vcampus.common.course.EnrollCommand;
 import edu.seu.vcampus.common.course.LateAddCommand;
@@ -27,6 +28,10 @@ import edu.seu.vcampus.common.course.OfferingSearchQuery;
 import edu.seu.vcampus.common.course.OfferingSummary;
 import edu.seu.vcampus.common.course.ScheduleItem;
 import edu.seu.vcampus.common.paging.PageResult;
+import edu.seu.vcampus.common.user.AccountStatus;
+import edu.seu.vcampus.common.user.UserRole;
+import edu.seu.vcampus.common.user.UserSearchQuery;
+import edu.seu.vcampus.common.user.UserSummary;
 
 import java.util.List;
 import java.util.Objects;
@@ -35,9 +40,16 @@ import java.util.concurrent.CompletableFuture;
 /** Production adapter from Swing's narrow seam to the typed course client. */
 public final class CourseClientGateway implements CourseUiGateway {
     private final CourseClientService client;
+    private final UserClientService users;
 
     public CourseClientGateway(CourseClientService client) {
         this.client = Objects.requireNonNull(client);
+        this.users = null;
+    }
+
+    public CourseClientGateway(CourseClientService client, UserClientService users) {
+        this.client = Objects.requireNonNull(client);
+        this.users = Objects.requireNonNull(users);
     }
 
     public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) {
@@ -63,6 +75,13 @@ public final class CourseClientGateway implements CourseUiGateway {
     public CompletableFuture<EnrollmentView> enrollRetake(RetakeCommand command) { return client.enrollRetake(command); }
     public CompletableFuture<PageResult<AdjustmentAuditView>> searchAdjustmentAudits(AdjustmentAuditQuery query) { return client.searchAdjustmentAudits(query); }
     public CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery query) { return client.searchCatalog(query); }
+    public CompletableFuture<PageResult<UserSummary>> searchTeachers(String keyword) {
+        if (users == null) {
+            return CompletableFuture.failedFuture(new IllegalStateException("User client is not connected"));
+        }
+        return users.searchUsers(new UserSearchQuery(
+                keyword, UserRole.TEACHER, AccountStatus.ACTIVE, 0, 100));
+    }
     public CompletableFuture<List<TermView>> listTerms() { return client.listTerms(); }
     public CompletableFuture<EmptyResponse> importOutcomes(ImportCourseOutcomesCommand command) { return client.importOutcomes(command); }
     public CompletableFuture<CourseView> createCourse(CreateCourseCommand command) { return client.createCourse(command); }

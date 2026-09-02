@@ -56,7 +56,7 @@ public final class UserUiCoordinator {
         }
         MainFrame main = new MainFrame(result.user(), connection);
         if (courses != null) {
-            main.installPage("course", new CourseUiComposition(courses)
+            main.installPage("course", new CourseUiComposition(courses, users)
                     .workspaceFor(result.user().role()));
         }
         replaceAccountPage(main, result);

@@ -4,11 +4,16 @@ import edu.seu.vcampus.client.core.ui.theme.UiColors;
 import edu.seu.vcampus.client.core.ui.theme.UiDimensions;
 import edu.seu.vcampus.client.core.ui.theme.UiSpacing;
 import edu.seu.vcampus.client.core.ui.theme.UiTypography;
+import edu.seu.vcampus.client.course.service.CourseClientException;
+import edu.seu.vcampus.common.course.CourseCatalogQuery;
+import edu.seu.vcampus.common.course.CourseView;
 import edu.seu.vcampus.common.course.CreateOfferingCommand;
 import edu.seu.vcampus.common.course.OfferingSummary;
 import edu.seu.vcampus.common.course.OfferingView;
-import edu.seu.vcampus.common.course.ScheduleItem;
+import edu.seu.vcampus.common.course.TermView;
 import edu.seu.vcampus.common.course.UpdateOfferingCommand;
+import edu.seu.vcampus.common.paging.PageResult;
+import edu.seu.vcampus.common.user.UserSummary;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -19,17 +24,19 @@ import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.JTextArea;
+import javax.swing.JSpinner;
 import javax.swing.JTextField;
+import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.Window;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 
 /** Modal create/edit form for an offering aggregate and all of its schedule rows. */
 final class OfferingEditorDialog extends JDialog {
@@ -37,21 +44,31 @@ final class OfferingEditorDialog extends JDialog {
     private final CourseUiGateway gateway;
     private final OfferingSummary existing;
     private final Runnable onSaved;
-    private final JTextField termId = field("学期编号");
-    private final JTextField courseId = field("课程编号");
-    private final JTextField teacherId = field("教师用户编号");
+    private final JComboBox<OfferingReferenceChoice> term = combo("学期");
+    private final JComboBox<OfferingReferenceChoice> course = combo("课程");
+    private final JComboBox<OfferingReferenceChoice> teacher = combo("教师");
+    private final JTextField courseKeyword = field("课程关键字");
+    private final JTextField teacherKeyword = field("教师关键字");
     private final JTextField className = field("教学班名称");
-    private final JTextField capacity = field("容量");
-    private final JComboBox<String> status = new JComboBox<>(new String[]{"DRAFT", "OPEN", "CLOSED", "CANCELLED"});
-    private final JTextArea schedules = new JTextArea(5, 48);
+    private final JSpinner capacity;
+    private final JComboBox<StatusChoice> status = new JComboBox<>(StatusChoice.values());
+    private final OfferingScheduleEditorPanel schedules = new OfferingScheduleEditorPanel();
+    private final JLabel referenceStatus = label("正在加载学期、课程和教师，请稍候…", UiColors.TEXT_SECONDARY);
     private final JLabel error = label(" ", UiColors.ACCENT);
+    private final JButton retry = AbstractCoursePanel.secondary("重试加载");
     private final JButton save;
+    private long referenceSequence;
+    private boolean referenceReady;
+    private boolean active = true;
 
     OfferingEditorDialog(Window owner, CourseUiGateway gateway, OfferingSummary existing, Runnable onSaved) {
         super(owner, existing == null ? "新建教学班" : "编辑教学班", ModalityType.APPLICATION_MODAL);
-        this.gateway = gateway;
+        this.gateway = Objects.requireNonNull(gateway, "gateway");
         this.existing = existing;
-        this.onSaved = onSaved;
+        this.onSaved = Objects.requireNonNull(onSaved, "onSaved");
+        int minimumCapacity = existing == null ? 1 : Math.max(1, existing.enrolledCount());
+        int initialCapacity = existing == null ? 40 : Math.max(minimumCapacity, existing.capacity());
+        capacity = spinner(initialCapacity, minimumCapacity, Math.max(10_000, initialCapacity), "容量");
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         JPanel root = new JPanel(new BorderLayout(0, UiSpacing.LG));
         root.setBackground(UiColors.BACKGROUND_PAGE);
@@ -59,13 +76,18 @@ final class OfferingEditorDialog extends JDialog {
         root.add(title(), BorderLayout.NORTH);
         root.add(form(), BorderLayout.CENTER);
         save = AbstractCoursePanel.primary(existing == null ? "创建教学班" : "保存修改");
+        save.setEnabled(false);
         save.addActionListener(event -> submit());
+        retry.setEnabled(false);
+        retry.addActionListener(event -> loadReferences());
         root.add(actions(), BorderLayout.SOUTH);
         setContentPane(root);
         getRootPane().setDefaultButton(save);
-        if (existing != null) fill(existing);
-        setSize(new Dimension(680, 690));
+        if (existing == null) schedules.addDefaultRow();
+        else fill(existing);
+        setSize(new Dimension(840, 780));
         setLocationRelativeTo(owner);
+        loadReferences();
     }
 
     private JPanel title() {
@@ -76,31 +98,55 @@ final class OfferingEditorDialog extends JDialog {
         heading.setFont(UiTypography.PAGE_TITLE);
         panel.add(heading);
         panel.add(Box.createVerticalStrut(UiSpacing.SM));
-        panel.add(label("维护教师、容量、开放状态以及一行或多行上课安排", UiColors.TEXT_SECONDARY));
+        panel.add(label("从学期、课程和在职教师中选择，并逐行维护上课安排", UiColors.TEXT_SECONDARY));
         return panel;
     }
 
-    private JPanel form() {
+    private JScrollPane form() {
         JPanel panel = new JPanel();
         panel.setOpaque(false);
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-        panel.add(pair("学期编号（必填）", termId, "课程编号（必填）", courseId));
-        panel.add(pair("教师用户编号（必填）", teacherId, "教学班名称（必填）", className));
+        panel.add(referenceLine());
+        panel.add(pair("学期（必填）", term, "课程（必填）", course));
+        panel.add(searchLine("课程关键字", courseKeyword, "查询课程"));
+        panel.add(pair("教师（必填）", teacher, "教学班名称（必填）", className));
+        panel.add(searchLine("教师关键字", teacherKeyword, "查询教师"));
         status.setFont(UiTypography.BODY);
         status.setMaximumSize(new Dimension(Integer.MAX_VALUE, UiDimensions.CONTROL_HEIGHT));
         status.getAccessibleContext().setAccessibleName("教学班状态");
         panel.add(pair("容量（必填）", capacity, "教学班状态", status));
-        panel.add(label("上课安排（每行：星期,起始节,结束节,起始周,结束周,教室）", UiColors.TEXT_PRIMARY));
+        panel.add(label("上课安排（必填）", UiColors.TEXT_PRIMARY));
         panel.add(Box.createVerticalStrut(UiSpacing.SM));
-        schedules.setFont(UiTypography.BODY);
-        schedules.setLineWrap(false);
-        schedules.getAccessibleContext().setAccessibleName("上课安排");
-        schedules.setToolTipText("示例：MONDAY,1,2,1,16,教一-201");
-        JScrollPane scroll = new JScrollPane(schedules);
-        scroll.setBorder(BorderFactory.createLineBorder(UiColors.BORDER_DEFAULT));
-        panel.add(scroll);
-        panel.add(Box.createVerticalStrut(UiSpacing.SM));
-        panel.add(label("星期支持 MONDAY–SUNDAY 或周一–周日；可填写多行", UiColors.TEXT_SECONDARY));
+        panel.add(schedules);
+        JScrollPane scroll = new JScrollPane(panel);
+        scroll.setBorder(null);
+        scroll.getVerticalScrollBar().setUnitIncrement(16);
+        return scroll;
+    }
+
+    private JPanel referenceLine() {
+        JPanel panel = new JPanel();
+        panel.setOpaque(false);
+        panel.setLayout(new BoxLayout(panel, BoxLayout.X_AXIS));
+        panel.add(referenceStatus);
+        panel.add(Box.createHorizontalGlue());
+        panel.add(retry);
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 48));
+        return panel;
+    }
+
+    private JPanel searchLine(String caption, JTextField keyword, String actionText) {
+        JPanel panel = new JPanel();
+        panel.setOpaque(false);
+        panel.setLayout(new BoxLayout(panel, BoxLayout.X_AXIS));
+        panel.add(label(caption, UiColors.TEXT_SECONDARY));
+        panel.add(Box.createHorizontalStrut(UiSpacing.SM));
+        panel.add(keyword);
+        panel.add(Box.createHorizontalStrut(UiSpacing.SM));
+        JButton action = AbstractCoursePanel.secondary(actionText);
+        action.addActionListener(event -> loadReferences());
+        panel.add(action);
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 54));
         return panel;
     }
 
@@ -143,34 +189,105 @@ final class OfferingEditorDialog extends JDialog {
         return panel;
     }
 
+    private void loadReferences() {
+        referenceReady = false;
+        save.setEnabled(false);
+        retry.setEnabled(false);
+        referenceStatus.setText("正在加载学期、课程和教师，请稍候…");
+        error.setText(" ");
+        long request = ++referenceSequence;
+        String courseSearch = courseKeyword.getText().trim();
+        String teacherSearch = teacherKeyword.getText().trim();
+        if (courseSearch.isEmpty() && existing != null) courseSearch = existing.courseCode();
+
+        CompletableFuture<String> selectedTerm = existing == null
+                ? gateway.currentTermId() : CompletableFuture.completedFuture(existing.termId());
+        CompletableFuture<ReferenceData> loaded = gateway.listTerms()
+                .thenCombine(selectedTerm, TermAndCurrent::new)
+                .thenCombine(gateway.searchCatalog(new CourseCatalogQuery(courseSearch, true, 0, 100)),
+                        (termData, courses) -> new PartialReferenceData(termData, courses))
+                .thenCombine(gateway.searchTeachers(teacherSearch),
+                        (partial, teachers) -> new ReferenceData(partial.termData(), partial.courses(), teachers));
+        loaded.whenComplete((data, failure) -> SwingUtilities.invokeLater(() -> {
+            if (!active || referenceSequence != request) return;
+            if (failure != null) {
+                referenceStatus.setText("参考数据加载失败，请重试");
+                retry.setEnabled(true);
+                return;
+            }
+            installReferences(data);
+            referenceReady = term.getSelectedItem() != null
+                    && course.getSelectedItem() != null && teacher.getSelectedItem() != null;
+            referenceStatus.setText(referenceReady
+                    ? "参考数据已就绪" : "请选择有结果的学期、课程和教师");
+            save.setEnabled(referenceReady);
+        }));
+    }
+
+    private void installReferences(ReferenceData data) {
+        String desiredTerm = existing == null ? selectedId(term) : existing.termId();
+        String desiredCourse = existing == null ? selectedId(course) : existing.courseId();
+        String desiredTeacher = existing == null ? selectedId(teacher) : existing.teacherUserId();
+        if (desiredTerm == null) desiredTerm = data.termData().currentTermId();
+
+        List<OfferingReferenceChoice> terms = data.termData().terms().stream()
+                .map(value -> new OfferingReferenceChoice(value.termId(), value.termName() + " · " + value.termCode()))
+                .toList();
+        List<OfferingReferenceChoice> courses = data.courses().items().stream()
+                .map(value -> new OfferingReferenceChoice(value.courseId(), value.courseCode() + " · " + value.courseName()))
+                .toList();
+        List<OfferingReferenceChoice> teachers = data.teachers().items().stream()
+                .map(value -> new OfferingReferenceChoice(value.userId(), value.loginId()))
+                .toList();
+        installChoices(term, terms, desiredTerm,
+                existing == null ? null : new OfferingReferenceChoice(existing.termId(), existing.termId()));
+        installChoices(course, courses, desiredCourse,
+                existing == null ? null : new OfferingReferenceChoice(existing.courseId(),
+                        existing.courseCode() + " · " + existing.courseName()));
+        installChoices(teacher, teachers, desiredTeacher,
+                existing == null ? null : new OfferingReferenceChoice(existing.teacherUserId(), existing.teacherUserId()));
+    }
+
+    private static void installChoices(JComboBox<OfferingReferenceChoice> combo,
+                                       List<OfferingReferenceChoice> values,
+                                       String desiredId,
+                                       OfferingReferenceChoice fallback) {
+        List<OfferingReferenceChoice> choices = new ArrayList<>(values);
+        boolean found = desiredId != null && choices.stream().anyMatch(value -> desiredId.equals(value.id()));
+        if (!found && fallback != null && desiredId.equals(fallback.id())) choices.add(0, fallback);
+        combo.removeAllItems();
+        choices.forEach(combo::addItem);
+        selectId(combo, desiredId);
+    }
+
     private void submit() {
         error.setText(" ");
+        if (!referenceReady) {
+            error.setText("请等待参考数据加载完成后再保存");
+            return;
+        }
         CompletableFuture<OfferingView> request;
         try {
-            String cleanTerm = required(termId, "请输入学期编号");
-            String cleanCourse = required(courseId, "请输入课程编号");
-            String cleanTeacher = required(teacherId, "请输入教师用户编号");
+            String cleanTerm = requiredChoice(term, "请选择学期");
+            String cleanCourse = requiredChoice(course, "请选择课程");
+            String cleanTeacher = requiredChoice(teacher, "请选择教师");
             String cleanClass = required(className, "请输入教学班名称");
-            int cleanCapacity = Integer.parseInt(required(capacity, "请输入容量"));
+            int cleanCapacity = ((Number) capacity.getValue()).intValue();
             if (existing != null && cleanCapacity < existing.enrolledCount()) {
                 throw new IllegalArgumentException("容量不能小于当前已选人数 " + existing.enrolledCount());
             }
-            String cleanStatus = (String) status.getSelectedItem();
-            List<CreateOfferingCommand.ScheduleInput> cleanSchedules = parseSchedules(schedules.getText());
+            StatusChoice cleanStatus = (StatusChoice) status.getSelectedItem();
+            List<CreateOfferingCommand.ScheduleInput> cleanSchedules = schedules.scheduleInputs();
             if (existing == null) {
                 request = gateway.createOffering(new CreateOfferingCommand(cleanTerm, cleanCourse, cleanTeacher,
-                        cleanClass, cleanCapacity, cleanStatus, cleanSchedules));
+                        cleanClass, cleanCapacity, cleanStatus.code(), cleanSchedules));
             } else {
                 request = gateway.updateOffering(new UpdateOfferingCommand(existing.offeringId(), cleanTerm,
-                        cleanCourse, cleanTeacher, cleanClass, cleanCapacity, cleanStatus,
+                        cleanCourse, cleanTeacher, cleanClass, cleanCapacity, cleanStatus.code(),
                         existing.rowVersion(), cleanSchedules));
             }
-        } catch (NumberFormatException invalid) {
-            error.setText("容量、节次和周次必须填写有效整数");
-            return;
         } catch (IllegalArgumentException invalid) {
-            error.setText(invalid.getMessage() == null || invalid.getMessage().startsWith("invalid")
-                    ? "请检查教学班字段和上课安排" : invalid.getMessage());
+            error.setText(invalid.getMessage() == null ? "请检查教学班字段和上课安排" : invalid.getMessage());
             return;
         }
         String idle = save.getText();
@@ -179,54 +296,70 @@ final class OfferingEditorDialog extends JDialog {
         long asyncRequest = asyncGuard.begin();
         request.whenComplete((saved, failure) -> SwingUtilities.invokeLater(() -> {
             if (!asyncGuard.accepts(asyncRequest)) return;
-            save.setEnabled(true);
+            save.setEnabled(referenceReady);
             save.setText(idle);
-            if (failure != null) { error.setText("保存失败，记录可能已被修改，请刷新后重试"); return; }
+            if (failure != null) { error.setText(saveFailure(failure)); return; }
             onSaved.run();
             dispose();
         }));
     }
 
     @Override public void dispose() {
+        active = false;
+        referenceSequence++;
         asyncGuard.deactivate();
         super.dispose();
     }
 
     private void fill(OfferingSummary value) {
-        termId.setText(value.termId());
-        courseId.setText(value.courseId());
-        teacherId.setText(value.teacherUserId());
         className.setText(value.className());
-        capacity.setText(Integer.toString(value.capacity()));
-        status.setSelectedItem(value.offeringStatus());
-        schedules.setText(value.schedules().stream().map(OfferingEditorDialog::format).collect(Collectors.joining("\n")));
+        capacity.setValue(value.capacity());
+        status.setSelectedItem(StatusChoice.fromCode(value.offeringStatus()));
+        schedules.setSchedules(value.schedules());
     }
 
-    private static List<CreateOfferingCommand.ScheduleInput> parseSchedules(String value) {
-        List<CreateOfferingCommand.ScheduleInput> parsed = new ArrayList<>();
-        for (String raw : value.lines().toList()) {
-            if (raw.isBlank()) continue;
-            String[] columns = raw.split(",", 6);
-            if (columns.length != 6) throw new IllegalArgumentException("每行上课安排必须包含 6 项");
-            parsed.add(new CreateOfferingCommand.ScheduleInput(day(columns[0].trim()),
-                    Integer.parseInt(columns[1].trim()), Integer.parseInt(columns[2].trim()),
-                    Integer.parseInt(columns[3].trim()), Integer.parseInt(columns[4].trim()), columns[5].trim()));
+    private static String saveFailure(Throwable failure) {
+        Throwable cause = unwrap(failure);
+        if (cause instanceof CourseClientException clientFailure) {
+            if ("COMMON_CONCURRENT_MODIFICATION".equals(clientFailure.code())) {
+                return "教学班已被其他管理员修改，请刷新并核对最新记录后重试";
+            }
+            String safe = clientFailure.getMessage() == null || clientFailure.getMessage().isBlank()
+                    ? "服务器未提供可显示的错误信息" : clientFailure.getMessage();
+            if (clientFailure.traceId() != null && !clientFailure.traceId().isBlank()) {
+                return "保存失败：" + safe + "（跟踪编号：" + clientFailure.traceId() + "）";
+            }
+            return "保存失败：" + safe;
         }
-        if (parsed.isEmpty()) throw new IllegalArgumentException("请至少填写一行上课安排");
-        return List.copyOf(parsed);
+        return "保存失败，请检查连接后重试";
     }
 
-    private static String day(String value) {
-        return switch (value) {
-            case "周一" -> "MONDAY"; case "周二" -> "TUESDAY"; case "周三" -> "WEDNESDAY";
-            case "周四" -> "THURSDAY"; case "周五" -> "FRIDAY"; case "周六" -> "SATURDAY";
-            case "周日", "周天" -> "SUNDAY"; default -> value.toUpperCase(Locale.ROOT);
-        };
+    private static Throwable unwrap(Throwable failure) {
+        Throwable cause = failure;
+        while ((cause instanceof CompletionException || cause instanceof ExecutionException)
+                && cause.getCause() != null) cause = cause.getCause();
+        return cause;
     }
 
-    private static String format(ScheduleItem value) {
-        return value.dayOfWeek() + "," + value.startPeriod() + "," + value.endPeriod() + ","
-                + value.startWeek() + "," + value.endWeek() + "," + value.classroom();
+    private static String selectedId(JComboBox<OfferingReferenceChoice> combo) {
+        Object selected = combo.getSelectedItem();
+        return selected instanceof OfferingReferenceChoice choice ? choice.id() : null;
+    }
+
+    private static void selectId(JComboBox<OfferingReferenceChoice> combo, String id) {
+        if (id == null) return;
+        for (int index = 0; index < combo.getItemCount(); index++) {
+            if (id.equals(combo.getItemAt(index).id())) {
+                combo.setSelectedIndex(index);
+                return;
+            }
+        }
+    }
+
+    private static String requiredChoice(JComboBox<OfferingReferenceChoice> combo, String message) {
+        Object selected = combo.getSelectedItem();
+        if (!(selected instanceof OfferingReferenceChoice choice)) throw new IllegalArgumentException(message);
+        return choice.id();
     }
 
     private static JTextField field(String name) {
@@ -236,6 +369,22 @@ final class OfferingEditorDialog extends JDialog {
         field.setPreferredSize(new Dimension(280, UiDimensions.CONTROL_HEIGHT));
         field.getAccessibleContext().setAccessibleName(name);
         return field;
+    }
+
+    private static <T> JComboBox<T> combo(String name) {
+        JComboBox<T> combo = new JComboBox<>();
+        combo.setFont(UiTypography.BODY);
+        combo.setMaximumSize(new Dimension(Integer.MAX_VALUE, UiDimensions.CONTROL_HEIGHT));
+        combo.getAccessibleContext().setAccessibleName(name);
+        return combo;
+    }
+
+    private static JSpinner spinner(int value, int minimum, int maximum, String name) {
+        JSpinner spinner = new JSpinner(new BoundedIntegerSpinnerModel(value, minimum, maximum));
+        spinner.setFont(UiTypography.BODY);
+        spinner.setMaximumSize(new Dimension(Integer.MAX_VALUE, UiDimensions.CONTROL_HEIGHT));
+        spinner.getAccessibleContext().setAccessibleName(name);
+        return spinner;
     }
 
     private static String required(JTextField field, String message) {
@@ -249,5 +398,46 @@ final class OfferingEditorDialog extends JDialog {
         label.setFont(UiTypography.BODY);
         label.setForeground(color);
         return label;
+    }
+
+    private enum StatusChoice {
+        DRAFT("DRAFT", "草稿"), OPEN("OPEN", "开放"), CLOSED("CLOSED", "已关闭"),
+        CANCELLED("CANCELLED", "已取消");
+
+        private final String code;
+        private final String label;
+
+        StatusChoice(String code, String label) { this.code = code; this.label = label; }
+        String code() { return code; }
+        static StatusChoice fromCode(String code) {
+            for (StatusChoice value : values()) if (value.code.equals(code)) return value;
+            throw new IllegalArgumentException("不支持的教学班状态：" + code);
+        }
+        @Override public String toString() { return label; }
+    }
+
+    private record TermAndCurrent(List<TermView> terms, String currentTermId) { }
+    private record PartialReferenceData(TermAndCurrent termData, PageResult<CourseView> courses) { }
+    private record ReferenceData(TermAndCurrent termData, PageResult<CourseView> courses,
+                                 PageResult<UserSummary> teachers) { }
+
+    private static final class BoundedIntegerSpinnerModel extends SpinnerNumberModel {
+        private final int minimum;
+        private final int maximum;
+
+        private BoundedIntegerSpinnerModel(int value, int minimum, int maximum) {
+            super(value, minimum, maximum, 1);
+            this.minimum = minimum;
+            this.maximum = maximum;
+        }
+
+        @Override public void setValue(Object value) {
+            if (!(value instanceof Number number)) throw new IllegalArgumentException("容量必须是整数");
+            int candidate = number.intValue();
+            if (candidate < minimum || candidate > maximum) {
+                throw new IllegalArgumentException("容量必须在 " + minimum + " 到 " + maximum + " 之间");
+            }
+            super.setValue(candidate);
+        }
     }
 }

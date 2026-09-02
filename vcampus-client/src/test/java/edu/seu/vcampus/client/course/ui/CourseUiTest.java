@@ -3,7 +3,10 @@ package edu.seu.vcampus.client.course.ui;
 import edu.seu.vcampus.client.core.ui.theme.UiColors;
 import edu.seu.vcampus.client.core.ui.theme.UiDimensions;
 import edu.seu.vcampus.client.core.ui.theme.UiSpacing;
+import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.course.service.CourseClientException;
+import edu.seu.vcampus.client.course.service.CourseClientService;
+import edu.seu.vcampus.client.user.service.UserClientService;
 import edu.seu.vcampus.common.course.EnrollmentView;
 import edu.seu.vcampus.common.course.EnrollCommand;
 import edu.seu.vcampus.common.course.LateAddCommand;
@@ -32,6 +35,10 @@ import edu.seu.vcampus.common.course.OfferingView;
 import edu.seu.vcampus.common.course.TermPhaseView;
 import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.user.UserRole;
+import edu.seu.vcampus.common.user.AccountStatus;
+import edu.seu.vcampus.common.user.UserSearchQuery;
+import edu.seu.vcampus.common.user.UserSummary;
+import edu.seu.vcampus.common.protocol.ResponseBody;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -61,6 +68,8 @@ import java.util.Date;
 import java.util.List;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.Duration;
 import java.math.BigDecimal;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
@@ -69,8 +78,110 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 class CourseUiTest {
+    @Test
+    void courseGatewaySearchesOnlyActiveTeachersThroughTheSharedUserClient() throws Exception {
+        ClientConnection connection = mock(ClientConnection.class);
+        PageResult<UserSummary> result = new PageResult<>(List.of(), 0, 100, 0);
+        AtomicReference<Boolean> socketCalledOnEdt = new AtomicReference<>();
+        doAnswer(invocation -> {
+            socketCalledOnEdt.set(SwingUtilities.isEventDispatchThread());
+            return CompletableFuture.completedFuture(ResponseBody.success(result));
+        })
+                .when(connection).send(eq("USER_SEARCH"), any(UserSearchQuery.class), any(Duration.class));
+        UserClientService users = new UserClientService(connection, "course-ui-test", Duration.ofSeconds(2));
+        CourseClientGateway gateway = new CourseClientGateway(mock(CourseClientService.class), users);
+
+        onEdt(() -> gateway.searchTeachers("TEA")).join();
+
+        verify(connection).send("USER_SEARCH", new UserSearchQuery(
+                "TEA", UserRole.TEACHER, AccountStatus.ACTIVE, 0, 100), Duration.ofSeconds(2));
+        assertThat(socketCalledOnEdt.get()).isFalse();
+    }
+
+    @Test
+    void previewGatewaySuppliesTeacherChoicesWithoutALiveServer() {
+        assertThat(CourseUiGateway.preview().searchTeachers("").join().items())
+                .hasSizeGreaterThanOrEqualTo(2)
+                .allSatisfy(teacher -> {
+                    assertThat(teacher.role()).isEqualTo(UserRole.TEACHER);
+                    assertThat(teacher.accountStatus()).isEqualTo(AccountStatus.ACTIVE);
+                });
+    }
+
+    @Test
+    void scheduleEditorCreatesStructuredRowsAndMapsThemWithoutCsvParsing() throws Exception {
+        OfferingScheduleEditorPanel editor = onEdt(OfferingScheduleEditorPanel::new);
+        SwingUtilities.invokeAndWait(() -> button(editor, "添加上课时间").doClick());
+
+        assertThat(descendants(editor).stream().filter(JComboBox.class::isInstance)).isNotEmpty();
+        assertThat(descendants(editor).stream().filter(JSpinner.class::isInstance)).hasSizeGreaterThanOrEqualTo(4);
+        assertThat(((SpinnerNumberModel) component(editor, "第 1 行起始节次", JSpinner.class).getModel()).getMinimum())
+                .isEqualTo(1);
+        assertThat(((SpinnerNumberModel) component(editor, "第 1 行结束节次", JSpinner.class).getModel()).getMaximum())
+                .isEqualTo(14);
+        assertThat(((SpinnerNumberModel) component(editor, "第 1 行起始周", JSpinner.class).getModel()).getMinimum())
+                .isEqualTo(1);
+        assertThat(((SpinnerNumberModel) component(editor, "第 1 行结束周", JSpinner.class).getModel()).getMaximum())
+                .isEqualTo(30);
+        assertThat(editor.scheduleInputs()).containsExactly(
+                new CreateOfferingCommand.ScheduleInput("MONDAY", 1, 2, 1, 16, "待定"));
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "第 1 行起始节次,3,第 1 行结束节次,2,第 1 行：结束节次不能早于起始节次",
+            "第 1 行起始周,17,第 1 行结束周,16,第 1 行：结束周不能早于起始周"
+    })
+    void scheduleEditorIdentifiesInvalidRowOrdering(
+            String firstName, int firstValue, String secondName, int secondValue, String message) throws Exception {
+        OfferingScheduleEditorPanel editor = onEdt(OfferingScheduleEditorPanel::new);
+        SwingUtilities.invokeAndWait(() -> {
+            button(editor, "添加上课时间").doClick();
+            component(editor, firstName, JSpinner.class).setValue(firstValue);
+            component(editor, secondName, JSpinner.class).setValue(secondValue);
+        });
+
+        assertThatThrownBy(editor::scheduleInputs)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage(message);
+    }
+
+    @Test
+    void scheduleEditorRejectsBlankRoomAndRemovalOfTheFinalRowPrecisely() throws Exception {
+        OfferingScheduleEditorPanel editor = onEdt(OfferingScheduleEditorPanel::new);
+        SwingUtilities.invokeAndWait(() -> {
+            button(editor, "添加上课时间").doClick();
+            textField(editor, "第 1 行教室").setText("   ");
+        });
+        assertThatThrownBy(editor::scheduleInputs)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("第 1 行：请输入教室");
+
+        SwingUtilities.invokeAndWait(() -> button(editor, "删除第 1 行").doClick());
+        assertThatThrownBy(editor::scheduleInputs)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("请至少添加一行上课时间");
+    }
+
+    @ParameterizedTest
+    @CsvSource({"第 1 行起始节次,0", "第 1 行结束节次,15", "第 1 行起始周,0", "第 1 行结束周,31"})
+    void scheduleEditorEnforcesPeriodAndWeekBoundsWhenValuesAreCommitted(String name, int value)
+            throws Exception {
+        OfferingScheduleEditorPanel editor = onEdt(OfferingScheduleEditorPanel::new);
+        SwingUtilities.invokeAndWait(() -> button(editor, "添加上课时间").doClick());
+
+        assertThatThrownBy(() -> component(editor, name, JSpinner.class).setValue(value))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
     @ParameterizedTest
     @MethodSource("roleTabs")
     void workspaceOwnsRoleFilteredInternalTabs(UserRole role, List<String> expected) throws Exception {
@@ -1897,38 +2008,215 @@ class CourseUiTest {
     }
 
     @Test
-    void offeringEditorSubmitsAggregateScheduleAndPreservesVersion() throws Exception {
-        OfferingSummary existing = CourseUiGateway.preview()
-                .searchOfferings(new OfferingSearchQuery("2026-autumn", "", null, false, 0, 20)).join().items().get(0);
-        AtomicReference<UpdateOfferingCommand> submitted = new AtomicReference<>();
-        CourseUiGateway base = gateway(CompletableFuture.completedFuture(new PageResult<>(List.of(), 0, 20, 0)));
+    void offeringEditorUsesLocalizedReferenceChoicesAndSubmitsTheirIds() throws Exception {
+        AtomicReference<CreateOfferingCommand> submitted = new AtomicReference<>();
+        AtomicReference<CourseCatalogQuery> catalogQuery = new AtomicReference<>();
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(CourseUiGateway.preview()) {
+            @Override public CompletableFuture<OfferingView> createOffering(CreateOfferingCommand command) {
+                submitted.set(command);
+                return CompletableFuture.completedFuture(new OfferingView("new-offering", command.termId(),
+                        command.courseId(), command.teacherUserId(), command.className(), command.capacity(), 0,
+                        command.offeringStatus(), 0, Instant.now(), Instant.now(), List.of()));
+            }
+            @Override public CompletableFuture<PageResult<UserSummary>> searchTeachers(String keyword) {
+                return CourseUiGateway.preview().searchTeachers(keyword);
+            }
+            @Override public CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery query) {
+                catalogQuery.set(query);
+                return CourseUiGateway.preview().searchCatalog(query);
+            }
+        };
+        OfferingEditorDialog dialog = onEdt(() -> new OfferingEditorDialog(null, gateway, null, () -> { }));
+        flushEdt(4);
+
+        JComboBox<?> terms = component(dialog, "学期", JComboBox.class);
+        JComboBox<?> courses = component(dialog, "课程", JComboBox.class);
+        JComboBox<?> teachers = component(dialog, "教师", JComboBox.class);
+        JComboBox<?> status = component(dialog, "教学班状态", JComboBox.class);
+        assertThat(terms.getSelectedItem().toString()).contains("2026—2027学年秋季学期");
+        assertThat(courses.getItemAt(0).toString()).contains("MATH101", "高等数学");
+        assertThat(teachers.getItemAt(0).toString()).contains("zhang.teacher");
+        assertThat(status.getItemAt(0).toString()).isEqualTo("草稿");
+        assertThat(catalogQuery.get()).isEqualTo(new CourseCatalogQuery("", true, 0, 100));
+        assertThat(descendants(dialog).stream().filter(JTextField.class::isInstance).map(JTextField.class::cast)
+                .map(field -> field.getAccessibleContext().getAccessibleName()))
+                .doesNotContain("学期编号", "课程编号", "教师用户编号", "容量", "上课安排");
+
+        SwingUtilities.invokeAndWait(() -> {
+            textField(dialog, "教学班名称").setText("  软件工程 01 班  ");
+            component(dialog, "容量", JSpinner.class).setValue(48);
+            button(dialog, "创建教学班").doClick();
+        });
+        flushEdt(2);
+
+        assertThat(submitted.get()).isEqualTo(new CreateOfferingCommand(
+                "2026-autumn", "c1", "teacher-zhang", "软件工程 01 班", 48, "DRAFT",
+                List.of(new CreateOfferingCommand.ScheduleInput("MONDAY", 1, 2, 1, 16, "待定"))));
+        SwingUtilities.invokeAndWait(dialog::dispose);
+    }
+
+    @Test
+    void offeringEditorKeepsSaveDisabledUntilReferencesLoadAndDefaultsToCurrentTerm() throws Exception {
+        CompletableFuture<List<TermView>> terms = new CompletableFuture<>();
+        CompletableFuture<String> currentTerm = new CompletableFuture<>();
+        CompletableFuture<PageResult<CourseView>> courses = new CompletableFuture<>();
+        CompletableFuture<PageResult<UserSummary>> teachers = new CompletableFuture<>();
+        CourseUiGateway gateway = referenceGateway(terms, currentTerm, courses, teachers);
+        OfferingEditorDialog dialog = onEdt(() -> new OfferingEditorDialog(null, gateway, null, () -> { }));
+
+        assertThat(button(dialog, "创建教学班").isEnabled()).isFalse();
+        assertThat(labels(dialog)).contains("正在加载学期、课程和教师，请稍候…");
+
+        TermView first = term("term-first", "第一学期");
+        TermView current = term("term-current", "当前学期");
+        terms.complete(List.of(first, current));
+        currentTerm.complete("term-current");
+        courses.complete(new PageResult<>(List.of(courseView("course-current", "CS301", "编译原理")), 0, 100, 1));
+        teachers.complete(new PageResult<>(List.of(teacher("teacher-current", "compiler.teacher")), 0, 100, 1));
+        flushEdt(5);
+
+        assertThat(button(dialog, "创建教学班").isEnabled()).isTrue();
+        OfferingReferenceChoice selected = (OfferingReferenceChoice) component(dialog, "学期", JComboBox.class)
+                .getSelectedItem();
+        assertThat(selected.id()).isEqualTo("term-current");
+        assertThat(selected.toString()).contains("当前学期");
+        SwingUtilities.invokeAndWait(dialog::dispose);
+    }
+
+    @Test
+    void offeringEditorCanRetryOneFailedReferenceLoad() throws Exception {
+        AtomicInteger courseSearches = new AtomicInteger();
+        CourseUiGateway base = CourseUiGateway.preview();
         CourseUiGateway gateway = new DelegatingCourseUiGateway(base) {
+            @Override public CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery query) {
+                if (courseSearches.incrementAndGet() == 1) {
+                    return CompletableFuture.failedFuture(new CourseClientException(
+                            "COMMON_NETWORK_ERROR", "网络暂时不可用", null, true));
+                }
+                return base.searchCatalog(query);
+            }
+            @Override public CompletableFuture<PageResult<UserSummary>> searchTeachers(String keyword) {
+                return base.searchTeachers(keyword);
+            }
+        };
+        OfferingEditorDialog dialog = onEdt(() -> new OfferingEditorDialog(null, gateway, null, () -> { }));
+        flushEdt(5);
+
+        assertThat(button(dialog, "创建教学班").isEnabled()).isFalse();
+        assertThat(labels(dialog)).contains("参考数据加载失败，请重试");
+        SwingUtilities.invokeAndWait(() -> button(dialog, "重试加载").doClick());
+        flushEdt(5);
+
+        assertThat(courseSearches.get()).isEqualTo(2);
+        assertThat(button(dialog, "创建教学班").isEnabled()).isTrue();
+        assertThat(labels(dialog)).contains("参考数据已就绪");
+        SwingUtilities.invokeAndWait(dialog::dispose);
+    }
+
+    @Test
+    void disposedOfferingEditorIgnoresLateReferenceResponses() throws Exception {
+        CompletableFuture<List<TermView>> terms = new CompletableFuture<>();
+        CourseUiGateway gateway = referenceGateway(terms, CompletableFuture.completedFuture("late-term"),
+                CompletableFuture.completedFuture(new PageResult<>(List.of(courseView("c", "C1", "课程")), 0, 100, 1)),
+                CompletableFuture.completedFuture(new PageResult<>(List.of(teacher("t", "teacher")), 0, 100, 1)));
+        OfferingEditorDialog dialog = onEdt(() -> new OfferingEditorDialog(null, gateway, null, () -> { }));
+        JComboBox<?> termChoice = component(dialog, "学期", JComboBox.class);
+
+        SwingUtilities.invokeAndWait(dialog::dispose);
+        terms.complete(List.of(term("late-term", "不应出现")));
+        flushEdt(3);
+
+        assertThat(termChoice.getItemCount()).isZero();
+        assertThat(button(dialog, "创建教学班").isEnabled()).isFalse();
+    }
+
+    @Test
+    void offeringEditorPreservesExistingReferencesSchedulesCapacityFloorAndVersion() throws Exception {
+        ScheduleItem monday = new ScheduleItem("s1", "offering-7", "SE101", "软件工程", "01班",
+                "teacher-legacy", "MONDAY", 1, 2, 1, 16, "教一-101");
+        ScheduleItem thursday = new ScheduleItem("s2", "offering-7", "SE101", "软件工程", "01班",
+                "teacher-legacy", "THURSDAY", 5, 6, 2, 15, "教二-301");
+        OfferingSummary existing = new OfferingSummary("offering-7", "term-legacy", "course-legacy",
+                "SE101", "软件工程", "teacher-legacy", "01班", 40, 28, "OPEN", 7,
+                List.of(monday, thursday));
+        AtomicReference<UpdateOfferingCommand> submitted = new AtomicReference<>();
+        CourseUiGateway base = CourseUiGateway.preview();
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(base) {
+            @Override public CompletableFuture<List<TermView>> listTerms() {
+                return CompletableFuture.completedFuture(List.of(term("other-term", "其他学期")));
+            }
+            @Override public CompletableFuture<String> currentTermId() {
+                return CompletableFuture.completedFuture("other-term");
+            }
+            @Override public CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery query) {
+                return CompletableFuture.completedFuture(new PageResult<>(List.of(), 0, 100, 0));
+            }
+            @Override public CompletableFuture<PageResult<UserSummary>> searchTeachers(String keyword) {
+                return CompletableFuture.completedFuture(new PageResult<>(List.of(), 0, 100, 0));
+            }
             @Override public CompletableFuture<OfferingView> updateOffering(UpdateOfferingCommand command) {
                 submitted.set(command);
                 return CompletableFuture.completedFuture(new OfferingView(command.offeringId(), command.termId(),
-                        command.courseId(), command.teacherUserId(), command.className(), command.capacity(),
-                        existing.enrolledCount(), command.offeringStatus(), command.expectedVersion() + 1,
-                        Instant.now(), Instant.now(), existing.schedules()));
+                        command.courseId(), command.teacherUserId(), command.className(), command.capacity(), 28,
+                        command.offeringStatus(), command.expectedVersion() + 1, Instant.now(), Instant.now(), List.of()));
             }
         };
         OfferingEditorDialog dialog = onEdt(() -> new OfferingEditorDialog(null, gateway, existing, () -> { }));
+        flushEdt(5);
 
-        SwingUtilities.invokeAndWait(() -> {
-            textField(dialog, "教师用户编号").setText("teacher-9");
-            textField(dialog, "容量").setText("48");
-            descendants(dialog).stream().filter(JTextArea.class::isInstance).map(JTextArea.class::cast)
-                    .findFirst().orElseThrow().setText("周二,3,4,1,16,教一-203\nTHURSDAY,5,6,2,15,教二-301");
-            descendants(dialog).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
-                    .filter(button -> "保存修改".equals(button.getText())).findFirst().orElseThrow().doClick();
-        });
-        SwingUtilities.invokeAndWait(() -> { });
+        assertThat(((OfferingReferenceChoice) component(dialog, "学期", JComboBox.class).getSelectedItem()).id())
+                .isEqualTo("term-legacy");
+        assertThat(((OfferingReferenceChoice) component(dialog, "课程", JComboBox.class).getSelectedItem()).id())
+                .isEqualTo("course-legacy");
+        assertThat(((OfferingReferenceChoice) component(dialog, "教师", JComboBox.class).getSelectedItem()).id())
+                .isEqualTo("teacher-legacy");
+        SpinnerNumberModel capacity = (SpinnerNumberModel) component(dialog, "容量", JSpinner.class).getModel();
+        assertThat(capacity.getMinimum()).isEqualTo(28);
+        assertThatThrownBy(() -> capacity.setValue(27)).isInstanceOf(IllegalArgumentException.class);
+        assertThat(component(dialog, "第 2 行星期", JComboBox.class).getSelectedItem().toString()).isEqualTo("周四");
 
-        assertThat(submitted.get()).isEqualTo(new UpdateOfferingCommand(existing.offeringId(), existing.termId(),
-                existing.courseId(), "teacher-9", existing.className(), 48, existing.offeringStatus(),
-                existing.rowVersion(), List.of(
-                new CreateOfferingCommand.ScheduleInput("TUESDAY", 3, 4, 1, 16, "教一-203"),
-                new CreateOfferingCommand.ScheduleInput("THURSDAY", 5, 6, 2, 15, "教二-301"))));
+        SwingUtilities.invokeAndWait(() -> button(dialog, "保存修改").doClick());
+        flushEdt(2);
+        assertThat(submitted.get()).isEqualTo(new UpdateOfferingCommand(
+                "offering-7", "term-legacy", "course-legacy", "teacher-legacy", "01班", 40, "OPEN", 7,
+                List.of(new CreateOfferingCommand.ScheduleInput("MONDAY", 1, 2, 1, 16, "教一-101"),
+                        new CreateOfferingCommand.ScheduleInput("THURSDAY", 5, 6, 2, 15, "教二-301"))));
         SwingUtilities.invokeAndWait(dialog::dispose);
+    }
+
+    @ParameterizedTest
+    @MethodSource("offeringSaveFailures")
+    void offeringEditorShowsSafeSpecificSaveFailures(CourseClientException failure, String expected) throws Exception {
+        CourseUiGateway base = CourseUiGateway.preview();
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(base) {
+            @Override public CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery query) {
+                return base.searchCatalog(query);
+            }
+            @Override public CompletableFuture<PageResult<UserSummary>> searchTeachers(String keyword) {
+                return base.searchTeachers(keyword);
+            }
+            @Override public CompletableFuture<OfferingView> createOffering(CreateOfferingCommand command) {
+                return CompletableFuture.failedFuture(failure);
+            }
+        };
+        OfferingEditorDialog dialog = onEdt(() -> new OfferingEditorDialog(null, gateway, null, () -> { }));
+        flushEdt(4);
+        SwingUtilities.invokeAndWait(() -> {
+            textField(dialog, "教学班名称").setText("错误消息测试班");
+            button(dialog, "创建教学班").doClick();
+        });
+        flushEdt(3);
+
+        assertThat(labels(dialog)).contains(expected);
+        SwingUtilities.invokeAndWait(dialog::dispose);
+    }
+
+    static Stream<Arguments> offeringSaveFailures() {
+        return Stream.of(
+                Arguments.of(new CourseClientException("COMMON_CONCURRENT_MODIFICATION", "stale", null, false),
+                        "教学班已被其他管理员修改，请刷新并核对最新记录后重试"),
+                Arguments.of(new CourseClientException("COURSE_UNEXPECTED", "可安全显示的失败", "trace-7", false),
+                        "保存失败：可安全显示的失败（跟踪编号：trace-7）"));
     }
 
     @Test
@@ -1989,6 +2277,40 @@ class CourseUiTest {
             public CompletableFuture<List<ScheduleItem>> currentSchedule() { return CompletableFuture.completedFuture(List.of()); }
             public CompletableFuture<EnrollmentView> enroll(EnrollCommand command) { return CompletableFuture.failedFuture(new UnsupportedOperationException()); }
         };
+    }
+
+    private static CourseUiGateway referenceGateway(
+            CompletableFuture<List<TermView>> terms,
+            CompletableFuture<String> currentTerm,
+            CompletableFuture<PageResult<CourseView>> courses,
+            CompletableFuture<PageResult<UserSummary>> teachers) {
+        return new DelegatingCourseUiGateway(CourseUiGateway.preview()) {
+            @Override public CompletableFuture<List<TermView>> listTerms() { return terms; }
+            @Override public CompletableFuture<String> currentTermId() { return currentTerm; }
+            @Override public CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery query) {
+                return courses;
+            }
+            @Override public CompletableFuture<PageResult<UserSummary>> searchTeachers(String keyword) {
+                return teachers;
+            }
+        };
+    }
+
+    private static TermView term(String id, String name) {
+        return new TermView(id, id + "-code", name, LocalDate.parse("2026-09-01"),
+                LocalDate.parse("2027-01-15"), Instant.parse("2026-08-20T00:00:00Z"),
+                Instant.parse("2026-08-31T16:00:00Z"), Instant.parse("2026-09-01T00:00:00Z"),
+                Instant.parse("2026-09-08T16:00:00Z"), "ACTIVE", 0,
+                Instant.parse("2026-08-01T00:00:00Z"), Instant.parse("2026-08-27T00:00:00Z"));
+    }
+
+    private static UserSummary teacher(String id, String loginId) {
+        return new UserSummary(id, loginId, UserRole.TEACHER, AccountStatus.ACTIVE,
+                LocalDateTime.parse("2026-08-27T09:00:00"), 0);
+    }
+
+    private static void flushEdt(int rounds) throws Exception {
+        for (int round = 0; round < rounds; round++) SwingUtilities.invokeAndWait(() -> { });
     }
 
     private static CourseUiGateway scheduleGateway(CompletableFuture<List<ScheduleItem>> schedule) {
@@ -2155,6 +2477,18 @@ class CourseUiTest {
             return delegate.getTermPhase(termId);
         }
         @Override public CompletableFuture<List<TermView>> listTerms() { return delegate.listTerms(); }
+        @Override public CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery query) {
+            return delegate.searchCatalog(query);
+        }
+        @Override public CompletableFuture<PageResult<UserSummary>> searchTeachers(String keyword) {
+            return delegate.searchTeachers(keyword);
+        }
+        @Override public CompletableFuture<OfferingView> createOffering(CreateOfferingCommand command) {
+            return delegate.createOffering(command);
+        }
+        @Override public CompletableFuture<OfferingView> updateOffering(UpdateOfferingCommand command) {
+            return delegate.updateOffering(command);
+        }
     }
 
     private static <T> T onEdt(java.util.concurrent.Callable<T> supplier) throws Exception {

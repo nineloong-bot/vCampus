@@ -26,6 +26,9 @@ import edu.seu.vcampus.common.course.OfferingSearchQuery;
 import edu.seu.vcampus.common.course.OfferingSummary;
 import edu.seu.vcampus.common.course.ScheduleItem;
 import edu.seu.vcampus.common.paging.PageResult;
+import edu.seu.vcampus.common.user.AccountStatus;
+import edu.seu.vcampus.common.user.UserRole;
+import edu.seu.vcampus.common.user.UserSummary;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -43,6 +46,7 @@ public interface CourseUiGateway {
     default CompletableFuture<EnrollmentView> enrollRetake(RetakeCommand command) { return unsupported(); }
     default CompletableFuture<PageResult<AdjustmentAuditView>> searchAdjustmentAudits(AdjustmentAuditQuery query) { return unsupported(); }
     default CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery query) { return unsupported(); }
+    default CompletableFuture<PageResult<UserSummary>> searchTeachers(String keyword) { return unsupported(); }
     default CompletableFuture<List<TermView>> listTerms() { return unsupported(); }
     default CompletableFuture<EmptyResponse> importOutcomes(ImportCourseOutcomesCommand command) { return unsupported(); }
     default CompletableFuture<CourseView> createCourse(CreateCourseCommand command) { return unsupported(); }
@@ -116,6 +120,14 @@ public interface CourseUiGateway {
                         new CourseView("c2", "CS201", "数据结构", new java.math.BigDecimal("4.0"), 64,
                                 "计算机专业基础课程", true, 1, java.time.Instant.parse("2026-08-20T00:00:00Z"), java.time.Instant.parse("2026-08-27T00:00:00Z")));
                 return CompletableFuture.completedFuture(new PageResult<>(courses, 0, query.pageSize(), courses.size()));
+            }
+            public CompletableFuture<PageResult<UserSummary>> searchTeachers(String keyword) {
+                List<UserSummary> teachers = List.of(
+                        new UserSummary("teacher-zhang", "zhang.teacher", UserRole.TEACHER,
+                                AccountStatus.ACTIVE, java.time.LocalDateTime.parse("2026-08-27T09:00:00"), 1),
+                        new UserSummary("teacher-li", "li.teacher", UserRole.TEACHER,
+                                AccountStatus.ACTIVE, java.time.LocalDateTime.parse("2026-08-28T10:30:00"), 2));
+                return CompletableFuture.completedFuture(new PageResult<>(teachers, 0, 100, teachers.size()));
             }
             public CompletableFuture<List<TermView>> listTerms() {
                 return CompletableFuture.completedFuture(List.of(new TermView(
