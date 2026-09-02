@@ -20,7 +20,7 @@ public final class ProductManagementPanel extends JPanel {
     private final LatestRequest requests = new LatestRequest();
     private final LatestRequest detailRequests = new LatestRequest();
     private final DefaultTableModel model = new DefaultTableModel(new Object[]{
-            "商品名", "状态", "SKU 数", "最低价", "总库存", "预留库存", "销量"}, 0) {
+            "商品名", "状态", "商品种类数", "最低价", "总库存", "预留库存", "销量"}, 0) {
         @Override public boolean isCellEditable(int row, int column) { return false; }
     };
     private final JTable table = named(new JTable(model), "seller.products.table");
@@ -50,7 +50,7 @@ public final class ProductManagementPanel extends JPanel {
             if (!event.getValueIsAdjusting()) selectProduct();
         });
         create = uiKit.primaryButton("seller.products.create", "创建商品");
-        update = uiKit.primaryButton("seller.products.update", "更新所选商品");
+        update = uiKit.primaryButton("seller.products.update", "修改商品信息");
         toggle = uiKit.secondaryButton("seller.products.toggle", "切换上架状态");
         update.setEnabled(false);
         create.addActionListener(event -> create()); update.addActionListener(event -> update());

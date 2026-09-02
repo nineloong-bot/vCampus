@@ -11,6 +11,7 @@ import javax.swing.JButton;
 import javax.swing.JSplitPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
+import javax.swing.SwingUtilities;
 import java.awt.Component;
 import java.awt.Container;
 import java.math.BigDecimal;
@@ -101,8 +102,28 @@ class ProductManagementPanelTest {
         JTable table = ShopSwingTestSupport.component(editor, "seller.editor.skus", JTable.class);
         assertThat(java.util.stream.IntStream.range(0, table.getColumnCount())
                 .mapToObj(table::getColumnName).toList())
-                .containsExactly("规格名称", "单价", "库存", "状态", "操作");
+                .containsExactly("商品种类名称", "单价", "库存", "状态", "操作");
         assertThat(table.getModel().isCellEditable(0, 0)).isFalse();
+    }
+
+    @Test
+    void addProductVarietyActionIsVisibleBeforeTheVarietyTable() throws Exception {
+        ProductEditorPanel editor = ShopSwingTestSupport.onEdt(() ->
+                new ProductEditorPanel(new DefaultShopUiKit()));
+
+        ShopSwingTestSupport.onEdt(() -> {
+            editor.setSize(900, 650);
+            layoutTree(editor);
+        });
+        JButton add = ShopSwingTestSupport.component(editor,
+                "seller.editor.add-sku", JButton.class);
+        JTable varieties = ShopSwingTestSupport.component(editor,
+                "seller.editor.skus", JTable.class);
+
+        int addY = SwingUtilities.convertPoint(add.getParent(), add.getLocation(), editor).y;
+        int tableY = SwingUtilities.convertPoint(
+                varieties.getParent(), varieties.getLocation(), editor).y;
+        assertThat(addY).isLessThan(tableY);
     }
 
     @Test
@@ -119,6 +140,9 @@ class ProductManagementPanelTest {
         ShopSwingTestSupport.flushEdt();
         JTable table = ShopSwingTestSupport.component(panel, "seller.products.table", JTable.class);
 
+        assertThat(table.getColumnName(2)).isEqualTo("商品种类数");
+        assertThat(ShopSwingTestSupport.component(panel,
+                "seller.products.update", JButton.class).getText()).isEqualTo("修改商品信息");
         assertThat(table.getRowCount()).isEqualTo(1);
         assertThat(table.getValueAt(0, 0)).isEqualTo("签字笔");
         assertThat(table.getValueAt(0, 2)).isEqualTo(2L);
@@ -169,6 +193,13 @@ class ProductManagementPanelTest {
             }
         }
         return null;
+    }
+
+    private static void layoutTree(Container root) {
+        root.doLayout();
+        for (Component child : root.getComponents()) {
+            if (child instanceof Container nested) layoutTree(nested);
+        }
     }
 
     private static ShopView activeShop() {

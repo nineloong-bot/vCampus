@@ -65,7 +65,7 @@ public final class ProductDetailPanel extends JPanel {
         this.uiKit = Objects.requireNonNull(uiKit, "uiKit");
         this.cartCount = Objects.requireNonNull(cartCount, "cartCount");
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
-        store = uiKit.secondaryButton("store", "店铺");
+        store = uiKit.secondaryButton("store", "进入店铺");
         addToCart = uiKit.primaryButton("add-to-cart", "加入购物车");
         openCart = uiKit.secondaryButton("open-cart", "查看购物车");
         actions = uiKit.filterPanel("detail.actions", new FlowLayout(FlowLayout.LEFT));

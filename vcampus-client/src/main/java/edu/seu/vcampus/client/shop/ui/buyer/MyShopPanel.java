@@ -196,7 +196,7 @@ public final class MyShopPanel extends JPanel {
                 new GridLayout(0, 1, 0, 2));
         for (PaidOrderItemView item : order.items()) {
             details.add(named(new JLabel(
-                    "商品 %s（%s） | SKU %s（%s） | 数量 %d | 单价 ¥%s | 行金额 ¥%s"
+                    "商品 %s（%s） | 商品种类 %s（%s） | 数量 %d | 单价 ¥%s | 行金额 ¥%s"
                     .formatted(item.productName(), item.productId(), item.skuName(), item.skuId(),
                             item.quantity(), money(item.unitPrice()),
                             money(item.lineAmount()))),

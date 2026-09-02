@@ -369,6 +369,7 @@ class CatalogPanelsTest {
 
         onEdt(() -> panel.load("product"));
         flushEdt();
+        assertThat(component(panel, "store", JButton.class).getText()).isEqualTo("进入店铺");
         onEdt(() -> component(panel, "store", JButton.class).doClick());
 
         assertThat(routes).containsExactly(new ShopRoute.Storefront("shop-loaded"));

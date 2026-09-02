@@ -14,7 +14,7 @@ public final class ProductEditorPanel extends JPanel {
     private final JTextArea description = named(new JTextArea(3, 20), "seller.editor.description");
     private final CoverPresetPickerPanel covers = new CoverPresetPickerPanel();
     private final DefaultTableModel model = new DefaultTableModel(
-            new Object[]{"规格名称", "单价", "库存", "状态", "操作"}, 0) {
+            new Object[]{"商品种类名称", "单价", "库存", "状态", "操作"}, 0) {
         @Override public boolean isCellEditable(int row, int column) { return false; }
     };
     private final JTable table = named(new JTable(model), "seller.editor.skus");
@@ -27,14 +27,19 @@ public final class ProductEditorPanel extends JPanel {
         JPanel fields = uiKit.filterPanel("seller.editor.fields", new GridLayout(0, 2, 8, 4));
         row(fields, "商品名称", name); row(fields, "类别", category);
         row(fields, "说明", new JScrollPane(description)); row(fields, "封面", covers);
-        JButton addSku = uiKit.secondaryButton("seller.editor.add-sku", "添加规格");
+        JButton addSku = uiKit.secondaryButton("seller.editor.add-sku", "添加商品种类");
         addSku.addActionListener(event -> editSku(-1));
         table.addMouseListener(new java.awt.event.MouseAdapter() {
             @Override public void mouseClicked(java.awt.event.MouseEvent event) {
                 if (event.getClickCount() == 2 && writable) editSku(table.rowAtPoint(event.getPoint()));
             }
         });
-        add(fields, BorderLayout.NORTH); add(new JScrollPane(table), BorderLayout.CENTER); add(addSku, BorderLayout.SOUTH);
+        JPanel varietyActions = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        varietyActions.add(addSku);
+        JPanel varieties = new JPanel(new BorderLayout(0, 6));
+        varieties.add(varietyActions, BorderLayout.NORTH);
+        varieties.add(new JScrollPane(table), BorderLayout.CENTER);
+        add(fields, BorderLayout.NORTH); add(varieties, BorderLayout.CENTER);
         clear("文具");
     }
     public void clear(String inheritedCategory) {

@@ -20,12 +20,15 @@ public final class SellerApplicationPanel extends JPanel {
     private final Runnable sessionExpired;
     private final LeavePrompt leavePrompt;
     private final LatestRequest requests = new LatestRequest();
-    private final JTextField name = named(new JTextField(), "seller.application.name");
+    private final JTextField name = LimitedTextInput.field("seller.application.name",
+            "店铺名称不能超过 50 字", SellerApplicationLimits.SHOP_NAME);
     private final JTextArea description = named(new JTextArea(3, 24), "seller.application.description");
     private final JComboBox<String> category = named(new JComboBox<>(ShopCategories.ALL.toArray(String[]::new)),
             "seller.application.category");
-    private final JTextField contact = named(new JTextField(), "seller.application.contact");
-    private final JTextArea statement = named(new JTextArea(4, 24), "seller.application.statement");
+    private final JTextField contact = LimitedTextInput.field("seller.application.contact",
+            "联系方式不能超过 50 字", SellerApplicationLimits.CONTACT);
+    private final JTextArea statement = LimitedTextInput.area("seller.application.statement",
+            "经营计划不能超过 500 字", SellerApplicationLimits.APPLICATION_STATEMENT, 4, 24);
     private final JLabel reason = named(new JLabel(), "seller.application.reason");
     private final JLabel status = named(new JLabel(), "seller.application.status");
     private final JButton save;
@@ -60,11 +63,14 @@ public final class SellerApplicationPanel extends JPanel {
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
         this.leavePrompt = Objects.requireNonNull(leavePrompt, "leavePrompt");
         JPanel form = uiKit.filterPanel("seller.application.form", new GridLayout(0, 2, 8, 6));
-        addRow(form, "店铺名称", name);
+        addRow(form, "店铺名称", LimitedTextInput.wrap(name, "seller.application.name",
+                SellerApplicationLimits.SHOP_NAME));
         addRow(form, "店铺简介", new JScrollPane(description));
         addRow(form, "店铺类别", category);
-        addRow(form, "联系方式", contact);
-        addRow(form, "经营计划", new JScrollPane(statement));
+        addRow(form, "联系方式", LimitedTextInput.wrap(contact, "seller.application.contact",
+                SellerApplicationLimits.CONTACT));
+        addRow(form, "经营计划", LimitedTextInput.wrap(new JScrollPane(statement), statement,
+                "seller.application.statement", SellerApplicationLimits.APPLICATION_STATEMENT));
         addRow(form, "状态", status);
         addRow(form, "审核意见", reason);
         save = uiKit.secondaryButton("seller.application.save", "保存草稿");

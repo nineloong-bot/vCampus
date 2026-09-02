@@ -138,6 +138,43 @@ class SellerApplicationPanelTest {
                 .isEnabled()).isFalse();
     }
 
+    @Test
+    void limitedFieldsShowGuidanceAndPreventPastedTextBeyondTheRemainingCount() throws Exception {
+        SellerShopClientPort port = mock(SellerShopClientPort.class);
+        SellerApplicationPanel panel = panel(port,
+                ignored -> SellerApplicationPanel.LeaveChoice.CANCEL);
+        JTextField name = ShopSwingTestSupport.component(panel,
+                "seller.application.name", JTextField.class);
+        JTextField contact = ShopSwingTestSupport.component(panel,
+                "seller.application.contact", JTextField.class);
+        JTextArea statement = ShopSwingTestSupport.component(panel,
+                "seller.application.statement", JTextArea.class);
+
+        assertThat(name.getText()).isEmpty();
+        assertThat(name.getAccessibleContext().getAccessibleDescription())
+                .isEqualTo("店铺名称不能超过 50 字");
+        assertThat(ShopSwingTestSupport.component(panel,
+                "seller.application.name.remaining", JLabel.class).getText()).isEqualTo("还可输入 50 字");
+        assertThat(ShopSwingTestSupport.component(panel,
+                "seller.application.contact.remaining", JLabel.class).getText()).isEqualTo("还可输入 50 字");
+        assertThat(ShopSwingTestSupport.component(panel,
+                "seller.application.statement.remaining", JLabel.class).getText()).isEqualTo("还可输入 500 字");
+
+        ShopSwingTestSupport.onEdt(() -> {
+            name.setText("店".repeat(51));
+            contact.setText("联".repeat(51));
+            statement.setText("计".repeat(501));
+        });
+
+        assertThat(name.getText()).hasSize(50);
+        assertThat(contact.getText()).hasSize(50);
+        assertThat(statement.getText()).hasSize(500);
+        assertThat(ShopSwingTestSupport.component(panel,
+                "seller.application.name.remaining", JLabel.class).getText()).isEqualTo("还可输入 0 字");
+        assertThat(ShopSwingTestSupport.component(panel,
+                "seller.application.statement.remaining", JLabel.class).getText()).isEqualTo("还可输入 0 字");
+    }
+
     private static SellerApplicationPanel panel(SellerShopClientPort port,
             SellerApplicationPanel.LeavePrompt prompt) throws Exception {
         return ShopSwingTestSupport.onEdt(() -> new SellerApplicationPanel(

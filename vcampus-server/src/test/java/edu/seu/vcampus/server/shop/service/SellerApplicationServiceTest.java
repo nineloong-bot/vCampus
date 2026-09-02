@@ -157,6 +157,38 @@ class SellerApplicationServiceTest {
     }
 
     @Test
+    void savingDraftRejectsApplicationFieldsBeyondTheirUserFacingLimits() {
+        assertThatThrownBy(() -> seller.saveDraft("student-token", new SaveSellerDraftCommand(
+                null, "店".repeat(51), "校园服务", "文具", "025-12345678",
+                "经营计划", 0)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("店铺名称不能超过 50 字");
+
+        assertThatThrownBy(() -> seller.saveDraft("student-token", new SaveSellerDraftCommand(
+                null, "晨光文具", "校园服务", "文具", "联".repeat(51),
+                "经营计划", 0)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("联系方式不能超过 50 字");
+
+        assertThatThrownBy(() -> seller.saveDraft("student-token", new SaveSellerDraftCommand(
+                null, "晨光文具", "校园服务", "文具", "025-12345678",
+                "计".repeat(501), 0)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("经营计划不能超过 500 字");
+    }
+
+    @Test
+    void savingDraftAcceptsApplicationFieldsExactlyAtTheirUserFacingLimits() {
+        SellerApplicationView saved = seller.saveDraft("student-token", new SaveSellerDraftCommand(
+                null, "店".repeat(50), "校园服务", "文具", "联".repeat(50),
+                "计".repeat(500), 0));
+
+        assertThat(saved.shopName()).hasSize(50);
+        assertThat(saved.contact()).hasSize(50);
+        assertThat(saved.applicationStatement()).hasSize(500);
+    }
+
+    @Test
     void approvedNormalizedShopNameCannotBeSubmittedAgain() {
         SellerApplicationView firstDraft = seller.saveDraft("student-token", draft("Campus Shop"));
         SellerApplicationView firstPending = seller.submitApplication("student-token",

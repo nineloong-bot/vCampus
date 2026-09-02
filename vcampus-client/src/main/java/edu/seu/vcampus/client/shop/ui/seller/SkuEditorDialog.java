@@ -11,9 +11,9 @@ public final class SkuEditorDialog {
         JSpinner stock = new JSpinner(new SpinnerNumberModel(initial == null ? 0L : initial.stockQuantity(), 0L, Long.MAX_VALUE, 1L));
         JCheckBox active = new JCheckBox("启用", initial == null || initial.active());
         JPanel form = new JPanel(new GridLayout(0, 2, 6, 6));
-        form.add(new JLabel("规格名称")); form.add(name); form.add(new JLabel("单价")); form.add(price);
+        form.add(new JLabel("商品种类名称")); form.add(name); form.add(new JLabel("单价")); form.add(price);
         form.add(new JLabel("库存")); form.add(stock); form.add(new JLabel("状态")); form.add(active);
-        if (JOptionPane.showConfirmDialog(parent, form, initial == null ? "添加规格" : "编辑规格",
+        if (JOptionPane.showConfirmDialog(parent, form, initial == null ? "添加商品种类" : "编辑商品种类",
                 JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return Optional.empty();
         return Optional.of(new Result(name.getText().strip(), new BigDecimal(price.getText().strip()),
                 ((Number) stock.getValue()).longValue(), active.isSelected()));

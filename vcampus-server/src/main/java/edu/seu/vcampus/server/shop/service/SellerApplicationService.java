@@ -2,6 +2,7 @@ package edu.seu.vcampus.server.shop.service;
 
 import edu.seu.vcampus.common.shop.SaveSellerDraftCommand;
 import edu.seu.vcampus.common.shop.SellerApplicationStatus;
+import edu.seu.vcampus.common.shop.SellerApplicationLimits;
 import edu.seu.vcampus.common.shop.SellerApplicationView;
 import edu.seu.vcampus.common.shop.ShopErrorCode;
 import edu.seu.vcampus.common.shop.ShopCategories;
@@ -43,6 +44,8 @@ public final class SellerApplicationService {
         Objects.requireNonNull(command, "command");
         ShopUser actor = requireEligible(users.requireUser(sessionToken));
         requireProfile(command.shopName(), command.description(), command.category(), command.contact());
+        SellerApplicationLimits.validate(command.shopName(), command.contact(),
+                command.applicationStatement());
         return locks.withLocks(List.of(key("USER", actor.userId())), () ->
                 transactions.inTransaction(connection -> {
                     if (command.applicationId() == null) {
