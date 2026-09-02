@@ -11,9 +11,26 @@ final class LibraryFeedback {
     private LibraryFeedback() { }
 
     static void failure(Component owner, JLabel status, Throwable failure, String fallback) {
+        failure(owner, status, failure, fallback, "操作失败", JOptionPane.ERROR_MESSAGE);
+    }
+
+    static void borrowFailure(Component owner, JLabel status, Throwable failure, String fallback) {
+        failure(owner, status, failure, fallback, "借阅失败", JOptionPane.WARNING_MESSAGE);
+    }
+
+    static void borrowWarning(Component owner, JLabel status, String message) {
+        String warning = "借阅失败：" + message;
+        status.setText(warning);
+        if (!GraphicsEnvironment.isHeadless() && owner.isShowing()) {
+            JOptionPane.showMessageDialog(owner, warning, "借阅失败", JOptionPane.WARNING_MESSAGE);
+        }
+    }
+
+    private static void failure(Component owner, JLabel status, Throwable failure, String fallback,
+            String defaultTitle, int messageType) {
         Throwable cause = unwrap(failure);
         String message = fallback;
-        String title = "操作失败";
+        String title = defaultTitle;
         if (cause instanceof LibraryRequestException request) {
             if ("COMMON_CONCURRENT_MODIFICATION".equals(request.code())) {
                 title = "数据冲突";
@@ -42,8 +59,8 @@ final class LibraryFeedback {
             }
         }
         status.setText(message);
-        if (!GraphicsEnvironment.isHeadless()) {
-            JOptionPane.showMessageDialog(owner, message, title, JOptionPane.ERROR_MESSAGE);
+        if (!GraphicsEnvironment.isHeadless() && owner.isShowing()) {
+            JOptionPane.showMessageDialog(owner, message, title, messageType);
         }
     }
 

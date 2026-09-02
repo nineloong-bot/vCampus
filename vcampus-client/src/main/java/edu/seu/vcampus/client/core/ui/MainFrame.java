@@ -9,6 +9,7 @@ import edu.seu.vcampus.client.core.ui.shell.PermissionNavigation;
 import edu.seu.vcampus.client.core.ui.theme.UiColors;
 import edu.seu.vcampus.client.core.ui.theme.UiDimensions;
 import edu.seu.vcampus.common.user.UserView;
+import edu.seu.vcampus.common.user.UserRole;
 import edu.seu.vcampus.client.library.service.LibraryClientService;
 import edu.seu.vcampus.client.library.ui.LibraryWorkspacePanel;
 
@@ -50,7 +51,7 @@ public final class MainFrame extends JFrame {
         footer = new ApplicationStatusBar();
         navigation = new PermissionNavigation(pageNavigator::show);
         content.setBackground(UiColors.BACKGROUND_PAGE);
-        registerPages(library, permissions);
+        registerPages(user, library, permissions);
         add(header, BorderLayout.NORTH);
         add(navigation, BorderLayout.WEST);
         add(content, BorderLayout.CENTER);
@@ -60,11 +61,12 @@ public final class MainFrame extends JFrame {
         setLocationRelativeTo(null);
     }
 
-    private void registerPages(LibraryClientService library, Set<String> permissions) {
+    private void registerPages(UserView user, LibraryClientService library, Set<String> permissions) {
         register("student", "学籍档案", "用于查看和维护校园身份与学籍信息。");
         register("course", "课程中心", "用于课程查询、选课和学习安排。");
         if (library == null) register("library", "图书借阅", "用于检索馆藏并管理个人借阅。");
-        else pageNavigator.register("library", new LibraryWorkspacePanel(library, permissions));
+        else pageNavigator.register("library", new LibraryWorkspacePanel(library, permissions,
+                user == null ? UserRole.STUDENT : user.role()));
         register("shop", "校园商城", "用于浏览校园商品和管理订单。");
         register("account", "账户设置", "用于查看账户信息和安全设置。");
         pageNavigator.show("student");

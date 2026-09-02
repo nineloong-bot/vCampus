@@ -5,6 +5,7 @@ import edu.seu.vcampus.client.core.ui.theme.*;
 import javax.swing.*;
 import java.awt.*;
 import javax.swing.table.DefaultTableModel;
+import java.awt.event.MouseEvent;
 import java.util.concurrent.atomic.AtomicLong;
 
 /** Shared query/management page structure for the library workspace. */
@@ -37,7 +38,15 @@ class LibraryDataPanel extends JPanel {
         add(heading, BorderLayout.NORTH);
         table = new JTable(new DefaultTableModel(columns, 0) {
             @Override public boolean isCellEditable(int row, int column) { return false; }
-        });
+        }) {
+            @Override public String getToolTipText(MouseEvent event) {
+                int row = rowAtPoint(event.getPoint());
+                int column = columnAtPoint(event.getPoint());
+                if (row < 0 || column < 0) return null;
+                Object value = getValueAt(row, column);
+                return value == null ? null : value.toString();
+            }
+        };
         table.setRowHeight(UiDimensions.TABLE_ROW_HEIGHT);
         table.setFillsViewportHeight(true);
         table.setBackground(LibraryPalette.SURFACE);

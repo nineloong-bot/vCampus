@@ -9,6 +9,7 @@ import edu.seu.vcampus.client.library.ui.LoanAdminPanel;
 import edu.seu.vcampus.client.library.ui.LibraryPolicyPanel;
 import edu.seu.vcampus.client.library.ui.BookManagementPanel;
 import edu.seu.vcampus.client.library.ui.BookSearchPanel;
+import edu.seu.vcampus.client.library.ui.BookDetailPanel;
 import edu.seu.vcampus.client.library.ui.CopyManagementPanel;
 import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.core.ui.MainFrame;
@@ -23,6 +24,8 @@ import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
 import java.awt.Component;
 import java.awt.Container;
+import java.awt.Rectangle;
+import java.awt.event.MouseEvent;
 import java.util.Set;
 import java.time.LocalDateTime;
 
@@ -59,12 +62,13 @@ class LibraryUiTest {
     }
 
     @Test
-    void libraryAdministratorsReceiveTheFourManagementPages() {
+    void libraryAdministratorsReceiveManagementPagesWithoutPersonalBorrowingControls() {
         LibraryWorkspacePanel workspace = new LibraryWorkspacePanel(
                 service, Set.of("LIBRARY_ADMIN"));
 
-        assertThat(tabTitles(workspace)).containsExactly("馆藏检索", "当前借阅", "借阅历史",
-                "书目管理", "副本管理", "借阅管理", "设置");
+        assertThat(tabTitles(workspace)).containsExactly("馆藏检索", "书目管理", "副本管理",
+                "借阅管理", "设置");
+        assertThat(named(workspace, "library.loan-action")).isNull();
         assertThat(named(workspace, "library.book-management")).isNotNull();
         assertThat(named(workspace, "library.copy-management")).isNotNull();
         assertThat(named(workspace, "library.loan-admin")).isNotNull();
@@ -89,6 +93,21 @@ class LibraryUiTest {
     }
 
     @Test
+    void administratorRoleHidesPersonalBorrowingEvenWithoutLibraryPermission() {
+        LocalDateTime now = LocalDateTime.of(2026, 8, 30, 12, 0);
+        UserView user = new UserView("user-1", "ADMIN", UserRole.ADMIN,
+                AccountStatus.ACTIVE, false, now, 0, now, now);
+        ClientConnection connection = mock(ClientConnection.class);
+        when(connection.state()).thenReturn(ConnectionState.CONNECTED);
+        MainFrame frame = new MainFrame(user, connection, service, Set.of());
+        Container workspace = (Container) named(frame.content(), "page.library");
+
+        assertThat(tabTitles(workspace)).containsExactly("馆藏检索");
+        assertThat(named(workspace, "library.loan-action")).isNull();
+        frame.dispose();
+    }
+
+    @Test
     void catalogSearchRendersTheLatestAsyncResult() throws Exception {
         when(service.searchBooks(any())).thenReturn(CompletableFuture.completedFuture(
                 new PageResult<>(List.of(new BookSummary("book-1", "978", "Java 核心技术",
@@ -103,6 +122,36 @@ class LibraryUiTest {
         assertThat(table.getValueAt(0, 0)).isEqualTo("Java 核心技术");
         assertThat(labels(workspace)).contains("共 1 条");
         verify(service).searchBooks(new BookSearchQuery("", null, false, 1, 20));
+    }
+
+    @Test
+    void unavailableCopyProducesAnExplicitBorrowFailureWarning() {
+        BookCopyView copy = new BookCopyView("copy-1", "book-1", "LIB-0001", "A-01",
+                CopyStatus.BORROWED, 0);
+        BookDetailPanel panel = new BookDetailPanel(service);
+        panel.showBook(new BookDetail("book-1", "978", "Java 核心技术", "作者", "出版社",
+                LocalDate.of(2026, 1, 1), "计算机", "", true, 0, List.of(copy)));
+        first(panel, JTable.class).setRowSelectionInterval(0, 0);
+
+        panel.borrowSelected();
+
+        assertThat(labels(panel)).contains("借阅失败：该副本当前不可借，请选择可借副本");
+    }
+
+    @Test
+    void hoveringALibraryTableCellShowsItsCompleteValue() {
+        String barcode = "LIBRARY-COPY-BARCODE-WITH-A-VERY-LONG-FULL-NAME-0001";
+        BookDetailPanel panel = new BookDetailPanel(service);
+        panel.showBook(new BookDetail("book-1", "978", "Java 核心技术", "作者", "出版社",
+                LocalDate.of(2026, 1, 1), "计算机", "", true, 0,
+                List.of(new BookCopyView("copy-1", "book-1", barcode, "A-01",
+                        CopyStatus.AVAILABLE, 0))));
+        JTable table = first(panel, JTable.class);
+        Rectangle cell = table.getCellRect(0, 0, true);
+        MouseEvent hover = new MouseEvent(table, MouseEvent.MOUSE_MOVED,
+                System.currentTimeMillis(), 0, cell.x + 1, cell.y + 1, 0, false);
+
+        assertThat(table.getToolTipText(hover)).isEqualTo(barcode);
     }
 
     @Test
@@ -199,7 +248,7 @@ class LibraryUiTest {
         LibraryWorkspacePanel workspace = new LibraryWorkspacePanel(service, Set.of("LIBRARY_ADMIN"));
         JTabbedPane tabs = (JTabbedPane) named(workspace, "library.tabs");
 
-        tabs.setSelectedIndex(4);
+        tabs.setSelectedIndex(2);
         SwingUtilities.invokeAndWait(() -> { });
         SwingUtilities.invokeAndWait(() -> { });
 
@@ -338,9 +387,6 @@ class LibraryUiTest {
                 new PageResult<>(List.of(), 1, 20, 0)));
         when(service.searchManagedBooks(any())).thenReturn(CompletableFuture.completedFuture(
                 new PageResult<>(List.of(), 1, 100, 0)));
-        when(service.getCurrentLoans()).thenReturn(CompletableFuture.completedFuture(List.of()));
-        when(service.getLoanHistory(any())).thenReturn(CompletableFuture.completedFuture(
-                new PageResult<>(List.of(), 1, 20, 0)));
         when(service.searchAllLoans(any())).thenReturn(CompletableFuture.completedFuture(
                 new PageResult<>(List.of(), 1, 20, 0)));
         LibraryWorkspacePanel workspace = new LibraryWorkspacePanel(service, Set.of("LIBRARY_ADMIN"));
@@ -349,11 +395,8 @@ class LibraryUiTest {
         tabs.setSelectedIndex(1);
         tabs.setSelectedIndex(2);
         tabs.setSelectedIndex(3);
-        tabs.setSelectedIndex(5);
         SwingUtilities.invokeAndWait(() -> { });
 
-        verify(service).getCurrentLoans();
-        verify(service).getLoanHistory(new LoanHistoryQuery(null, 1, 20));
         verify(service, atLeastOnce()).searchManagedBooks(
                 new BookSearchQuery("", null, false, 1, 100));
         verify(service).searchAllLoans(new AdminLoanSearchQuery(null, null, 1, 20));

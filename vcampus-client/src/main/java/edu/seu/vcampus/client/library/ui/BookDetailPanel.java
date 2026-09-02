@@ -14,8 +14,13 @@ public final class BookDetailPanel extends LibraryDataPanel {
     private List<BookCopyView> copies = List.of();
 
     public BookDetailPanel(LibraryClientService service) {
+        this(service, true);
+    }
+
+    BookDetailPanel(LibraryClientService service, boolean borrowingEnabled) {
         super("library.book-detail", "图书详情", "查看书目信息和馆藏副本。", "条码", "位置", "状态");
         this.service = Objects.requireNonNull(service, "service");
+        if (!borrowingEnabled) return;
         JButton borrow = new JButton("借阅所选副本");
         borrow.setName("library.loan-action");
         borrow.addActionListener(event -> confirmBorrow());
@@ -33,22 +38,29 @@ public final class BookDetailPanel extends LibraryDataPanel {
 
     public void borrowSelected() {
         int row = table.getSelectedRow();
-        if (row < 0 || row >= copies.size()) { status.setText("请先选择一个可借副本"); return; }
+        if (row < 0 || row >= copies.size()) {
+            LibraryFeedback.borrowWarning(this, status, "请先选择一个可借副本"); return;
+        }
         BookCopyView copy = copies.get(table.convertRowIndexToModel(row));
-        if (copy.status() != CopyStatus.AVAILABLE) { status.setText("该副本当前不可借，请选择可借副本"); return; }
+        if (copy.status() != CopyStatus.AVAILABLE) {
+            LibraryFeedback.borrowWarning(this, status, "该副本当前不可借，请选择可借副本"); return;
+        }
         status.setText("正在办理借阅……");
         long request = beginRequest();
         service.borrow(new BorrowBookCommand(copy.copyId())).whenComplete((loan, failure) ->
                 SwingUtilities.invokeLater(() -> {
                     if (!accepts(request)) return;
                     if (failure == null) status.setText("借阅成功，到期时间：" + loan.dueAt());
-                    else LibraryFeedback.failure(this, status, failure, "借阅失败，请刷新馆藏后重试。");
+                    else LibraryFeedback.borrowFailure(this, status, failure,
+                            "借阅失败，请刷新馆藏后重试。");
                 }));
     }
 
     private void confirmBorrow() {
         int row = table.getSelectedRow();
-        if (row < 0 || row >= copies.size()) { status.setText("请先选择一个可借副本"); return; }
+        if (row < 0 || row >= copies.size()) {
+            LibraryFeedback.borrowWarning(this, status, "请先选择一个可借副本"); return;
+        }
         BookCopyView copy = copies.get(table.convertRowIndexToModel(row));
         Window owner = SwingUtilities.getWindowAncestor(this);
         new LoanActionDialog(owner, "借阅", "馆藏条码 " + copy.barcode(), this::borrowSelected).setVisible(true);
