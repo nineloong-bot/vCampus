@@ -477,9 +477,9 @@
 7. 连续点击“返回”。
 8. 实际结果：只能退回有限长度的浏览路径，最终无法回到首页。
 
-**当前实现关联：** `ShopNavigator` 使用串行 `Deque<ShopRoute>` 保存普通浏览历史，并设置 `MAX_HISTORY = 20`。历史超过上限时移除最早节点，因此长链中的首页路由会被永久丢弃。此前为工具页增加内容锚点并未改变普通商品/店铺浏览仍使用有限串行历史的根本结构。
+**原实现关联：** `ShopNavigator` 使用串行 `Deque<ShopRoute>` 保存普通浏览历史，并设置 `MAX_HISTORY = 20`。历史超过上限时移除最早节点，因此长链中的首页路由会被永久丢弃。此前为工具页增加内容锚点并未改变普通商品/店铺浏览仍使用有限串行历史的根本结构。
 
-**设计进展（2026-09-02）：** 已形成独立待评审设计文档 [`2026-09-02-vcampus-shop-layered-navigation-design.md`](2026-09-02-vcampus-shop-layered-navigation-design.md)。设计采用固定槽位的内容路径、工具覆盖路径和支付完成态，不再以加长串行队列作为修补方案；用户批准设计前不进入代码实施。
+**整改进展（2026-09-02）：** 用户已确认 [`2026-09-02-vcampus-shop-layered-navigation-design.md`](2026-09-02-vcampus-shop-layered-navigation-design.md)，并已按该设计完成固定槽位的内容路径、工具覆盖路径、支付完成态，以及侧栏/工具栏共用的强制回首页动作。
 
 **用户提出的修改方向：**
 
@@ -492,7 +492,7 @@
 - 在商城顶部工具栏的“我的”左侧固定增加“返回首页”按钮，功能与点击左侧“校园商城”完全相同，并复用同一重置逻辑。
 - 该强制入口应清除当前浏览层、工具覆盖层和未完成的纯客户端导航流程，避免再次进入商城时恢复到刚才的深层页面。
 
-**待设计时明确的规则：**
+**已确认并实现的规则：**
 
 - 明确定义首页、搜索结果、店铺、商品详情、购物车、结算、我的和卖家/管理员工作区分别属于哪一层。
 - 明确“商品详情 → 店铺 → 另一商品详情”中哪些跳转进入下一层，哪些只替换当前层。
@@ -509,6 +509,15 @@
 - 商品页、店铺页、购物车中已保存的页码、筛选和滚动位置应按最终分层规则正确恢复。
 - 在任意商城页面点击左侧“校园商城”，都立即回到商城首页第 1 页顶部，并重置返回状态；随后点击商城内“返回”不能再次回到重置前的深层页面。
 - 在任意商城页面点击工具栏“返回首页”也满足同一验收结果；该按钮固定显示在“我的”左侧。
+
+**自动化整改证据（2026-09-02）：**
+
+- `ShopNavigationStateTest.userReportedCycleIsBoundedAndAlwaysReturnsHome` 参数化执行 5、10、100 次用户长链循环；每种场景的语义节点数都不超过 4，最多 4 次返回即可到达首页。
+- `ShopNavigationStateTest.repeatedStoreAndProductBrowsingNeverGrowsTheState` 与 `ShopNavigatorTest.repeatedProductsReplaceOneDetailLayerAndKeepHomeReachable` 验证同层店铺/商品访问只替换固定槽位。
+- `PurchasePanelsTest.cartProductPreviewReturnsToCartAndCheckoutPreviewReturnsToCheckout` 验证购物车和确认订单的商品预览分别返回原页面；支付完成测试验证所有可返回目标均不包含 `Checkout`。
+- `ShopUiTest.goHomeResetsEveryLayerToFirstPageTopAndCannotReturn`、`originalShopEntryCallsGoHomeExactlyOncePerClick` 与 `toolbarAndCoordinatorHomeActionsShareTheSellerApplicationLeaveGuard` 验证工具栏和侧栏使用同一个默认首页重置动作，并共同遵守未保存申请离开保护。
+- 聚焦导航检查共 66 项通过；最新完整 `mvn -pl vcampus-client -am test` 与 `mvn verify` 均运行 Common 19、Server 191、Client 188，合计 398 项，0 失败、0 错误、0 跳过。Demo 启动脚本与便携包脚本测试均通过，默认端口为 8888。
+- 当前结论：自动化已整改，待人工复测。
 
 ## 4. 严重程度归类
 
@@ -567,10 +576,10 @@
 | SHOP-TEST-008 | `ShopNavigatorTest` 六组参数化场景 | 工具页互切后一次返回内容锚点通过 |
 | SHOP-TEST-009 | 本次人工启动与 `netstat -ano`、进程信息、端口排除范围检查；用户人工复测确认 | 端口冲突已解除，不再阻塞 Demo 测试；诊断提示增强降为可选改进 |
 | SHOP-TEST-010 | 修改前测试发现横向分割；整改后 `ProductManagementPanelTest` 6 项及最新完整 385 项回归通过 | 全宽列表及创建/更新弹窗已实现；待人工复测窗口缩放与弹窗操作 |
-| SHOP-TEST-011 | 用户按商品/购物车/店铺长链循环 5–10 次人工复现；代码确认普通历史上限为 20 | 已形成分层导航设计草案；待用户评审后编写实施计划、实现与人工复测 |
+| SHOP-TEST-011 | 5/10/100 次参数化长链、固定节点上限、购物车/结算预览返回、支付终结、侧栏与工具栏强制回首页测试；聚焦 66 项及完整 398 项回归通过 | 自动化已整改，待人工复测 |
 
-完整仓库验证：`mvn verify` 共运行 Common 19、Server 191、Client 171，合计 381 项，0 失败、0 错误、0 跳过。Shop Demo 启动脚本与便携包脚本测试均通过，默认端口为 8888。
+最新完整仓库验证：`mvn verify` 共运行 Common 19、Server 191、Client 188，合计 398 项，0 失败、0 错误、0 跳过。Shop Demo 启动脚本与便携包脚本测试均通过，默认端口为 8888。
 
-本次追加整改后的最新回归：`mvn -pl vcampus-client -am test` 共运行 Common 19、Server 191、Client 175，合计 385 项，0 失败、0 错误、0 跳过。
+本次分层导航整改后的最新回归：`mvn -pl vcampus-client -am test` 共运行 Common 19、Server 191、Client 188，合计 398 项，0 失败、0 错误、0 跳过。
 
 仍需人工执行：使用四个独立客户端窗口逐项复测上述界面表现，并记录截图。与 `origin/feat/user-management@8d53d9e` 的最终联合编译和登录/首次改密/账户页/退出联动，需要在获得明确集成授权并引入该提交后执行。
