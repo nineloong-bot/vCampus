@@ -50,14 +50,16 @@ class StudentProfileUiTest {
         assertThat(button(panel, "student.profile.submit").isEnabled()).isTrue();
     }
 
-    @Test void pendingLocksEditingAndRejectedReasonIsVisible() throws Exception {
+    @Test void pendingOffersWithdrawalAndRejectedReasonIsVisible() throws Exception {
         MyStudentProfilePanel pending = panel(CompletableFuture.completedFuture(
                 ResponseBody.success(workspace(StudentProfileApplicationStatus.PENDING, null))), new CountDownLatch(0));
         SwingUtilities.invokeAndWait(pending::addNotify);
         awaitText(pending, "student.profile.application.status", "审核中");
-        assertThat(button(pending, "student.profile.personal.edit").isEnabled()).isFalse();
-        assertThat(button(pending, "student.profile.academic.edit").isEnabled()).isFalse();
-        assertThat(button(pending, "student.profile.submit").isEnabled()).isFalse();
+        assertThat(button(pending, "student.profile.personal.edit").isEnabled()).isTrue();
+        assertThat(button(pending, "student.profile.personal.edit").getToolTipText()).contains("撤回");
+        assertThat(button(pending, "student.profile.academic.edit").isEnabled()).isTrue();
+        assertThat(button(pending, "student.profile.submit").getText()).isEqualTo("撤回申请");
+        assertThat(button(pending, "student.profile.submit").isEnabled()).isTrue();
 
         SwingUtilities.invokeAndWait(pending::removeNotify);
         MyStudentProfilePanel rejected = panel(CompletableFuture.completedFuture(

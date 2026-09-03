@@ -141,6 +141,26 @@ public final class StudentProfileServiceImpl implements StudentProfileService {
     }
 
     @Override
+    public StudentProfileWorkspace withdraw(String userId, WithdrawStudentProfileCommand command) {
+        Objects.requireNonNull(command);
+        String studentId = transactions.inTransaction(connection -> students.findByUserId(connection, userId)
+                .orElseThrow(StudentNotFoundException::new).studentId());
+        return locks.withLocks(List.of(new ResourceKey("STUDENT", studentId)), () ->
+                transactions.inTransaction(connection -> {
+                    StudentProfileApplicationView pending = applications.findOpen(connection, studentId)
+                            .filter(value -> value.status() == StudentProfileApplicationStatus.PENDING)
+                            .orElseThrow(() -> new StudentProfileApplicationException(
+                                    "STUDENT_PROFILE_NOT_PENDING", "当前没有可撤回的待审申请"));
+                    applications.withdraw(connection, pending.applicationId(),
+                            command.expectedApplicationVersion(), Instant.now());
+                    StudentProfileData formal = students.findProfileByStudentId(connection, studentId,
+                            campusCard(userId));
+                    return new StudentProfileWorkspace(formal,
+                            applications.findOpen(connection, studentId).orElseThrow());
+                }));
+    }
+
+    @Override
     public PageResult<StudentProfileApplicationView> listPending(StudentProfileReviewQuery query) {
         if (query.page() < 1 || query.pageSize() < 1 || query.pageSize() > 100)
             throw new IllegalArgumentException("无效分页参数");

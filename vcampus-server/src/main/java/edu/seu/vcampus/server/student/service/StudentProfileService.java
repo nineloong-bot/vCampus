@@ -10,6 +10,7 @@ public interface StudentProfileService {
     StudentProfileWorkspace savePersonalDraft(String userId, SaveStudentPersonalDraftCommand command);
     StudentProfileWorkspace saveAttendanceDraft(String userId, SaveStudentAttendanceDraftCommand command);
     StudentProfileWorkspace submit(String userId, SubmitStudentProfileCommand command);
+    StudentProfileWorkspace withdraw(String userId, WithdrawStudentProfileCommand command);
     PageResult<StudentProfileApplicationView> listPending(StudentProfileReviewQuery query);
     StudentProfileWorkspace getApplication(String applicationId);
     StudentProfileApplicationView approve(String applicationId, String reviewerUserId,

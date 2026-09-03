@@ -70,7 +70,7 @@ public final class MyStudentProfilePanel extends JPanel {
         messages.add(applicationStatus); messages.add(errorLabel); footer.add(messages, BorderLayout.NORTH);
         JPanel actions = new JPanel(new BorderLayout()); actions.setOpaque(false);
         exportButton = action("导出基本信息 PDF", "student.profile.export"); exportButton.addActionListener(e -> exportPdf());
-        submitButton = action("提交审核", "student.profile.submit"); submitButton.addActionListener(e -> submitDraft());
+        submitButton = action("提交审核", "student.profile.submit"); submitButton.addActionListener(e -> submitOrWithdraw());
         actions.add(exportButton, BorderLayout.WEST); actions.add(submitButton, BorderLayout.EAST); footer.add(actions);
         add(footer, BorderLayout.SOUTH); setControls(false);
     }
@@ -141,9 +141,14 @@ public final class MyStudentProfilePanel extends JPanel {
         statusLabel.setText("已加载"); errorLabel.setText(" "); refreshButton.setEnabled(true);
         boolean connected = connection.state() == ConnectionState.CONNECTED;
         boolean pending = app != null && app.status() == StudentProfileApplicationStatus.PENDING;
-        personalEdit.setEnabled(connected && !pending); academicEdit.setEnabled(connected && !pending);
-        exportButton.setEnabled(connected); submitButton.setEnabled(connected && app != null
-                && app.status() == StudentProfileApplicationStatus.DRAFT);
+        personalEdit.setEnabled(connected); academicEdit.setEnabled(connected);
+        String editHint = pending ? "当前申请正在审核，请先撤回申请再继续编辑" : null;
+        personalEdit.setToolTipText(editHint); academicEdit.setToolTipText(editHint);
+        exportButton.setEnabled(connected);
+        boolean actionable = app != null && (app.status() == StudentProfileApplicationStatus.DRAFT || pending);
+        submitButton.setText(pending ? "撤回申请" : "提交审核");
+        submitButton.getAccessibleContext().setAccessibleName(submitButton.getText());
+        submitButton.setEnabled(connected && actionable);
     }
 
     private void renderCore(StudentProfileData data, StudentPersonalProfile p) {
@@ -183,6 +188,7 @@ public final class MyStudentProfilePanel extends JPanel {
     }
 
     private void editPersonal() {
+        if (pendingApplication()) { promptWithdrawBeforeEditing(); return; }
         if (workspace == null || !personalEdit.isEnabled()) return;
         StudentProfileApplicationView app = workspace.application();
         boolean draft = app != null && app.status() == StudentProfileApplicationStatus.DRAFT;
@@ -191,11 +197,17 @@ public final class MyStudentProfilePanel extends JPanel {
         new PersonalProfileEditDialog(SwingUtilities.getWindowAncestor(this), students, initial, expected, this::render).setVisible(true);
     }
     private void editAttendance() {
+        if (pendingApplication()) { promptWithdrawBeforeEditing(); return; }
         if (workspace == null || !academicEdit.isEnabled()) return;
         StudentProfileApplicationView app = workspace.application(); boolean draft = app != null && app.status() == StudentProfileApplicationStatus.DRAFT;
         AttendanceMode initial = draft ? app.attendanceMode() : workspace.formalProfile().academic().attendanceMode();
         long expected = draft ? app.applicationVersion() : 0;
         new AttendanceModeEditDialog(SwingUtilities.getWindowAncestor(this), students, initial, expected, this::render).setVisible(true);
+    }
+
+    private void submitOrWithdraw() {
+        if (pendingApplication()) withdrawPending();
+        else submitDraft();
     }
 
     private void submitDraft() {
@@ -211,6 +223,37 @@ public final class MyStudentProfilePanel extends JPanel {
                     }
                     render(body.data());
                 }));
+    }
+
+    private void withdrawPending() {
+        if (!pendingApplication() || !submitButton.isEnabled()) return;
+        int decision = JOptionPane.showConfirmDialog(this,
+                "撤回后可在当前修改内容基础上继续编辑，确定撤回申请吗？",
+                "撤回资料申请", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+        if (decision != JOptionPane.YES_OPTION) return;
+        long expectedVersion = workspace.application().applicationVersion();
+        setControls(false);
+        errorLabel.setText("正在撤回申请…");
+        students.withdrawProfile(new WithdrawStudentProfileCommand(expectedVersion))
+                .whenComplete((body, failure) -> onEdt(() -> {
+                    if (failure != null || body == null || !body.success() || body.data() == null) {
+                        errorLabel.setText(message(body, "撤回失败，申请可能已被管理员处理"));
+                        refreshProfile();
+                        return;
+                    }
+                    render(body.data());
+                    errorLabel.setText("申请已撤回，可继续编辑上一版修改");
+                }));
+    }
+
+    private boolean pendingApplication() {
+        return workspace != null && workspace.application() != null
+                && workspace.application().status() == StudentProfileApplicationStatus.PENDING;
+    }
+
+    private void promptWithdrawBeforeEditing() {
+        JOptionPane.showMessageDialog(this, "请先点击“撤回申请”，再继续编辑。",
+                "申请正在审核", JOptionPane.INFORMATION_MESSAGE);
     }
 
     private void exportPdf() {

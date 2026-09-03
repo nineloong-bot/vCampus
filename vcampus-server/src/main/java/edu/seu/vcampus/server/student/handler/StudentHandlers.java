@@ -36,7 +36,7 @@ public final class StudentHandlers {
             "STUDENT_SAVE_DEPARTMENT", "STUDENT_SAVE_MAJOR", "STUDENT_SAVE_CLASS");
     public static final List<String> PROFILE_COMMANDS = List.of(
             "STUDENT_PROFILE_GET_WORKSPACE", "STUDENT_PROFILE_SAVE_PERSONAL_DRAFT",
-            "STUDENT_PROFILE_SAVE_ATTENDANCE_DRAFT", "STUDENT_PROFILE_SUBMIT",
+            "STUDENT_PROFILE_SAVE_ATTENDANCE_DRAFT", "STUDENT_PROFILE_SUBMIT", "STUDENT_PROFILE_WITHDRAW",
             "STUDENT_PROFILE_EXPORT_PDF",
             "STUDENT_PROFILE_REVIEW_LIST", "STUDENT_PROFILE_REVIEW_GET",
             "STUDENT_PROFILE_APPROVE", "STUDENT_PROFILE_REJECT",
@@ -162,6 +162,9 @@ public final class StudentHandlers {
         router.register("STUDENT_PROFILE_SUBMIT", typed(SubmitStudentProfileCommand.class,
                 (message, body) -> write(message, () -> student(message,
                         () -> profiles.submit(principal(message).userId(), body)))));
+        router.register("STUDENT_PROFILE_WITHDRAW", typed(WithdrawStudentProfileCommand.class,
+                (message, body) -> write(message, () -> student(message,
+                        () -> profiles.withdraw(principal(message).userId(), body)))));
         if (pdfs != null) router.register("STUDENT_PROFILE_EXPORT_PDF", typed(EmptyRequest.class,
                 (message, body) -> student(message, () -> pdfs.generate(
                         profiles.getWorkspace(principal(message).userId()).formalProfile(),

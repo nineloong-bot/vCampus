@@ -6,6 +6,7 @@ import edu.seu.vcampus.common.student.SaveStudentPersonalDraftCommand;
 import edu.seu.vcampus.common.student.StudentPersonalProfile;
 import edu.seu.vcampus.common.student.StudentProfileApplicationStatus;
 import edu.seu.vcampus.common.student.SubmitStudentProfileCommand;
+import edu.seu.vcampus.common.student.WithdrawStudentProfileCommand;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.student.repository.AccessOrganizationRepository;
 import edu.seu.vcampus.server.student.repository.StudentChangeRepository;
@@ -112,5 +113,41 @@ class StudentProfileReviewServiceTest {
                 .extracting(error -> ((StudentProfileApplicationException) error).code())
                 .isEqualTo("STUDENT_PROFILE_FIELD_INVALID");
         assertThat(database.count("tblStudentProfileApplication")).isZero();
+    }
+
+    @Test
+    void withdrawalReturnsPendingSnapshotToEditableDraftWithoutLosingChanges() {
+        var draft = service.saveAttendanceDraft("user-1",
+                new SaveStudentAttendanceDraftCommand(AttendanceMode.DAY_STUDENT, 0));
+        var pending = service.submit("user-1",
+                new SubmitStudentProfileCommand(draft.application().applicationVersion()));
+
+        var withdrawn = service.withdraw("user-1",
+                new WithdrawStudentProfileCommand(pending.application().applicationVersion()));
+
+        assertThat(withdrawn.application().status()).isEqualTo(StudentProfileApplicationStatus.DRAFT);
+        assertThat(withdrawn.application().attendanceMode()).isEqualTo(AttendanceMode.DAY_STUDENT);
+        assertThat(withdrawn.application().personal()).isEqualTo(pending.application().personal());
+        assertThat(withdrawn.application().submittedAt()).isNull();
+        assertThat(withdrawn.application().applicationVersion())
+                .isEqualTo(pending.application().applicationVersion() + 1);
+        var edited = service.saveAttendanceDraft("user-1", new SaveStudentAttendanceDraftCommand(
+                AttendanceMode.LODGING, withdrawn.application().applicationVersion()));
+        assertThat(edited.application().attendanceMode()).isEqualTo(AttendanceMode.LODGING);
+    }
+
+    @Test
+    void completedAdminReviewCannotBeWithdrawn() {
+        var draft = service.saveAttendanceDraft("user-1",
+                new SaveStudentAttendanceDraftCommand(AttendanceMode.DAY_STUDENT, 0));
+        var pending = service.submit("user-1",
+                new SubmitStudentProfileCommand(draft.application().applicationVersion()));
+        service.approve(pending.application().applicationId(), "admin-1", "通过");
+
+        assertThatThrownBy(() -> service.withdraw("user-1",
+                new WithdrawStudentProfileCommand(pending.application().applicationVersion())))
+                .isInstanceOf(StudentProfileApplicationException.class)
+                .extracting(error -> ((StudentProfileApplicationException) error).code())
+                .isEqualTo("STUDENT_PROFILE_NOT_PENDING");
     }
 }

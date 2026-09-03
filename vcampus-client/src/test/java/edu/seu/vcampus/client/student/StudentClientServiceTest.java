@@ -92,6 +92,8 @@ class StudentClientServiceTest {
         assertThat(client.command).isEqualTo("STUDENT_PROFILE_SAVE_ATTENDANCE_DRAFT");
         service.submitProfile(new SubmitStudentProfileCommand(4)).join();
         assertThat(client.command).isEqualTo("STUDENT_PROFILE_SUBMIT");
+        service.withdrawProfile(new WithdrawStudentProfileCommand(5)).join();
+        assertThat(client.command).isEqualTo("STUDENT_PROFILE_WITHDRAW");
         service.exportProfilePdf().join();
         assertThat(client.command).isEqualTo("STUDENT_PROFILE_EXPORT_PDF");
         service.listProfileReviews(new StudentProfileReviewQuery(1, 20)).join();
