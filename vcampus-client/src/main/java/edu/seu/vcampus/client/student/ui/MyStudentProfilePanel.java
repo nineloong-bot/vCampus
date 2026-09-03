@@ -215,17 +215,29 @@ public final class MyStudentProfilePanel extends JPanel {
 
     private void exportPdf() {
         exportButton.setEnabled(false); errorLabel.setText("正在生成正式信息 PDF…");
-        students.exportProfilePdf().whenComplete((body, failure) -> onEdt(() -> {
+        students.exportProfilePdf().whenComplete((body, failure) -> {
             if (failure != null || body == null || !body.success() || body.data() == null) {
-                errorLabel.setText(message(body, "PDF 生成失败，请稍后重试")); exportButton.setEnabled(true); return;
+                onEdt(() -> { errorLabel.setText(message(body, "PDF 生成失败，请稍后重试")); exportButton.setEnabled(true); });
+                return;
             }
-            JFileChooser chooser = new JFileChooser(); chooser.setSelectedFile(new java.io.File(body.data().filename()));
-            if (chooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
-                try { Files.write(chooser.getSelectedFile().toPath(), body.data().content()); errorLabel.setText("已导出正式信息 PDF"); }
-                catch (IOException error) { errorLabel.setText("文件保存失败，请检查目录权限"); }
-            } else errorLabel.setText(" ");
-            exportButton.setEnabled(connection.state() == ConnectionState.CONNECTED);
-        }));
+            PdfDocument document = body.data();
+            onEdt(() -> {
+                JFileChooser chooser = new JFileChooser();
+                chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("PDF 文件 (*.pdf)", "pdf"));
+                chooser.setSelectedFile(new java.io.File(ensurePdfExtension(document.filename())));
+                if (chooser.showSaveDialog(SwingUtilities.getWindowAncestor(this)) == JFileChooser.APPROVE_OPTION) {
+                    java.io.File file = ensurePdfExtension(chooser.getSelectedFile());
+                    try { Files.write(file.toPath(), document.content()); errorLabel.setText("已导出到: " + file.getAbsolutePath()); }
+                    catch (IOException error) { errorLabel.setText("文件保存失败，请检查目录权限"); }
+                } else { errorLabel.setText(" "); }
+                exportButton.setEnabled(connection.state() == ConnectionState.CONNECTED);
+            });
+        });
+    }
+
+    private static String ensurePdfExtension(String name) { return name.endsWith(".pdf") ? name : name + ".pdf"; }
+    private static java.io.File ensurePdfExtension(java.io.File file) {
+        return file.getName().endsWith(".pdf") ? file : new java.io.File(file.getParentFile(), file.getName() + ".pdf");
     }
 
     private void connectionChanged(ConnectionState state) { onEdt(() -> { if (active && workspace != null) render(workspace); }); }
