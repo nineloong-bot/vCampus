@@ -6,6 +6,7 @@ import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.client.student.service.StudentRequestClient;
 import edu.seu.vcampus.client.student.ui.AttendanceModeEditPanel;
 import edu.seu.vcampus.client.student.ui.MyStudentProfilePanel;
+import edu.seu.vcampus.client.student.ui.PersonalProfileEditPanel;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.student.*;
 import org.junit.jupiter.api.AfterEach;
@@ -75,6 +76,34 @@ class StudentProfileUiTest {
                 .containsExactly("走读", "住校", "借宿", "其他");
         assertThat(all(editor, JTextField.class)).isEmpty();
         assertThat(editor.selectedMode()).isEqualTo(AttendanceMode.RESIDENT);
+    }
+
+    @Test void personalEditorUsesGuidedDropdownsAndFormatTooltips() {
+        PersonalProfileEditPanel editor = new PersonalProfileEditPanel(emptyPersonal());
+
+        JComboBox<?> documentType = find(editor, "student.profile.personal.idDocumentType", JComboBox.class);
+        assertThat(documentType).isNotNull();
+        assertThat(documentType.getToolTipText()).contains("居民身份证");
+        JTextField height = find(editor, "student.profile.personal.heightCm", JTextField.class);
+        assertThat(height.getToolTipText()).contains("100", "280", "172");
+        JTextField birthDate = find(editor, "student.profile.personal.birthDate", JTextField.class);
+        assertThat(birthDate.getToolTipText()).contains("yyyy-MM-dd", "2005-12-03");
+    }
+
+    @Test void personalEditorRejectsOutOfRangeHeightBeforeSending() {
+        PersonalProfileEditPanel editor = new PersonalProfileEditPanel(emptyPersonal());
+        find(editor, "student.profile.personal.heightCm", JTextField.class).setText("99");
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(editor::value)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("身高", "100", "280");
+    }
+
+    private static StudentPersonalProfile emptyPersonal() {
+        return new StudentPersonalProfile(null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null,
+                false, null, false, null, null, null, null, null, null, null,
+                false, null, null);
     }
 
     private MyStudentProfilePanel panel(CompletableFuture<ResponseBody<StudentProfileWorkspace>> response,

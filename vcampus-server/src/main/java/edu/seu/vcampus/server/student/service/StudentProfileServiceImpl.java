@@ -11,6 +11,7 @@ import edu.seu.vcampus.server.student.repository.StudentRepository;
 import edu.seu.vcampus.server.user.service.UserQueryPort;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ConcurrentModificationException;
 import java.util.List;
 import java.util.Objects;
@@ -63,6 +64,10 @@ public final class StudentProfileServiceImpl implements StudentProfileService {
     public StudentProfileWorkspace savePersonalDraft(String userId,
             SaveStudentPersonalDraftCommand command) {
         Objects.requireNonNull(command); Objects.requireNonNull(command.personal());
+        List<StudentFieldError> errors = StudentFieldValidator.validatePersonal(
+                command.personal(), LocalDate.now());
+        if (!errors.isEmpty()) throw new StudentProfileApplicationException(
+                "STUDENT_PROFILE_FIELD_INVALID", errors.getFirst().message());
         return saveDraft(userId, command.expectedApplicationVersion(), current ->
                 new DraftValues(command.personal(), current.attendanceMode()), true);
     }

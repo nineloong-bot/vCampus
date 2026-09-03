@@ -1,6 +1,8 @@
 package edu.seu.vcampus.client.student.ui;
 
 import edu.seu.vcampus.client.core.ui.theme.*;
+import edu.seu.vcampus.common.student.StudentFieldError;
+import edu.seu.vcampus.common.student.StudentFieldValidator;
 import edu.seu.vcampus.common.student.StudentPersonalProfile;
 
 import javax.swing.*;
@@ -8,11 +10,51 @@ import java.awt.*;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /** Scrollable editor for the student-owned personal section. */
 public final class PersonalProfileEditPanel extends JPanel {
-    private final Map<String, JTextField> fields = new LinkedHashMap<>();
+    private static final Map<String, String> HINTS = Map.ofEntries(
+            Map.entry("namePinyin", "使用大写拼音，姓与名之间留空格，例：ZHANG SAN"),
+            Map.entry("formerName", "填写曾用名；如无可留空"),
+            Map.entry("politicalStatus", "从列表选择，例：共青团员"),
+            Map.entry("ethnicity", "从列表选择，例：汉族"),
+            Map.entry("maritalStatus", "从列表选择，例：未婚"),
+            Map.entry("idDocumentType", "选择证件类型，例：居民身份证"),
+            Map.entry("idDocumentNumber", "居民身份证填 18 位号码，例：11010519491231002X"),
+            Map.entry("idIssuedDate", "日期格式 yyyy-MM-dd，例：2020-08-18，不能晚于今天"),
+            Map.entry("birthDate", "日期格式 yyyy-MM-dd，例：2005-12-03，不能晚于今天"),
+            Map.entry("nativePlace", "填写省市，例：江苏省南京市"),
+            Map.entry("countryRegion", "填写国家或地区，例：中国"),
+            Map.entry("birthplace", "填写省市县，例：江苏省南京市"),
+            Map.entry("studentOriginPlace", "填写高考生源地，例：江苏省南京市"),
+            Map.entry("householdRegistrationType", "从列表选择户口性质"),
+            Map.entry("householdBeforeEnrollment", "填写入学前户口所在地的完整地址"),
+            Map.entry("householdAfterEnrollment", "填写入学后户口所在地的完整地址"),
+            Map.entry("overseasChineseStatus", "从列表选择，例：无"),
+            Map.entry("religion", "填写宗教信仰；无信仰可填“无宗教信仰”"),
+            Map.entry("leagueJoinDate", "团员必填，格式 yyyy-MM-dd，例：2020-12-12"),
+            Map.entry("partyJoinDate", "党员必填，格式 yyyy-MM-dd，例：2025-07-01"),
+            Map.entry("healthStatus", "从列表选择，例：健康或良好"),
+            Map.entry("bloodType", "从列表选择，例：A"),
+            Map.entry("weightKg", "填写 20–300 之间的整数，例：58"),
+            Map.entry("heightCm", "填写 100–280 之间的整数，例：172"),
+            Map.entry("specialties", "简要填写特长，例：书法"),
+            Map.entry("hobbies", "简要填写爱好，例：乒乓球"),
+            Map.entry("email", "填写完整邮箱，例：student@seu.edu.cn"),
+            Map.entry("phone", "填写 11 位大陆手机号或固话，例：13800000000"));
+    private static final Map<String, String[]> OPTIONS = Map.of(
+            "politicalStatus", new String[]{"", "中共党员", "中共预备党员", "共青团员", "群众", "其他"},
+            "maritalStatus", new String[]{"", "未婚", "已婚", "离异", "丧偶"},
+            "idDocumentType", new String[]{"", "居民身份证", "护照", "港澳台居民居住证", "其他"},
+            "householdRegistrationType", new String[]{"", "农业家庭户口", "非农业家庭户口", "集体户口", "其他"},
+            "overseasChineseStatus", new String[]{"", "无", "港澳台学生", "华侨", "外国留学生"},
+            "healthStatus", new String[]{"", "健康或良好", "一般或较弱", "有慢性病", "残疾"},
+            "bloodType", new String[]{"", "A", "B", "AB", "O", "不详"});
+    private static final String[] ETHNICITIES = {"", "汉族", "壮族", "回族", "满族", "维吾尔族", "苗族", "彝族", "土家族", "藏族", "蒙古族", "侗族", "布依族", "瑶族", "白族", "朝鲜族", "哈尼族", "黎族", "哈萨克族", "傣族", "畲族", "拉祜族", "水族", "东乡族", "纳西族", "景颇族", "柯尔克孜族", "土族", "达斡尔族", "仫佬族", "羌族", "布朗族", "撒拉族", "毛南族", "仡佬族", "锡伯族", "阿昌族", "普米族", "塔吉克族", "怒族", "乌孜别克族", "俄罗斯族", "鄂温克族", "德昂族", "保安族", "裕固族", "京族", "塔塔尔族", "独龙族", "鄂伦春族", "赫哲族", "门巴族", "珞巴族", "基诺族", "高山族", "其他"};
+
+    private final Map<String, JComponent> fields = new LinkedHashMap<>();
     private final JCheckBox league = check("是否团员"), party = check("是否党员"), onlyChild = check("是否独生子女");
 
     public PersonalProfileEditPanel(StudentPersonalProfile value) {
@@ -43,7 +85,12 @@ public final class PersonalProfileEditPanel extends JPanel {
         GridBagConstraints label = constraint(0, row); label.anchor = GridBagConstraints.WEST;
         label.insets = new Insets(UiSpacing.SPACE_1, 0, UiSpacing.SPACE_1, UiSpacing.SPACE_3);
         JLabel text = new JLabel(title); text.setFont(UiTypography.BODY); text.setForeground(UiColors.TEXT_PRIMARY); add(text, label);
-        JTextField field = new JTextField(28); field.setName("student.profile.personal." + key);
+        JComponent field;
+        String[] options = "ethnicity".equals(key) ? ETHNICITIES : OPTIONS.get(key);
+        if (options == null) field = new JTextField(28);
+        else field = new JComboBox<>(options);
+        field.setName("student.profile.personal." + key);
+        field.setToolTipText(HINTS.get(key));
         field.getAccessibleContext().setAccessibleName(title); fields.put(key, field);
         GridBagConstraints input = constraint(1, row); input.weightx = 1; input.fill = GridBagConstraints.HORIZONTAL;
         input.insets = new Insets(UiSpacing.SPACE_1, 0, UiSpacing.SPACE_1, 0); add(field, input);
@@ -69,24 +116,54 @@ public final class PersonalProfileEditPanel extends JPanel {
         set("heightCm", show(v.heightCm())); set("specialties", v.specialties()); set("hobbies", v.hobbies());
         set("email", v.email()); set("phone", v.phone()); league.setSelected(v.leagueMember());
         party.setSelected(v.partyMember()); onlyChild.setSelected(v.onlyChild());
+        membershipBehavior(league, "leagueJoinDate"); membershipBehavior(party, "partyJoinDate");
     }
 
     public StudentPersonalProfile value() {
         try {
-            return new StudentPersonalProfile(text("namePinyin"), text("formerName"), text("politicalStatus"),
+            StudentPersonalProfile value = new StudentPersonalProfile(text("namePinyin"), text("formerName"), text("politicalStatus"),
                     text("ethnicity"), text("maritalStatus"), text("idDocumentType"), text("idDocumentNumber"),
                     date("idIssuedDate"), date("birthDate"), text("nativePlace"), text("countryRegion"),
                     text("birthplace"), text("studentOriginPlace"), text("householdRegistrationType"),
                     text("householdBeforeEnrollment"), text("householdAfterEnrollment"), text("overseasChineseStatus"),
-                    text("religion"), league.isSelected(), date("leagueJoinDate"), party.isSelected(), date("partyJoinDate"),
+                    text("religion"), league.isSelected(), league.isSelected() ? date("leagueJoinDate") : null,
+                    party.isSelected(), party.isSelected() ? date("partyJoinDate") : null,
                     text("healthStatus"), text("bloodType"), integer("weightKg"), integer("heightCm"),
                     text("specialties"), text("hobbies"), onlyChild.isSelected(), text("email"), text("phone"));
+            List<StudentFieldError> errors = StudentFieldValidator.validatePersonal(value, LocalDate.now());
+            if (!errors.isEmpty()) throw new IllegalArgumentException(errors.getFirst().message());
+            return value;
         } catch (DateTimeParseException | NumberFormatException error) {
             throw new IllegalArgumentException("日期须为 yyyy-MM-dd，身高和体重须为整数");
         }
     }
-    private void set(String key, String value) { fields.get(key).setText(value == null ? "" : value); }
-    private String text(String key) { String value = fields.get(key).getText().trim(); return value.isEmpty() ? null : value; }
+    private void membershipBehavior(JCheckBox member, String dateKey) {
+        JComponent date = fields.get(dateKey);
+        date.setEnabled(member.isSelected());
+        member.addActionListener(event -> {
+            date.setEnabled(member.isSelected());
+            if (!member.isSelected() && date instanceof JTextField text) text.setText("");
+        });
+    }
+    private void set(String key, String value) {
+        JComponent field = fields.get(key);
+        String shown = value == null ? "" : value;
+        if (field instanceof JTextField text) text.setText(shown);
+        else if (field instanceof JComboBox<?> raw) {
+            @SuppressWarnings("unchecked") JComboBox<String> combo = (JComboBox<String>) raw;
+            ComboBoxModel<String> model = combo.getModel();
+            boolean present = false;
+            for (int i = 0; i < model.getSize(); i++) if (shown.equals(model.getElementAt(i))) present = true;
+            if (!present && !shown.isEmpty()) combo.addItem(shown);
+            combo.setSelectedItem(shown);
+        }
+    }
+    private String text(String key) {
+        JComponent field = fields.get(key);
+        Object raw = field instanceof JTextField text ? text.getText() : ((JComboBox<?>) field).getSelectedItem();
+        String value = raw == null ? "" : raw.toString().trim();
+        return value.isEmpty() ? null : value;
+    }
     private LocalDate date(String key) { String value = text(key); return value == null ? null : LocalDate.parse(value); }
     private Integer integer(String key) { String value = text(key); return value == null ? null : Integer.valueOf(value); }
     private static String show(Object value) { return value == null ? null : value.toString(); }

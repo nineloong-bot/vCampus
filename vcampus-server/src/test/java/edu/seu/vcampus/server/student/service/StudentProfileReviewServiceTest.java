@@ -2,6 +2,8 @@ package edu.seu.vcampus.server.student.service;
 
 import edu.seu.vcampus.common.student.AttendanceMode;
 import edu.seu.vcampus.common.student.SaveStudentAttendanceDraftCommand;
+import edu.seu.vcampus.common.student.SaveStudentPersonalDraftCommand;
+import edu.seu.vcampus.common.student.StudentPersonalProfile;
 import edu.seu.vcampus.common.student.StudentProfileApplicationStatus;
 import edu.seu.vcampus.common.student.SubmitStudentProfileCommand;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
@@ -95,5 +97,20 @@ class StudentProfileReviewServiceTest {
                 pending.application().applicationId(), "admin-1", "  "))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("驳回原因");
+    }
+
+    @Test
+    void invalidPersonalDraftIsRejectedAtTheServiceBoundary() throws Exception {
+        var invalid = new StudentPersonalProfile(null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null,
+                false, null, false, null, null, null, null, 99, null, null,
+                false, null, null);
+
+        assertThatThrownBy(() -> service.savePersonalDraft("user-1",
+                new SaveStudentPersonalDraftCommand(invalid, 0)))
+                .isInstanceOf(StudentProfileApplicationException.class)
+                .extracting(error -> ((StudentProfileApplicationException) error).code())
+                .isEqualTo("STUDENT_PROFILE_FIELD_INVALID");
+        assertThat(database.count("tblStudentProfileApplication")).isZero();
     }
 }
