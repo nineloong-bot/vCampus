@@ -75,7 +75,7 @@ class AdminStudentProfilePanelTest {
         awaitText(panel, "student.detail.profile.name", "张三");
 
         assertThat(find(panel, "student.detail.academic.edit", JButton.class)).isNull();
-        assertThat(label(panel, "student.detail.profile.idDocumentNumber").getText()).isEqualTo("未填写");
+        assertThat(find(panel, "student.detail.profile.idDocumentNumber", JLabel.class)).isNull();
         assertThat(label(panel, "student.detail.profile.department").getText()).isEqualTo("计算机学院");
     }
 

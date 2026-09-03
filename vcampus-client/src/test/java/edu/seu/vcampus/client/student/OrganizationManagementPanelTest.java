@@ -35,16 +35,12 @@ class OrganizationManagementPanelTest {
 
     @Test
     void treeRendersHierarchy() throws Exception {
-        var client = new AutoCompletingClient();
-        client.enqueue(ResponseBody.success(departments()));
-        client.enqueue(ResponseBody.success(majors("dept-1")));
-        client.enqueue(ResponseBody.success(new ArrayList<>()));
-        client.enqueue(ResponseBody.success(classes("major-1")));
-        client.enqueue(ResponseBody.success(new ArrayList<>()));
+        var client = new HierarchyClient();
 
         var fixture = new OrgFixture(client, ConnectionState.CONNECTED);
         SwingUtilities.invokeAndWait(fixture::showPanel);
         fixture.waitForTreeLoaded(2);
+        fixture.waitForFirstClassLoaded();
 
         JTree tree = fixture.component("student.org.tree", JTree.class);
         DefaultMutableTreeNode root = (DefaultMutableTreeNode) tree.getModel().getRoot();
@@ -246,7 +242,7 @@ class OrganizationManagementPanelTest {
         final StudentClientService students;
         OrganizationManagementPanel panel;
 
-        OrgFixture(AutoCompletingClient client, ConnectionState state) {
+        OrgFixture(StudentRequestClient client, ConnectionState state) {
             this.connection = new ClientConnection("localhost", 1);
             connections.add(connection);
             this.students = new StudentClientService(client, Duration.ofSeconds(1));
@@ -279,6 +275,26 @@ class OrganizationManagementPanelTest {
             throw new AssertionError("Tree did not load within timeout");
         }
 
+        void waitForFirstClassLoaded() throws Exception {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            while (System.nanoTime() < deadline) {
+                flushEdt();
+                boolean[] loaded = new boolean[1];
+                SwingUtilities.invokeAndWait(() -> {
+                    var tree = component("student.org.tree", JTree.class);
+                    var root = (DefaultMutableTreeNode) tree.getModel().getRoot();
+                    if (root.getChildCount() == 0) return;
+                    var department = (DefaultMutableTreeNode) root.getChildAt(0);
+                    if (department.getChildCount() == 0) return;
+                    var major = (DefaultMutableTreeNode) department.getChildAt(0);
+                    loaded[0] = major.getChildCount() > 0;
+                });
+                if (loaded[0]) return;
+                Thread.sleep(10);
+            }
+            throw new AssertionError("Class node did not load within timeout");
+        }
+
         <T extends Component> T component(String name, Class<T> type) {
             return type.cast(find(panel, name));
         }
@@ -297,6 +313,26 @@ class OrganizationManagementPanelTest {
                 }
             }
             return null;
+        }
+    }
+
+    private static final class HierarchyClient implements StudentRequestClient {
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        @Override public <T extends Serializable> CompletableFuture<ResponseBody<T>> send(
+                String command, Serializable body, Duration timeout) {
+            ResponseBody<?> response = switch (command) {
+                case "STUDENT_LIST_DEPARTMENTS" -> ResponseBody.success(departments());
+                case "STUDENT_LIST_MAJORS" -> {
+                    var query = (OrganizationChildrenQuery) body;
+                    yield ResponseBody.success(majors(query.parentId()));
+                }
+                case "STUDENT_LIST_CLASSES" -> {
+                    var query = (OrganizationChildrenQuery) body;
+                    yield ResponseBody.success(classes(query.parentId()));
+                }
+                default -> throw new AssertionError("Unexpected command: " + command);
+            };
+            return CompletableFuture.completedFuture((ResponseBody) response);
         }
     }
 
