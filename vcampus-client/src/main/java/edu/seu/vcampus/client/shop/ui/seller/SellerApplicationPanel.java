@@ -4,6 +4,7 @@ import edu.seu.vcampus.client.shop.service.SellerShopClientPort;
 import edu.seu.vcampus.client.shop.ui.ShopUiErrors;
 import edu.seu.vcampus.client.shop.ui.async.LatestRequest;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
+import edu.seu.vcampus.client.shop.ui.style.ShopComponentStyle;
 import edu.seu.vcampus.common.shop.SellerApplicationStatus;
 import edu.seu.vcampus.common.shop.SellerApplicationView;
 import javax.swing.*;
@@ -37,6 +38,7 @@ public final class SellerApplicationPanel extends JPanel {
     SellerApplicationPanel(SellerShopClientPort port, ShopUiKit uiKit, Runnable sessionExpired,
             SellerApplicationDialogPort dialog) {
         super(new BorderLayout(8, 8));
+        ShopComponentStyle.pagePanel(this);
         this.port = Objects.requireNonNull(port); this.sessionExpired = Objects.requireNonNull(sessionExpired);
         this.dialog = Objects.requireNonNull(dialog); Objects.requireNonNull(uiKit);
         JPanel summary = uiKit.filterPanel("seller.application.summary", new GridLayout(0, 2, 8, 8));

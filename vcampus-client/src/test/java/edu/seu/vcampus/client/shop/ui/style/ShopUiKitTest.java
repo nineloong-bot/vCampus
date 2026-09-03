@@ -51,6 +51,81 @@ import static org.mockito.Mockito.when;
 
 class ShopUiKitTest {
     @Test
+    void sharedShopUiKitAdapterAppliesPrimarySemanticVisualStyle() throws Exception {
+        SharedShopUiKitAdapter kit = onEdt(() -> new SharedShopUiKitAdapter());
+        var button = kit.primaryButton("shop.primary", "去支付");
+
+        assertThat(button.getName()).isEqualTo("shop.primary");
+        assertThat(button.getText()).isEqualTo("去支付");
+        assertThat(button.getBackground()).isEqualTo(edu.seu.vcampus.client.core.ui.theme.UiColors.ACCENT);
+        assertThat(button.getForeground()).isEqualTo(edu.seu.vcampus.client.core.ui.theme.UiColors.TEXT_ON_PRIMARY);
+        assertThat(button.getFont()).isEqualTo(edu.seu.vcampus.client.core.ui.theme.UiTypography.BODY_BOLD);
+        assertThat(button.getPreferredSize().height).isEqualTo(32);
+    }
+
+    @Test
+    void sharedShopUiKitButtonsRemainVisibleWhenFlowLayoutUsesPreferredSize() throws Exception {
+        JPanel panel = onEdt(() -> {
+            SharedShopUiKitAdapter kit = new SharedShopUiKitAdapter();
+            JPanel container = new JPanel(new FlowLayout(FlowLayout.LEFT));
+            container.add(kit.primaryButton("shop.search", "搜索"));
+            container.add(kit.secondaryButton("shop.cart", "购物车（2）"));
+            container.add(kit.navigationButton("shop.back", "← 返回"));
+            container.setSize(600, 60);
+            container.doLayout();
+            return container;
+        });
+
+        assertThat(panel.getComponents())
+                .allSatisfy(component -> {
+                    assertThat(component.getWidth()).isGreaterThan(0);
+                    assertThat(component.getHeight()).isEqualTo(32);
+                });
+    }
+
+    @Test
+    void sharedShopUiKitAdapterAppliesNavigationAndSecondaryVisualStyle() throws Exception {
+        SharedShopUiKitAdapter kit = onEdt(() -> new SharedShopUiKitAdapter());
+        var nav = kit.navigationButton("shop.nav", "返回");
+        var secondary = kit.secondaryButton("shop.secondary", "取消");
+        var filter = kit.filterPanel("shop.filter", null);
+
+        assertThat(nav.getBackground()).isEqualTo(edu.seu.vcampus.client.core.ui.theme.UiColors.PRIMARY);
+        assertThat(nav.getForeground()).isEqualTo(edu.seu.vcampus.client.core.ui.theme.UiColors.TEXT_ON_PRIMARY);
+        assertThat(secondary.getBackground())
+                .isEqualTo(edu.seu.vcampus.client.core.ui.theme.UiColors.BACKGROUND_PAGE);
+        assertThat(secondary.getForeground())
+                .isEqualTo(edu.seu.vcampus.client.core.ui.theme.UiColors.PRIMARY);
+        assertThat(secondary.getFont()).isEqualTo(edu.seu.vcampus.client.core.ui.theme.UiTypography.BODY);
+        assertThat(filter.getBackground())
+                .isEqualTo(edu.seu.vcampus.client.core.ui.theme.UiColors.BACKGROUND_SUBTLE);
+    }
+
+    @Test
+    void sharedShopUiKitAdapterAppliesProductAndStatePaletteRules() throws Exception {
+        SharedShopUiKitAdapter kit = onEdt(() -> new SharedShopUiKitAdapter());
+        var card = kit.productCard("shop.card", null);
+        var normalState = kit.stateView("shop.normal", ShopPageState.NORMAL, "正常内容", null);
+        var loadingState = kit.stateView("shop.loading", ShopPageState.LOADING, "正在加载", null);
+        var errorState = kit.stateView("shop.error", ShopPageState.ERROR, "操作失败，请稍后重试", () -> { });
+        var disconnectedState = kit.stateView("shop.disconnected", ShopPageState.DISCONNECTED,
+                "登录状态已失效，请重新登录", () -> { });
+
+        assertThat(card.getBackground())
+                .isEqualTo(edu.seu.vcampus.client.core.ui.theme.UiColors.BACKGROUND_PAGE);
+        assertThat(normalState.getBackground())
+                .isEqualTo(edu.seu.vcampus.client.core.ui.theme.UiColors.BACKGROUND_PAGE);
+        assertThat(loadingState.getBackground())
+                .isEqualTo(edu.seu.vcampus.client.core.ui.theme.UiColors.BACKGROUND_SUBTLE);
+        assertThat(errorState.getBackground())
+                .isEqualTo(edu.seu.vcampus.client.core.ui.theme.UiColors.ERROR_BG);
+        assertThat(disconnectedState.getBackground())
+                .isEqualTo(edu.seu.vcampus.client.core.ui.theme.UiColors.ERROR_BG);
+        assertThat(disconnectedState.getForeground())
+                .isEqualTo(edu.seu.vcampus.client.core.ui.theme.UiColors.ERROR_FG);
+    }
+
+    @Test
     void defaultKitCreatesNamedNavigationButtons() throws Exception {
         JButton button = onEdt(() -> new DefaultShopUiKit().navigationButton(
                 "shop.navigation", "校园商城"));
@@ -70,6 +145,36 @@ class ShopUiKitTest {
         }
 
         assertThat(buyerSources).doesNotContain("java.awt.Color", "new Font", "BorderFactory");
+    }
+
+    @Test
+    void shopBusinessUiSourcesDoNotOwnThemeColorsFontsOrBorders() throws Exception {
+        Path root = Path.of("src/main/java/edu/seu/vcampus/client/shop/ui");
+        String sources;
+        try (Stream<Path> files = Files.walk(root)) {
+            sources = files.filter(path -> path.toString().endsWith(".java"))
+                    .filter(path -> !path.toString().contains("\\style\\"))
+                    .filter(path -> !path.getFileName().toString()
+                            .equals("BuiltinProductImageLoader.java"))
+                    .map(path -> assertDoesNotThrow(() -> Files.readString(path)))
+                    .collect(Collectors.joining("\n"));
+        }
+
+        assertThat(sources).doesNotContain("java.awt.Color", "new Color(", "new Font(",
+                "BorderFactory.");
+    }
+
+    @Test
+    void shopVisibleCopyUsesProductVarietyAndExplicitActions() throws Exception {
+        String sources;
+        try (Stream<Path> files = Files.walk(Path.of(
+                "src/main/java/edu/seu/vcampus/client/shop/ui"))) {
+            sources = files.filter(path -> path.toString().endsWith(".java"))
+                    .map(path -> assertDoesNotThrow(() -> Files.readString(path)))
+                    .collect(Collectors.joining("\n"));
+        }
+
+        assertThat(sources).doesNotContain("\"SKU 名称\"", "\"SKU\"", "\"确定\"");
     }
 
     @Test

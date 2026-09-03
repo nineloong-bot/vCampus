@@ -3,6 +3,7 @@ package edu.seu.vcampus.client.shop.ui.seller;
 import edu.seu.vcampus.client.shop.service.SellerShopClientPort;
 import edu.seu.vcampus.client.shop.ui.ShopUiErrors;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
+import edu.seu.vcampus.client.shop.ui.style.ShopComponentStyle;
 import edu.seu.vcampus.common.shop.*;
 import javax.swing.*;
 import java.awt.*;
@@ -80,7 +81,14 @@ public final class SwingSellerApplicationDialog implements SellerApplicationDial
         private boolean mutation;
 
         Form(SellerApplicationView application, Runnable changed, Runnable closed) {
-            super(new BorderLayout(8, 8)); this.current = application;
+            super(new BorderLayout(8, 8));
+            ShopComponentStyle.styleDialogContent(this);
+            ShopComponentStyle.styleTextComponent(name);
+            ShopComponentStyle.styleTextComponent(description);
+            ShopComponentStyle.styleTextComponent(category);
+            ShopComponentStyle.styleTextComponent(contact);
+            ShopComponentStyle.styleTextComponent(statement);
+            this.current = application;
             this.changed = Objects.requireNonNull(changed); this.closed = Objects.requireNonNull(closed);
             JPanel fields = uiKit.filterPanel("seller.application.form", new GridLayout(0, 2, 8, 6));
             row(fields, "店铺名称", LimitedTextInput.wrap(name, "seller.application.name", SellerApplicationLimits.SHOP_NAME));

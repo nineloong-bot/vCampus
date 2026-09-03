@@ -6,7 +6,7 @@ import edu.seu.vcampus.client.shop.service.ShopClientPort;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopRoute;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopRouteHost;
-import edu.seu.vcampus.client.shop.ui.style.DefaultShopUiKit;
+import edu.seu.vcampus.client.shop.ui.style.SharedShopUiKitAdapter;
 import edu.seu.vcampus.common.shop.PaidOrderHistory;
 import edu.seu.vcampus.common.shop.SellerApplicationStatus;
 import edu.seu.vcampus.common.shop.SellerApplicationView;
@@ -96,7 +96,7 @@ class MyShopRoleActionTest {
         UserView user = new UserView("user-1", "LOGIN", role, AccountStatus.ACTIVE, false,
                 null, 1, LocalDateTime.MIN, LocalDateTime.MIN);
         MyShopPanel panel = ShopSwingTestSupport.onEdt(() -> new MyShopPanel(
-                user, buyer, seller, navigator, new DefaultShopUiKit(), () -> { }));
+                user, buyer, seller, navigator, new SharedShopUiKitAdapter(), () -> { }));
         return new Fixture(panel, routes);
     }
 

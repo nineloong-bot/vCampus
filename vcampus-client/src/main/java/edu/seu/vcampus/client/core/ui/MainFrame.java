@@ -8,7 +8,7 @@ import edu.seu.vcampus.client.library.service.LibraryClientService;
 import edu.seu.vcampus.client.library.ui.LibraryWorkspacePanel;
 import edu.seu.vcampus.client.shop.service.ShopClientService;
 import edu.seu.vcampus.client.shop.ui.ShopUiInstaller;
-import edu.seu.vcampus.client.shop.ui.style.DefaultShopUiKit;
+import edu.seu.vcampus.client.shop.ui.style.SharedShopUiKitAdapter;
 import edu.seu.vcampus.client.core.ui.shell.ApplicationStatusBar;
 import edu.seu.vcampus.client.core.ui.shell.IdentityHeader;
 import edu.seu.vcampus.client.core.ui.shell.ModulePlaceholderPage;
@@ -138,7 +138,7 @@ public final class MainFrame extends JFrame {
                 Objects.requireNonNull(library, "library"),
                 Objects.requireNonNull(permissions, "permissions"), user.role()));
         ShopUiInstaller.install(this, user, Objects.requireNonNull(shop, "shop"),
-                new DefaultShopUiKit(), onAuthenticationFailure);
+                new SharedShopUiKitAdapter(), onAuthenticationFailure);
     }
 
     private void registerPages(UserView user, ClientConnection connection,

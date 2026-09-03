@@ -4,6 +4,7 @@ import edu.seu.vcampus.client.shop.service.SellerShopClientPort;
 import edu.seu.vcampus.client.shop.ui.ShopUiErrors;
 import edu.seu.vcampus.client.shop.ui.async.LatestRequest;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
+import edu.seu.vcampus.client.shop.ui.style.ShopComponentStyle;
 import edu.seu.vcampus.common.shop.*;
 
 import javax.swing.*;
@@ -46,9 +47,12 @@ public final class ProductManagementPanel extends JPanel {
     ProductManagementPanel(SellerShopClientPort port, ShopUiKit uiKit,
             Runnable sessionExpired, ProductEditorDialogPort dialogs) {
         super(new BorderLayout(8, 8));
+        ShopComponentStyle.pagePanel(this);
         this.port = Objects.requireNonNull(port, "port");
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
         this.dialogs = Objects.requireNonNull(dialogs, "dialogs");
+        ShopComponentStyle.styleTable(activeTable, true);
+        ShopComponentStyle.styleTable(inactiveTable, true);
         installSelection(activeTable, inactiveTable);
         installSelection(inactiveTable, activeTable);
         create = uiKit.primaryButton("seller.products.create", "创建商品");
@@ -172,7 +176,8 @@ public final class ProductManagementPanel extends JPanel {
     private static String statusText(ProductStatus status) { return switch (status) {
         case ACTIVE -> "已上架"; case INACTIVE -> "已下架"; case DRAFT -> "草稿"; }; }
     private static JPanel titled(String title, JTable table) {
-        JPanel panel = new JPanel(new BorderLayout()); panel.setBorder(BorderFactory.createTitledBorder(title));
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(ShopComponentStyle.sectionBorder(title));
         panel.add(new JScrollPane(table)); return panel;
     }
     private static <T extends JComponent> T named(T component, String name) {

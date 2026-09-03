@@ -16,6 +16,7 @@ import java.util.function.Consumer;
 /** Catalog composition boundary: data/navigation stay independent of card visuals. */
 public final class ProductGridPanel extends JPanel {
     private static final Dimension IMAGE_SIZE = new Dimension(160, 110);
+    private static final int MIN_CARD_WIDTH = 300;
     private final ProductImageLoader images;
     private final ProductCardRenderer renderer;
     private final Consumer<String> openDetail;
@@ -24,7 +25,7 @@ public final class ProductGridPanel extends JPanel {
 
     public ProductGridPanel(ProductImageLoader images, ProductCardRenderer renderer,
             Consumer<String> openDetail) {
-        super(new WrappingGridLayout(200, 12, 12));
+        super(new WrappingGridLayout(MIN_CARD_WIDTH, 12, 12));
         this.images = Objects.requireNonNull(images, "images");
         this.renderer = Objects.requireNonNull(renderer, "renderer");
         this.openDetail = Objects.requireNonNull(openDetail, "openDetail");

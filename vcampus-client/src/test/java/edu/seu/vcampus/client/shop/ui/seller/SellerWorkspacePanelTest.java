@@ -3,6 +3,9 @@ package edu.seu.vcampus.client.shop.ui.seller;
 import edu.seu.vcampus.client.shop.ShopSwingTestSupport;
 import edu.seu.vcampus.client.shop.service.SellerShopClientPort;
 import edu.seu.vcampus.client.shop.ui.style.DefaultShopUiKit;
+import edu.seu.vcampus.client.shop.ui.style.SharedShopUiKitAdapter;
+import edu.seu.vcampus.client.core.ui.theme.UiColors;
+import edu.seu.vcampus.client.core.ui.theme.UiTypography;
 import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.shop.*;
 import org.junit.jupiter.api.Test;
@@ -16,6 +19,19 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 class SellerWorkspacePanelTest {
+    @Test
+    void sharedThemeStylesSellerWorkspaceTabs() throws Exception {
+        SellerShopClientPort port = mock(SellerShopClientPort.class);
+        SellerWorkspacePanel panel = ShopSwingTestSupport.onEdt(() ->
+                new SellerWorkspacePanel(port, new SharedShopUiKitAdapter(), () -> { }));
+
+        JTabbedPane tabs = ShopSwingTestSupport.component(panel,
+                "seller.workspace.tabs", JTabbedPane.class);
+        assertThat(panel.getBackground()).isEqualTo(UiColors.BACKGROUND_PAGE);
+        assertThat(tabs.getBackground()).isEqualTo(UiColors.BACKGROUND_SUBTLE);
+        assertThat(tabs.getFont()).isEqualTo(UiTypography.BODY);
+    }
+
     @Test
     void suspendedShopShowsReasonAndKeepsCategoryAndWritesDisabled() throws Exception {
         SellerShopClientPort port = mock(SellerShopClientPort.class);

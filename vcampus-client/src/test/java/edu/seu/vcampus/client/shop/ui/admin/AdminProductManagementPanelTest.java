@@ -4,6 +4,7 @@ import edu.seu.vcampus.client.shop.ShopSwingTestSupport;
 import edu.seu.vcampus.client.shop.service.AdminShopClientPort;
 import edu.seu.vcampus.client.shop.ui.seller.ProductEditorDialogPort;
 import edu.seu.vcampus.client.shop.ui.style.DefaultShopUiKit;
+import edu.seu.vcampus.client.shop.ui.style.SharedShopUiKitAdapter;
 import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.shop.*;
 import org.junit.jupiter.api.Test;
@@ -21,6 +22,18 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 class AdminProductManagementPanelTest {
+    @Test
+    void sharedThemeUsesCompactShopAndProductTables() throws Exception {
+        AdminShopClientPort port = mock(AdminShopClientPort.class);
+        AdminProductManagementPanel panel = ShopSwingTestSupport.onEdt(() ->
+                new AdminProductManagementPanel(port, new SharedShopUiKitAdapter(), () -> { }));
+
+        assertThat(ShopSwingTestSupport.component(panel,
+                "admin.products.shops", JTable.class).getRowHeight()).isEqualTo(34);
+        assertThat(ShopSwingTestSupport.component(panel,
+                "admin.products.table", JTable.class).getRowHeight()).isEqualTo(34);
+    }
+
     @Test
     void shopAndProductListsUseTheFullWidthWithoutAPersistentEditorSplit() throws Exception {
         AdminShopClientPort port = mock(AdminShopClientPort.class);

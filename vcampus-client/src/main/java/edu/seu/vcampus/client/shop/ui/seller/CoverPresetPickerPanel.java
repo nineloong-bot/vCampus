@@ -1,11 +1,13 @@
 package edu.seu.vcampus.client.shop.ui.seller;
 import edu.seu.vcampus.common.shop.*;
+import edu.seu.vcampus.client.shop.ui.style.ShopComponentStyle;
 import javax.swing.*;
 import java.awt.FlowLayout;
 import java.util.Objects;
 public final class CoverPresetPickerPanel extends JPanel {
     private final ButtonGroup group = new ButtonGroup();
-    public CoverPresetPickerPanel() { super(new FlowLayout(FlowLayout.LEFT, 6, 4)); setName("seller.editor.cover-picker"); }
+    public CoverPresetPickerPanel() { super(new FlowLayout(FlowLayout.LEFT, 6, 4));
+        ShopComponentStyle.styleTextComponent(this); setName("seller.editor.cover-picker"); }
     public void setCategory(String category) {
         String selected = selectedCoverId(); removeAll(); group.clearSelection();
         for (ShopCoverPreset preset : ShopCoverPresets.forCategory(category)) {

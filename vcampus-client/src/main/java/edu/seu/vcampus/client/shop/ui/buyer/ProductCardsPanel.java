@@ -7,6 +7,7 @@ import edu.seu.vcampus.client.shop.ui.catalog.BuiltinProductImageLoader;
 import edu.seu.vcampus.client.shop.ui.catalog.ProductCardRenderer;
 import edu.seu.vcampus.client.shop.ui.catalog.ProductGridPanel;
 import edu.seu.vcampus.common.shop.ProductSummary;
+import edu.seu.vcampus.client.core.ui.theme.UiTypography;
 
 import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
@@ -71,11 +72,23 @@ public final class ProductCardsPanel extends JPanel {
         cover.setMaximumSize(new Dimension(Integer.MAX_VALUE, 110));
         cover.setAlignmentX(CENTER_ALIGNMENT);
         card.add(cover);
-        card.add(named(new JLabel(product.productName()), name + ".name"));
-        if (context.showShopName()) card.add(named(new JLabel(product.shopName()), name + ".shop"));
-        card.add(named(new JLabel(product.category()), name + ".category"));
-        card.add(named(new JLabel(formatPrice(product.minimumPrice())), name + ".price"));
-        card.add(named(new JLabel("销量 " + product.salesCount()), name + ".sales"));
+        JLabel productName = named(new JLabel(product.productName()), name + ".name");
+        productName.setFont(UiTypography.BODY_BOLD);
+        card.add(productName);
+        if (context.showShopName()) {
+            JLabel shopName = named(new JLabel(product.shopName()), name + ".shop");
+            shopName.setFont(UiTypography.CAPTION);
+            card.add(shopName);
+        }
+        JLabel category = named(new JLabel(product.category()), name + ".category");
+        category.setFont(UiTypography.CAPTION);
+        card.add(category);
+        JLabel price = named(new JLabel(formatPrice(product.minimumPrice())), name + ".price");
+        price.setFont(UiTypography.BODY_BOLD);
+        card.add(price);
+        JLabel sales = named(new JLabel("销量 " + product.salesCount()), name + ".sales");
+        sales.setFont(UiTypography.CAPTION);
+        card.add(sales);
         card.setFocusable(true);
         card.getAccessibleContext().setAccessibleName(product.productName() + " " + formatPrice(product.minimumPrice()));
         java.awt.event.MouseAdapter activate = new java.awt.event.MouseAdapter() {

@@ -8,6 +8,7 @@ import edu.seu.vcampus.client.shop.ui.navigation.ShopRoute;
 import edu.seu.vcampus.client.shop.ui.navigation.SearchViewState;
 import edu.seu.vcampus.client.shop.ui.style.ShopPageState;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
+import edu.seu.vcampus.client.shop.ui.style.ShopComponentStyle;
 import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.shop.ProductSearchQuery;
 import edu.seu.vcampus.common.shop.ProductSortMode;
@@ -26,6 +27,7 @@ import java.awt.FlowLayout;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Objects;
+import edu.seu.vcampus.client.core.ui.theme.UiTypography;
 
 /** Search form and result cards for the buyer catalog. */
 public final class ProductSearchPanel extends JPanel {
@@ -60,6 +62,12 @@ public final class ProductSearchPanel extends JPanel {
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
         this.cards = new ProductCardsPanel(navigator, uiKit, ProductCardContext.SEARCH);
         this.pagination = new ShopPaginationPanel("search", uiKit);
+        ShopComponentStyle.pagePanel(this);
+        ShopComponentStyle.styleTextComponent(keyword);
+        ShopComponentStyle.styleTextComponent(category);
+        ShopComponentStyle.styleTextComponent(minPrice);
+        ShopComponentStyle.styleTextComponent(maxPrice);
+        ShopComponentStyle.styleTextComponent(sort);
         navigator.addListener(route -> {
             if (!(route instanceof ShopRoute.Search)) latest.begin();
         });
@@ -218,6 +226,7 @@ public final class ProductSearchPanel extends JPanel {
     private static JLabel label(String text, String name, Component target) {
         JLabel label = named(new JLabel(text), name);
         label.setLabelFor(target);
+        label.setFont(UiTypography.BODY);
         return label;
     }
     private static <T extends Component> T named(T component, String name) { component.setName(name); return component; }

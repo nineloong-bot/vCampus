@@ -8,6 +8,7 @@ import edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopRoute;
 import edu.seu.vcampus.client.shop.ui.style.ShopPageState;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
+import edu.seu.vcampus.client.shop.ui.style.ShopComponentStyle;
 import edu.seu.vcampus.common.shop.AddCartItemCommand;
 import edu.seu.vcampus.common.shop.CartView;
 import edu.seu.vcampus.common.shop.ProductDetail;
@@ -29,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.text.ParseException;
+import edu.seu.vcampus.client.core.ui.theme.UiTypography;
 
 /** Product information, SKU selection, and isolated cart submission lifecycle. */
 public final class ProductDetailPanel extends JPanel {
@@ -66,6 +68,9 @@ public final class ProductDetailPanel extends JPanel {
         this.uiKit = Objects.requireNonNull(uiKit, "uiKit");
         this.cartCount = Objects.requireNonNull(cartCount, "cartCount");
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
+        ShopComponentStyle.pagePanel(this);
+        ShopComponentStyle.styleTextComponent(sku);
+        ShopComponentStyle.styleTextComponent(quantity);
         store = uiKit.secondaryButton("store", "进入店铺");
         addToCart = uiKit.primaryButton("add-to-cart", "加入购物车");
         openCart = uiKit.secondaryButton("open-cart", "查看购物车");
@@ -79,6 +84,7 @@ public final class ProductDetailPanel extends JPanel {
         openCart.addActionListener(event -> navigator.open(new ShopRoute.Cart()));
         add(productName, BorderLayout.NORTH);
         add(content, BorderLayout.CENTER);
+        productName.setFont(UiTypography.SECTION_TITLE);
         clearProduct();
         showDetail(ShopPageState.INITIAL, "");
     }

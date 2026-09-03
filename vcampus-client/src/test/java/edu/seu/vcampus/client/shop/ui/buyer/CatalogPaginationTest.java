@@ -7,7 +7,9 @@ import edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopRoute;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopRouteHost;
 import edu.seu.vcampus.client.shop.ui.navigation.StorefrontViewState;
-import edu.seu.vcampus.client.shop.ui.style.DefaultShopUiKit;
+import edu.seu.vcampus.client.shop.ui.style.SharedShopUiKitAdapter;
+import edu.seu.vcampus.client.core.ui.theme.UiColors;
+import edu.seu.vcampus.client.core.ui.theme.UiTypography;
 import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.shop.AddCartItemCommand;
 import edu.seu.vcampus.common.shop.CartView;
@@ -64,7 +66,7 @@ class CatalogPaginationTest {
             }
         });
         ShopHomePanel panel = onEdt(() -> new ShopHomePanel(
-                client, navigator, new DefaultShopUiKit(), () -> { }));
+                client, navigator, new SharedShopUiKitAdapter(), () -> { }));
         panelRef.set(panel);
         HomeProductQuery first = new HomeProductQuery(
                 new BigDecimal("1.00"), new BigDecimal("99.00"),
@@ -83,6 +85,11 @@ class CatalogPaginationTest {
         assertThat(next.isEnabled()).isTrue();
         assertThat(component(panel, "home.pagination.status", JLabel.class).getText())
                 .isEqualTo("第 1 / 3 页");
+        assertThat(previous.getBackground()).isEqualTo(UiColors.BACKGROUND_PAGE);
+        assertThat(previous.getPreferredSize().height).isEqualTo(32);
+        assertThat(previous.getFont()).isEqualTo(UiTypography.BODY);
+        assertThat(component(panel, "home.pagination.status", JLabel.class).getFont())
+                .isEqualTo(UiTypography.BODY);
 
         onEdt((Runnable) next::doClick);
         flushUi();
@@ -132,7 +139,7 @@ class CatalogPaginationTest {
             }
         });
         ProductSearchPanel panel = onEdt(() -> new ProductSearchPanel(
-                client, navigator, new DefaultShopUiKit(), () -> { }));
+                client, navigator, new SharedShopUiKitAdapter(), () -> { }));
         panelRef.set(panel);
         ProductSearchQuery first = new ProductSearchQuery(
                 "雨伞", "生活用品", new BigDecimal("10.00"), new BigDecimal("80.00"),
@@ -175,6 +182,10 @@ class CatalogPaginationTest {
                 .isTrue();
         assertThat(component(panel, "search.pagination.status", JLabel.class).getText())
                 .isEqualTo("第 3 / 3 页");
+        assertThat(component(panel, "search.pagination.next", JButton.class).getBackground())
+                .isEqualTo(UiColors.BACKGROUND_PAGE);
+        assertThat(component(panel, "search.pagination.previous", JButton.class).getFont())
+                .isEqualTo(UiTypography.BODY);
 
         JScrollPane scroll = component(panel, "search.scroll", JScrollPane.class);
         onEdt(() -> scroll.getVerticalScrollBar().setValues(90, 10, 0, 1000));
@@ -212,7 +223,7 @@ class CatalogPaginationTest {
             }
         });
         BuyerShopPanel panel = onEdt(() -> new BuyerShopPanel(
-                client, navigator, new DefaultShopUiKit(), () -> { }));
+                client, navigator, new SharedShopUiKitAdapter(), () -> { }));
         panelRef.set(panel);
         ShopProductQuery first = new ShopProductQuery(
                 "shop-1", "本", "图书", new BigDecimal("20.00"), new BigDecimal("90.00"),
@@ -234,6 +245,10 @@ class CatalogPaginationTest {
         assertThat(navigator.current()).contains(new ShopRoute.Storefront(
                 new StorefrontViewState(second, 0)));
         assertThat(navigator.history()).containsExactly(ShopRoute.defaultHome());
+        assertThat(component(panel, "storefront.pagination.previous", JButton.class).getBackground())
+                .isEqualTo(UiColors.BACKGROUND_PAGE);
+        assertThat(component(panel, "storefront.pagination.next", JButton.class).getFont())
+                .isEqualTo(UiTypography.BODY);
     }
 
     private static void flushUi() throws Exception {

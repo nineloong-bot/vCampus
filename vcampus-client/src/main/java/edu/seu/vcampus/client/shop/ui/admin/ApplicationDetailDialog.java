@@ -2,6 +2,8 @@ package edu.seu.vcampus.client.shop.ui.admin;
 
 import edu.seu.vcampus.common.shop.SellerApplicationView;
 import edu.seu.vcampus.common.shop.SellerReviewDecision;
+import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
+import edu.seu.vcampus.client.shop.ui.style.ShopComponentStyle;
 
 import javax.swing.*;
 import java.awt.*;
@@ -11,7 +13,7 @@ import java.util.Optional;
 final class ApplicationDetailDialog {
     private ApplicationDetailDialog() { }
 
-    static Optional<ApplicationReviewPanel.DetailReview> show(Component parent,
+    static Optional<ApplicationReviewPanel.DetailReview> show(ShopUiKit uiKit, Component parent,
             SellerApplicationView application, boolean reviewable) {
         Window owner = SwingUtilities.getWindowAncestor(parent);
         JDialog dialog = new JDialog(owner, "开店申请详情", Dialog.ModalityType.APPLICATION_MODAL);
@@ -22,21 +24,22 @@ final class ApplicationDetailDialog {
         fields.add(new JLabel("联系方式")); fields.add(value(application.contact()));
         fields.add(new JLabel("状态")); fields.add(value(application.status().name()));
         JTextArea statement = new JTextArea(application.applicationStatement(), 12, 48);
+        ShopComponentStyle.styleTextComponent(statement);
         statement.setName("admin.applications.detail.statement");
         statement.setEditable(false); statement.setLineWrap(true); statement.setWrapStyleWord(true);
         statement.setCaretPosition(0);
         JPanel content = new JPanel(new BorderLayout(8, 8));
-        content.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        ShopComponentStyle.styleDialogContent(content);
         content.add(fields, BorderLayout.NORTH);
         JPanel plan = new JPanel(new BorderLayout(4, 4));
         plan.add(new JLabel("经营计划"), BorderLayout.NORTH);
-        plan.add(new JScrollPane(statement), BorderLayout.CENTER);
+        plan.add(ShopComponentStyle.styleScrollPane(new JScrollPane(statement)), BorderLayout.CENTER);
         content.add(plan, BorderLayout.CENTER);
         ApplicationReviewPanel.DetailReview[] result = new ApplicationReviewPanel.DetailReview[1];
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        JButton approve = new JButton("通过");
-        JButton reject = new JButton("驳回");
-        JButton close = new JButton("关闭");
+        JButton approve = uiKit.primaryButton("admin.applications.detail.approve", "通过申请");
+        JButton reject = uiKit.secondaryButton("admin.applications.detail.reject", "驳回申请");
+        JButton close = uiKit.secondaryButton("admin.applications.detail.close", "关闭");
         approve.setEnabled(reviewable); reject.setEnabled(reviewable);
         approve.addActionListener(event -> {
             result[0] = new ApplicationReviewPanel.DetailReview(SellerReviewDecision.APPROVE, null);
@@ -51,7 +54,7 @@ final class ApplicationDetailDialog {
             }
         });
         close.addActionListener(event -> dialog.dispose());
-        actions.add(approve); actions.add(reject); actions.add(close);
+        actions.add(close); actions.add(reject); actions.add(approve);
         content.add(actions, BorderLayout.SOUTH);
         dialog.setContentPane(content);
         dialog.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
@@ -64,6 +67,7 @@ final class ApplicationDetailDialog {
 
     private static JTextField value(String text) {
         JTextField field = new JTextField(text == null ? "" : text);
+        ShopComponentStyle.styleTextComponent(field);
         field.setEditable(false);
         return field;
     }

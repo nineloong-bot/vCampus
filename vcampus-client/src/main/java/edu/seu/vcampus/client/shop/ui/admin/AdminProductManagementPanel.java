@@ -6,6 +6,7 @@ import edu.seu.vcampus.client.shop.ui.async.LatestRequest;
 import edu.seu.vcampus.client.shop.ui.seller.ProductEditorDialogPort;
 import edu.seu.vcampus.client.shop.ui.seller.SwingProductEditorDialogs;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
+import edu.seu.vcampus.client.shop.ui.style.ShopComponentStyle;
 import edu.seu.vcampus.common.shop.*;
 
 import javax.swing.*;
@@ -49,6 +50,10 @@ public final class AdminProductManagementPanel extends JPanel {
     AdminProductManagementPanel(AdminShopClientPort port, ShopUiKit uiKit,
             Runnable sessionExpired, ProductEditorDialogPort dialogs) {
         super(new BorderLayout(8, 8));
+        ShopComponentStyle.pagePanel(this);
+        ShopComponentStyle.styleTable(shops, true);
+        ShopComponentStyle.styleTable(products, true);
+        ShopComponentStyle.styleTextComponent(category);
         this.port = Objects.requireNonNull(port, "port");
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
         this.dialogs = Objects.requireNonNull(dialogs, "dialogs");

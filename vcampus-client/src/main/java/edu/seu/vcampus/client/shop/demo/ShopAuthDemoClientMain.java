@@ -5,7 +5,7 @@ import edu.seu.vcampus.client.core.ui.MainFrame;
 import edu.seu.vcampus.client.shop.service.ShopClientService;
 import edu.seu.vcampus.client.shop.service.ShopClientPort;
 import edu.seu.vcampus.client.shop.ui.ShopUiInstaller;
-import edu.seu.vcampus.client.shop.ui.style.DefaultShopUiKit;
+import edu.seu.vcampus.client.shop.ui.style.SharedShopUiKitAdapter;
 import edu.seu.vcampus.client.user.service.UserClientService;
 import edu.seu.vcampus.client.user.ui.LoginFrame;
 import edu.seu.vcampus.common.user.LoginResult;
@@ -118,7 +118,7 @@ public final class ShopAuthDemoClientMain {
 
     static void installAuthenticatedShop(MainFrame main, UserView user, ShopClientPort shop,
             Runnable sessionExpired) {
-        ShopUiInstaller.install(main, user, shop, new DefaultShopUiKit(), sessionExpired);
+        ShopUiInstaller.install(main, user, shop, new SharedShopUiKitAdapter(), sessionExpired);
     }
 
     static MainFrame authenticatedMain(UserView user, ClientConnection connection) {

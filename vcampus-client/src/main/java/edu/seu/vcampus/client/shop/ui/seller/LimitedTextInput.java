@@ -1,6 +1,6 @@
 package edu.seu.vcampus.client.shop.ui.seller;
 
-import javax.swing.BorderFactory;
+import edu.seu.vcampus.client.core.ui.theme.UiColors;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -13,7 +13,6 @@ import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DocumentFilter;
 import java.awt.BorderLayout;
-import java.awt.Color;
 import java.awt.FlowLayout;
 import java.awt.Graphics;
 import java.awt.Insets;
@@ -44,7 +43,7 @@ final class LimitedTextInput {
             String name, int limit) {
         JLabel remaining = new JLabel();
         remaining.setName(name + ".remaining");
-        remaining.setForeground(Color.GRAY);
+        remaining.setForeground(UiColors.TEXT_SECONDARY);
         JPanel counter = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         counter.setOpaque(false);
         counter.add(remaining);
@@ -116,7 +115,7 @@ final class LimitedTextInput {
             super.paintComponent(graphics);
             if (!getText().isEmpty()) return;
             Insets insets = getInsets();
-            graphics.setColor(Color.GRAY);
+            graphics.setColor(UiColors.TEXT_SECONDARY);
             graphics.drawString(placeholder, insets.left + 2,
                     (getHeight() + graphics.getFontMetrics().getAscent()
                             - graphics.getFontMetrics().getDescent()) / 2);
@@ -135,7 +134,7 @@ final class LimitedTextInput {
             super.paintComponent(graphics);
             if (!getText().isEmpty()) return;
             Insets insets = getInsets();
-            graphics.setColor(Color.GRAY);
+            graphics.setColor(UiColors.TEXT_SECONDARY);
             graphics.drawString(placeholder, insets.left + 2,
                     insets.top + graphics.getFontMetrics().getAscent());
         }

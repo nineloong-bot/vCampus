@@ -4,6 +4,7 @@ import edu.seu.vcampus.client.shop.service.SellerShopClientPort;
 import edu.seu.vcampus.client.shop.ui.ShopUiErrors;
 import edu.seu.vcampus.client.shop.ui.async.LatestRequest;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
+import edu.seu.vcampus.client.shop.ui.style.ShopComponentStyle;
 import edu.seu.vcampus.common.shop.*;
 
 import javax.swing.*;
@@ -31,6 +32,11 @@ public final class ShopProfilePanel extends JPanel {
     public ShopProfilePanel(SellerShopClientPort port, ShopUiKit uiKit,
             Runnable sessionExpired, Consumer<ShopView> loaded) {
         super(new BorderLayout(8, 8));
+        ShopComponentStyle.pagePanel(this);
+        ShopComponentStyle.styleTextComponent(name);
+        ShopComponentStyle.styleTextComponent(description);
+        ShopComponentStyle.styleTextComponent(category);
+        ShopComponentStyle.styleTextComponent(contact);
         this.port = Objects.requireNonNull(port, "port");
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
         this.loaded = Objects.requireNonNull(loaded, "loaded");

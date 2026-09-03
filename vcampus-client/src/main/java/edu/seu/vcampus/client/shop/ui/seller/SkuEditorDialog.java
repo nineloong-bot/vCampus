@@ -1,4 +1,5 @@
 package edu.seu.vcampus.client.shop.ui.seller;
+import edu.seu.vcampus.client.shop.ui.style.ShopComponentStyle;
 import javax.swing.*;
 import java.awt.GridLayout;
 import java.math.BigDecimal;
@@ -10,7 +11,11 @@ public final class SkuEditorDialog {
         JTextField price = new JTextField(initial == null ? "0.00" : initial.unitPrice().toPlainString());
         JSpinner stock = new JSpinner(new SpinnerNumberModel(initial == null ? 0L : initial.stockQuantity(), 0L, Long.MAX_VALUE, 1L));
         JCheckBox active = new JCheckBox("启用", initial == null || initial.active());
+        ShopComponentStyle.styleTextComponent(name);
+        ShopComponentStyle.styleTextComponent(price);
+        ShopComponentStyle.styleTextComponent(active);
         JPanel form = new JPanel(new GridLayout(0, 2, 6, 6));
+        ShopComponentStyle.styleDialogContent(form);
         form.add(new JLabel("商品种类名称")); form.add(name); form.add(new JLabel("单价")); form.add(price);
         form.add(new JLabel("库存")); form.add(stock); form.add(new JLabel("状态")); form.add(active);
         if (JOptionPane.showConfirmDialog(parent, form, initial == null ? "添加商品种类" : "编辑商品种类",

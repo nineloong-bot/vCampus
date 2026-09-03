@@ -195,13 +195,15 @@ public final class CheckoutPanel extends JPanel {
         normal.add(uiKit.stateView("checkout.state", state, message, null), BorderLayout.NORTH);
         JPanel items = uiKit.filterPanel("checkout.items", new FlowLayout(FlowLayout.LEFT));
         items.setLayout(new BoxLayout(items, BoxLayout.Y_AXIS));
-        for (CartItemView item : cart.items()) items.add(new CheckoutItemRow(item,
-                () -> navigator.open(new ShopRoute.Product(item.productId()))));
+        for (CartItemView item : cart.items()) {
+            items.add(new CheckoutItemRow(item,
+                () -> navigator.open(new ShopRoute.Product(item.productId())), uiKit));
+        }
         JButton submit = uiKit.primaryButton("checkout.submit", "提交订单");
         submit.addActionListener(event -> submit());
         submit.setEnabled(!checkoutInFlight && !activeCashier() && state != ShopPageState.SUBMITTING);
         JLabel total = new JLabel("总计：" + CartItemCard.money(cart.displayedTotal())); total.setName("checkout.total");
-        JPanel summary = new JPanel(new BorderLayout()); summary.add(total, BorderLayout.WEST); summary.add(submit, BorderLayout.EAST);
+        JPanel summary = uiKit.filterPanel("checkout.summary", new BorderLayout()); summary.add(total, BorderLayout.WEST); summary.add(submit, BorderLayout.EAST);
         normal.add(items, BorderLayout.CENTER); normal.add(summary, BorderLayout.SOUTH);
         content.add(normal, BorderLayout.CENTER); refresh();
     }

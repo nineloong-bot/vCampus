@@ -3,6 +3,8 @@ package edu.seu.vcampus.client.shop.ui.admin;
 import edu.seu.vcampus.client.shop.ShopSwingTestSupport;
 import edu.seu.vcampus.client.shop.service.AdminShopClientPort;
 import edu.seu.vcampus.client.shop.ui.style.DefaultShopUiKit;
+import edu.seu.vcampus.client.shop.ui.style.SharedShopUiKitAdapter;
+import edu.seu.vcampus.client.core.ui.theme.UiColors;
 import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.shop.*;
 import org.junit.jupiter.api.Test;
@@ -12,6 +14,8 @@ import javax.swing.JTable;
 import javax.swing.JTabbedPane;
 import java.awt.event.MouseEvent;
 import java.time.Instant;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -20,6 +24,35 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 class ApplicationReviewPanelTest {
+    @Test
+    void sharedThemeStylesReviewTabsAndCompactTables() throws Exception {
+        AdminShopClientPort port = mock(AdminShopClientPort.class);
+        ApplicationReviewPanel panel = ShopSwingTestSupport.onEdt(() ->
+                new ApplicationReviewPanel(port, new SharedShopUiKitAdapter(), () -> { }));
+
+        JTabbedPane tabs = ShopSwingTestSupport.component(panel,
+                "admin.applications.tabs", JTabbedPane.class);
+        JTable pending = ShopSwingTestSupport.component(panel,
+                "admin.applications.pending", JTable.class);
+        JTable processed = ShopSwingTestSupport.component(panel,
+                "admin.applications.processed", JTable.class);
+        assertThat(panel.getBackground()).isEqualTo(UiColors.BACKGROUND_PAGE);
+        assertThat(tabs.getBackground()).isEqualTo(UiColors.BACKGROUND_SUBTLE);
+        assertThat(pending.getRowHeight()).isEqualTo(34);
+        assertThat(processed.getRowHeight()).isEqualTo(34);
+    }
+
+    @Test
+    void detailDialogUsesSemanticButtonsAndSharedStyling() throws Exception {
+        String source = Files.readString(Path.of(
+                "src/main/java/edu/seu/vcampus/client/shop/ui/admin/ApplicationDetailDialog.java"));
+
+        assertThat(source).doesNotContain("new JButton(\"通过\")",
+                "new JButton(\"驳回\")", "new JButton(\"关闭\")");
+        assertThat(source).contains("uiKit.primaryButton", "uiKit.secondaryButton",
+                "ShopComponentStyle.styleDialogContent");
+    }
+
     @Test
     void refreshReloadsBothListsAndStaysDisabledUntilBothComplete() throws Exception {
         AdminShopClientPort port = mock(AdminShopClientPort.class);

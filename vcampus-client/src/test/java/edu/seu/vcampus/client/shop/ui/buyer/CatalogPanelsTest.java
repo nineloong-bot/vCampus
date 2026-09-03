@@ -6,6 +6,9 @@ import edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopRoute;
 import edu.seu.vcampus.client.shop.ui.navigation.SearchViewState;
 import edu.seu.vcampus.client.shop.ui.style.DefaultShopUiKit;
+import edu.seu.vcampus.client.shop.ui.style.SharedShopUiKitAdapter;
+import edu.seu.vcampus.client.core.ui.theme.UiColors;
+import edu.seu.vcampus.client.core.ui.theme.UiTypography;
 import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.shop.AddCartItemCommand;
 import edu.seu.vcampus.common.shop.CartView;
@@ -65,6 +68,28 @@ class CatalogPanelsTest {
 
         assertThat(name.getY()).isGreaterThan(image.getY());
         assertThat(price.getY()).isGreaterThan(name.getY());
+    }
+
+    @Test
+    void homePageUsesSharedVisualStructureAndButtons() throws Exception {
+        ShopClientPort client = mock(ShopClientPort.class);
+        when(client.home(any())).thenReturn(CompletableFuture.completedFuture(
+                new PageResult<>(List.of(), 0, 20, 0)));
+        ShopHomePanel panel = onEdt(() -> new ShopHomePanel(
+                client, new ShopNavigator(route -> { }), new SharedShopUiKitAdapter(), () -> { }));
+
+        onEdt(() -> panel.load());
+        onEdt(() -> panel.load(new HomeProductQuery(null, null, ProductSortMode.SALES_DESC, 0, 20)));
+
+        assertThat(component(panel, "home.search-bar", JPanel.class).getBackground())
+                .isEqualTo(UiColors.BACKGROUND_SUBTLE);
+        assertThat(component(panel, "home.recommendations", JLabel.class).getFont())
+                .isEqualTo(UiTypography.SECTION_TITLE);
+        assertThat(component(panel, "home.search", javax.swing.JButton.class).getBackground())
+                .isEqualTo(UiColors.ACCENT);
+        assertThat(component(panel, "home.search", javax.swing.JButton.class).getPreferredSize().height)
+                .isEqualTo(32);
+        assertThat(panel.getBorder()).isNotNull();
     }
 
     @Test

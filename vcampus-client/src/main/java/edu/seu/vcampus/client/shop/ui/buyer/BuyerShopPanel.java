@@ -8,11 +8,13 @@ import edu.seu.vcampus.client.shop.ui.navigation.ShopRoute;
 import edu.seu.vcampus.client.shop.ui.navigation.StorefrontViewState;
 import edu.seu.vcampus.client.shop.ui.style.ShopPageState;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
+import edu.seu.vcampus.client.shop.ui.style.ShopComponentStyle;
 import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.shop.ProductSortMode;
 import edu.seu.vcampus.common.shop.ProductSummary;
 import edu.seu.vcampus.common.shop.ShopDetail;
 import edu.seu.vcampus.common.shop.ShopProductQuery;
+import edu.seu.vcampus.client.core.ui.theme.UiTypography;
 
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -43,6 +45,7 @@ public final class BuyerShopPanel extends JPanel {
         this.uiKit = Objects.requireNonNull(uiKit, "uiKit");
         this.navigator = Objects.requireNonNull(navigator, "navigator");
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
+        ShopComponentStyle.pagePanel(this);
         ShopNavigator routes = this.navigator;
         cards = new ProductCardsPanel(routes, uiKit, ProductCardContext.STOREFRONT);
         pagination = new ShopPaginationPanel("storefront", uiKit);
@@ -50,6 +53,7 @@ public final class BuyerShopPanel extends JPanel {
             if (!(route instanceof ShopRoute.Storefront)) latest.begin();
         });
         add(shopName, BorderLayout.NORTH); add(scroll, BorderLayout.CENTER);
+        shopName.setFont(UiTypography.SECTION_TITLE);
         showState(ShopPageState.INITIAL, "", null);
     }
 

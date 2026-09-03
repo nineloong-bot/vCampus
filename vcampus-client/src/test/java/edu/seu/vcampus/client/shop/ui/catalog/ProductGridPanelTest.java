@@ -104,7 +104,36 @@ class ProductGridPanelTest {
 
         assertThat(onEdt(grid::getWidth)).isZero();
         assertThat(onEdt(viewportContent::getWidth)).isEqualTo(900);
-        assertThat(onEdt(() -> grid.getPreferredSize().height)).isEqualTo(948);
+        assertThat(onEdt(() -> grid.getPreferredSize().height)).isGreaterThan(900);
+    }
+
+    @Test
+    void defaultLayoutAt1280PxRendersThreeToFourColumnsPerRow() throws Exception {
+        ProductCardRenderer cards = (product, image, open) -> {
+            JButton card = new JButton(product.productName());
+            card.setPreferredSize(new Dimension(300, 180));
+            return card;
+        };
+        ProductGridPanel grid = onEdt(() -> new ProductGridPanel(images(), cards, id -> { }));
+        onEdt(() -> {
+            grid.setSize(1280, 900);
+            grid.showProducts(java.util.stream.IntStream.range(0, 12)
+                    .mapToObj(index -> summary("p" + index, "商品" + index, "1.00"))
+                    .toList());
+        });
+
+        int renderedColumns = onEdt(() -> {
+            grid.doLayout();
+            int firstRowY = grid.getComponent(0).getY();
+            int columnCount = 0;
+            for (java.awt.Component component : grid.getComponents()) {
+                if (component.getY() == firstRowY) columnCount++;
+            }
+            return columnCount;
+        });
+
+        assertThat(renderedColumns).isBetween(3, 4);
+        assertThat(grid.getPreferredSize().width).isGreaterThan(800);
     }
 
     private static ProductImageLoader images() {

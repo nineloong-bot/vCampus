@@ -60,3 +60,38 @@ the dedicated UI design-system implementation plan.
 - State copy covered: initial, loading, normal, empty, error, submitting and optimistic-lock refresh guidance
 - Async checks: socket work stays in `LibraryClientService`; Swing updates return to the EDT; catalog search accepts only the latest response
 - Automated review: `LibraryUiTest` and `LibraryHandlersTest`
+
+## Shop module
+
+- Design baseline: shared `UiColors`, `UiTypography`, `UiSpacing`, and `UiBorders`
+  through `SharedShopUiKitAdapter`; `DefaultShopUiKit` remains the unstyled test and
+  compatibility implementation.
+- 2026-09-03 manual run: current source was repackaged successfully, the unified server
+  listened on port `8888`, and both `213230001` and `SHOPOWNER` reached the Shop home
+  screen in the unified client. `SHOP-TEST-022` initially made semantic buttons disappear;
+  after its TDD fix and a second package, `213230001` showed the search, five category,
+  home, personal-area, cart, and pagination buttons normally. The remaining acceptance
+  screenshots and business scenarios below are still pending and are not claimed complete.
+- Automated review: `ShopUiKitTest`, `ShopComponentStyleTest`, buyer catalog and
+  purchase-panel tests, seller workspace tests, and administrator workspace tests.
+- Required 1280 × 800 captures (not yet captured):
+  `shop/buyer-home-normal.png`, `shop/buyer-home-loading.png`,
+  `shop/buyer-search-empty.png`, `shop/buyer-search-error.png`,
+  `shop/buyer-product-detail.png`, `shop/buyer-storefront.png`,
+  `shop/buyer-cart-partial-selection.png`, `shop/buyer-checkout.png`,
+  `shop/buyer-payment-result.png`, and `shop/buyer-orders.png`.
+- Required seller captures (not yet captured):
+  `shop/seller-application-draft.png`, `shop/seller-profile.png`,
+  `shop/seller-products-active-inactive.png`,
+  `shop/seller-product-editor-varieties.png`, and `shop/seller-orders.png`.
+- Required administrator captures (not yet captured):
+  `shop/admin-applications-pending.png`, `shop/admin-applications-processed.png`,
+  `shop/admin-application-detail.png`, `shop/admin-products.png`, and
+  `shop/admin-shop-status.png`.
+- Minimum-size and scaling review still required: repeat buyer home, seller product
+  management, product editor, and administrator application review at 1024 × 680 and
+  Windows 150% display scaling.
+- Manual behavior review still required: default-unchecked partial cart checkout,
+  deletion, seller application draft/submit/close prompt, administrator refresh and
+  row review, product-variety creation, active/inactive columns, draft listing guard,
+  and Chinese error messages.

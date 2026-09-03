@@ -1,5 +1,6 @@
 package edu.seu.vcampus.client.shop.ui.seller;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
+import edu.seu.vcampus.client.shop.ui.style.ShopComponentStyle;
 import edu.seu.vcampus.common.shop.*;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -23,7 +24,13 @@ public final class ProductEditorPanel extends JPanel {
     private boolean writable = true;
 
     public ProductEditorPanel(ShopUiKit uiKit) {
-        super(new BorderLayout(8, 8)); category.setEditable(false);
+        super(new BorderLayout(8, 8));
+        ShopComponentStyle.pagePanel(this);
+        ShopComponentStyle.styleTable(table, true);
+        ShopComponentStyle.styleTextComponent(name);
+        ShopComponentStyle.styleTextComponent(category);
+        ShopComponentStyle.styleTextComponent(description);
+        category.setEditable(false);
         JPanel fields = uiKit.filterPanel("seller.editor.fields", new GridLayout(0, 2, 8, 4));
         row(fields, "商品名称", name); row(fields, "类别", category);
         row(fields, "说明", new JScrollPane(description)); row(fields, "封面", covers);

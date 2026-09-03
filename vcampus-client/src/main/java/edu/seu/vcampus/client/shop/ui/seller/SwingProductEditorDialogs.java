@@ -1,6 +1,7 @@
 package edu.seu.vcampus.client.shop.ui.seller;
 
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
+import edu.seu.vcampus.client.shop.ui.style.ShopComponentStyle;
 import edu.seu.vcampus.common.shop.CreateProductCommand;
 import edu.seu.vcampus.common.shop.ProductView;
 import edu.seu.vcampus.common.shop.UpdateProductCommand;
@@ -25,7 +26,8 @@ public final class SwingProductEditorDialogs implements ProductEditorDialogPort 
     private final Presenter presenter;
 
     public SwingProductEditorDialogs(ShopUiKit uiKit) {
-        this(uiKit, SwingProductEditorDialogs::showDialog);
+        this(uiKit, (parent, editor, title, spec) ->
+                showDialog(uiKit, parent, editor, title, spec));
     }
 
     SwingProductEditorDialogs(ShopUiKit uiKit, Presenter presenter) {
@@ -49,23 +51,25 @@ public final class SwingProductEditorDialogs implements ProductEditorDialogPort 
                 ? Optional.of(editor.updateCommand()) : Optional.empty();
     }
 
-    private static boolean showDialog(Component parent, ProductEditorPanel editor,
+    private static boolean showDialog(ShopUiKit uiKit, Component parent, ProductEditorPanel editor,
             String title, DialogSpec spec) {
         Window owner = SwingUtilities.getWindowAncestor(parent);
         JDialog dialog = new JDialog(owner, title, Dialog.ModalityType.APPLICATION_MODAL);
         boolean[] confirmed = {false};
         JPanel content = new JPanel(new BorderLayout(8, 8));
-        content.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        ShopComponentStyle.styleDialogContent(content);
         JScrollPane form = new JScrollPane(editor,
                 ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
                 ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        ShopComponentStyle.styleScrollPane(form);
         content.add(form, BorderLayout.CENTER);
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        JButton confirm = new JButton("确定");
-        JButton cancel = new JButton("取消");
+        JButton cancel = uiKit.secondaryButton("seller.editor.cancel", "取消");
+        JButton confirm = uiKit.primaryButton("seller.editor.confirm",
+                title.startsWith("创建") ? "创建商品" : "保存修改");
         confirm.addActionListener(event -> { confirmed[0] = true; dialog.dispose(); });
         cancel.addActionListener(event -> dialog.dispose());
-        actions.add(confirm); actions.add(cancel);
+        actions.add(cancel); actions.add(confirm);
         content.add(actions, BorderLayout.SOUTH);
         dialog.setContentPane(content);
         dialog.getRootPane().setDefaultButton(confirm);

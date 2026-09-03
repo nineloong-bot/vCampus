@@ -3,6 +3,7 @@ import edu.seu.vcampus.client.shop.service.AdminShopClientPort;
 import edu.seu.vcampus.client.shop.ui.*;
 import edu.seu.vcampus.client.shop.ui.async.LatestRequest;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
+import edu.seu.vcampus.client.shop.ui.style.ShopComponentStyle;
 import edu.seu.vcampus.common.shop.*;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -36,11 +37,17 @@ public final class ApplicationReviewPanel extends JPanel {
     private int refreshOutstanding;
     private boolean disposed;
     public ApplicationReviewPanel(AdminShopClientPort port, ShopUiKit uiKit, Runnable sessionExpired) {
-        this(port, uiKit, sessionExpired, ApplicationDetailDialog::show);
+        this(port, uiKit, sessionExpired,
+                (parent, application, reviewable) ->
+                        ApplicationDetailDialog.show(uiKit, parent, application, reviewable));
     }
     ApplicationReviewPanel(AdminShopClientPort port, ShopUiKit uiKit, Runnable sessionExpired,
             DetailDialog dialogs) {
-        super(new BorderLayout(8, 8)); this.port = Objects.requireNonNull(port); this.sessionExpired = Objects.requireNonNull(sessionExpired);
+        super(new BorderLayout(8, 8));
+        ShopComponentStyle.pagePanel(this);
+        ShopComponentStyle.styleTable(pending, true);
+        ShopComponentStyle.styleTable(processed, true);
+        this.port = Objects.requireNonNull(port); this.sessionExpired = Objects.requireNonNull(sessionExpired);
         this.dialogs = Objects.requireNonNull(dialogs);
         pending.getSelectionModel().addListSelectionListener(event -> {
             if (!event.getValueIsAdjusting()) {
@@ -57,6 +64,7 @@ public final class ApplicationReviewPanel extends JPanel {
         pending.addMouseListener(doubleClick(() -> selected(pending, pendingRows), true));
         processed.addMouseListener(doubleClick(() -> selected(processed, processedRows), false));
         JTabbedPane tabs = named(new JTabbedPane(), "admin.applications.tabs");
+        ShopComponentStyle.styleTabbedPane(tabs);
         tabs.addTab("未处理", new JScrollPane(pending)); tabs.addTab("已处理", new JScrollPane(processed));
         approve = uiKit.primaryButton("admin.applications.approve", "通过");
         reject = uiKit.secondaryButton("admin.applications.reject", "驳回");

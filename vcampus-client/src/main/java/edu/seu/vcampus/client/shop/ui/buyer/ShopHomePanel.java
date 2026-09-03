@@ -9,7 +9,9 @@ import edu.seu.vcampus.client.shop.ui.navigation.HomeViewState;
 import edu.seu.vcampus.client.shop.ui.navigation.SearchViewState;
 import edu.seu.vcampus.client.shop.ui.style.ShopPageState;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
+import edu.seu.vcampus.client.shop.ui.style.ShopComponentStyle;
 import edu.seu.vcampus.common.paging.PageResult;
+import edu.seu.vcampus.client.core.ui.theme.UiTypography;
 import edu.seu.vcampus.common.shop.HomeProductQuery;
 import edu.seu.vcampus.common.shop.ProductSearchQuery;
 import edu.seu.vcampus.common.shop.ProductSortMode;
@@ -51,6 +53,7 @@ public final class ShopHomePanel extends JPanel {
         this.cards = new ProductCardsPanel(navigator, uiKit, ProductCardContext.HOME);
         this.pagination = new ShopPaginationPanel("home", uiKit);
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        ShopComponentStyle.pagePanel(this);
         navigator.addListener(route -> {
             if (!(route instanceof ShopRoute.Home)) latest.begin();
         });
@@ -70,7 +73,9 @@ public final class ShopHomePanel extends JPanel {
         }
         content.add(searchBar);
         content.add(categories);
-        content.add(named(new JLabel("猜你喜欢"), "home.recommendations"));
+        JLabel recommendationTitle = named(new JLabel("猜你喜欢"), "home.recommendations");
+        recommendationTitle.setFont(UiTypography.SECTION_TITLE);
+        content.add(recommendationTitle);
         content.add(results);
         add(scroll, BorderLayout.CENTER);
         showState(ShopPageState.INITIAL, "", null);

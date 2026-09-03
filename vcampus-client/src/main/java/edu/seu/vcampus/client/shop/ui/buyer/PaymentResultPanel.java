@@ -44,11 +44,18 @@ public final class PaymentResultPanel extends JPanel {
         details.add(named(new JLabel(payment.status().name()), "payment-status"));
         JButton home = uiKit.primaryButton("payment-result.home", "继续购物");
         JButton orders = uiKit.secondaryButton("payment-result.orders", "查看已支付订单");
-        home.addActionListener(event -> openHome()); orders.addActionListener(event -> openPaidOrders());
-        details.add(home); details.add(orders); normal.add(details, BorderLayout.CENTER); add(normal, BorderLayout.CENTER);
+        home.addActionListener(event -> openHome());
+        orders.addActionListener(event -> openPaidOrders());
+        JPanel actions = uiKit.filterPanel("payment-result.actions", new FlowLayout(FlowLayout.LEFT));
+        actions.add(home);
+        actions.add(orders);
+        normal.add(details, BorderLayout.CENTER);
+        normal.add(actions, BorderLayout.SOUTH);
+        add(normal, BorderLayout.CENTER);
     }
 
     private static <T extends java.awt.Component> T named(T component, String name) {
-        component.setName(name); return component;
+        component.setName(name);
+        return component;
     }
 }

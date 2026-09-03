@@ -4,6 +4,7 @@ import edu.seu.vcampus.client.shop.service.SellerShopClientPort;
 import edu.seu.vcampus.client.shop.ui.ShopUiErrors;
 import edu.seu.vcampus.client.shop.ui.async.LatestRequest;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
+import edu.seu.vcampus.client.shop.ui.style.ShopComponentStyle;
 import edu.seu.vcampus.common.shop.*;
 
 import javax.swing.*;
@@ -22,9 +23,12 @@ public final class SellerOrdersPanel extends JPanel {
 
     public SellerOrdersPanel(SellerShopClientPort port, ShopUiKit uiKit, Runnable sessionExpired) {
         super(new BorderLayout());
+        ShopComponentStyle.pagePanel(this);
         this.port = Objects.requireNonNull(port, "port"); this.uiKit = Objects.requireNonNull(uiKit, "uiKit");
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
-        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS)); add(new JScrollPane(content));
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        ShopComponentStyle.styleTextComponent(content);
+        add(ShopComponentStyle.styleScrollPane(new JScrollPane(content)));
     }
     public void load() {
         if (disposed) return; long request = requests.begin();

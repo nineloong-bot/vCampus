@@ -62,9 +62,12 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 import javax.swing.WindowConstants;
+import java.io.IOException;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.GraphicsEnvironment;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.awt.LayoutManager;
 import java.awt.Rectangle;
 import java.awt.event.WindowEvent;
@@ -90,6 +93,20 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
 /** Cross-page navigation and lifecycle regression suite. */
 class ShopUiTest {
+    @Test
+    void productionCompositionUsesSharedShopUiKitAdapter() throws Exception {
+        assertThat(readSourceText("src/main/java"
+                        + "/edu/seu/vcampus/client/core/ui/MainFrame.java"))
+                .contains("new SharedShopUiKitAdapter()")
+                .doesNotContain("new DefaultShopUiKit()")
+                .contains("import edu.seu.vcampus.client.shop.ui.style.SharedShopUiKitAdapter;");
+        assertThat(readSourceText("src/main/java"
+                        + "/edu/seu/vcampus/client/shop/demo/ShopAuthDemoClientMain.java"))
+                .contains("new SharedShopUiKitAdapter()")
+                .doesNotContain("new DefaultShopUiKit()")
+                .contains("import edu.seu.vcampus.client.shop.ui.style.SharedShopUiKitAdapter;");
+    }
+
     @Test
     void myPageKeepsEveryOrderAndExpandedLastItemReachableInASmallViewport()
             throws Exception {
@@ -1890,5 +1907,16 @@ class ShopUiTest {
                 Runnable retry) {
             return delegate.stateView(name, state, message, retry);
         }
+    }
+
+    private static String readSourceText(String relativePath) throws IOException {
+        Path base = Path.of("").toAbsolutePath();
+        for (String prefix : List.of("", "vcampus-client")) {
+            Path candidate = base.resolve(prefix).resolve(relativePath);
+            if (Files.exists(candidate)) {
+                return Files.readString(candidate);
+            }
+        }
+        throw new IOException("Source file not found from " + base + ": " + relativePath);
     }
 }

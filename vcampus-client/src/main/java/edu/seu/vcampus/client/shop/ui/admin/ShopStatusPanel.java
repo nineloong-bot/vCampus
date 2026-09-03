@@ -4,6 +4,7 @@ import edu.seu.vcampus.client.shop.service.AdminShopClientPort;
 import edu.seu.vcampus.client.shop.ui.ShopUiErrors;
 import edu.seu.vcampus.client.shop.ui.async.LatestRequest;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
+import edu.seu.vcampus.client.shop.ui.style.ShopComponentStyle;
 import edu.seu.vcampus.common.shop.*;
 
 import javax.swing.*;
@@ -29,6 +30,8 @@ public final class ShopStatusPanel extends JPanel {
 
     public ShopStatusPanel(AdminShopClientPort port, ShopUiKit uiKit, Runnable sessionExpired) {
         super(new BorderLayout(8, 8));
+        ShopComponentStyle.pagePanel(this);
+        ShopComponentStyle.styleTable(table, true);
         this.port = Objects.requireNonNull(port, "port");
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
         Objects.requireNonNull(uiKit, "uiKit");

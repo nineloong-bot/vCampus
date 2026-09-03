@@ -3,6 +3,7 @@ package edu.seu.vcampus.client.shop.ui.admin;
 import edu.seu.vcampus.client.shop.ShopSwingTestSupport;
 import edu.seu.vcampus.client.shop.service.AdminShopClientPort;
 import edu.seu.vcampus.client.shop.ui.style.DefaultShopUiKit;
+import edu.seu.vcampus.client.shop.ui.style.SharedShopUiKitAdapter;
 import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.protocol.EmptyResponse;
 import edu.seu.vcampus.common.shop.*;
@@ -18,6 +19,17 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 class ShopStatusPanelTest {
+    @Test
+    void sharedThemeUsesCompactGovernanceTable() throws Exception {
+        AdminShopClientPort port = mock(AdminShopClientPort.class);
+        ShopStatusPanel panel = ShopSwingTestSupport.onEdt(() ->
+                new ShopStatusPanel(port, new SharedShopUiKitAdapter(), () -> { }));
+
+        JTable table = ShopSwingTestSupport.component(panel, "admin.shops.table", JTable.class);
+        assertThat(table.getRowHeight()).isEqualTo(34);
+        assertThat(table.getShowVerticalLines()).isFalse();
+    }
+
     @Test
     void listsShopsAndResumesSelectedSuspendedVersion() throws Exception {
         AdminShopClientPort port = mock(AdminShopClientPort.class);

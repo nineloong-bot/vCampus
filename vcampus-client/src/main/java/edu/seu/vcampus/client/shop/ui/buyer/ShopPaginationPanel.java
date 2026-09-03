@@ -1,5 +1,7 @@
 package edu.seu.vcampus.client.shop.ui.buyer;
 
+import edu.seu.vcampus.client.core.ui.theme.UiTypography;
+import edu.seu.vcampus.client.core.ui.theme.UiColors;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
 import edu.seu.vcampus.common.paging.PageResult;
 
@@ -36,6 +38,8 @@ final class ShopPaginationPanel extends JPanel {
         add(next);
         previous.setEnabled(false);
         next.setEnabled(false);
+        status.setFont(UiTypography.BODY);
+        status.setForeground(UiColors.TEXT_SECONDARY);
     }
 
     void showPage(PageResult<?> result, IntConsumer pageChanged) {

@@ -1,5 +1,6 @@
 package edu.seu.vcampus.client.shop.ui.catalog;
 
+import edu.seu.vcampus.client.core.ui.theme.UiTypography;
 import edu.seu.vcampus.common.shop.ProductSummary;
 
 import javax.swing.ImageIcon;
@@ -11,6 +12,7 @@ public final class DefaultProductCardRenderer implements ProductCardRenderer {
     public JButton render(ProductSummary product, ImageIcon image, Runnable openDetail) {
         JButton card = new JButton("%s | ¥%s 起".formatted(product.productName(),
                 product.minimumPrice().setScale(2)));
+        card.setFont(UiTypography.BODY);
         card.setName("product-card." + product.productId());
         card.setIcon(image);
         card.setHorizontalTextPosition(JButton.CENTER);

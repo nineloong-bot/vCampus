@@ -7,6 +7,7 @@ import edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator;
 import edu.seu.vcampus.client.shop.ui.navigation.ShopRoute;
 import edu.seu.vcampus.client.shop.ui.style.ShopPageState;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
+import edu.seu.vcampus.client.shop.ui.style.ShopComponentStyle;
 import edu.seu.vcampus.common.shop.CheckoutResult;
 import edu.seu.vcampus.common.shop.PaymentAttemptStatus;
 import edu.seu.vcampus.common.shop.PaymentChannel;
@@ -64,7 +65,7 @@ public final class SimulatedCashierDialog extends JDialog implements CheckoutPan
     SimulatedCashierDialog(Window owner, ShopClientPort client, ShopNavigator navigator,
             ShopUiKit uiKit, CheckoutResult checkout, Runnable sessionExpired,
             Consumer<PaymentView> terminal, Runnable settled, Runnable closed) {
-        super(owner, "模拟收银台", ModalityType.MODELESS);
+        super(owner, "模拟收银台", ModalityType.APPLICATION_MODAL);
         this.client = Objects.requireNonNull(client, "client");
         this.navigator = Objects.requireNonNull(navigator, "navigator");
         this.uiKit = Objects.requireNonNull(uiKit, "uiKit");
@@ -74,7 +75,9 @@ public final class SimulatedCashierDialog extends JDialog implements CheckoutPan
         this.settled = Objects.requireNonNull(settled, "settled");
         this.closed = Objects.requireNonNull(closed, "closed");
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-        add(content); showCashier(ShopPageState.INITIAL, ""); pack();
+        setContentPane(ShopComponentStyle.styleDialogContent(content));
+        showCashier(ShopPageState.INITIAL, ""); pack();
+        setResizable(false);
     }
 
     public void submit(PaymentChannel channel, PaymentAttemptStatus result) {

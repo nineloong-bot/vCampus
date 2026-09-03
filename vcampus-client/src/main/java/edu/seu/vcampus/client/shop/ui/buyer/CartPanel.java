@@ -210,6 +210,7 @@ public final class CartPanel extends JPanel {
         JLabel guidance = new JLabel(selectedItemIds.isEmpty() ? "请至少选择一件商品" : "");
         guidance.setName("cart.selection-guidance");
         JPanel summary = new JPanel(new BorderLayout());
+        summary.setName("cart.summary");
         JPanel amounts = new JPanel(new FlowLayout(FlowLayout.LEFT));
         amounts.add(total); amounts.add(guidance);
         summary.add(amounts, BorderLayout.WEST); summary.add(checkout, BorderLayout.EAST);

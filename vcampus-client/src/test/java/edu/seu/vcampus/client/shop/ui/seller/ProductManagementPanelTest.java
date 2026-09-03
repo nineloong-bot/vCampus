@@ -3,6 +3,8 @@ package edu.seu.vcampus.client.shop.ui.seller;
 import edu.seu.vcampus.client.shop.ShopSwingTestSupport;
 import edu.seu.vcampus.client.shop.service.SellerShopClientPort;
 import edu.seu.vcampus.client.shop.ui.style.DefaultShopUiKit;
+import edu.seu.vcampus.client.shop.ui.style.SharedShopUiKitAdapter;
+import edu.seu.vcampus.client.core.ui.theme.UiColors;
 import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.shop.*;
 import org.junit.jupiter.api.Test;
@@ -25,6 +27,28 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 class ProductManagementPanelTest {
+    @Test
+    void sharedThemeUsesCompactManagementTablesAndEditorControls() throws Exception {
+        SellerShopClientPort port = mock(SellerShopClientPort.class);
+        ProductManagementPanel management = ShopSwingTestSupport.onEdt(() ->
+                new ProductManagementPanel(port, new SharedShopUiKitAdapter(), () -> { }));
+        ProductEditorPanel editor = ShopSwingTestSupport.onEdt(() ->
+                new ProductEditorPanel(new SharedShopUiKitAdapter()));
+
+        JTable active = ShopSwingTestSupport.component(management,
+                "seller.products.active-table", JTable.class);
+        JTable inactive = ShopSwingTestSupport.component(management,
+                "seller.products.inactive-table", JTable.class);
+        JTable varieties = ShopSwingTestSupport.component(editor,
+                "seller.editor.skus", JTable.class);
+
+        assertThat(active.getRowHeight()).isEqualTo(34);
+        assertThat(inactive.getRowHeight()).isEqualTo(34);
+        assertThat(varieties.getRowHeight()).isEqualTo(34);
+        assertThat(active.getShowVerticalLines()).isFalse();
+        assertThat(editor.getBackground()).isEqualTo(UiColors.BACKGROUND_PAGE);
+    }
+
     @Test
     void productListUsesFullMainAreaWithoutPersistentEditorSplit() throws Exception {
         SellerShopClientPort port = mock(SellerShopClientPort.class);
