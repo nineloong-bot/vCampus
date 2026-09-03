@@ -16,6 +16,7 @@ public final class UserUiCoordinator {
     private static final String PASSWORD_CHANGED = "密码修改成功，请使用新密码重新登录";
     private static final String LOGGED_OUT = "已退出登录";
     private static final String SESSION_REPLACED = "登录已在其他位置失效，请重新登录";
+    private static final String PASSWORD_RESET = "密码已被管理员初始化，请重新登录并修改密码";
     private static final String SESSION_INVALID = "登录状态已失效，请重新登录";
     private final UserClientService users;
     private final StudentClientService students;
@@ -123,27 +124,29 @@ public final class UserUiCoordinator {
 
     private void startSessionMonitor(MainFrame main) {
         if (sessionMonitor != null) return;
-        sessionMonitor = new SessionMonitor(users, () -> sessionExpired(main));
+        sessionMonitor = new SessionMonitor(users, reason -> sessionExpired(main, reason));
         sessionMonitor.start();
     }
 
-    private void sessionExpired(MainFrame main) {
+    private void sessionExpired(MainFrame main, SessionMonitor.InvalidationReason reason) {
         if (activeMain != main || sessionEnding || !main.isShowing()) return;
         sessionEnding = true;
         stopSessionMonitor();
         main.setEnabled(false);
         SessionReplacementWarningDialog warning = new SessionReplacementWarningDialog(
-                main, () -> finishSessionReplacement(main));
+                main, reason, () -> finishSessionReplacement(main, reason));
         warning.showWarning();
     }
 
-    private void finishSessionReplacement(MainFrame main) {
+    private void finishSessionReplacement(
+            MainFrame main, SessionMonitor.InvalidationReason reason) {
         if (activeMain != main || !sessionEnding) return;
         users.clearSession();
         activeMain = null;
         main.dispose();
         sessionEnding = false;
-        showLogin(SESSION_REPLACED);
+        showLogin(reason == SessionMonitor.InvalidationReason.PASSWORD_RESET
+                ? PASSWORD_RESET : SESSION_REPLACED);
     }
 
     private void stopSessionMonitor() {

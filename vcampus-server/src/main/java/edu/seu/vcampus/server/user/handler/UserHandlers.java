@@ -7,6 +7,7 @@ import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.user.ChangePasswordCommand;
 import edu.seu.vcampus.common.user.ChangeUserStatusCommand;
 import edu.seu.vcampus.common.user.ResetStudentPasswordCommand;
+import edu.seu.vcampus.common.user.ResetTeacherPasswordCommand;
 import edu.seu.vcampus.common.user.TeacherAccountApplicationCommand;
 import edu.seu.vcampus.common.user.UpdateUserRoleCommand;
 import edu.seu.vcampus.common.user.UserSearchQuery;
@@ -53,6 +54,7 @@ public final class UserHandlers {
         router.register("USER_UPDATE_ROLE", roleUpdateHandler());
         router.register("USER_CHANGE_STATUS", statusChangeHandler());
         router.register("USER_RESET_STUDENT_PASSWORD", studentPasswordResetHandler());
+        router.register("USER_RESET_TEACHER_PASSWORD", teacherPasswordResetHandler());
     }
 
     private MessageHandler registrationHandler() {
@@ -167,6 +169,30 @@ public final class UserHandlers {
                 return protectedWrite(message, context, actorUserId,
                         "USER_PASSWORD_RESET", request.targetUserId(),
                         () -> ResponseBody.success(users.resetStudentPassword(
+                                actor.userId(), request, context)));
+            } catch (RuntimeException error) {
+                String target = command == null ? null : command.targetUserId();
+                return rejected(actorUserId, "USER_PASSWORD_RESET", target, error, context);
+            }
+        };
+    }
+
+    private MessageHandler teacherPasswordResetHandler() {
+        return (message, context) -> {
+            ResetTeacherPasswordCommand command = null;
+            String actorUserId = null;
+            try {
+                command = requireBody(ResetTeacherPasswordCommand.class, message.body());
+                authorization.requirePermission(message.sessionToken(), "USER_PASSWORD_RESET");
+                UserIdentity actor = authorization.requireSession(message.sessionToken());
+                actorUserId = actor.userId();
+                if (actor.role() != edu.seu.vcampus.common.user.UserRole.ADMIN) {
+                    throw new ForbiddenException();
+                }
+                ResetTeacherPasswordCommand request = command;
+                return protectedWrite(message, context, actorUserId,
+                        "USER_PASSWORD_RESET", request.targetUserId(),
+                        () -> ResponseBody.success(users.resetTeacherPassword(
                                 actor.userId(), request, context)));
             } catch (RuntimeException error) {
                 String target = command == null ? null : command.targetUserId();

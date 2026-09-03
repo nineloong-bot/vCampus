@@ -5,6 +5,7 @@ import edu.seu.vcampus.common.user.ChangeUserStatusCommand;
 import edu.seu.vcampus.common.user.LoginCommand;
 import edu.seu.vcampus.common.user.LoginResult;
 import edu.seu.vcampus.common.user.ResetStudentPasswordCommand;
+import edu.seu.vcampus.common.user.ResetTeacherPasswordCommand;
 import edu.seu.vcampus.common.user.TeacherAccountApplicationCommand;
 import edu.seu.vcampus.common.user.UpdateUserRoleCommand;
 import edu.seu.vcampus.common.user.UserSearchQuery;
@@ -66,7 +67,7 @@ public final class UserServiceImpl implements UserService, UserQueryPort {
         authentication = new AuthenticationService(transactions, locks, users, permissions,
                 audits, hasher, sessions, clock);
         administration = new AdminUserService(transactions, locks, users, audits, hasher,
-                sessions::revokeAllForUser);
+                sessions::revokeAllForUser, sessions::revokeAllForUserAfterPasswordReset);
     }
 
     /** Creates a pending teacher account application. */
@@ -123,6 +124,12 @@ public final class UserServiceImpl implements UserService, UserQueryPort {
     @Override public UserView resetStudentPassword(String actorUserId,
             ResetStudentPasswordCommand command, ClientContext context) {
         return administration.resetStudentPassword(actorUserId, command, context);
+    }
+
+    /** Initializes a teacher's password and revokes that teacher's sessions. */
+    @Override public UserView resetTeacherPassword(String actorUserId,
+            ResetTeacherPasswordCommand command, ClientContext context) {
+        return administration.resetTeacherPassword(actorUserId, command, context);
     }
 
     /** Changes an account lifecycle status. */

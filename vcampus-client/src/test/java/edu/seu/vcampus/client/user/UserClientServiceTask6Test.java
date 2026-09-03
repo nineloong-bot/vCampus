@@ -7,6 +7,7 @@ import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.user.SecurityAuditQuery;
 import edu.seu.vcampus.common.user.SecurityAuditView;
 import edu.seu.vcampus.common.user.ResetStudentPasswordCommand;
+import edu.seu.vcampus.common.user.ResetTeacherPasswordCommand;
 import edu.seu.vcampus.common.user.TeacherAccountApplicationCommand;
 import edu.seu.vcampus.common.user.UserView;
 import org.junit.jupiter.api.Test;
@@ -89,5 +90,21 @@ class UserClientServiceTask6Test {
         assertThat(users.resetStudentPassword(command).join()).isSameAs(expected);
         verify(connection).send("USER_RESET_STUDENT_PASSWORD", command, TIMEOUT);
         assertThat(command.toString()).doesNotContain("12345678", "password", "hash", "salt");
+    }
+
+    @Test
+    void teacherPasswordResetUsesItsIndependentCommand() {
+        ClientConnection connection = mock(ClientConnection.class);
+        ResetTeacherPasswordCommand command =
+                new ResetTeacherPasswordCommand("teacher", 9);
+        UserView expected = mock(UserView.class);
+        doReturn(CompletableFuture.completedFuture(ResponseBody.success(expected)))
+                .when(connection).send("USER_RESET_TEACHER_PASSWORD", command, TIMEOUT);
+        UserClientService users = new UserClientService(connection, "client", TIMEOUT);
+
+        assertThat(users.resetTeacherPassword(command).join()).isSameAs(expected);
+        verify(connection).send("USER_RESET_TEACHER_PASSWORD", command, TIMEOUT);
+        assertThat(command.toString())
+                .doesNotContain("12345678", "password", "hash", "salt", "token");
     }
 }

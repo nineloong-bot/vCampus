@@ -5,6 +5,7 @@ import edu.seu.vcampus.common.user.ChangeUserStatusCommand;
 import edu.seu.vcampus.common.user.LoginCommand;
 import edu.seu.vcampus.common.user.LoginResult;
 import edu.seu.vcampus.common.user.ResetStudentPasswordCommand;
+import edu.seu.vcampus.common.user.ResetTeacherPasswordCommand;
 import edu.seu.vcampus.common.user.TeacherAccountApplicationCommand;
 import edu.seu.vcampus.common.user.UpdateUserRoleCommand;
 import edu.seu.vcampus.common.user.UserSearchQuery;
@@ -63,6 +64,12 @@ public interface UserService {
     default UserView resetStudentPassword(String actorUserId,
             ResetStudentPasswordCommand command, ClientContext context) {
         throw new UnsupportedOperationException("Student password reset is unavailable");
+    }
+
+    /** Initializes a teacher's password through an authenticated administrator action. */
+    default UserView resetTeacherPassword(String actorUserId,
+            ResetTeacherPasswordCommand command, ClientContext context) {
+        throw new UnsupportedOperationException("Teacher password reset is unavailable");
     }
 
     /** Changes account lifecycle state while applying optimistic-version and last-admin protection. */

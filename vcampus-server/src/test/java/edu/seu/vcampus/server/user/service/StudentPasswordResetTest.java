@@ -88,7 +88,7 @@ class StudentPasswordResetTest {
         assertThat(view.mustChangePassword()).isTrue();
         assertThat(view.toString()).doesNotContain("12345678", "password", "salt", "token");
         assertThatThrownBy(() -> sessions.requireSession(oldToken))
-                .isInstanceOf(SessionExpiredException.class);
+                .hasMessage("AUTH_SESSION_REVOKED_PASSWORD_RESET");
         assertThatThrownBy(() -> login(student.loginId(), "Pass1234"))
                 .isInstanceOf(InvalidCredentialsException.class);
         var resetLogin = login(student.loginId(), "12345678");

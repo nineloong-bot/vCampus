@@ -9,6 +9,7 @@ import edu.seu.vcampus.common.user.ChangeUserStatusCommand;
 import edu.seu.vcampus.common.user.LoginCommand;
 import edu.seu.vcampus.common.user.LoginResult;
 import edu.seu.vcampus.common.user.ResetStudentPasswordCommand;
+import edu.seu.vcampus.common.user.ResetTeacherPasswordCommand;
 import edu.seu.vcampus.common.user.SecurityAuditQuery;
 import edu.seu.vcampus.common.user.SecurityAuditView;
 import edu.seu.vcampus.common.user.TeacherAccountApplicationCommand;
@@ -36,6 +37,8 @@ public class UserClientService {
     private static final String USER_CHANGE_STATUS = "USER_CHANGE_STATUS";
     private static final String USER_RESET_STUDENT_PASSWORD =
             "USER_RESET_STUDENT_PASSWORD";
+    private static final String USER_RESET_TEACHER_PASSWORD =
+            "USER_RESET_TEACHER_PASSWORD";
     private static final String SECURITY_AUDIT_SEARCH = "SECURITY_AUDIT_SEARCH";
 
     private final ClientConnection connection;
@@ -99,6 +102,13 @@ public class UserClientService {
     public CompletableFuture<UserView> resetStudentPassword(
             ResetStudentPasswordCommand command) {
         return this.<UserView>sendAsync(USER_RESET_STUDENT_PASSWORD, command, () -> { })
+                .thenApply(UserClientService::requireSuccess);
+    }
+
+    /** Requests administrator-controlled initialization of a teacher's password. */
+    public CompletableFuture<UserView> resetTeacherPassword(
+            ResetTeacherPasswordCommand command) {
+        return this.<UserView>sendAsync(USER_RESET_TEACHER_PASSWORD, command, () -> { })
                 .thenApply(UserClientService::requireSuccess);
     }
 
@@ -178,6 +188,10 @@ public class UserClientService {
     }
 
     private static <T extends Serializable> T requireSessionSuccess(ResponseBody<T> response) {
+        if (!response.success()
+                && "AUTH_SESSION_REVOKED_PASSWORD_RESET".equals(response.code())) {
+            throw new PasswordResetSessionClientException();
+        }
         if (!response.success() && "AUTH_SESSION_EXPIRED".equals(response.code())) {
             throw new SessionExpiredClientException();
         }

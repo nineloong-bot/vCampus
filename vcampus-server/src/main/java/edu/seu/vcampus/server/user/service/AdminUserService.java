@@ -4,6 +4,7 @@ import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.user.AccountStatus;
 import edu.seu.vcampus.common.user.ChangeUserStatusCommand;
 import edu.seu.vcampus.common.user.ResetStudentPasswordCommand;
+import edu.seu.vcampus.common.user.ResetTeacherPasswordCommand;
 import edu.seu.vcampus.common.user.UpdateUserRoleCommand;
 import edu.seu.vcampus.common.user.UserRole;
 import edu.seu.vcampus.common.user.UserSearchQuery;
@@ -32,17 +33,20 @@ final class AdminUserService {
     private final AuditRepository audits;
     private final PasswordHasher hasher;
     private final Consumer<String> sessionRevoker;
+    private final Consumer<String> passwordResetSessionRevoker;
     private final UserAuditWriter auditWriter;
 
     AdminUserService(TransactionManager transactions, ResourceLockManager locks, UserRepository users,
             AuditRepository audits, PasswordHasher hasher,
-            Consumer<String> sessionRevoker) {
+            Consumer<String> sessionRevoker, Consumer<String> passwordResetSessionRevoker) {
         this.transactions = Objects.requireNonNull(transactions, "transactions");
         this.locks = Objects.requireNonNull(locks, "locks");
         this.users = Objects.requireNonNull(users, "users");
         this.audits = Objects.requireNonNull(audits, "audits");
         this.hasher = Objects.requireNonNull(hasher, "hasher");
         this.sessionRevoker = Objects.requireNonNull(sessionRevoker, "sessionRevoker");
+        this.passwordResetSessionRevoker = Objects.requireNonNull(
+                passwordResetSessionRevoker, "passwordResetSessionRevoker");
         auditWriter = new UserAuditWriter(transactions, audits);
     }
 
@@ -72,17 +76,30 @@ final class AdminUserService {
     UserView resetStudentPassword(String actorUserId,
             ResetStudentPasswordCommand command, ClientContext context) {
         Objects.requireNonNull(command, "command");
+        return resetPassword(actorUserId, command.targetUserId(),
+                command.expectedRowVersion(), UserRole.STUDENT, context);
+    }
+
+    UserView resetTeacherPassword(String actorUserId,
+            ResetTeacherPasswordCommand command, ClientContext context) {
+        Objects.requireNonNull(command, "command");
+        return resetPassword(actorUserId, command.targetUserId(),
+                command.expectedRowVersion(), UserRole.TEACHER, context);
+    }
+
+    private UserView resetPassword(String actorUserId, String targetUserId,
+            long expectedRowVersion, UserRole requiredRole, ClientContext context) {
         try {
             return locks.withLocks(
-                    List.of(new ResourceKey("USER", command.targetUserId())), () ->
+                    List.of(new ResourceKey("USER", targetUserId)), () ->
                     {
                         UserView result = transactions.inTransaction(connection -> {
-                                UserAccount account = account(connection, command.targetUserId());
-                                if (account.role() != UserRole.STUDENT) {
+                                UserAccount account = account(connection, targetUserId);
+                                if (account.role() != requiredRole) {
                                     throw new IllegalArgumentException(
                                             "COMMON_VALIDATION_FAILED");
                                 }
-                                if (account.rowVersion() != command.expectedRowVersion()) {
+                                if (account.rowVersion() != expectedRowVersion) {
                                     throw new ConcurrentModificationException(
                                             "User account version is stale");
                                 }
@@ -91,21 +108,21 @@ final class AdminUserService {
                                     PasswordHash password = hasher.hash(initialPassword);
                                     UserAccount updated = reset(account, password);
                                     users.updateWithVersion(connection, updated,
-                                            command.expectedRowVersion());
+                                            expectedRowVersion);
                                     audits.record(connection, actorUserId,
                                             "USER_PASSWORD_RESET", "USER",
                                             account.userId(), "SUCCESS", address(context));
-                                    return view(updated, command.expectedRowVersion() + 1);
+                                    return view(updated, expectedRowVersion + 1);
                                 } finally {
                                     Arrays.fill(initialPassword, '\0');
                                 }
                             });
-                        sessionRevoker.accept(command.targetUserId());
+                        passwordResetSessionRevoker.accept(targetUserId);
                         return result;
                     });
         } catch (RuntimeException error) {
             auditWriter.failure(actorUserId, "USER_PASSWORD_RESET",
-                    command.targetUserId(), error, address(context));
+                    targetUserId, error, address(context));
             throw error;
         }
     }

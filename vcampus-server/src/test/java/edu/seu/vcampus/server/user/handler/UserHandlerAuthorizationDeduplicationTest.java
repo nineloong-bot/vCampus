@@ -10,6 +10,7 @@ import edu.seu.vcampus.common.user.ChangeUserStatusCommand;
 import edu.seu.vcampus.common.user.LoginCommand;
 import edu.seu.vcampus.common.user.LoginResult;
 import edu.seu.vcampus.common.user.ResetStudentPasswordCommand;
+import edu.seu.vcampus.common.user.ResetTeacherPasswordCommand;
 import edu.seu.vcampus.common.user.TeacherAccountApplicationCommand;
 import edu.seu.vcampus.common.user.UpdateUserRoleCommand;
 import edu.seu.vcampus.common.user.UserRole;
@@ -67,7 +68,8 @@ class UserHandlerAuthorizationDeduplicationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"USER_RESET_STUDENT_PASSWORD", "USER_CHANGE_STATUS"})
+    @ValueSource(strings = {"USER_RESET_STUDENT_PASSWORD",
+            "USER_RESET_TEACHER_PASSWORD", "USER_CHANGE_STATUS"})
     void completedAdminRequestCannotReplayWithoutCurrentPermission(String command) {
         Serializable body = bodyFor(command);
         String requestId = UUID.randomUUID().toString();
@@ -152,9 +154,14 @@ class UserHandlerAuthorizationDeduplicationTest {
     }
 
     private static Serializable bodyFor(String command) {
-        return "USER_RESET_STUDENT_PASSWORD".equals(command)
-                ? new ResetStudentPasswordCommand("target", 0)
-                : new ChangeUserStatusCommand("target", AccountStatus.DISABLED, "reviewed", 0);
+        return switch (command) {
+            case "USER_RESET_STUDENT_PASSWORD" ->
+                    new ResetStudentPasswordCommand("target", 0);
+            case "USER_RESET_TEACHER_PASSWORD" ->
+                    new ResetTeacherPasswordCommand("target", 0);
+            default -> new ChangeUserStatusCommand(
+                    "target", AccountStatus.DISABLED, "reviewed", 0);
+        };
     }
 
     private static Path projectFile(String folder, String name) {
@@ -210,6 +217,11 @@ class UserHandlerAuthorizationDeduplicationTest {
         @Override public UserView resetStudentPassword(String actorUserId,
                 ResetStudentPasswordCommand command, ClientContext context) {
             hit("USER_RESET_STUDENT_PASSWORD");
+            return VIEW;
+        }
+        @Override public UserView resetTeacherPassword(String actorUserId,
+                ResetTeacherPasswordCommand command, ClientContext context) {
+            hit("USER_RESET_TEACHER_PASSWORD");
             return VIEW;
         }
         @Override public UserView changeStatus(ChangeUserStatusCommand command) { hit("USER_CHANGE_STATUS"); return VIEW; }

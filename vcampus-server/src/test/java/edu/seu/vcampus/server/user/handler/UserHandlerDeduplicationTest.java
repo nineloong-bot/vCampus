@@ -11,6 +11,7 @@ import edu.seu.vcampus.common.user.ChangeUserStatusCommand;
 import edu.seu.vcampus.common.user.LoginCommand;
 import edu.seu.vcampus.common.user.LoginResult;
 import edu.seu.vcampus.common.user.ResetStudentPasswordCommand;
+import edu.seu.vcampus.common.user.ResetTeacherPasswordCommand;
 import edu.seu.vcampus.common.user.TeacherAccountApplicationCommand;
 import edu.seu.vcampus.common.user.UpdateUserRoleCommand;
 import edu.seu.vcampus.common.user.UserRole;
@@ -80,6 +81,8 @@ class UserHandlerDeduplicationTest {
                 .isEqualTo("COMMON_VALIDATION_FAILED");
         assertReplay("USER_RESET_STUDENT_PASSWORD",
                 new ResetStudentPasswordCommand("target", 0));
+        assertReplay("USER_RESET_TEACHER_PASSWORD",
+                new ResetTeacherPasswordCommand("target", 0));
         assertReplay("USER_CHANGE_STATUS", new ChangeUserStatusCommand(
                 "target", AccountStatus.DISABLED, "reviewed", 0));
     }
@@ -244,6 +247,11 @@ class UserHandlerDeduplicationTest {
         @Override public UserView resetStudentPassword(String actorUserId,
                 ResetStudentPasswordCommand command, ClientContext context) {
             hit("USER_RESET_STUDENT_PASSWORD");
+            return VIEW;
+        }
+        @Override public UserView resetTeacherPassword(String actorUserId,
+                ResetTeacherPasswordCommand command, ClientContext context) {
+            hit("USER_RESET_TEACHER_PASSWORD");
             return VIEW;
         }
         @Override public UserView changeStatus(ChangeUserStatusCommand command) {

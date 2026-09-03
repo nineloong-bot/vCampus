@@ -27,6 +27,10 @@ final class UserErrorMessages {
         return hasCode(failure, "AUTH_ACCOUNT_LOCKED");
     }
 
+    static boolean isConcurrentModification(Throwable failure) {
+        return hasCode(failure, "COMMON_CONCURRENT_MODIFICATION");
+    }
+
     static String operation(Throwable failure, String fallback) {
         if (hasCode(failure, "AUTH_INVALID_CREDENTIALS")) return "当前密码不正确";
         if (hasCode(failure, "AUTH_PASSWORD_POLICY_VIOLATION")) {

@@ -90,6 +90,43 @@ class SessionReplacementUiTest {
     }
 
     @Test
+    void passwordResetSessionRevocationShowsSpecificWarningAndLoginNotice() throws Exception {
+        AtomicReference<CompletableFuture<ResponseBody<UserView>>> current =
+                new AtomicReference<>(CompletableFuture.completedFuture(
+                        ResponseBody.success(loginResult().user())));
+        Fixture fixture = fixture(current);
+        MainFrame main = login(fixture.coordinator());
+        awaitCurrentChecks(fixture.connection(), 1);
+        clearInvocations(fixture.connection());
+        current.set(CompletableFuture.completedFuture(ResponseBody.failure(
+                "AUTH_SESSION_REVOKED_PASSWORD_RESET", "会话已失效", null)));
+        Timer monitor = timerInside(fixture.coordinator());
+
+        fire(monitor);
+        JDialog warning = awaitShowing(JDialog.class);
+
+        assertThat(warning.getTitle()).isEqualTo("密码安全提醒");
+        assertThat(text(warning))
+                .contains("密码已被管理员初始化")
+                .contains("管理员已初始化你的登录密码，当前登录已失效。"
+                        + "请使用初始密码重新登录，并按提示修改密码。")
+                .doesNotContain("其他位置登录", "AUTH_SESSION_REVOKED_PASSWORD_RESET",
+                        "session-token", "Exception");
+        assertThat(main.isEnabled()).isFalse();
+        assertThat(monitor.isRunning()).isFalse();
+
+        fire(timerInside(warning));
+        awaitNoShowing(MainFrame.class);
+
+        verify(fixture.connection()).setSessionToken(null);
+        assertThat(showing(LoginFrame.class)).hasSize(1);
+        assertThat(text(showing(LoginFrame.class).getFirst()))
+                .contains("密码已被管理员初始化，请重新登录并修改密码")
+                .doesNotContain("其他位置登录", "AUTH_SESSION_REVOKED_PASSWORD_RESET",
+                        "session-token");
+    }
+
+    @Test
     void networkFailureKeepsSessionAndWindowAndClosingWindowStopsMonitoring() throws Exception {
         AtomicReference<CompletableFuture<ResponseBody<UserView>>> current =
                 new AtomicReference<>(CompletableFuture.completedFuture(

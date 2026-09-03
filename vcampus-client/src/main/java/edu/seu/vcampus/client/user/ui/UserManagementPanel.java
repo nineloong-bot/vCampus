@@ -9,6 +9,7 @@ import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.user.AccountStatus;
 import edu.seu.vcampus.common.user.ChangeUserStatusCommand;
 import edu.seu.vcampus.common.user.ResetStudentPasswordCommand;
+import edu.seu.vcampus.common.user.ResetTeacherPasswordCommand;
 import edu.seu.vcampus.common.user.UserRole;
 import edu.seu.vcampus.common.user.UserSearchQuery;
 import edu.seu.vcampus.common.user.UserSummary;
@@ -96,6 +97,10 @@ public final class UserManagementPanel extends JPanel {
     }
 
     private void load() {
+        load(null);
+    }
+
+    private void load(String successMessage) {
         if (!permissions.contains("USER_READ_ALL")) {
             state.setText("无权查看全部账户"); return;
         }
@@ -105,10 +110,12 @@ public final class UserManagementPanel extends JPanel {
         CompletableFuture<PageResult<UserSummary>> response;
         try { response = users.searchUsers(query); }
         catch (RuntimeException failure) { response = CompletableFuture.failedFuture(failure); }
-        response.whenComplete((result, failure) -> onEdt(() -> finish(result, failure)));
+        response.whenComplete((result, failure) ->
+                onEdt(() -> finish(result, failure, successMessage)));
     }
 
-    private void finish(PageResult<UserSummary> result, Throwable failure) {
+    private void finish(PageResult<UserSummary> result, Throwable failure,
+            String successMessage) {
         setBusy(false); model.setRowCount(0);
         if (failure != null || result == null) {
             state.setText(UserErrorMessages.operation(failure, "账户列表加载失败，请重试")); return;
@@ -116,7 +123,9 @@ public final class UserManagementPanel extends JPanel {
         rows = List.copyOf(result.items());
         for (UserSummary row : rows) model.addRow(new Object[]{row.loginId(),
                 roleName(row.role()), statusName(row.accountStatus()), row.lastLoginAt(), row.rowVersion()});
-        state.setText(result.total() == 0 ? "未找到符合条件的账户" : "共 " + result.total() + " 条");
+        state.setText(successMessage != null ? successMessage
+                : result.total() == 0 ? "未找到符合条件的账户"
+                : "共 " + result.total() + " 条");
     }
 
     private void changeStatus() {
@@ -136,12 +145,20 @@ public final class UserManagementPanel extends JPanel {
 
     private void confirmPasswordReset() {
         UserSummary selected = selectedRow();
-        if (selected == null || selected.role() != UserRole.STUDENT) return;
-        StudentPasswordResetConfirmationDialog dialog =
-                new StudentPasswordResetConfirmationDialog(
-                        SwingUtilities.getWindowAncestor(this),
-                        () -> resetStudentPassword(selected));
-        dialog.setVisible(true);
+        if (selected == null) return;
+        if (selected.role() == UserRole.STUDENT) {
+            StudentPasswordResetConfirmationDialog dialog =
+                    new StudentPasswordResetConfirmationDialog(
+                            SwingUtilities.getWindowAncestor(this),
+                            () -> resetStudentPassword(selected));
+            dialog.setVisible(true);
+        } else if (selected.role() == UserRole.TEACHER) {
+            TeacherPasswordResetConfirmationDialog dialog =
+                    new TeacherPasswordResetConfirmationDialog(
+                            SwingUtilities.getWindowAncestor(this),
+                            () -> resetTeacherPassword(selected));
+            dialog.setVisible(true);
+        }
     }
 
     private void resetStudentPassword(UserSummary selected) {
@@ -155,14 +172,35 @@ public final class UserManagementPanel extends JPanel {
             response = CompletableFuture.failedFuture(failure);
         }
         response.whenComplete((ignored, failure) -> onEdt(() -> {
-            if (closed) return;
-            if (failure == null) load();
-            else {
-                setBusy(false);
-                state.setText(UserErrorMessages.operation(
-                        failure, "密码初始化失败，请稍后重试"));
-            }
+            finishPasswordReset(failure);
         }));
+    }
+
+    private void resetTeacherPassword(UserSummary selected) {
+        if (busy || closed) return;
+        setBusy(true);
+        CompletableFuture<?> response;
+        try {
+            response = users.resetTeacherPassword(new ResetTeacherPasswordCommand(
+                    selected.userId(), selected.rowVersion()));
+        } catch (RuntimeException failure) {
+            response = CompletableFuture.failedFuture(failure);
+        }
+        response.whenComplete((ignored, failure) ->
+                onEdt(() -> finishPasswordReset(failure)));
+    }
+
+    private void finishPasswordReset(Throwable failure) {
+        if (closed) return;
+        if (failure == null) load();
+        else if (UserErrorMessages.isConcurrentModification(failure)) {
+            load("账户信息已更新，请重新选择后重试");
+        }
+        else {
+            setBusy(false);
+            state.setText(UserErrorMessages.operation(
+                    failure, "密码初始化失败，请稍后重试"));
+        }
     }
 
     private UserSummary selectedRow() {
@@ -180,7 +218,8 @@ public final class UserManagementPanel extends JPanel {
     private void updateResetVisibility() {
         UserSummary selected = selectedRow();
         resetPassword.setVisible(permissions.contains("USER_PASSWORD_RESET")
-                && selected != null && selected.role() == UserRole.STUDENT);
+                && selected != null && (selected.role() == UserRole.STUDENT
+                || selected.role() == UserRole.TEACHER));
     }
 
     @Override public void addNotify() {
