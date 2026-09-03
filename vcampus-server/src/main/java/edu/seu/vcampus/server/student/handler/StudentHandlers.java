@@ -27,7 +27,7 @@ import java.util.function.BiFunction;
 
 /** Registers the ten student commands and enforces their authorization boundary. */
 public final class StudentHandlers {
-    public static final List<String> COMMANDS = List.of("STUDENT_CREATE", "STUDENT_GET_CURRENT",
+    public static final List<String> COMMANDS = List.of("STUDENT_CREATE", "STUDENT_CREATE_MANUAL", "STUDENT_GET_CURRENT",
             "STUDENT_GET", "STUDENT_SEARCH", "STUDENT_UPDATE_CONTACT",
             "STUDENT_UPDATE_ENROLLMENT", "STUDENT_CHANGE_STATUS", "STUDENT_UPDATE_INFO",
             "STUDENT_UPDATE_ACADEMIC",
@@ -87,6 +87,9 @@ public final class StudentHandlers {
             if (!principal.hasPermission("STUDENT_WRITE")) return forbidden();
             return success(admissions.admit(body, context(message, principal)));
         }));
+        router.register("STUDENT_CREATE_MANUAL", typed(CreateStudentManualCommand.class,
+                (message, body) -> strictAdmin(message, () -> admissions.createManual(
+                        body, context(message, principal(message))))));
         router.register("STUDENT_GET_CURRENT", typed(EmptyRequest.class, (message, body) -> {
             StudentPrincipal principal = principal(message);
             if (!principal.hasRole("STUDENT") && !principal.hasRole("ADMIN")) return forbidden();

@@ -4,6 +4,8 @@ import edu.seu.vcampus.common.protocol.EmptyRequest;
 import edu.seu.vcampus.common.protocol.Message;
 import edu.seu.vcampus.common.protocol.MessageType;
 import edu.seu.vcampus.common.student.CreateStudentAdmissionCommand;
+import edu.seu.vcampus.common.student.CreateStudentManualCommand;
+import edu.seu.vcampus.common.student.StudentAdmissionResult;
 import edu.seu.vcampus.common.student.StudentType;
 import edu.seu.vcampus.server.routing.ClientContext;
 import edu.seu.vcampus.server.routing.MessageRouter;
@@ -16,6 +18,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.ConcurrentModificationException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -47,7 +50,30 @@ class StudentHandlersTest {
                 assertThat(router.isRegistered(command)).isTrue());
         assertThat(StudentHandlers.COMMANDS).contains(
                 "STUDENT_GET_CHANGES", "STUDENT_SAVE_DEPARTMENT",
-                "STUDENT_SAVE_MAJOR", "STUDENT_SAVE_CLASS");
+                "STUDENT_SAVE_MAJOR", "STUDENT_SAVE_CLASS", "STUDENT_CREATE_MANUAL");
+    }
+
+    @Test
+    void manualCreationRequiresAdminRoleEvenWhenTeacherHasWritePermission() {
+        var called = new AtomicBoolean();
+        StudentAdmissionService admissions = new StudentAdmissionService() {
+            public StudentAdmissionResult admit(CreateStudentAdmissionCommand command,
+                    edu.seu.vcampus.server.routing.RequestContext context) { return null; }
+            public StudentAdmissionResult createManual(CreateStudentManualCommand command,
+                    edu.seu.vcampus.server.routing.RequestContext context) {
+                called.set(true);
+                return null;
+            }
+        };
+        var router = new MessageRouter(Map.of());
+        new StudentHandlers(admissions, studentService(), organizationQuery(),
+                token -> new StudentPrincipal("teacher-1", Set.of("TEACHER"), Set.of("STUDENT_WRITE")))
+                .register(router);
+
+        var response = router.route(request("STUDENT_CREATE_MANUAL", manualCommand()), client());
+
+        assertThat(response.code()).isEqualTo("COMMON_FORBIDDEN");
+        assertThat(called).isFalse();
     }
 
     @Test
@@ -120,6 +146,11 @@ class StudentHandlersTest {
     private static Message request(String command, java.io.Serializable body) {
         return new Message("8e7c1a21-9d44-4c82-978b-df34326a0341", MessageType.REQUEST,
                 command, "token", body, System.currentTimeMillis());
+    }
+    private static CreateStudentManualCommand manualCommand() {
+        return new CreateStudentManualCommand("213240099", "09024199", "李雷", "男",
+                StudentType.UNDERGRADUATE, "居民身份证", "110105200009030011",
+                java.time.LocalDate.of(2000, 9, 3), java.time.LocalDate.of(2024, 9, 1), "class-1");
     }
     private static ClientContext client() { return new ClientContext("connection-1", "local"); }
 

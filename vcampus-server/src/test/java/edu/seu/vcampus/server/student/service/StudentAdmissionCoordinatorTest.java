@@ -1,6 +1,7 @@
 package edu.seu.vcampus.server.student.service;
 
 import edu.seu.vcampus.common.student.CreateStudentAdmissionCommand;
+import edu.seu.vcampus.common.student.CreateStudentManualCommand;
 import edu.seu.vcampus.common.student.StudentType;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.persistence.TransactionContext;
@@ -24,6 +25,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 import java.util.UUID;
+import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -92,6 +94,23 @@ class StudentAdmissionCoordinatorTest {
         assertThat(database.sequenceValue("STUDENT_NUMBER:090:24:1")).isEqualTo(1);
     }
 
+    @Test
+    void manualCreationKeepsSuppliedIdentifiersAndLeavesContactEmpty() throws Exception {
+        var result = coordinator.createManual(manualCommand(),
+                request("62d720ff-e845-4ab4-8e52-a561541fbe81"));
+
+        assertThat(result.campusCardNumber()).isEqualTo("213240099");
+        assertThat(result.studentNumber()).isEqualTo("09024199");
+        assertThat(result.mustChangePassword()).isTrue();
+        assertThat(result.student().email()).isNull();
+        assertThat(result.student().phone()).isNull();
+        assertThat(database.stringValue("SELECT idDocumentNumber FROM tblStudent WHERE studentNumber='09024199'"))
+                .isEqualTo("110105200009030011");
+        assertThat(database.stringValue("SELECT birthDate FROM tblStudent WHERE studentNumber='09024199'"))
+                .startsWith("2000-09-03");
+        assertThat(database.sequenceValue("CAMPUS_CARD_GLOBAL")).isZero();
+    }
+
     @ParameterizedTest
     @EnumSource(AdmissionFailurePoint.class)
     void everyInjectedFailureRollsBackEverything(AdmissionFailurePoint point) throws Exception {
@@ -112,6 +131,12 @@ class StudentAdmissionCoordinatorTest {
     private static CreateStudentAdmissionCommand command() {
         return new CreateStudentAdmissionCommand("张三", "MALE", "zhangsan@seu.edu.cn",
                 "13800000000", "major-1", "class-1", 2024, StudentType.UNDERGRADUATE);
+    }
+
+    private static CreateStudentManualCommand manualCommand() {
+        return new CreateStudentManualCommand("213240099", "09024199", "李雷", "男",
+                StudentType.UNDERGRADUATE, "居民身份证", "110105200009030011",
+                LocalDate.of(2000, 9, 3), LocalDate.of(2024, 9, 1), "class-1");
     }
 
     private static RequestContext request(String requestId) {

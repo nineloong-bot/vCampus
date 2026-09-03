@@ -22,6 +22,7 @@ public final class StudentClientService {
                 .thenCompose(java.util.function.Function.identity());
     }
     public CompletableFuture<ResponseBody<StudentAdmissionResult>> admit(CreateStudentAdmissionCommand value) { return sendAsync("STUDENT_CREATE", value); }
+    public CompletableFuture<ResponseBody<StudentAdmissionResult>> createManual(CreateStudentManualCommand value) { return sendAsync("STUDENT_CREATE_MANUAL", value); }
     public CompletableFuture<ResponseBody<StudentView>> getCurrent() { return sendAsync("STUDENT_GET_CURRENT", EmptyRequest.INSTANCE); }
     public CompletableFuture<ResponseBody<StudentView>> get(String id) { return sendAsync("STUDENT_GET", new EntityIdRequest(id)); }
     public CompletableFuture<ResponseBody<PageResult<StudentSummary>>> search(StudentSearchQuery value) { return sendAsync("STUDENT_SEARCH", value); }

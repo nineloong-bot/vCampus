@@ -48,6 +48,17 @@ public final class StudentFieldValidator {
         validateDocument(errors, value.idDocumentType(), value.idDocumentNumber(), value.birthDate(), true);
         validateNotFuture(errors, "birthDate", value.birthDate(), today, "出生日期");
         validateNotFuture(errors, "enrollmentDate", value.enrollmentDate(), today, "入学日期");
+        if (value.enrollmentDate() != null) {
+            String year = String.format("%02d", value.enrollmentDate().getYear() % 100);
+            if (value.campusCardNumber() != null && CAMPUS_CARD.matcher(value.campusCardNumber()).matches()
+                    && !year.equals(value.campusCardNumber().substring(3, 5))) {
+                errors.add(new StudentFieldError("campusCardNumber", "一卡通号中的入学年份与入学日期不一致"));
+            }
+            if (value.studentNumber() != null && STUDENT_NUMBER.matcher(value.studentNumber()).matches()
+                    && !year.equals(value.studentNumber().substring(3, 5))) {
+                errors.add(new StudentFieldError("studentNumber", "学号中的入学年份与入学日期不一致"));
+            }
+        }
         if (value.birthDate() != null && value.enrollmentDate() != null
                 && value.enrollmentDate().isBefore(value.birthDate().plusYears(18))) {
             errors.add(new StudentFieldError("enrollmentDate", "入学时必须已年满 18 周岁"));

@@ -56,6 +56,20 @@ class StudentClientServiceTest {
     }
 
     @Test
+    void manualCreationUsesSeparateCommand() {
+        var client = new RecordingClient();
+        var service = new StudentClientService(client, Duration.ofSeconds(3));
+        var command = new CreateStudentManualCommand("213240099", "09024199", "李雷", "男",
+                StudentType.UNDERGRADUATE, "居民身份证", "110105200009030011",
+                java.time.LocalDate.of(2000, 9, 3), java.time.LocalDate.of(2024, 9, 1), "class-1");
+
+        service.createManual(command).join();
+
+        assertThat(client.command).isEqualTo("STUDENT_CREATE_MANUAL");
+        assertThat(client.body).isSameAs(command);
+    }
+
+    @Test
     void organizationSaveUsesAdministrativeMessageContract() {
         var client = new RecordingClient();
         var service = new StudentClientService(client, Duration.ofSeconds(3));
