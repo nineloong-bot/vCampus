@@ -75,9 +75,11 @@ public final class StudentDetailPanel extends JPanel {
         content.add(Box.createVerticalStrut(UiSpacing.SPACE_6));
         content.add(sectionHeader("学籍信息", true));
         content.add(profileTable(academicDefinitions()));
-        content.add(Box.createVerticalStrut(UiSpacing.SPACE_6));
-        content.add(sectionHeader("变更记录", false));
-        content.add(changesTable());
+        if (canEdit) {
+            content.add(Box.createVerticalStrut(UiSpacing.SPACE_6));
+            content.add(sectionHeader("变更记录", false));
+            content.add(changesTable());
+        }
 
         JScrollPane scroll = new JScrollPane(content,
                 ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
@@ -223,7 +225,6 @@ public final class StudentDetailPanel extends JPanel {
                     return;
                 }
                 renderLimitedProfile(body.data());
-                loadChanges(generation);
             }));
             return;
         }
