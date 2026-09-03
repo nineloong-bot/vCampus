@@ -39,11 +39,11 @@ public final class StudentServiceImpl implements StudentService, StudentQueryPor
     }
 
     @Override public StudentView getStudent(String studentId) {
-        return transactions.inTransaction(connection -> view(requireById(connection, studentId)));
+        return transactions.inTransaction(connection -> view(connection, requireById(connection, studentId)));
     }
 
     @Override public StudentView getCurrentStudent(String userId) {
-        return transactions.inTransaction(connection -> view(students.findByUserId(connection, userId)
+        return transactions.inTransaction(connection -> view(connection, students.findByUserId(connection, userId)
                 .orElseThrow(StudentNotFoundException::new)));
     }
 
@@ -74,7 +74,7 @@ public final class StudentServiceImpl implements StudentService, StudentQueryPor
             requireById(connection, command.studentId());
             students.updateContact(connection, command.studentId(), normalizeEmail(command.email()),
                     blankToNull(command.phone()), command.expectedVersion(), Instant.now());
-            return view(requireById(connection, command.studentId()));
+            return view(connection, requireById(connection, command.studentId()));
         }));
     }
 
@@ -96,7 +96,114 @@ public final class StudentServiceImpl implements StudentService, StudentQueryPor
             changes.insertChange(connection, UUID.randomUUID().toString(), command.studentId(),
                     "STATUS_CHANGE", before.status().name(), command.status().name(), command.reason(),
                     auditUserId, command.effectiveDate(), Instant.now());
-            return view(requireById(connection, command.studentId()));
+            return view(connection, requireById(connection, command.studentId()));
+        }));
+    }
+
+    @Override public StudentView updateStudentInfo(UpdateStudentInfoCommand command) {
+        return updateStudentInfo(command, operatorUserId);
+    }
+
+    @Override public StudentView updateStudentInfo(UpdateStudentInfoCommand command, String auditUserId) {
+        String studentNumber = normalizeStudentNumber(command.studentNumber());
+        Objects.requireNonNull(command.classId());
+        Objects.requireNonNull(command.status());
+        Objects.requireNonNull(command.effectiveDate());
+        requireReason(command.reason());
+        return withStudent(command.studentId(), () -> transactions.inTransaction(connection -> {
+            Student before = requireById(connection, command.studentId());
+            var target = organizations.findClass(connection, command.classId())
+                    .filter(value -> value.active() || before.classId().equals(value.classId()))
+                    .orElseThrow(() -> new StudentAdmissionException(
+                            "STUDENT_CLASS_INACTIVE", "Target class is unavailable"));
+            organizations.findMajor(connection, target.majorId())
+                    .filter(value -> value.active() || before.classId().equals(target.classId()))
+                    .orElseThrow(() -> new StudentAdmissionException(
+                            "STUDENT_CLASS_INACTIVE", "Target major is unavailable"));
+            boolean enrollmentChanged = !before.classId().equals(target.classId())
+                    || !before.studentNumber().equals(studentNumber);
+            boolean statusChanged = before.status() != command.status();
+            if (!enrollmentChanged && !statusChanged)
+                throw new StudentAdmissionException("STUDENT_INFO_UNCHANGED", "No academic changes");
+            if (statusChanged && !validTransition(before.status(), command.status()))
+                throw new StudentAdmissionException("STUDENT_STATUS_TRANSITION_INVALID",
+                        "Invalid student status transition");
+            Instant now = Instant.now();
+            students.updateAcademicInfo(connection, command.studentId(), target.classId(),
+                    studentNumber, command.status().name(), command.expectedVersion(), now);
+            if (enrollmentChanged) {
+                changes.insertChange(connection, UUID.randomUUID().toString(), command.studentId(),
+                        "ENROLLMENT_CHANGE", before.classId() + ":" + before.studentNumber(),
+                        target.classId() + ":" + studentNumber, command.reason(), auditUserId,
+                        command.effectiveDate(), now);
+            }
+            if (statusChanged) {
+                changes.insertChange(connection, UUID.randomUUID().toString(), command.studentId(),
+                        "STATUS_CHANGE", before.status().name(), command.status().name(),
+                        command.reason(), auditUserId, command.effectiveDate(), now);
+            }
+            return view(connection, requireById(connection, command.studentId()));
+        }));
+    }
+
+    @Override public StudentView updateStudentAcademic(UpdateStudentAcademicCommand command) {
+        return updateStudentAcademic(command, operatorUserId);
+    }
+
+    @Override public StudentView updateStudentAcademic(UpdateStudentAcademicCommand command,
+            String auditUserId) {
+        String studentNumber = normalizeStudentNumber(command.studentNumber());
+        Objects.requireNonNull(command.classId());
+        Objects.requireNonNull(command.status());
+        Objects.requireNonNull(command.studentType());
+        Objects.requireNonNull(command.effectiveDate());
+        requireReason(command.reason());
+        return withStudent(command.studentId(), () -> transactions.inTransaction(connection -> {
+            Student before = requireById(connection, command.studentId());
+            var target = organizations.findClass(connection, command.classId())
+                    .filter(value -> value.active() || before.classId().equals(value.classId()))
+                    .orElseThrow(() -> new StudentAdmissionException(
+                            "STUDENT_CLASS_INACTIVE", "Target class is unavailable"));
+            organizations.findMajor(connection, target.majorId())
+                    .filter(value -> value.active() || before.classId().equals(target.classId()))
+                    .orElseThrow(() -> new StudentAdmissionException(
+                            "STUDENT_CLASS_INACTIVE", "Target major is unavailable"));
+            boolean enrollmentChanged = !before.classId().equals(target.classId())
+                    || !before.studentNumber().equals(studentNumber)
+                    || before.studentType() != command.studentType();
+            boolean statusChanged = before.status() != command.status();
+            if (statusChanged && !validTransition(before.status(), command.status()))
+                throw new StudentAdmissionException("STUDENT_STATUS_TRANSITION_INVALID",
+                        "Invalid student status transition");
+            Instant now = Instant.now();
+            students.updateAcademicProfile(connection, command.studentId(), target.classId(),
+                    studentNumber, command.studentType().name(), command.status().name(),
+                    command.enrolled(), command.onCampus(), blankToNull(command.campus()),
+                    blankToNull(command.educationLevel()), blankToNull(command.trainingMode()),
+                    command.programLengthYears(),
+                    command.attendanceMode() == null ? null : command.attendanceMode().name(),
+                    blankToNull(command.degreeName()), blankToNull(command.educationName()),
+                    command.expectedGraduationDate(), command.graduationDate(),
+                    blankToNull(command.studentSource()), blankToNull(command.graduateStudyMode()),
+                    blankToNull(command.counselorName()), blankToNull(command.counselorContact()),
+                    command.expectedVersion(), now);
+            if (enrollmentChanged) {
+                changes.insertChange(connection, UUID.randomUUID().toString(), command.studentId(),
+                        "ENROLLMENT_CHANGE", before.classId() + ":" + before.studentNumber(),
+                        target.classId() + ":" + studentNumber, command.reason(), auditUserId,
+                        command.effectiveDate(), now);
+            }
+            if (statusChanged) {
+                changes.insertChange(connection, UUID.randomUUID().toString(), command.studentId(),
+                        "STATUS_CHANGE", before.status().name(), command.status().name(),
+                        command.reason(), auditUserId, command.effectiveDate(), now);
+            }
+            if (!enrollmentChanged && !statusChanged) {
+                changes.insertChange(connection, UUID.randomUUID().toString(), command.studentId(),
+                        "ACADEMIC_CHANGE", "", "学籍字段修改", command.reason(), auditUserId,
+                        command.effectiveDate(), now);
+            }
+            return view(connection, requireById(connection, command.studentId()));
         }));
     }
 
@@ -127,7 +234,7 @@ public final class StudentServiceImpl implements StudentService, StudentQueryPor
                     "CLASS_CHANGE", before.classId() + ":" + before.studentNumber(),
                     target.classId() + ":" + nextNumber, command.reason(), auditUserId,
                     command.effectiveDate(), Instant.now());
-            return view(requireById(connection, command.studentId()));
+            return view(connection, requireById(connection, command.studentId()));
         }));
     }
 
@@ -163,11 +270,17 @@ public final class StudentServiceImpl implements StudentService, StudentQueryPor
         return students.findById(connection, studentId).orElseThrow(StudentNotFoundException::new);
     }
 
-    private StudentView view(Student student) {
+    private StudentView view(java.sql.Connection connection, Student student) {
+        var major = organizations.findMajor(connection, student.majorId());
+        String majorName = major.map(m -> m.majorName()).orElse(null);
+        String departmentName = major.flatMap(m -> organizations.findDepartment(connection, m.departmentId()))
+                .map(d -> d.departmentName()).orElse(null);
+        String className = organizations.findClass(connection, student.classId())
+                .map(c -> c.className()).orElse(null);
         return new StudentView(student.studentId(), student.userId(), loginId(student.userId()),
                 student.studentNumber(), student.studentType(), student.studentName(), student.gender(),
                 student.email(), student.phone(), student.majorId(), student.classId(), student.enrollmentDate(),
-                student.status(), student.rowVersion());
+                student.status(), student.rowVersion(), departmentName, majorName, className);
     }
 
     private String loginId(String userId) {
@@ -183,6 +296,12 @@ public final class StudentServiceImpl implements StudentService, StudentQueryPor
         String value = blankToNull(email);
         if (value != null && !value.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"))
             throw new IllegalArgumentException("Invalid email");
+        return value;
+    }
+    private static String normalizeStudentNumber(String studentNumber) {
+        String value = blankToNull(studentNumber);
+        if (value == null || !value.matches("\\d{8}"))
+            throw new StudentAdmissionException("STUDENT_NUMBER_INVALID", "Student number must be 8 digits");
         return value;
     }
     private static String blankToNull(String value) { return value == null || value.isBlank() ? null : value.trim(); }

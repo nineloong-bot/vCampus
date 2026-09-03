@@ -6,6 +6,7 @@ import edu.seu.vcampus.common.student.*;
 /** Student-owned drafts and administrator review operations. */
 public interface StudentProfileService {
     StudentProfileWorkspace getWorkspace(String userId);
+    StudentProfileData getProfileByStudentId(String studentId);
     StudentProfileWorkspace savePersonalDraft(String userId, SaveStudentPersonalDraftCommand command);
     StudentProfileWorkspace saveAttendanceDraft(String userId, SaveStudentAttendanceDraftCommand command);
     StudentProfileWorkspace submit(String userId, SubmitStudentProfileCommand command);

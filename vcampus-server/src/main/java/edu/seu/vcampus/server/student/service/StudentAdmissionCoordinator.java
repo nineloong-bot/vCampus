@@ -124,10 +124,18 @@ public final class StudentAdmissionCoordinator implements StudentAdmissionServic
                 "studentNumber=" + studentNumber + ";classId=" + student.classId(),
                 request.userId(), today, now);
         failureInjector.reached(AdmissionFailurePoint.AFTER_AUDIT);
+        String majorName = organizations.findMajor(tx.connection(), student.majorId())
+                .map(m -> m.majorName()).orElse(null);
+        String departmentName = majorName != null ? organizations.findMajor(tx.connection(), student.majorId())
+                .flatMap(m -> organizations.findDepartment(tx.connection(), m.departmentId()))
+                .map(d -> d.departmentName()).orElse(null) : null;
+        String className = organizations.findClass(tx.connection(), student.classId())
+                .map(c -> c.className()).orElse(null);
         StudentView view = new StudentView(student.studentId(), student.userId(), campusCard,
                 student.studentNumber(), student.studentType(), student.studentName(), student.gender(),
                 student.email(), student.phone(), student.majorId(), student.classId(),
-                student.enrollmentDate(), student.status(), student.rowVersion());
+                student.enrollmentDate(), student.status(), student.rowVersion(),
+                departmentName, majorName, className);
         StudentAdmissionResult result = new StudentAdmissionResult(view, campusCard, studentNumber,
                 true);
         Message requestMessage = new Message(request.requestId(), MessageType.REQUEST, COMMAND, null,

@@ -7,5 +7,6 @@ import java.time.LocalDate;
 public record StudentView(String studentId, String userId, String campusCardNumber,
         String studentNumber, StudentType studentType, String studentName, String gender,
         String email, String phone, String majorId, String classId,
-        LocalDate enrollmentDate, StudentStatus status, long rowVersion)
+        LocalDate enrollmentDate, StudentStatus status, long rowVersion,
+        String departmentName, String majorName, String className)
         implements Serializable { }
