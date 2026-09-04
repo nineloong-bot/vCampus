@@ -132,8 +132,7 @@ public final class StudentHandlers {
                 (message, body) -> authenticated(message,
                         () -> new ArrayList<>(organizations.listClasses(body.parentId(), body.activeOnly())))));
         router.register("STUDENT_GET_CHANGES", typed(EntityIdRequest.class, (message, body) -> {
-            StudentPrincipal principal = principal(message);
-            return isStaff(principal) ? success(new ArrayList<>(students.listChanges(body.entityId()))) : forbidden();
+            return strictAdmin(message, () -> new ArrayList<>(students.listChanges(body.entityId())));
         }));
         router.register("STUDENT_SAVE_DEPARTMENT", typed(SaveDepartmentCommand.class,
                 (message, body) -> write(message, () -> admin(message,

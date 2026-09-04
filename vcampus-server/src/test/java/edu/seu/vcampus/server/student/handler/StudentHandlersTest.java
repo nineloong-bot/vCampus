@@ -143,6 +143,32 @@ class StudentHandlersTest {
         assertThat(view.studentNumber()).isEqualTo("09024101");
     }
 
+    @Test
+    void teacherCannotRequestStudentChangeHistory() {
+        var called = new AtomicBoolean();
+        StudentService profiles = new StudentService() {
+            public edu.seu.vcampus.common.student.StudentView getStudent(String id) { return null; }
+            public edu.seu.vcampus.common.student.StudentView getCurrentStudent(String id) { return null; }
+            public edu.seu.vcampus.common.paging.PageResult<edu.seu.vcampus.common.student.StudentSummary> searchStudents(edu.seu.vcampus.common.student.StudentSearchQuery q) { return null; }
+            public edu.seu.vcampus.common.student.StudentView updateContact(edu.seu.vcampus.common.student.UpdateStudentContactCommand c) { return null; }
+            public edu.seu.vcampus.common.student.StudentView updateEnrollment(edu.seu.vcampus.common.student.UpdateStudentEnrollmentCommand c) { return null; }
+            public edu.seu.vcampus.common.student.StudentView changeStatus(edu.seu.vcampus.common.student.ChangeStudentStatusCommand c) { return null; }
+            public java.util.List<edu.seu.vcampus.common.student.StudentChangeView> listChanges(String id) {
+                called.set(true);
+                return java.util.List.of();
+            }
+        };
+        var router = new MessageRouter(Map.of());
+        new StudentHandlers((command, context) -> null, profiles, organizationQuery(),
+                token -> new StudentPrincipal("teacher-1", Set.of("TEACHER"), Set.of())).register(router);
+
+        var response = router.route(request("STUDENT_GET_CHANGES",
+                new edu.seu.vcampus.common.student.EntityIdRequest("student-1")), client());
+
+        assertThat(response.code()).isEqualTo("COMMON_FORBIDDEN");
+        assertThat(called).isFalse();
+    }
+
     private static Message request(String command, java.io.Serializable body) {
         return new Message("8e7c1a21-9d44-4c82-978b-df34326a0341", MessageType.REQUEST,
                 command, "token", body, System.currentTimeMillis());
