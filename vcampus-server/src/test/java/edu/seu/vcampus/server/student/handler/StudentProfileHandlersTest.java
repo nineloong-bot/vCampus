@@ -37,6 +37,27 @@ class StudentProfileHandlersTest {
     }
 
     @Test
+    void withdrawalAlwaysUsesAuthenticatedStudentIdentity() {
+        AtomicReference<String> requestedUser = new AtomicReference<>();
+        StudentProfileService profiles = new StubProfileService() {
+            @Override public StudentProfileWorkspace withdraw(String userId,
+                    WithdrawStudentProfileCommand command) {
+                requestedUser.set(userId);
+                return null;
+            }
+        };
+        MessageRouter router = router(profiles,
+                new StudentPrincipal("student-user", Set.of("STUDENT"), Set.of()));
+
+        var response = router.route(request("STUDENT_PROFILE_WITHDRAW",
+                        new WithdrawStudentProfileCommand(3)),
+                new ClientContext("connection", "local"));
+
+        assertThat(response.success()).isTrue();
+        assertThat(requestedUser).hasValue("student-user");
+    }
+
+    @Test
     void reviewListRequiresAdministratorPermission() {
         MessageRouter router = router(profileService(),
                 new StudentPrincipal("teacher-user", Set.of("TEACHER"), Set.of()));
@@ -136,6 +157,7 @@ class StudentProfileHandlersTest {
         public StudentProfileWorkspace savePersonalDraft(String userId, SaveStudentPersonalDraftCommand c) { return null; }
         public StudentProfileWorkspace saveAttendanceDraft(String userId, SaveStudentAttendanceDraftCommand c) { return null; }
         public StudentProfileWorkspace submit(String userId, SubmitStudentProfileCommand c) { return null; }
+        public StudentProfileWorkspace withdraw(String userId, WithdrawStudentProfileCommand c) { return null; }
         public PageResult<StudentProfileApplicationView> listPending(StudentProfileReviewQuery q) { return new PageResult<>(java.util.List.of(), 1, 20, 0); }
         public StudentProfileWorkspace getApplication(String id) { return null; }
         public StudentProfileApplicationView approve(String id, String reviewer, String comment) { return null; }

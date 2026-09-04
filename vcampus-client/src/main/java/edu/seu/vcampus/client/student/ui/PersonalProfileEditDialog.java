@@ -12,10 +12,10 @@ import java.util.function.Consumer;
 /** Saves personal changes as a draft; it never writes the formal record directly. */
 final class PersonalProfileEditDialog extends JDialog {
     PersonalProfileEditDialog(Window owner, StudentClientService students, StudentPersonalProfile personal,
-            long expectedVersion, Consumer<StudentProfileWorkspace> saved) {
+            java.time.LocalDate enrollmentDate, long expectedVersion, Consumer<StudentProfileWorkspace> saved) {
         super(owner, "编辑个人基本信息", ModalityType.APPLICATION_MODAL);
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-        PersonalProfileEditPanel editor = new PersonalProfileEditPanel(personal);
+        PersonalProfileEditPanel editor = new PersonalProfileEditPanel(personal, enrollmentDate);
         JScrollPane scroll = new JScrollPane(editor); scroll.setBorder(null); scroll.getVerticalScrollBar().setUnitIncrement(16);
         add(scroll, BorderLayout.CENTER);
         JLabel error = new JLabel(" "); error.setForeground(UiColors.ERROR_FG);

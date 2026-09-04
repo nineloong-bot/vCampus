@@ -11,6 +11,7 @@ import edu.seu.vcampus.server.student.repository.StudentRepository;
 import edu.seu.vcampus.server.user.service.UserQueryPort;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ConcurrentModificationException;
 import java.util.List;
 import java.util.Objects;
@@ -63,6 +64,10 @@ public final class StudentProfileServiceImpl implements StudentProfileService {
     public StudentProfileWorkspace savePersonalDraft(String userId,
             SaveStudentPersonalDraftCommand command) {
         Objects.requireNonNull(command); Objects.requireNonNull(command.personal());
+        List<StudentFieldError> errors = StudentFieldValidator.validatePersonal(
+                command.personal(), LocalDate.now());
+        if (!errors.isEmpty()) throw new StudentProfileApplicationException(
+                "STUDENT_PROFILE_FIELD_INVALID", errors.getFirst().message());
         return saveDraft(userId, command.expectedApplicationVersion(), current ->
                 new DraftValues(command.personal(), current.attendanceMode()), true);
     }
@@ -92,6 +97,12 @@ public final class StudentProfileServiceImpl implements StudentProfileService {
                             ? new DraftValues(formal.personal(), formal.academic().attendanceMode())
                             : new DraftValues(open.personal(), open.attendanceMode());
                     DraftValues changed = mutation.apply(current);
+                    if (personalChange) {
+                        List<StudentFieldError> errors = StudentFieldValidator.validatePersonal(
+                                changed.personal(), LocalDate.now(), formal.core().enrollmentDate());
+                        if (!errors.isEmpty()) throw new StudentProfileApplicationException(
+                                "STUDENT_PROFILE_FIELD_INVALID", errors.getFirst().message());
+                    }
                     Instant now = Instant.now();
                     if (open == null) {
                         if (expectedVersion != 0) throw new ConcurrentModificationException("Draft version changed");
@@ -130,6 +141,26 @@ public final class StudentProfileServiceImpl implements StudentProfileService {
                         throw new StudentProfileApplicationException("STUDENT_PROFILE_NO_CHANGES", "资料没有发生变化");
                     applications.submit(connection, draft.applicationId(),
                             command.expectedApplicationVersion(), Instant.now());
+                    return new StudentProfileWorkspace(formal,
+                            applications.findOpen(connection, studentId).orElseThrow());
+                }));
+    }
+
+    @Override
+    public StudentProfileWorkspace withdraw(String userId, WithdrawStudentProfileCommand command) {
+        Objects.requireNonNull(command);
+        String studentId = transactions.inTransaction(connection -> students.findByUserId(connection, userId)
+                .orElseThrow(StudentNotFoundException::new).studentId());
+        return locks.withLocks(List.of(new ResourceKey("STUDENT", studentId)), () ->
+                transactions.inTransaction(connection -> {
+                    StudentProfileApplicationView pending = applications.findOpen(connection, studentId)
+                            .filter(value -> value.status() == StudentProfileApplicationStatus.PENDING)
+                            .orElseThrow(() -> new StudentProfileApplicationException(
+                                    "STUDENT_PROFILE_NOT_PENDING", "当前没有可撤回的待审申请"));
+                    applications.withdraw(connection, pending.applicationId(),
+                            command.expectedApplicationVersion(), Instant.now());
+                    StudentProfileData formal = students.findProfileByStudentId(connection, studentId,
+                            campusCard(userId));
                     return new StudentProfileWorkspace(formal,
                             applications.findOpen(connection, studentId).orElseThrow());
                 }));

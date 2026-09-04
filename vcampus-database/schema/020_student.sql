@@ -118,6 +118,7 @@ CREATE TABLE tblStudent (
 
 CREATE UNIQUE INDEX uk_tblStudent_userId ON tblStudent (userId);
 CREATE UNIQUE INDEX uk_tblStudent_studentNumber ON tblStudent (studentNumber);
+CREATE UNIQUE INDEX uk_tblStudent_idDocumentNumber ON tblStudent (idDocumentNumber);
 CREATE INDEX idx_tblStudent_classId ON tblStudent (classId);
 CREATE INDEX idx_tblStudent_studentStatus ON tblStudent (studentStatus);
 

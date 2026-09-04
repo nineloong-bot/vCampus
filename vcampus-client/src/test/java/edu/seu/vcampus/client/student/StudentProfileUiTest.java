@@ -6,6 +6,7 @@ import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.client.student.service.StudentRequestClient;
 import edu.seu.vcampus.client.student.ui.AttendanceModeEditPanel;
 import edu.seu.vcampus.client.student.ui.MyStudentProfilePanel;
+import edu.seu.vcampus.client.student.ui.PersonalProfileEditPanel;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.student.*;
 import org.junit.jupiter.api.AfterEach;
@@ -49,14 +50,16 @@ class StudentProfileUiTest {
         assertThat(button(panel, "student.profile.submit").isEnabled()).isTrue();
     }
 
-    @Test void pendingLocksEditingAndRejectedReasonIsVisible() throws Exception {
+    @Test void pendingOffersWithdrawalAndRejectedReasonIsVisible() throws Exception {
         MyStudentProfilePanel pending = panel(CompletableFuture.completedFuture(
                 ResponseBody.success(workspace(StudentProfileApplicationStatus.PENDING, null))), new CountDownLatch(0));
         SwingUtilities.invokeAndWait(pending::addNotify);
         awaitText(pending, "student.profile.application.status", "审核中");
-        assertThat(button(pending, "student.profile.personal.edit").isEnabled()).isFalse();
-        assertThat(button(pending, "student.profile.academic.edit").isEnabled()).isFalse();
-        assertThat(button(pending, "student.profile.submit").isEnabled()).isFalse();
+        assertThat(button(pending, "student.profile.personal.edit").isEnabled()).isTrue();
+        assertThat(button(pending, "student.profile.personal.edit").getToolTipText()).contains("撤回");
+        assertThat(button(pending, "student.profile.academic.edit").isEnabled()).isTrue();
+        assertThat(button(pending, "student.profile.submit").getText()).isEqualTo("撤回申请");
+        assertThat(button(pending, "student.profile.submit").isEnabled()).isTrue();
 
         SwingUtilities.invokeAndWait(pending::removeNotify);
         MyStudentProfilePanel rejected = panel(CompletableFuture.completedFuture(
@@ -75,6 +78,45 @@ class StudentProfileUiTest {
                 .containsExactly("走读", "住校", "借宿", "其他");
         assertThat(all(editor, JTextField.class)).isEmpty();
         assertThat(editor.selectedMode()).isEqualTo(AttendanceMode.RESIDENT);
+    }
+
+    @Test void personalEditorUsesGuidedDropdownsAndFormatTooltips() {
+        PersonalProfileEditPanel editor = new PersonalProfileEditPanel(emptyPersonal());
+
+        JComboBox<?> documentType = find(editor, "student.profile.personal.idDocumentType", JComboBox.class);
+        assertThat(documentType).isNotNull();
+        assertThat(documentType.getToolTipText()).contains("居民身份证");
+        JTextField height = find(editor, "student.profile.personal.heightCm", JTextField.class);
+        assertThat(height.getToolTipText()).contains("100", "280", "172");
+        JTextField birthDate = find(editor, "student.profile.personal.birthDate", JTextField.class);
+        assertThat(birthDate.getToolTipText()).contains("yyyy-MM-dd", "2005-12-03");
+    }
+
+    @Test void personalEditorRejectsOutOfRangeHeightBeforeSending() {
+        PersonalProfileEditPanel editor = new PersonalProfileEditPanel(emptyPersonal());
+        find(editor, "student.profile.personal.heightCm", JTextField.class).setText("99");
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(editor::value)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("身高", "100", "280");
+    }
+
+    @Test void personalEditorRejectsBirthDateThatWouldMakeStudentUnderageAtEnrollment() {
+        PersonalProfileEditPanel editor = new PersonalProfileEditPanel(
+                emptyPersonal(), LocalDate.of(2024, 9, 1));
+        find(editor, "student.profile.personal.birthDate", JTextField.class)
+                .setText("2007-09-02");
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(editor::value)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("入学时必须已年满 18 周岁");
+    }
+
+    private static StudentPersonalProfile emptyPersonal() {
+        return new StudentPersonalProfile(null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null,
+                false, null, false, null, null, null, null, null, null, null,
+                false, null, null);
     }
 
     private MyStudentProfilePanel panel(CompletableFuture<ResponseBody<StudentProfileWorkspace>> response,

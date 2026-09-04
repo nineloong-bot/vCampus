@@ -35,9 +35,10 @@ public final class OrganizationManagementPanel extends JPanel {
     private final JTree tree = new JTree(treeModel);
     private final JLabel statusLabel = new JLabel("正在加载");
     private final JLabel errorLabel = new JLabel(" ");
-    private final JButton addDeptButton = new JButton("新增院系");
+    private final JButton addDeptButton = new JButton("新增学院");
     private final JButton addMajorButton = new JButton("新增专业");
     private final JButton addClassButton = new JButton("新增班级");
+    private final JButton addStudentButton = new JButton("新增学生");
     private final JPanel editPanel = new JPanel(new BorderLayout());
 
     private DefaultMutableTreeNode selectedNode;
@@ -97,14 +98,19 @@ public final class OrganizationManagementPanel extends JPanel {
         treeButtons.add(addDeptButton);
         addMajorButton.setName("student.org.add-major");
         addMajorButton.setFont(UiTypography.BODY);
-        addMajorButton.setVisible(false);
+        addMajorButton.setEnabled(false);
         addMajorButton.addActionListener(e -> startAddMajor());
         treeButtons.add(addMajorButton);
         addClassButton.setName("student.org.add-class");
         addClassButton.setFont(UiTypography.BODY);
-        addClassButton.setVisible(false);
+        addClassButton.setEnabled(false);
         addClassButton.addActionListener(e -> startAddClass());
         treeButtons.add(addClassButton);
+        addStudentButton.setName("student.org.add-student");
+        addStudentButton.setFont(UiTypography.BODY);
+        addStudentButton.setEnabled(false);
+        addStudentButton.addActionListener(e -> startAddStudent());
+        treeButtons.add(addStudentButton);
         left.add(treeButtons, BorderLayout.SOUTH);
 
         add(left, BorderLayout.WEST);
@@ -152,13 +158,13 @@ public final class OrganizationManagementPanel extends JPanel {
             if (failure != null) {
                 statusLabel.setText("加载失败");
                 errorLabel.setText("组织架构加载失败，请稍后重试");
-                addDeptButton.setEnabled(connection.state() == ConnectionState.CONNECTED);
+                updateAddButtons();
                 return;
             }
             if (body == null || !body.success() || body.data() == null) {
                 statusLabel.setText("加载失败");
                 errorLabel.setText(safeMessage(body));
-                addDeptButton.setEnabled(connection.state() == ConnectionState.CONNECTED);
+                updateAddButtons();
                 return;
             }
             rootNode.removeAllChildren();
@@ -173,7 +179,7 @@ public final class OrganizationManagementPanel extends JPanel {
             expandAll();
             statusLabel.setText(connection.state() == ConnectionState.CONNECTED ? "已加载" : "已断开连接");
             errorLabel.setText(" ");
-            addDeptButton.setEnabled(connection.state() == ConnectionState.CONNECTED);
+            updateAddButtons();
             if (onComplete != null) onComplete.run();
         }));
     }
@@ -241,13 +247,14 @@ public final class OrganizationManagementPanel extends JPanel {
 
     private void updateAddButtons() {
         boolean connected = connection.state() == ConnectionState.CONNECTED;
-        addDeptButton.setEnabled(connected);
+        boolean none = editingTarget == null;
         boolean isDept = editingTarget instanceof DepartmentView;
         boolean isMajor = editingTarget instanceof MajorView;
-        addMajorButton.setVisible(isDept);
+        boolean isClass = editingTarget instanceof ClassView;
+        addDeptButton.setEnabled(connected && none);
         addMajorButton.setEnabled(connected && isDept);
-        addClassButton.setVisible(isMajor);
         addClassButton.setEnabled(connected && isMajor);
+        addStudentButton.setEnabled(connected && isClass);
     }
 
     private void showPlaceholder() {
@@ -512,13 +519,22 @@ public final class OrganizationManagementPanel extends JPanel {
         showClassForm(null, true);
     }
 
+    private void startAddStudent() {
+        if (selectedNode == null || !(selectedNode.getUserObject() instanceof ClassView cls)) return;
+        DefaultMutableTreeNode majorNode = (DefaultMutableTreeNode) selectedNode.getParent();
+        DefaultMutableTreeNode departmentNode = majorNode == null ? null
+                : (DefaultMutableTreeNode) majorNode.getParent();
+        if (majorNode == null || departmentNode == null
+                || !(majorNode.getUserObject() instanceof MajorView major)
+                || !(departmentNode.getUserObject() instanceof DepartmentView department)) return;
+        new ManualStudentCreationDialog(SwingUtilities.getWindowAncestor(this), students,
+                department, major, cls).setVisible(true);
+    }
+
     private void connectionChanged(ConnectionState state) {
         onEdt(() -> {
             if (!active) return;
-            boolean connected = state == ConnectionState.CONNECTED;
-            addDeptButton.setEnabled(connected);
-            addMajorButton.setEnabled(connected && addMajorButton.isVisible());
-            addClassButton.setEnabled(connected && addClassButton.isVisible());
+            updateAddButtons();
         });
     }
 

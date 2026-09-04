@@ -91,6 +91,45 @@ class OrganizationManagementPanelTest {
     }
 
     @Test
+    void onlyTheActionForTheSelectedHierarchyLevelIsEnabled() throws Exception {
+        var client = new AutoCompletingClient();
+        client.withHierarchy();
+
+        var fixture = new OrgFixture(client, ConnectionState.CONNECTED);
+        SwingUtilities.invokeAndWait(fixture::showPanel);
+        fixture.waitForHierarchyLoaded();
+
+        JButton department = fixture.button("student.org.add-dept");
+        JButton major = fixture.button("student.org.add-major");
+        JButton studentClass = fixture.button("student.org.add-class");
+        JButton student = fixture.button("student.org.add-student");
+        assertThat(java.util.List.of(department, major, studentClass, student))
+                .allMatch(Component::isVisible);
+        assertThat(java.util.List.of(department.isEnabled(), major.isEnabled(),
+                studentClass.isEnabled(), student.isEnabled()))
+                .containsExactly(true, false, false, false);
+
+        JTree tree = fixture.component("student.org.tree", JTree.class);
+        DefaultMutableTreeNode root = (DefaultMutableTreeNode) tree.getModel().getRoot();
+        DefaultMutableTreeNode departmentNode = (DefaultMutableTreeNode) root.getChildAt(0);
+        DefaultMutableTreeNode majorNode = (DefaultMutableTreeNode) departmentNode.getChildAt(0);
+        DefaultMutableTreeNode classNode = (DefaultMutableTreeNode) majorNode.getChildAt(0);
+
+        SwingUtilities.invokeAndWait(() -> tree.setSelectionPath(new TreePath(departmentNode.getPath())));
+        assertThat(java.util.List.of(department.isEnabled(), major.isEnabled(),
+                studentClass.isEnabled(), student.isEnabled()))
+                .containsExactly(false, true, false, false);
+        SwingUtilities.invokeAndWait(() -> tree.setSelectionPath(new TreePath(majorNode.getPath())));
+        assertThat(java.util.List.of(department.isEnabled(), major.isEnabled(),
+                studentClass.isEnabled(), student.isEnabled()))
+                .containsExactly(false, false, true, false);
+        SwingUtilities.invokeAndWait(() -> tree.setSelectionPath(new TreePath(classNode.getPath())));
+        assertThat(java.util.List.of(department.isEnabled(), major.isEnabled(),
+                studentClass.isEnabled(), student.isEnabled()))
+                .containsExactly(false, false, false, true);
+    }
+
+    @Test
     void saveNewDepartment() throws Exception {
         var client = new AutoCompletingClient();
         client.withEmptyDepartments();
@@ -230,7 +269,7 @@ class OrganizationManagementPanelTest {
         final StudentClientService students;
         OrganizationManagementPanel panel;
 
-        OrgFixture(AutoCompletingClient client, ConnectionState state) {
+        OrgFixture(StudentRequestClient client, ConnectionState state) {
             this.connection = new ClientConnection("localhost", 1);
             connections.add(connection);
             this.students = new StudentClientService(client, Duration.ofSeconds(1));

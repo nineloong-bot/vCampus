@@ -17,6 +17,14 @@ import java.util.List;
 
 /** Stores student profiles inside caller-owned transactions. */
 public final class StudentRepository {
+    public boolean existsByStudentNumber(Connection connection, String studentNumber) {
+        return exists(connection, "studentNumber", studentNumber);
+    }
+
+    public boolean existsByIdDocumentNumber(Connection connection, String idDocumentNumber) {
+        return exists(connection, "idDocumentNumber", idDocumentNumber);
+    }
+
     public void insert(Connection connection, Student student) {
         String sql = "INSERT INTO tblStudent (studentId, userId, studentNumber, studentType, studentName, gender, email, phone, classId, enrollmentDate, studentStatus, rowVersion, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (var statement = connection.prepareStatement(sql)) {
@@ -37,6 +45,34 @@ public final class StudentRepository {
             statement.executeUpdate();
         } catch (SQLException error) {
             throw new OrganizationPersistenceException("Cannot insert student", error);
+        }
+    }
+
+    public void insertManual(Connection connection, Student student, String idDocumentType,
+            String idDocumentNumber, LocalDate birthDate) {
+        String sql = "INSERT INTO tblStudent (studentId, userId, studentNumber, studentType, "
+                + "studentName, gender, email, phone, idDocumentType, idDocumentNumber, birthDate, "
+                + "classId, enrollmentDate, studentStatus, rowVersion, createdAt, updatedAt) "
+                + "VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        try (var statement = connection.prepareStatement(sql)) {
+            statement.setString(1, student.studentId());
+            statement.setString(2, student.userId());
+            statement.setString(3, student.studentNumber());
+            statement.setString(4, student.studentType().name());
+            statement.setString(5, student.studentName());
+            statement.setString(6, student.gender());
+            statement.setString(7, idDocumentType);
+            statement.setString(8, idDocumentNumber);
+            setDate(statement, 9, birthDate);
+            statement.setString(10, student.classId());
+            setDate(statement, 11, student.enrollmentDate());
+            statement.setString(12, student.status().name());
+            statement.setLong(13, student.rowVersion());
+            statement.setTimestamp(14, Timestamp.from(student.createdAt()));
+            statement.setTimestamp(15, Timestamp.from(student.updatedAt()));
+            statement.executeUpdate();
+        } catch (SQLException error) {
+            throw new OrganizationPersistenceException("Cannot insert manual student", error);
         }
     }
 
@@ -200,6 +236,21 @@ public final class StudentRepository {
             }
         } catch (SQLException error) {
             throw new OrganizationPersistenceException("Cannot read student", error);
+        }
+    }
+
+    private boolean exists(Connection connection, String column, String value) {
+        if (!"studentNumber".equals(column) && !"idDocumentNumber".equals(column))
+            throw new IllegalArgumentException("Unsupported student lookup column");
+        try (var statement = connection.prepareStatement(
+                "SELECT COUNT(*) FROM tblStudent WHERE " + column + " = ?")) {
+            statement.setString(1, value);
+            try (var result = statement.executeQuery()) {
+                result.next();
+                return result.getInt(1) > 0;
+            }
+        } catch (SQLException error) {
+            throw new OrganizationPersistenceException("Cannot check student uniqueness", error);
         }
     }
 

@@ -4,6 +4,9 @@ import edu.seu.vcampus.common.protocol.Message;
 import edu.seu.vcampus.common.protocol.MessageType;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.student.CreateStudentAdmissionCommand;
+import edu.seu.vcampus.common.student.CreateStudentManualCommand;
+import edu.seu.vcampus.common.student.StudentFieldError;
+import edu.seu.vcampus.common.student.StudentFieldValidator;
 import edu.seu.vcampus.common.student.StudentAdmissionResult;
 import edu.seu.vcampus.common.student.StudentStatus;
 import edu.seu.vcampus.common.student.StudentView;
@@ -33,6 +36,7 @@ import java.util.UUID;
 /** Coordinates an admission as one lock-ordered, idempotent Access transaction. */
 public final class StudentAdmissionCoordinator implements StudentAdmissionService {
     private static final String COMMAND = "STUDENT_CREATE";
+    private static final String MANUAL_COMMAND = "STUDENT_CREATE_MANUAL";
     private final TransactionManager transactions;
     private final ResourceLockManager locks;
     private final RequestDeduplicator deduplicator;
@@ -82,6 +86,68 @@ public final class StudentAdmissionCoordinator implements StudentAdmissionServic
                     new TransactionContext(connection, request.userId(), request.clientInstanceId()),
                     command, request));
         });
+    }
+
+    @Override
+    public StudentAdmissionResult createManual(CreateStudentManualCommand raw, RequestContext request) {
+        Objects.requireNonNull(raw, "command");
+        Objects.requireNonNull(request, "request");
+        CreateStudentManualCommand command = StudentFieldValidator.normalizeManual(raw);
+        List<StudentFieldError> errors = StudentFieldValidator.validateManual(command,
+                LocalDate.now(ZoneOffset.UTC));
+        if (!errors.isEmpty()) throw new StudentAdmissionException(
+                "STUDENT_MANUAL_FIELD_INVALID", errors.getFirst().message());
+        var replay = deduplicator.replayCompleted(request.requestId());
+        if (replay.isPresent()) return replayResult(replay.get());
+        List<ResourceKey> manualLocks = List.of(
+                new ResourceKey("LOGIN_ID", command.campusCardNumber()),
+                new ResourceKey("STUDENT_NUMBER", command.studentNumber()),
+                new ResourceKey("ID_DOCUMENT", command.idDocumentNumber()));
+        return locks.withLocks(manualLocks, () -> {
+            var lockedReplay = deduplicator.replayCompleted(request.requestId());
+            if (lockedReplay.isPresent()) return replayResult(lockedReplay.get());
+            return transactions.inTransaction(connection -> createManualInTransaction(
+                    new TransactionContext(connection, request.userId(), request.clientInstanceId()),
+                    command, request));
+        });
+    }
+
+    private StudentAdmissionResult createManualInTransaction(TransactionContext tx,
+            CreateStudentManualCommand command, RequestContext request) throws Exception {
+        var replay = deduplicator.replayCompleted(tx, request.requestId());
+        if (replay.isPresent()) return replayResult(replay.get());
+        ValidatedManual validated = validateManualOrganization(tx.connection(), command);
+        if (students.existsByStudentNumber(tx.connection(), command.studentNumber())) {
+            throw new StudentAdmissionException("STUDENT_NUMBER_DUPLICATE", "学号已被使用");
+        }
+        if (students.existsByIdDocumentNumber(tx.connection(), command.idDocumentNumber())) {
+            throw new StudentAdmissionException("STUDENT_ID_DOCUMENT_DUPLICATE", "身份证件号已被使用");
+        }
+        var account = accounts.createStudentAccount(tx, command.campusCardNumber(),
+                "12345678".toCharArray());
+        failureInjector.reached(AdmissionFailurePoint.AFTER_ACCOUNT);
+        Instant now = Instant.now();
+        Student student = new Student(UUID.randomUUID().toString(), account.userId(),
+                command.studentNumber(), command.studentType(), command.studentName(), command.gender(),
+                null, null, validated.major().majorId(), command.classId(), command.enrollmentDate(),
+                StudentStatus.ACTIVE, 0, now, now);
+        students.insertManual(tx.connection(), student, command.idDocumentType(),
+                command.idDocumentNumber(), command.birthDate());
+        failureInjector.reached(AdmissionFailurePoint.AFTER_PROFILE);
+        changes.insertChange(tx.connection(), UUID.randomUUID().toString(), student.studentId(),
+                "MANUAL_CREATE", null,
+                "studentNumber=" + student.studentNumber() + ";classId=" + student.classId(),
+                "管理员手动新增学生", request.userId(), command.enrollmentDate(), now);
+        failureInjector.reached(AdmissionFailurePoint.AFTER_AUDIT);
+        StudentView view = view(student, command.campusCardNumber(), validated.major(),
+                validated.studentClass(), validated.departmentName());
+        StudentAdmissionResult result = new StudentAdmissionResult(view,
+                command.campusCardNumber(), command.studentNumber(), true);
+        Message requestMessage = new Message(request.requestId(), MessageType.REQUEST,
+                MANUAL_COMMAND, null, command, System.currentTimeMillis());
+        deduplicator.storeCompleted(tx, requestMessage, ResponseBody.success(result));
+        failureInjector.reached(AdmissionFailurePoint.AFTER_DEDUP);
+        return result;
     }
 
     private StudentAdmissionResult admitInTransaction(TransactionContext tx,
@@ -168,6 +234,42 @@ public final class StudentAdmissionCoordinator implements StudentAdmissionServic
         return new ValidatedAdmission(major, studentClass, key);
     }
 
+    private ValidatedManual validateManualOrganization(java.sql.Connection connection,
+            CreateStudentManualCommand command) {
+        StudentClass studentClass = organizations.findClass(connection, command.classId())
+                .orElseThrow(() -> new StudentAdmissionException(
+                        "STUDENT_ORGANIZATION_MISMATCH", "班级不存在"));
+        Major major = organizations.findMajor(connection, studentClass.majorId())
+                .orElseThrow(() -> new StudentAdmissionException(
+                        "STUDENT_ORGANIZATION_MISMATCH", "班级所属专业不存在"));
+        var department = organizations.findDepartment(connection, major.departmentId())
+                .orElseThrow(() -> new StudentAdmissionException(
+                        "STUDENT_ORGANIZATION_MISMATCH", "专业所属院系不存在"));
+        if (!department.active() || !major.active() || !studentClass.active()) {
+            throw new StudentAdmissionException("STUDENT_CLASS_INACTIVE", "所选班级或上级组织已停用");
+        }
+        if (studentClass.enrollmentYear() != command.enrollmentDate().getYear()) {
+            throw new StudentAdmissionException("STUDENT_ORGANIZATION_MISMATCH", "入学日期年份必须与班级年级一致");
+        }
+        String expectedPrefix = major.majorCode()
+                + String.format("%02d", studentClass.enrollmentYear() % 100)
+                + studentClass.classNumber();
+        if (!command.studentNumber().startsWith(expectedPrefix)) {
+            throw new StudentAdmissionException("STUDENT_NUMBER_INVALID",
+                    "学号必须与所选专业、年级和班级匹配，应以 " + expectedPrefix + " 开头");
+        }
+        return new ValidatedManual(major, studentClass, department.departmentName());
+    }
+
+    private StudentView view(Student student, String campusCard, Major major,
+            StudentClass studentClass, String departmentName) {
+        return new StudentView(student.studentId(), student.userId(), campusCard,
+                student.studentNumber(), student.studentType(), student.studentName(), student.gender(),
+                student.email(), student.phone(), student.majorId(), student.classId(),
+                student.enrollmentDate(), student.status(), student.rowVersion(), departmentName,
+                major.majorName(), studentClass.className());
+    }
+
     private static StudentAdmissionResult replayResult(ResponseBody<?> body) {
         if (!body.success() || !(body.data() instanceof StudentAdmissionResult result)) {
             throw new StudentAdmissionException(body.code(), body.message());
@@ -185,4 +287,6 @@ public final class StudentAdmissionCoordinator implements StudentAdmissionServic
     }
 
     private record ValidatedAdmission(Major major, StudentClass studentClass, String sequenceKey) { }
+    private record ValidatedManual(Major major, StudentClass studentClass,
+                                   String departmentName) { }
 }
