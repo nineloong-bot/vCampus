@@ -34,6 +34,62 @@ class LibraryCatalogServiceTest {
     }
 
     @Test
+    void createsFirstAvailableCopyAtRequestedLocation() {
+        var created = service.createBook(new CreateBookCommand("9787300000002", "Algorithms",
+                "Author", "SEU Press", LocalDate.of(2026, 8, 24), "COMPUTER", "Intro", " A-02 ", " LIB-CUSTOM-01 "));
+
+        assertThat(service.getBook(created.bookId()).copies()).singleElement().satisfies(copy -> {
+            assertThat(copy.bookId()).isEqualTo(created.bookId());
+            assertThat(copy.locationCode()).isEqualTo("A-02");
+            assertThat(copy.status()).isEqualTo(CopyStatus.AVAILABLE);
+            assertThat(copy.barcode()).isEqualTo("LIB-CUSTOM-01");
+        });
+    }
+
+    @Test
+    void failedFirstCopyInsertRollsBackNewCatalogEntry() {
+        java.util.concurrent.atomic.AtomicInteger sequence = new java.util.concurrent.atomic.AtomicInteger();
+        var operations = new LibraryReadAdminOperations(fixture.identities::get, fixture.books,
+                fixture.loans, fixture.policies, fixture.transactions, java.time.Clock.systemUTC(),
+                () -> sequence.getAndIncrement() == 0 ? "new-book" : "copy-1");
+
+        assertThatThrownBy(() -> operations.createBook(new CreateBookCommand("9787300000002", "Algorithms",
+                "Author", "SEU Press", LocalDate.of(2026, 8, 24), "COMPUTER", "Intro", "A-02", "BC-NEW")))
+                .isInstanceOf(RuntimeException.class);
+
+        assertThat(service.searchManagedBooks(new BookSearchQuery("Algorithms", null, false, 1, 20)).items())
+                .isEmpty();
+        assertThat(service.getBook("book-1").copies()).hasSize(1);
+    }
+
+    @Test
+    void rejectsBlankFirstCopyLocationBeforeCreatingCatalogEntry() {
+        assertThatThrownBy(() -> service.createBook(new CreateBookCommand("9787300000002", "Algorithms",
+                "Author", "SEU Press", LocalDate.of(2026, 8, 24), "COMPUTER", "Intro", " ", "BC-NEW")))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(service.searchManagedBooks(new BookSearchQuery("Algorithms", null, false, 1, 20)).items())
+                .isEmpty();
+    }
+
+    @Test
+    void duplicateFirstCopyBarcodeRollsBackCatalogEntry() {
+        assertThatThrownBy(() -> service.createBook(new CreateBookCommand("9787300000002", "Algorithms",
+                "Author", "SEU Press", LocalDate.of(2026, 8, 24), "COMPUTER", "Intro", "A-02", "BC-1")))
+                .isInstanceOf(DuplicateBarcodeException.class);
+        assertThat(service.searchManagedBooks(new BookSearchQuery("Algorithms", null, false, 1, 20)).items()).isEmpty();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.NullAndEmptySource
+    @org.junit.jupiter.params.provider.ValueSource(strings = {" ", "123456789012345678901234567890123"})
+    void rejectsInvalidFirstCopyBarcode(String barcode) {
+        assertThatThrownBy(() -> service.createBook(new CreateBookCommand("9787300000002", "Algorithms",
+                "Author", "SEU Press", LocalDate.of(2026, 8, 24), "COMPUTER", "Intro", "A-02", barcode)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(service.searchManagedBooks(new BookSearchQuery("Algorithms", null, false, 1, 20)).items()).isEmpty();
+    }
+
+    @Test
     void searchesDetailsAndTracksCurrentAndHistoricalLoans() {
         assertThat(service.searchBooks(new BookSearchQuery("Java", null, true, 1, 20)).items())
                 .singleElement().extracting(summary -> summary.availableCopies()).isEqualTo(1);

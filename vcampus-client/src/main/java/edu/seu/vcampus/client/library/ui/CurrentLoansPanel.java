@@ -71,11 +71,11 @@ public final class CurrentLoansPanel extends LibraryDataPanel {
     }
 
     private void submit(String pending, String success, java.util.concurrent.CompletableFuture<LoanView> future) {
-        long request = beginRequest();
+        long request = beginMutation();
         status.setText(pending);
         future.whenComplete((loan, failure) -> SwingUtilities.invokeLater(() -> {
-            if (!accepts(request)) return;
-            if (failure == null) status.setText(success);
+            if (!acceptsMutation(request)) return;
+            if (failure == null) { status.setText(success); mutationSucceeded(); }
             else LibraryFeedback.failure(this, status, failure, "操作失败，请刷新后重试。");
         }));
     }

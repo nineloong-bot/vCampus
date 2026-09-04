@@ -37,6 +37,12 @@ public final class BookDetailPanel extends LibraryDataPanel {
         status.setText(book.title() + " · " + book.author() + " · " + book.isbn());
     }
 
+    void clearBook() {
+        copies = List.of();
+        ((DefaultTableModel) table.getModel()).setRowCount(0);
+        status.setText("请选择一本书目查看详情");
+    }
+
     public void borrowSelected() {
         int row = table.getSelectedRow();
         if (row < 0 || row >= copies.size()) {
@@ -47,11 +53,11 @@ public final class BookDetailPanel extends LibraryDataPanel {
             LibraryFeedback.borrowWarning(this, status, "该副本当前不可借，请选择可借副本"); return;
         }
         status.setText("正在办理借阅……");
-        long request = beginRequest();
+        long request = beginMutation();
         service.borrow(new BorrowBookCommand(copy.copyId())).whenComplete((loan, failure) ->
                 SwingUtilities.invokeLater(() -> {
-                    if (!accepts(request)) return;
-                    if (failure == null) status.setText("借阅成功，到期时间：" + loan.dueAt());
+                    if (!acceptsMutation(request)) return;
+                    if (failure == null) { status.setText("借阅成功，到期时间：" + loan.dueAt()); mutationSucceeded(); }
                     else LibraryFeedback.borrowFailure(this, status, failure,
                             "借阅失败，请刷新馆藏后重试。");
                 }));

@@ -10,9 +10,15 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /** Shared query/management page structure for the library workspace. */
 class LibraryDataPanel extends JPanel {
+    private Runnable afterMutation = () -> { };
+
+    final void setAfterMutation(Runnable refresh) { afterMutation = java.util.Objects.requireNonNull(refresh); }
+    protected final void mutationSucceeded() { afterMutation.run(); }
+
     protected final JLabel status = new JLabel("尚未加载", JLabel.CENTER);
     protected final JTable table;
     private final AtomicLong lifecycle = new AtomicLong();
+    private final AtomicLong mutationLifecycle = new AtomicLong();
     private volatile boolean active = true;
 
     LibraryDataPanel(String name, String title, String description, String... columns) {
@@ -79,7 +85,11 @@ class LibraryDataPanel extends JPanel {
 
     protected final long beginRequest() { return lifecycle.incrementAndGet(); }
     protected final boolean accepts(long request) { return active && lifecycle.get() == request; }
+    protected final long beginMutation() { beginRequest(); return mutationLifecycle.get(); }
+    protected final boolean acceptsMutation(long request) { return active && mutationLifecycle.get() == request; }
 
     @Override public void addNotify() { active = true; super.addNotify(); }
-    @Override public void removeNotify() { active = false; lifecycle.incrementAndGet(); super.removeNotify(); }
+    @Override public void removeNotify() {
+        active = false; lifecycle.incrementAndGet(); mutationLifecycle.incrementAndGet(); super.removeNotify();
+    }
 }

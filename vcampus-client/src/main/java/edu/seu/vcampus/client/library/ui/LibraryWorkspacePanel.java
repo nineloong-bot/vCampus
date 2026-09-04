@@ -30,6 +30,7 @@ public final class LibraryWorkspacePanel extends JPanel {
         boolean mayManageLibrary = permissions.contains("LIBRARY_ADMIN");
         BookSearchPanel search = new BookSearchPanel(service);
         BookDetailPanel detail = new BookDetailPanel(service, !administrator);
+        detail.setAfterMutation(this::refreshAll);
         search.connectDetail(detail);
         JSplitPane catalog = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, search, detail);
         catalog.setResizeWeight(0.58); catalog.setDividerLocation(0.58);
@@ -81,7 +82,17 @@ public final class LibraryWorkspacePanel extends JPanel {
 
     private void addTab(String title, JComponent component, Runnable refresh) {
         component.putClientProperty("library.refresh", refresh);
+        if (component instanceof LibraryDataPanel panel) panel.setAfterMutation(this::refreshAll);
+        if (component instanceof LibraryPolicyPanel panel) panel.setAfterMutation(this::refreshAll);
         tabs.addTab(title, component);
+    }
+
+    private void refreshAll() {
+        for (int index = 0; index < tabs.getTabCount(); index++) {
+            JComponent component = (JComponent) tabs.getComponentAt(index);
+            if (component instanceof LibraryPolicyPanel settings) settings.refreshAfterMutation();
+            else ((Runnable) component.getClientProperty("library.refresh")).run();
+        }
     }
 
     private void refreshSelected() {

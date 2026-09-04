@@ -74,17 +74,18 @@ public final class LoanAdminPanel extends LibraryDataPanel {
     }
 
     private void resolve(LoanView loan, LoanStatus resolution) {
-        long request = beginRequest();
+        long request = beginMutation();
         status.setText(resolution == LoanStatus.RETURNED ? "正在办理归还……" : "正在标记遗失……");
         service.resolveLoan(new AdminResolveLoanCommand(loan.loanId(), resolution, loan.rowVersion()))
                 .whenComplete((resolved, failure) -> SwingUtilities.invokeLater(() -> {
-                    if (!accepts(request)) return;
+                    if (!acceptsMutation(request)) return;
                     if (failure != null) {
                         LibraryFeedback.failure(this, status, failure, "借阅处理失败，请刷新后重试。");
                         return;
                     }
                     status.setText(resolution == LoanStatus.RETURNED ? "归还已办理，用户借阅已同步" : "遗失已登记，用户借阅已同步");
                     refresh();
+                    mutationSucceeded();
                 }));
     }
 

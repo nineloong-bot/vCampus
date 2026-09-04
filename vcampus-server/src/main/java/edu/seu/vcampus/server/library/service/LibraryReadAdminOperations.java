@@ -73,10 +73,27 @@ final class LibraryReadAdminOperations {
 
     BookView createBook(CreateBookCommand command) {
         Objects.requireNonNull(command, "command");
+        if (command.locationCode() != null && (command.barcode() == null || command.barcode().isBlank()
+                || command.barcode().trim().length() > 32)) {
+            throw new IllegalArgumentException("First copy barcode must contain 1 to 32 characters");
+        }
+        if (command.locationCode() != null && (command.locationCode().isBlank()
+                || command.locationCode().trim().length() > 64)) {
+            throw new IllegalArgumentException("First copy location must contain 1 to 64 characters");
+        }
         Book book = new Book(idGenerator.get(), command.isbn(), command.title(), command.author(),
                 command.publisher(), command.publishDate(), command.category(), command.description(),
                 true, 0);
-        Book inserted = transactions.inTransaction(connection -> books.insertBook(connection, book));
+        Book inserted = transactions.inTransaction(connection -> {
+            Book created = books.insertBook(connection, book);
+            if (command.locationCode() != null) {
+                String copyId = idGenerator.get();
+                books.insertCopy(connection, new BookCopy(copyId, created.bookId(),
+                        command.barcode().trim(),
+                        command.locationCode().trim(), CopyStatus.AVAILABLE, 0));
+            }
+            return created;
+        });
         return toView(inserted);
     }
 

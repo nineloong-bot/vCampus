@@ -16,6 +16,10 @@ public final class LibraryPolicyPanel extends JPanel {
     private final JLabel serverStatus = new JLabel("检查中");
     private final JLabel databaseStatus = new JLabel("检查中");
     private long refreshSequence;
+    private boolean saving;
+    private Runnable afterMutation = () -> { };
+
+    void setAfterMutation(Runnable refresh) { afterMutation = Objects.requireNonNull(refresh); }
 
     public LibraryPolicyPanel(LibraryClientService service) {
         super(new BorderLayout(0, 14));
@@ -40,6 +44,15 @@ public final class LibraryPolicyPanel extends JPanel {
     }
 
     public void refreshStatus() {
+        refreshStatus(false);
+    }
+
+    public void refreshAfterMutation() {
+        refreshStatus(true);
+    }
+
+    private void refreshStatus(boolean preserveEdits) {
+        if (saving) return;
         long request = ++refreshSequence;
         student.setSaveEnabled(false); teacher.setSaveEnabled(false);
         serverStatus.setText("检查中"); databaseStatus.setText("检查中");
@@ -59,18 +72,21 @@ public final class LibraryPolicyPanel extends JPanel {
                         return;
                     }
                     for (LibraryPolicyView policy : policies) {
-                        if ("STUDENT".equals(policy.roleCode())) student.apply(policy);
-                        if ("TEACHER".equals(policy.roleCode())) teacher.apply(policy);
+                        if ("STUDENT".equals(policy.roleCode())) student.apply(policy, preserveEdits);
+                        if ("TEACHER".equals(policy.roleCode())) teacher.apply(policy, preserveEdits);
                     }
                     message.setText("已读取最新借阅设置");
                 }));
     }
 
     public void save(UpdateLibraryPolicyCommand command) {
+        if (saving) return;
+        saving = true;
         long request = ++refreshSequence;
         student.setSaveEnabled(false); teacher.setSaveEnabled(false);
         message.setText("正在保存设置……");
         service.updatePolicy(command).whenComplete((policy, failure) -> SwingUtilities.invokeLater(() -> {
+            saving = false;
             if (request != refreshSequence) return;
             if (failure != null) {
                 student.setSaveEnabled(true); teacher.setSaveEnabled(true);
@@ -81,6 +97,7 @@ public final class LibraryPolicyPanel extends JPanel {
             row.apply(policy);
             student.setSaveEnabled(true); teacher.setSaveEnabled(true);
             message.setText(("STUDENT".equals(policy.roleCode()) ? "学生" : "教师") + "借阅策略已保存");
+            afterMutation.run();
         }));
     }
 
@@ -111,11 +128,14 @@ public final class LibraryPolicyPanel extends JPanel {
         private final JSpinner maxLoans, loanDays, renewals, renewalDays;
         private JButton saveButton;
         private long version;
+        private boolean dirty, applying;
 
         PolicyRow(String roleCode, String label, int max, int days, int renew, int renewal) {
             this.roleCode = roleCode; this.label = label;
             maxLoans = spinner(max, 1, 100); loanDays = spinner(days, 1, 365);
             renewals = spinner(renew, 0, 20); renewalDays = spinner(renewal, 1, 365);
+            for (JSpinner field : new JSpinner[]{maxLoans, loanDays, renewals, renewalDays})
+                field.addChangeListener(event -> { if (!applying) dirty = true; });
         }
 
         JPanel panel() {
@@ -130,8 +150,15 @@ public final class LibraryPolicyPanel extends JPanel {
         }
 
         void apply(LibraryPolicyView policy) {
+            apply(policy, false);
+        }
+
+        void apply(LibraryPolicyView policy, boolean preserveEdits) {
+            if (preserveEdits && dirty) { setSaveEnabled(true); return; }
+            applying = true;
             maxLoans.setValue(policy.maxActiveLoans()); loanDays.setValue(policy.loanDays());
             renewals.setValue(policy.maxRenewals()); renewalDays.setValue(policy.renewalDays()); version = policy.rowVersion();
+            applying = false; dirty = false;
             setSaveEnabled(true);
         }
 
