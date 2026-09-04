@@ -170,9 +170,9 @@ class AuthenticatedCourseShellTest {
 
     static Stream<Arguments> roleTabs() {
         return Stream.of(
-                Arguments.of(UserRole.STUDENT, List.of("教学班查询", "我的选课", "我的课表", "退改补", "重修")),
+                Arguments.of(UserRole.STUDENT, List.of("选课", "我的选课", "我的课表")),
                 Arguments.of(UserRole.TEACHER, List.of("教学班查询", "教师课表")),
-                Arguments.of(UserRole.ADMIN, List.of("学期管理", "课程目录", "教学班管理", "修读结果导入", "选退记录")));
+                Arguments.of(UserRole.ADMIN, List.of("学期管理", "选课阶段", "课程目录", "教学班管理", "修读结果导入", "选退记录")));
     }
 
     private static UserClientService usersFor(UserRole role) {

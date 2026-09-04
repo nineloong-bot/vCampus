@@ -61,6 +61,10 @@ public final class CourseUiScreenshotGenerator {
         // Completed preview futures publish their UI state through invokeLater.
         SwingUtilities.invokeAndWait(() -> { });
         SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> descendants(student[0]).stream()
+                .filter(javax.swing.JButton.class::isInstance).map(javax.swing.JButton.class::cast)
+                .filter(button -> button.getText().startsWith("▶  MATH101"))
+                .findFirst().ifPresent(javax.swing.JButton::doClick));
         SwingUtilities.invokeAndWait(() -> {
             try {
                 capture(login[0], output.resolve("integrated-login.png"),
@@ -80,6 +84,15 @@ public final class CourseUiScreenshotGenerator {
                 previewConnection.close();
             }
         });
+    }
+
+    private static java.util.List<java.awt.Component> descendants(java.awt.Container root) {
+        java.util.List<java.awt.Component> found = new java.util.ArrayList<>();
+        for (java.awt.Component child : root.getComponents()) {
+            found.add(child);
+            if (child instanceof java.awt.Container nested) found.addAll(descendants(nested));
+        }
+        return found;
     }
 
     private static void capture(java.awt.Window window, Path target, int width, int height)

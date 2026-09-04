@@ -46,6 +46,12 @@ public final class CourseClientService {
     public CompletableFuture<TermView> getCurrentTerm() { return call("COURSE_GET_CURRENT_TERM", EmptyRequest.INSTANCE, READ, TermView.class); }
     public CompletableFuture<TermView> createTerm(CreateTermCommand c) { return call("COURSE_TERM_CREATE", c, WRITE, TermView.class); }
     public CompletableFuture<TermView> updateTerm(UpdateTermCommand c) { return call("COURSE_TERM_UPDATE", c, WRITE, TermView.class); }
+    public CompletableFuture<List<SelectionPhaseView>> listSelectionPhases() { return callList("COURSE_SELECTION_PHASE_LIST", EmptyRequest.INSTANCE, READ, SelectionPhaseView.class); }
+    public CompletableFuture<SelectionPhaseView> createSelectionPhase(CreateSelectionPhaseCommand c) { return call("COURSE_SELECTION_PHASE_CREATE", c, WRITE, SelectionPhaseView.class); }
+    public CompletableFuture<SelectionPhaseView> updateSelectionPhase(UpdateSelectionPhaseCommand c) { return call("COURSE_SELECTION_PHASE_UPDATE", c, WRITE, SelectionPhaseView.class); }
+    public CompletableFuture<SelectionPhaseView> changeSelectionPhaseStatus(ChangeSelectionPhaseStatusCommand c) { return call("COURSE_SELECTION_PHASE_CHANGE_STATUS", c, WRITE, SelectionPhaseView.class); }
+    public CompletableFuture<StudentSelectionContextView> getStudentSelectionContext() { return call("COURSE_STUDENT_SELECTION_CONTEXT", EmptyRequest.INSTANCE, READ, StudentSelectionContextView.class); }
+    public CompletableFuture<PageResult<CourseSelectionView>> searchStudentCourses(CourseSelectionQuery q) { return callPage("COURSE_STUDENT_COURSE_SEARCH", q, READ, CourseSelectionView.class); }
     public CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery q) { return callPage("COURSE_CATALOG_SEARCH", q, READ, CourseView.class); }
     public CompletableFuture<PageResult<AdjustmentAuditView>> searchAdjustmentAudits(AdjustmentAuditQuery q) { return callPage("COURSE_ADJUSTMENT_AUDIT_SEARCH", q, READ, AdjustmentAuditView.class); }
     public CompletableFuture<TermPhaseView> getTermPhase(String id) { return call("COURSE_GET_TERM_PHASE", new EntityIdRequest(id), READ, TermPhaseView.class); }

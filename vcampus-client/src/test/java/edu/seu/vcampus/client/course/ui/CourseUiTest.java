@@ -40,12 +40,14 @@ import edu.seu.vcampus.common.user.UserSearchQuery;
 import edu.seu.vcampus.common.user.UserSummary;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.swing.JButton;
+import javax.swing.AbstractButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -58,6 +60,7 @@ import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
+import javax.swing.JRadioButton;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
@@ -252,9 +255,42 @@ class CourseUiTest {
 
     static Stream<Arguments> roleTabs() {
         return Stream.of(
-                Arguments.of(UserRole.STUDENT, List.of("教学班查询", "我的选课", "我的课表", "退改补", "重修")),
+                Arguments.of(UserRole.STUDENT, List.of("选课", "我的选课", "我的课表")),
                 Arguments.of(UserRole.TEACHER, List.of("教学班查询", "教师课表")),
-                Arguments.of(UserRole.ADMIN, List.of("学期管理", "课程目录", "教学班管理", "修读结果导入", "选退记录")));
+                Arguments.of(UserRole.ADMIN, List.of("学期管理", "选课阶段", "课程目录", "教学班管理", "修读结果导入", "选退记录")));
+    }
+
+    @Test
+    void unifiedStudentSelectionUsesPhaseTitleAndPerCourseActions() throws Exception {
+        StudentCourseSelectionPanel panel = onEdt(() -> new StudentCourseSelectionPanel(CourseUiGateway.preview()));
+        SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(labels(panel)).contains("2026-2027秋季学期退改补选课", "共 3 门课程");
+        assertThat(buttons(panel)).contains("取消选课", "补选课程");
+        assertThat(buttons(panel)).doesNotContain("选择教学班");
+    }
+
+    @Test
+    void unifiedSelectionRequiresAnExplicitTeachingClassChoice() throws Exception {
+        StudentCourseSelectionPanel panel = onEdt(() -> new StudentCourseSelectionPanel(CourseUiGateway.preview()));
+        SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> { });
+
+        JButton add = button(panel, "补选课程");
+        assertThat(add.isEnabled()).isFalse();
+        JRadioButton option = descendants(panel).stream().filter(JRadioButton.class::isInstance)
+                .map(JRadioButton.class::cast).filter(AbstractButton::isEnabled).findFirst().orElseThrow();
+        SwingUtilities.invokeAndWait(option::doClick);
+        assertThat(add.isEnabled()).isTrue();
+    }
+
+    @Test
+    void myEnrollmentsIsReadOnlyBecauseDropsBelongToUnifiedSelection() throws Exception {
+        MyEnrollmentPanel panel = onEdt(() -> new MyEnrollmentPanel(CourseUiGateway.preview()));
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(buttons(panel)).doesNotContain("退选所选课程");
     }
 
     @Test
@@ -725,6 +761,7 @@ class CourseUiTest {
     }
 
     @Test
+    @Disabled("Obsolete: drop mutations moved to the unified selection page")
     void myEnrollmentsDropsTheSelectedActiveRowAndRefreshesAuthoritativeData() throws Exception {
         AtomicReference<DropCommand> submitted = new AtomicReference<>();
         AtomicReference<String> confirmedLabel = new AtomicReference<>();
@@ -764,10 +801,11 @@ class CourseUiTest {
         assertThat(refreshCalls).hasValue(2);
         assertThat(invalidations).hasValue(1);
         assertThat(labels(panel)).anyMatch(text -> text.contains("正常选课开放")
-                && text.contains("08-20") && text.contains("09-09"));
+                && text.contains("选课或退课请前往“选课”页"));
     }
 
     @Test
+    @Disabled("Obsolete: drop mutations moved to the unified selection page")
     void myEnrollmentsMapsASortedViewRowBackToItsEnrollment() throws Exception {
         AtomicReference<DropCommand> submitted = new AtomicReference<>();
         EnrollmentView first = new EnrollmentView(
@@ -799,6 +837,7 @@ class CourseUiTest {
     }
 
     @ParameterizedTest
+    @Disabled("Obsolete: the enrollment list is now read-only")
     @CsvSource({
             "ENROLLMENT,ACTIVE,true",
             "ADJUSTMENT,ACTIVE,true",
@@ -820,6 +859,7 @@ class CourseUiTest {
     }
 
     @Test
+    @Disabled("Obsolete: the enrollment list is now read-only")
     void myEnrollmentDropRequiresAnActiveSelectedRow() throws Exception {
         EnrollmentView dropped = new EnrollmentView(
                 "enrollment-1", "offering-1", "student-1", "NORMAL", "DROPPED",
@@ -835,6 +875,7 @@ class CourseUiTest {
     }
 
     @Test
+    @Disabled("Obsolete: the enrollment list is now read-only")
     void myEnrollmentDropStaysDisabledWithoutASelection() throws Exception {
         EnrollmentView active = new EnrollmentView(
                 "enrollment-1", "offering-1", "student-1", "NORMAL", "ACTIVE",
@@ -849,6 +890,7 @@ class CourseUiTest {
     }
 
     @Test
+    @Disabled("Obsolete: drop confirmation is covered by the unified selection page")
     void myEnrollmentDropStopsWhenConfirmationIsRejected() throws Exception {
         AtomicInteger submissions = new AtomicInteger();
         EnrollmentView active = new EnrollmentView(
@@ -875,6 +917,7 @@ class CourseUiTest {
     }
 
     @Test
+    @Disabled("Obsolete: drop failure handling is covered by the unified selection page")
     void failedImmediateDropKeepsRowsAndRestoresTheAction() throws Exception {
         EnrollmentView active = new EnrollmentView(
                 "enrollment-1", "offering-1", "student-1", "NORMAL", "ACTIVE",
@@ -903,6 +946,7 @@ class CourseUiTest {
     }
 
     @Test
+    @Disabled("Obsolete: drop mutations moved to the unified selection page")
     void refreshDuringPendingImmediateDropCannotSupersedeTheMutation() throws Exception {
         CompletableFuture<EmptyResponse> pendingDrop = new CompletableFuture<>();
         AtomicInteger submissions = new AtomicInteger();
@@ -949,6 +993,7 @@ class CourseUiTest {
     }
 
     @Test
+    @Disabled("Obsolete: drop mutations moved to the unified selection page")
     void hiddenEnrollmentPageStillInvalidatesAfterSuccessfulDropAndRefreshesWhenShown() throws Exception {
         CompletableFuture<EmptyResponse> pendingDrop = new CompletableFuture<>();
         AtomicInteger refreshCalls = new AtomicInteger();
@@ -995,6 +1040,7 @@ class CourseUiTest {
     }
 
     @Test
+    @Disabled("Obsolete: drop mutations moved to the unified selection page")
     void removedEnrollmentPageIgnoresALateDropCompletion() throws Exception {
         CompletableFuture<EmptyResponse> request = new CompletableFuture<>();
         AtomicInteger refreshCalls = new AtomicInteger();
@@ -1029,6 +1075,7 @@ class CourseUiTest {
     }
 
     @Test
+    @Disabled("Obsolete: mutation invalidation now originates from the unified selection page")
     void enrollmentChangesRefreshLoadedTabsLazilyAndDoNotConstructHiddenTabs() throws Exception {
         AtomicInteger enrollmentLoads = new AtomicInteger();
         AtomicInteger scheduleLoads = new AtomicInteger();
@@ -1075,17 +1122,10 @@ class CourseUiTest {
 
         assertThat(enrollmentLoads).hasValue(2);
         assertThat(scheduleLoads).hasValue(1);
-        assertThat(tabs.getComponentAt(3).getName()).startsWith("course.tab.placeholder.");
+        assertThat(tabs.getTabCount()).isEqualTo(3);
         SwingUtilities.invokeAndWait(() -> tabs.setSelectedIndex(2));
         SwingUtilities.invokeAndWait(() -> { });
         assertThat(scheduleLoads.get()).isGreaterThan(1);
-        int enrollmentsBeforeOpeningAdjustment = enrollmentLoads.get();
-        int schedulesBeforeOpeningAdjustment = scheduleLoads.get();
-        SwingUtilities.invokeAndWait(() -> tabs.setSelectedIndex(3));
-        SwingUtilities.invokeAndWait(() -> { });
-        SwingUtilities.invokeAndWait(() -> { });
-        assertThat(enrollmentLoads).hasValue(enrollmentsBeforeOpeningAdjustment + 1);
-        assertThat(scheduleLoads).hasValue(schedulesBeforeOpeningAdjustment + 1);
     }
 
     @Test
@@ -1823,10 +1863,8 @@ class CourseUiTest {
                 hoursModel.getStepSize())).containsExactly(32, 1, 1000, 1);
         assertThat(component(term, "开学日期", JSpinner.class)).isNotNull();
         assertThat(component(term, "结束日期", JSpinner.class)).isNotNull();
-        assertThat(component(term, "选课开始", JSpinner.class)).isNotNull();
-        assertThat(component(term, "选课结束", JSpinner.class)).isNotNull();
-        assertThat(component(term, "退改补开始", JSpinner.class)).isNotNull();
-        assertThat(component(term, "退改补结束", JSpinner.class)).isNotNull();
+        assertThat(component(term, "选课开始", JSpinner.class)).isNull();
+        assertThat(component(term, "退改补开始", JSpinner.class)).isNull();
         assertThat(Stream.concat(descendants(course).stream(), descendants(term).stream())
                 .filter(JTextField.class::isInstance).map(JTextField.class::cast)
                 .map(field -> field.getAccessibleContext().getAccessibleName()))
@@ -1865,9 +1903,7 @@ class CourseUiTest {
 
     @ParameterizedTest
     @CsvSource({
-            "开学日期,结束日期,结束日期必须晚于开学日期",
-            "选课开始,选课结束,选课结束必须晚于选课开始",
-            "退改补开始,退改补结束,退改补结束必须晚于退改补开始"
+            "开学日期,结束日期,结束日期必须晚于开学日期"
     })
     void termEditorIdentifiesTheInvalidOrdering(String startName, String endName, String expectedMessage)
             throws Exception {
@@ -1885,10 +1921,6 @@ class CourseUiTest {
             textField(dialog, "学期名称").setText("2027—2028学年秋季学期");
             setTemporalValue(dialog, "开学日期", "2027-09-01", "2027-08-31T16:00:00Z");
             setTemporalValue(dialog, "结束日期", "2028-01-15", "2028-01-14T16:00:00Z");
-            setTemporalValue(dialog, "选课开始", "2027-08-20 08:00", "2027-08-20T00:00:00Z");
-            setTemporalValue(dialog, "选课结束", "2027-08-31 23:59", "2027-08-31T15:59:00Z");
-            setTemporalValue(dialog, "退改补开始", "2027-09-01 08:00", "2027-09-01T00:00:00Z");
-            setTemporalValue(dialog, "退改补结束", "2027-09-08 23:59", "2027-09-08T15:59:00Z");
             Component start = namedComponent(dialog, startName);
             Component end = namedComponent(dialog, endName);
             if (start instanceof JSpinner startSpinner && end instanceof JSpinner endSpinner) {
@@ -2017,10 +2049,6 @@ class CourseUiTest {
             textField(dialog, "学期名称").setText(" 2027—2028学年秋季学期 ");
             setTemporalValue(dialog, "开学日期", "2027-09-01", "2027-08-31T16:00:00Z");
             setTemporalValue(dialog, "结束日期", "2028-01-15", "2028-01-14T16:00:00Z");
-            setTemporalValue(dialog, "选课开始", "2027-08-20 08:00", "2027-08-20T00:00:00Z");
-            setTemporalValue(dialog, "选课结束", "2027-08-31 23:59", "2027-08-31T15:59:00Z");
-            setTemporalValue(dialog, "退改补开始", "2027-09-01 08:00", "2027-09-01T00:00:00Z");
-            setTemporalValue(dialog, "退改补结束", "2027-09-08 23:59", "2027-09-08T15:59:00Z");
             descendants(dialog).stream().filter(JComboBox.class::isInstance).map(JComboBox.class::cast)
                     .findFirst().orElseThrow().setSelectedIndex(1);
             descendants(dialog).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
@@ -2030,8 +2058,8 @@ class CourseUiTest {
 
         assertThat(submitted.get()).isEqualTo(new CreateTermCommand("2027-2028-1", "2027—2028学年秋季学期",
                 LocalDate.parse("2027-09-01"), LocalDate.parse("2028-01-15"),
-                Instant.parse("2027-08-20T00:00:00Z"), Instant.parse("2027-08-31T15:59:00Z"),
-                Instant.parse("2027-09-01T00:00:00Z"), Instant.parse("2027-09-08T15:59:00Z"), "ACTIVE"));
+                Instant.parse("2027-08-29T16:00:00Z"), Instant.parse("2027-08-30T16:00:00Z"),
+                Instant.parse("2027-08-31T16:00:00Z"), Instant.parse("2027-09-01T16:00:00Z"), "ACTIVE"));
         SwingUtilities.invokeAndWait(dialog::dispose);
     }
 

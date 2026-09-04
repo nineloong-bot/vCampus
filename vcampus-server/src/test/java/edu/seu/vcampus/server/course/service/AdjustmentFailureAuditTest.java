@@ -210,6 +210,8 @@ class AdjustmentFailureAuditTest {
             repository.insertTerm(c, new Term("term", "2026-1", "Term", LocalDate.of(2026, 9, 1),
                     LocalDate.of(2027, 1, 1), NOW.minusSeconds(3600), NOW.minusSeconds(1800),
                     NOW.minusSeconds(60), NOW.plusSeconds(60), "ACTIVE", 0, null, null));
+            repository.insertSelectionPhase(c, new edu.seu.vcampus.server.course.repository.SelectionPhase(
+                    "phase", "term", "ADJUSTMENT", "Adjustment selection", "OPEN", 0, null, null));
             repository.insertCourse(c, new Course("course", "CS101", "Course", BigDecimal.ONE, 16,
                     null, true, 0, null, null));
             repository.insertOffering(c, new Offering(offeringId, "term", "course", "teacher", offeringId,

@@ -17,6 +17,8 @@ import edu.seu.vcampus.client.course.ui.OfferingSearchPanel;
 import edu.seu.vcampus.client.course.ui.OutcomeImportPanel;
 import edu.seu.vcampus.client.course.ui.RetakePanel;
 import edu.seu.vcampus.client.course.ui.TermManagementPanel;
+import edu.seu.vcampus.client.course.ui.SelectionPhaseManagementPanel;
+import edu.seu.vcampus.client.course.ui.StudentCourseSelectionPanel;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -93,17 +95,16 @@ public final class CourseDemoFrame extends JFrame {
         navigation.setPreferredSize(new Dimension(UiDimensions.NAVIGATION_WIDTH, 0));
         navigation.add(Box.createVerticalStrut(UiSpacing.LG));
         if ("ADMIN".equalsIgnoreCase(role)) {
+            addPage(navigation, "选课阶段", () -> new SelectionPhaseManagementPanel(gateway));
             addPage(navigation, "学期管理", () -> new TermManagementPanel(gateway));
             addPage(navigation, "课程目录", () -> new CourseCatalogPanel(gateway));
             addPage(navigation, "教学班管理", () -> new OfferingManagementPanel(gateway));
             addPage(navigation, "结果导入", () -> new OutcomeImportPanel(gateway));
             addPage(navigation, "异动审计", () -> new AdjustmentAuditPanel(gateway));
         } else {
-            addPage(navigation, "教学班查询", () -> new OfferingSearchPanel(gateway));
+            addPage(navigation, "选课", () -> new StudentCourseSelectionPanel(gateway));
             addPage(navigation, "我的选课", () -> new MyEnrollmentPanel(gateway));
             addPage(navigation, "我的课表", () -> new MySchedulePanel(gateway));
-            addPage(navigation, "退改补", () -> new AdjustmentPanel(gateway));
-            addPage(navigation, "重修选课", () -> new RetakePanel(gateway));
         }
         navigation.add(Box.createVerticalGlue());
         return navigation;

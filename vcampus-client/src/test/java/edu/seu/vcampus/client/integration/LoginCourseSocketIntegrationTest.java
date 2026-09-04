@@ -13,6 +13,8 @@ import edu.seu.vcampus.common.course.DropCommand;
 import edu.seu.vcampus.common.course.EnrollCommand;
 import edu.seu.vcampus.common.course.EnrollmentView;
 import edu.seu.vcampus.common.course.OfferingSearchQuery;
+import edu.seu.vcampus.common.course.CreateSelectionPhaseCommand;
+import edu.seu.vcampus.common.course.ChangeSelectionPhaseStatusCommand;
 import edu.seu.vcampus.common.user.AccountStatus;
 import edu.seu.vcampus.common.user.LoginResult;
 import edu.seu.vcampus.common.user.UserRole;
@@ -120,8 +122,12 @@ class LoginCourseSocketIntegrationTest {
         LoginResult administrator = login("ADMIN1");
         assertThat(administrator.user().role()).isEqualTo(UserRole.ADMIN);
         assertWorkspaceTabs(administrator, List.of(
-                "学期管理", "课程目录", "教学班管理", "修读结果导入", "选退记录"));
+                "学期管理", "选课阶段", "课程目录", "教学班管理", "修读结果导入", "选退记录"));
         var term = courses.createTerm(term()).join();
+        var phase = courses.createSelectionPhase(new CreateSelectionPhaseCommand(
+                term.termId(), "ENROLLMENT", "端到端测试选课")).join();
+        courses.changeSelectionPhaseStatus(new ChangeSelectionPhaseStatusCommand(
+                phase.phaseId(), "OPEN", phase.rowVersion())).join();
         var course = courses.createCourse(new CreateCourseCommand(
                 "CS-E2E", "端到端系统测试", BigDecimal.valueOf(3), 48, null, true)).join();
         var offering = courses.createOffering(new CreateOfferingCommand(
@@ -133,7 +139,7 @@ class LoginCourseSocketIntegrationTest {
         LoginResult student = login("STUDENT1");
         assertThat(student.user().userId()).isEqualTo(STUDENT_USER_ID);
         assertWorkspaceTabs(student, List.of(
-                "教学班查询", "我的选课", "我的课表", "退改补", "重修"));
+                "选课", "我的选课", "我的课表"));
         assertThat(courses.listTerms().join()).extracting("termId").contains(term.termId());
         OfferingSearchQuery query = new OfferingSearchQuery(
                 term.termId(), "CS-E2E", null, false, 0, 20);

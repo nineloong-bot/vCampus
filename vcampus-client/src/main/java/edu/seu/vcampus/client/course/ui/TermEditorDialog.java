@@ -105,13 +105,11 @@ final class TermEditorDialog extends JDialog {
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
         panel.add(pair("学期代码（必填）", code, "学期名称（必填）", name));
         panel.add(pair("开学日期", startDate, "结束日期", endDate));
-        panel.add(pair("选课开始", enrollmentStart, "选课结束", enrollmentEnd));
-        panel.add(pair("退改补开始", adjustmentStart, "退改补结束", adjustmentEnd));
         status.setFont(UiTypography.BODY);
         status.setMaximumSize(new Dimension(Integer.MAX_VALUE, UiDimensions.CONTROL_HEIGHT));
         status.getAccessibleContext().setAccessibleName("学期状态");
-        panel.add(pair("学期状态", status, "开放判定",
-                label("由学期状态与服务器时间窗共同决定", UiColors.TEXT_SECONDARY)));
+        panel.add(pair("学期状态", status, "选课开放",
+                label("在“选课阶段”中手动管理", UiColors.TEXT_SECONDARY)));
         return panel;
     }
 
@@ -162,15 +160,11 @@ final class TermEditorDialog extends JDialog {
             String cleanName = required(name, "请输入学期名称");
             LocalDate cleanStart = date(startDate);
             LocalDate cleanEnd = date(endDate);
-            Instant cleanEnrollmentStart = instant(enrollmentStart);
-            Instant cleanEnrollmentEnd = instant(enrollmentEnd);
-            Instant cleanAdjustmentStart = instant(adjustmentStart);
-            Instant cleanAdjustmentEnd = instant(adjustmentEnd);
+            Instant cleanEnrollmentStart = existing == null ? cleanStart.minusDays(2).atStartOfDay(CAMPUS_ZONE).toInstant() : existing.enrollmentStartAt();
+            Instant cleanEnrollmentEnd = existing == null ? cleanStart.minusDays(1).atStartOfDay(CAMPUS_ZONE).toInstant() : existing.enrollmentEndAt();
+            Instant cleanAdjustmentStart = existing == null ? cleanStart.atStartOfDay(CAMPUS_ZONE).toInstant() : existing.adjustmentStartAt();
+            Instant cleanAdjustmentEnd = existing == null ? cleanStart.plusDays(1).atStartOfDay(CAMPUS_ZONE).toInstant() : existing.adjustmentEndAt();
             CourseFormValidation.requireOrdered(cleanStart, cleanEnd, "结束日期必须晚于开学日期");
-            CourseFormValidation.requireOrdered(cleanEnrollmentStart, cleanEnrollmentEnd,
-                    "选课结束必须晚于选课开始");
-            CourseFormValidation.requireOrdered(cleanAdjustmentStart, cleanAdjustmentEnd,
-                    "退改补结束必须晚于退改补开始");
             String cleanStatus = ((StatusChoice) status.getSelectedItem()).code();
             if (existing == null) {
                 request = gateway.createTerm(new CreateTermCommand(cleanCode, cleanName, cleanStart, cleanEnd,
@@ -182,7 +176,7 @@ final class TermEditorDialog extends JDialog {
             }
         } catch (IllegalArgumentException invalid) {
             error.setText(invalid.getMessage() == null || "invalid term".equals(invalid.getMessage())
-                    ? "请检查日期顺序和选课时间窗" : invalid.getMessage());
+                    ? "请检查学期日期顺序" : invalid.getMessage());
             return;
         }
         String idle = save.getText();

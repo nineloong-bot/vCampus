@@ -20,6 +20,7 @@ import edu.seu.vcampus.server.course.repository.EnrollmentAdjustment;
 import edu.seu.vcampus.server.course.repository.Offering;
 import edu.seu.vcampus.server.course.repository.Schedule;
 import edu.seu.vcampus.server.course.repository.Term;
+import edu.seu.vcampus.server.course.repository.SelectionPhase;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import edu.seu.vcampus.server.persistence.TransactionManager;
 import org.junit.jupiter.api.BeforeEach;
@@ -121,7 +122,7 @@ class AdjustmentRuleCoverageTest {
 
     private CourseService service(CourseRepository r) { return new CourseServiceImpl(t -> new CourseSessionIdentity("user", "STUDENT"), u -> new StudentEnrollmentEligibility("student", "ACTIVE"), r, new StripedResourceLockManager(), new TransactionManager(connections), new TermWindowPolicy(), new ScheduleConflictPolicy(), Clock.fixed(NOW, ZoneOffset.UTC)); }
     private void seedOpen() { seed("ACTIVE", NOW.minusSeconds(60), NOW.plusSeconds(60)); }
-    private void seed(String status, Instant start, Instant end) { inTx(c -> { repository.insertTerm(c, new Term("term", "2026-1", "Term", LocalDate.of(2026,9,1), LocalDate.of(2027,1,1), NOW.minusSeconds(3600), NOW.minusSeconds(1800), start, end, status, 0, null, null)); repository.insertCourse(c, new Course("course-1", "CS101", "One", BigDecimal.ONE, 16, null, true, 0, null, null)); repository.insertCourse(c, new Course("course-2", "CS102", "Two", BigDecimal.ONE, 16, null, true, 0, null, null)); return null; }); }
+    private void seed(String status, Instant start, Instant end) { inTx(c -> { repository.insertTerm(c, new Term("term", "2026-1", "Term", LocalDate.of(2026,9,1), LocalDate.of(2027,1,1), NOW.minusSeconds(3600), NOW.minusSeconds(1800), start, end, status, 0, null, null)); if("ACTIVE".equals(status)&&!NOW.isBefore(start)&&NOW.isBefore(end)) repository.insertSelectionPhase(c,new SelectionPhase("phase","term","ADJUSTMENT","Adjustment selection","OPEN",0,null,null)); repository.insertCourse(c, new Course("course-1", "CS101", "One", BigDecimal.ONE, 16, null, true, 0, null, null)); repository.insertCourse(c, new Course("course-2", "CS102", "Two", BigDecimal.ONE, 16, null, true, 0, null, null)); return null; }); }
     private void offer(String id, String course, int capacity, int enrolled, String status, List<Schedule> schedules) { inTx(c -> repository.insertOffering(c, new Offering(id, "term", course, "teacher", id, capacity, enrolled, status, 0, null, null), schedules)); }
     private Enrollment active(String offering, String student) { return inTx(c -> repository.insertEnrollment(c, new Enrollment(UUID.randomUUID().toString(), offering, student, "NORMAL", "ACTIVE", NOW.minusSeconds(3), null, 0, null, null))); }
     private static Schedule schedule(String id, String offering, DayOfWeek day) { return new Schedule(id, offering, day, 1, 2, 1, 16, "A"); }

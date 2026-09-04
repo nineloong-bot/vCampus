@@ -22,6 +22,7 @@ import edu.seu.vcampus.server.course.repository.EnrollmentAdjustment;
 import edu.seu.vcampus.server.course.repository.Offering;
 import edu.seu.vcampus.server.course.repository.Schedule;
 import edu.seu.vcampus.server.course.repository.Term;
+import edu.seu.vcampus.server.course.repository.SelectionPhase;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import edu.seu.vcampus.server.persistence.TransactionManager;
 import org.junit.jupiter.api.BeforeEach;
@@ -317,6 +318,10 @@ class EnrollmentAdjustmentTest {
                     LocalDate.of(2026, 9, 1), LocalDate.of(2027, 1, 15),
                     enrollmentStart, enrollmentEnd, adjustmentStart, adjustmentEnd,
                     "ACTIVE", 0, null, null));
+            String phaseType = !NOW.isBefore(adjustmentStart) && NOW.isBefore(adjustmentEnd)
+                    ? "ADJUSTMENT" : (!NOW.isBefore(enrollmentStart) && NOW.isBefore(enrollmentEnd) ? "ENROLLMENT" : null);
+            if (phaseType != null) repository.insertSelectionPhase(connection, new SelectionPhase(
+                    "phase-1", "term-1", phaseType, "Course selection", "OPEN", 0, null, null));
             repository.insertCourse(connection, new Course("course-1", "CS101", "Programming",
                     BigDecimal.valueOf(3), 48, null, true, 0, null, null));
             return null;

@@ -12,7 +12,8 @@ import edu.seu.vcampus.server.course.domain.CourseRuleException;
 import edu.seu.vcampus.server.course.domain.EnrollmentClosedException;
 import edu.seu.vcampus.server.course.domain.ScheduleConflictPolicy;
 import edu.seu.vcampus.server.course.domain.StudentIneligibleException;
-import edu.seu.vcampus.server.course.domain.TermWindowPolicy;
+import edu.seu.vcampus.server.course.domain.SelectionPhasePolicy;
+import edu.seu.vcampus.server.course.domain.CourseAlreadyPassedException;
 import edu.seu.vcampus.server.course.repository.CourseRepository;
 import edu.seu.vcampus.server.course.repository.Enrollment;
 import edu.seu.vcampus.server.course.repository.EnrollmentAdjustment;
@@ -36,20 +37,20 @@ final class EnrollmentAdjustmentService {
     private final CourseRepository repository;
     private final ResourceLockManager locks;
     private final TransactionManager transactions;
-    private final TermWindowPolicy windows;
+    private final SelectionPhasePolicy phases;
     private final Clock clock;
     private final AdjustmentEnrollmentRules rules;
 
     EnrollmentAdjustmentService(CourseAuthorizationGateway authorization, CourseStudentGateway students,
                                 CourseRepository repository, ResourceLockManager locks,
-                                TransactionManager transactions, TermWindowPolicy windows,
+                                TransactionManager transactions, SelectionPhasePolicy phases,
                                 ScheduleConflictPolicy conflicts, Clock clock) {
         this.authorization = Objects.requireNonNull(authorization, "authorization");
         this.students = Objects.requireNonNull(students, "students");
         this.repository = Objects.requireNonNull(repository, "repository");
         this.locks = Objects.requireNonNull(locks, "locks");
         this.transactions = Objects.requireNonNull(transactions, "transactions");
-        this.windows = Objects.requireNonNull(windows, "windows");
+        this.phases = Objects.requireNonNull(phases, "phases");
         Objects.requireNonNull(conflicts, "conflicts");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.rules = new AdjustmentEnrollmentRules(repository, conflicts);
@@ -81,7 +82,7 @@ final class EnrollmentAdjustmentService {
                     return transactions.inTransaction(c -> {
                         Enrollment source = rules.requireOwnedActive(c, command.enrollmentId(), initial.studentId(), command.expectedVersion());
                         Offering offering = repository.requireOffering(c, source.offeringId());
-                        windows.requireDropOpen(repository.requireTerm(c, offering.termId()), now);
+                        phases.requireDropOpen(c, offering.termId());
                         repository.updateEnrollment(c, dropped(source, now), command.expectedVersion());
                         repository.changeEnrolledCount(c, source.offeringId(), -1);
                         repository.insertAdjustment(c, adjustment(initial.studentId(), "DROP", source.offeringId(), null, "SUCCEEDED", null, now));
@@ -111,8 +112,9 @@ final class EnrollmentAdjustmentService {
 
     private EnrollmentView addInside(Connection c, String studentId, String targetId, Instant now) {
         Offering target = repository.requireOffering(c, targetId);
+        if (repository.existsPassedAttempt(c, studentId, target.courseId())) throw new CourseAlreadyPassedException();
         requireOpenForAdd(target);
-        windows.requireAdjustmentOpen(repository.requireTerm(c, target.termId()), now);
+        phases.requireAdjustmentOpen(c, target.termId());
         List<Enrollment> active = repository.findActiveByStudentAndTerm(c, studentId, target.termId());
         rules.requireTargetAllowed(c, active, target, null);
         Enrollment saved = repository.insertEnrollment(c, new Enrollment(UUID.randomUUID().toString(), targetId,
@@ -126,7 +128,7 @@ final class EnrollmentAdjustmentService {
         Enrollment source = rules.requireOwnedActive(c, command.sourceEnrollmentId(), studentId, command.expectedVersion());
         if (source.offeringId().equals(command.targetOfferingId())) throw new ChangeTargetInvalidException();
         Offering sourceOffering = repository.requireOffering(c, source.offeringId());
-        windows.requireAdjustmentOpen(repository.requireTerm(c, sourceOffering.termId()), now);
+        phases.requireAdjustmentOpen(c, sourceOffering.termId());
         Offering target = rules.requireChangeTarget(c, sourceOffering, command.targetOfferingId());
         List<Enrollment> active = repository.findActiveByStudentAndTerm(c, studentId, target.termId());
         rules.requireTargetAllowed(c, active, target, source.enrollmentId());

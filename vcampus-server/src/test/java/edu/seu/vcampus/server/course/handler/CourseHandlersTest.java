@@ -32,7 +32,9 @@ class CourseHandlersTest {
         MessageRouter router = new MessageRouter(Map.of());
         new CourseHandlers(service, auth, CourseWriteExecutor.direct()).register(router);
         List<String> commands = List.of("COURSE_GET_CURRENT_TERM", "COURSE_SEARCH_OFFERINGS", "COURSE_ENROLL",
-                "COURSE_ADJUSTMENT_ADD", "COURSE_DROP", "COURSE_ADJUSTMENT_DROP", "COURSE_ADJUSTMENT_CHANGE",
+                "COURSE_SELECTION_PHASE_LIST", "COURSE_SELECTION_PHASE_CREATE", "COURSE_SELECTION_PHASE_UPDATE",
+                "COURSE_SELECTION_PHASE_CHANGE_STATUS", "COURSE_STUDENT_SELECTION_CONTEXT", "COURSE_STUDENT_COURSE_SEARCH",
+                "COURSE_ADJUSTMENT_ADD", "COURSE_DROP", "COURSE_ADJUSTMENT_DROP",
                 "COURSE_RETAKE_CHECK", "COURSE_RETAKE_ENROLL", "COURSE_GET_MY_SCHEDULE",
                 "COURSE_GET_MY_ENROLLMENTS", "COURSE_IMPORT_OUTCOMES", "COURSE_CREATE",
                 "COURSE_UPDATE", "COURSE_CREATE_OFFERING", "COURSE_UPDATE_OFFERING");
@@ -43,6 +45,13 @@ class CourseHandlersTest {
         org.assertj.core.api.Assertions.assertThatThrownBy(() ->
                 new CourseHandlers(service, auth, CourseWriteExecutor.direct()).register(router))
                 .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test void doesNotPublishAtomicAdjustmentChange() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> route(
+                        router(), "COURSE_ADJUSTMENT_CHANGE", "student",
+                        new ChangeOfferingCommand("e-1", "o-2", 0)))
+                .isInstanceOf(CommandNotFoundException.class);
     }
 
     @Test void routesManagementAndPhaseCommandsToTheirExactTypedServiceMethods() {
@@ -116,7 +125,7 @@ class CourseHandlersTest {
         assertThat(route(router, "COURSE_GET_MY_SCHEDULE", "teacher", EmptyRequest.INSTANCE).success()).isTrue();
         assertThat(route(router, "COURSE_GET_MY_ENROLLMENTS", "teacher", EmptyRequest.INSTANCE).code()).isEqualTo("COMMON_FORBIDDEN");
         for (String command : List.of("COURSE_ENROLL", "COURSE_ADJUSTMENT_ADD",
-                "COURSE_DROP", "COURSE_ADJUSTMENT_DROP", "COURSE_ADJUSTMENT_CHANGE", "COURSE_RETAKE_CHECK",
+                "COURSE_DROP", "COURSE_ADJUSTMENT_DROP", "COURSE_RETAKE_CHECK",
                 "COURSE_RETAKE_ENROLL", "COURSE_GET_MY_SCHEDULE", "COURSE_GET_MY_ENROLLMENTS")) {
             assertThat(route(router, command, "admin", validBody(command)).code())
                     .as(command).isEqualTo("COMMON_FORBIDDEN");
@@ -187,7 +196,7 @@ class CourseHandlersTest {
         ResponseBody<?> response = route(router(), "COURSE_DROP", "student", new DropCommand("e-1", 0));
 
         assertThat(response.code()).isEqualTo("COURSE_DROP_NOT_OPEN");
-        assertThat(response.message()).isEqualTo("当前不在可退选时间内，请查看选课与退改选开放时间");
+        assertThat(response.message()).isEqualTo("当前未开放可退选的选课阶段");
     }
 
     private MessageRouter router() { MessageRouter r = new MessageRouter(Map.of()); new CourseHandlers(service, auth, CourseWriteExecutor.direct()).register(r); return r; }
@@ -197,7 +206,11 @@ class CourseHandlersTest {
     private static Serializable validBody(String c) {
         return switch (c) {
             case "COURSE_SEARCH_OFFERINGS" -> new OfferingSearchQuery(null, null, null, false, 0, 20);
-            case "COURSE_TERM_LIST", "COURSE_GET_CURRENT_TERM" -> EmptyRequest.INSTANCE;
+            case "COURSE_TERM_LIST", "COURSE_GET_CURRENT_TERM", "COURSE_SELECTION_PHASE_LIST", "COURSE_STUDENT_SELECTION_CONTEXT" -> EmptyRequest.INSTANCE;
+            case "COURSE_SELECTION_PHASE_CREATE" -> new CreateSelectionPhaseCommand("t", "ENROLLMENT", "Fall selection");
+            case "COURSE_SELECTION_PHASE_UPDATE" -> new UpdateSelectionPhaseCommand("p", "Fall selection", 0);
+            case "COURSE_SELECTION_PHASE_CHANGE_STATUS" -> new ChangeSelectionPhaseStatusCommand("p", "OPEN", 0);
+            case "COURSE_STUDENT_COURSE_SEARCH" -> new CourseSelectionQuery("t", "", null, 0, 20);
             case "COURSE_TERM_CREATE" -> new CreateTermCommand("2026-1","秋",java.time.LocalDate.of(2026,9,1),java.time.LocalDate.of(2027,1,1),java.time.Instant.EPOCH,java.time.Instant.EPOCH.plusSeconds(1),java.time.Instant.EPOCH.plusSeconds(2),java.time.Instant.EPOCH.plusSeconds(3),"PLANNED");
             case "COURSE_TERM_UPDATE" -> new UpdateTermCommand("t","2026-1","秋",java.time.LocalDate.of(2026,9,1),java.time.LocalDate.of(2027,1,1),java.time.Instant.EPOCH,java.time.Instant.EPOCH.plusSeconds(1),java.time.Instant.EPOCH.plusSeconds(2),java.time.Instant.EPOCH.plusSeconds(3),"ACTIVE",0);
             case "COURSE_CATALOG_SEARCH" -> new CourseCatalogQuery(null,null,0,20);
@@ -246,6 +259,8 @@ class CourseHandlersTest {
         public edu.seu.vcampus.common.paging.PageResult<CourseView> searchCatalog(CourseCatalogQuery q){catalogQueries.add(q);return catalogResult;}
         public edu.seu.vcampus.common.paging.PageResult<AdjustmentAuditView> searchAdjustmentAudits(AdjustmentAuditQuery q){auditQueries.add(q);return auditResult;}
         public TermPhaseView getTermPhase(String id){phaseTermIds.add(id);return phaseResult;}
+        public StudentSelectionContextView getStudentSelectionContext(String token){return new StudentSelectionContextView("t","Fall","ACTIVE","p","ENROLLMENT","Fall selection",TIME,true,null);}
+        public edu.seu.vcampus.common.paging.PageResult<CourseSelectionView> searchStudentCourses(String token,CourseSelectionQuery query){return new edu.seu.vcampus.common.paging.PageResult<>(List.of(),0,20,0);}
         public CourseView createCourse(CreateCourseCommand c){return null;} public CourseView updateCourse(UpdateCourseCommand c){return null;}
         public OfferingView createOffering(CreateOfferingCommand c){return null;} public OfferingView updateOffering(UpdateOfferingCommand c){return null;}
         public edu.seu.vcampus.common.paging.PageResult<OfferingSummary> searchOfferings(OfferingSearchQuery q){return new edu.seu.vcampus.common.paging.PageResult<>(List.of(),0,20,0);}

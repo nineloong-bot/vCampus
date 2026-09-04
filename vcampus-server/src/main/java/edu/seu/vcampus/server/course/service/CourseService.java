@@ -18,6 +18,10 @@ public interface CourseService {
     TermView getCurrentTerm();
     TermView createTerm(CreateTermCommand command);
     TermView updateTerm(UpdateTermCommand command);
+    default List<SelectionPhaseView> listSelectionPhases() { throw new UnsupportedOperationException(); }
+    default SelectionPhaseView createSelectionPhase(CreateSelectionPhaseCommand command) { throw new UnsupportedOperationException(); }
+    default SelectionPhaseView updateSelectionPhase(UpdateSelectionPhaseCommand command) { throw new UnsupportedOperationException(); }
+    default SelectionPhaseView changeSelectionPhaseStatus(ChangeSelectionPhaseStatusCommand command) { throw new UnsupportedOperationException(); }
     PageResult<CourseView> searchCatalog(CourseCatalogQuery query);
     PageResult<AdjustmentAuditView> searchAdjustmentAudits(AdjustmentAuditQuery query);
     TermPhaseView getTermPhase(String termId);
@@ -26,6 +30,8 @@ public interface CourseService {
     OfferingView createOffering(CreateOfferingCommand command);
     OfferingView updateOffering(UpdateOfferingCommand command);
     PageResult<OfferingSummary> searchOfferings(OfferingSearchQuery query);
+    default StudentSelectionContextView getStudentSelectionContext(String sessionToken) { throw new UnsupportedOperationException(); }
+    default PageResult<CourseSelectionView> searchStudentCourses(String sessionToken, CourseSelectionQuery query) { throw new UnsupportedOperationException(); }
     /** Enrolls the authenticated student in an offering during the normal window. */
     EnrollmentView enroll(String sessionToken, EnrollCommand command);
 

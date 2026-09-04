@@ -18,6 +18,12 @@ public interface CourseRepository {
     /** Replaces a term when its optimistic-lock version matches. */
     Term updateTerm(Connection connection, Term term, long expectedVersion);
 
+    SelectionPhase insertSelectionPhase(Connection connection, SelectionPhase phase);
+    SelectionPhase requireSelectionPhase(Connection connection, String phaseId);
+    List<SelectionPhase> findSelectionPhases(Connection connection);
+    Optional<SelectionPhase> findOpenSelectionPhase(Connection connection);
+    SelectionPhase updateSelectionPhase(Connection connection, SelectionPhase phase, long expectedVersion);
+
     /** Inserts a catalog course with an initial version and audit timestamps. */
     Course insertCourse(Connection connection, Course course);
 
@@ -96,4 +102,5 @@ public interface CourseRepository {
 
     /** Determines whether a student has at least one imported failed outcome for a course. */
     boolean existsFailedAttempt(Connection connection, String studentId, String courseId);
+    boolean existsPassedAttempt(Connection connection, String studentId, String courseId);
 }

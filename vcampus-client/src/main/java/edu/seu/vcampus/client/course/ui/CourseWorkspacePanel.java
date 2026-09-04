@@ -36,12 +36,11 @@ public final class CourseWorkspacePanel extends JPanel {
         setBackground(UiColors.BACKGROUND_PAGE);
         switch (Objects.requireNonNull(role, "role")) {
             case STUDENT -> {
-                addTab("教学班查询", () -> new OfferingSearchPanel(gateway));
+                addTab("选课", () -> new StudentCourseSelectionPanel(gateway, dropConfirmation,
+                        () -> dirty.addAll(List.of(1, 2))));
                 addTab("我的选课", () -> new MyEnrollmentPanel(
                         gateway, dropConfirmation, this::markEnrollmentDerivedTabsDirty));
                 addTab("我的课表", () -> new MySchedulePanel(gateway));
-                addTab("退改补", () -> new AdjustmentPanel(gateway));
-                addTab("重修", () -> new RetakePanel(gateway));
             }
             case TEACHER -> {
                 addTab("教学班查询", () -> new OfferingSearchPanel(gateway));
@@ -49,6 +48,7 @@ public final class CourseWorkspacePanel extends JPanel {
             }
             case ADMIN -> {
                 addTab("学期管理", () -> new TermManagementPanel(gateway));
+                addTab("选课阶段", () -> new SelectionPhaseManagementPanel(gateway));
                 addTab("课程目录", () -> new CourseCatalogPanel(gateway));
                 addTab("教学班管理", () -> new OfferingManagementPanel(gateway));
                 addTab("修读结果导入", () -> new OutcomeImportPanel(gateway));
@@ -81,6 +81,6 @@ public final class CourseWorkspacePanel extends JPanel {
     }
 
     private void markEnrollmentDerivedTabsDirty() {
-        dirty.addAll(List.of(0, 2, 3, 4));
+        dirty.addAll(List.of(0, 2));
     }
 }

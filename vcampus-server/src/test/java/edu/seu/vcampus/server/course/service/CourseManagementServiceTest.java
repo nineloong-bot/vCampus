@@ -1,6 +1,7 @@
 package edu.seu.vcampus.server.course.service;
 
 import edu.seu.vcampus.common.course.*;
+import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.course.domain.ScheduleConflictPolicy;
 import edu.seu.vcampus.server.course.domain.TermWindowPolicy;
@@ -72,7 +73,7 @@ class CourseManagementServiceTest {
     }
 
     @Test void scheduleAndEnrollmentsStayBoundToStudentWhileAdminSelfServiceIsRejected() {
-        TermView term = service.createTerm(termCommand());
+        TermView term = activateEnrollmentPhase(service.createTerm(termCommand()));
         CourseView studentCourse = service.createCourse(courseCommand("CS101", "程序设计"));
         OfferingView studentOffering = service.createOffering(new CreateOfferingCommand(term.termId(), studentCourse.courseId(),
                 "teacher-1", "学生班", 30, "OPEN", List.of(new CreateOfferingCommand.ScheduleInput("MONDAY", 1, 2, 1, 16, "教一-101"))));
@@ -95,7 +96,7 @@ class CourseManagementServiceTest {
     }
 
     @Test void currentEnrollmentsRetainDroppedHistoryWhileActiveViewsExcludeIt() {
-        TermView term = service.createTerm(termCommand());
+        TermView term = activateEnrollmentPhase(service.createTerm(termCommand()));
         CourseView course = service.createCourse(courseCommand("CS101", "程序设计"));
         OfferingView offering = service.createOffering(new CreateOfferingCommand(
                 term.termId(), course.courseId(), "teacher-1", "学生班", 30, "OPEN",
@@ -113,7 +114,7 @@ class CourseManagementServiceTest {
     }
 
     @Test void currentViewsExcludeClosedTermEnrollmentsAndTeachingAssignments() {
-        TermView current = service.createTerm(termCommand());
+        TermView current = activateEnrollmentPhase(service.createTerm(termCommand()));
         TermView closed = service.createTerm(new CreateTermCommand(
                 "2025-2", "已结束学期", LocalDate.of(2025, 9, 1), LocalDate.of(2026, 1, 15),
                 NOW.minusSeconds(7200), NOW.minusSeconds(7100), NOW.minusSeconds(7000),
@@ -165,6 +166,82 @@ class CourseManagementServiceTest {
                 .extracting("code").isEqualTo("COMMON_CONCURRENT_MODIFICATION");
     }
 
+    @Test void createsEditsOpensAndClosesManualSelectionPhase() {
+        TermView term = service.createTerm(termCommand());
+        TermView active = service.updateTerm(new UpdateTermCommand(term.termId(), term.termCode(), term.termName(),
+                term.startDate(), term.endDate(), term.enrollmentStartAt(), term.enrollmentEndAt(),
+                term.adjustmentStartAt(), term.adjustmentEndAt(), "ACTIVE", term.rowVersion()));
+        SelectionPhaseView draft = service.createSelectionPhase(new CreateSelectionPhaseCommand(
+                active.termId(), "ENROLLMENT", "秋季选课"));
+
+        SelectionPhaseView edited = service.updateSelectionPhase(new UpdateSelectionPhaseCommand(
+                draft.phaseId(), "2026-2027秋季学期选课", draft.rowVersion()));
+        SelectionPhaseView open = service.changeSelectionPhaseStatus(new ChangeSelectionPhaseStatusCommand(
+                edited.phaseId(), "OPEN", edited.rowVersion()));
+        SelectionPhaseView closed = service.changeSelectionPhaseStatus(new ChangeSelectionPhaseStatusCommand(
+                open.phaseId(), "CLOSED", open.rowVersion()));
+
+        assertThat(service.listSelectionPhases()).extracting(SelectionPhaseView::displayTitle)
+                .containsExactly("2026-2027秋季学期选课");
+        assertThat(closed.phaseStatus()).isEqualTo("CLOSED");
+        assertThatThrownBy(() -> service.updateSelectionPhase(new UpdateSelectionPhaseCommand(
+                closed.phaseId(), "不能修改", closed.rowVersion())))
+                .isInstanceOf(CourseRuleException.class)
+                .extracting("code").isEqualTo("COURSE_SELECTION_PHASE_INVALID_STATE");
+    }
+
+    @Test void refusesOpeningSecondPhaseOrPhaseForInactiveTerm() {
+        TermView inactive = service.createTerm(termCommand());
+        SelectionPhaseView inactiveDraft = service.createSelectionPhase(new CreateSelectionPhaseCommand(
+                inactive.termId(), "ENROLLMENT", "未开放"));
+        assertThatThrownBy(() -> service.changeSelectionPhaseStatus(new ChangeSelectionPhaseStatusCommand(
+                inactiveDraft.phaseId(), "OPEN", inactiveDraft.rowVersion())))
+                .isInstanceOf(CourseRuleException.class)
+                .extracting("code").isEqualTo("COURSE_TERM_NOT_ACTIVE");
+
+        TermView active = service.updateTerm(new UpdateTermCommand(inactive.termId(), inactive.termCode(),
+                inactive.termName(), inactive.startDate(), inactive.endDate(), inactive.enrollmentStartAt(),
+                inactive.enrollmentEndAt(), inactive.adjustmentStartAt(), inactive.adjustmentEndAt(),
+                "ACTIVE", inactive.rowVersion()));
+        SelectionPhaseView first = service.changeSelectionPhaseStatus(new ChangeSelectionPhaseStatusCommand(
+                inactiveDraft.phaseId(), "OPEN", inactiveDraft.rowVersion()));
+        SelectionPhaseView second = service.createSelectionPhase(new CreateSelectionPhaseCommand(
+                active.termId(), "ADJUSTMENT", "退改补"));
+
+        assertThat(first.phaseStatus()).isEqualTo("OPEN");
+        assertThatThrownBy(() -> service.changeSelectionPhaseStatus(new ChangeSelectionPhaseStatusCommand(
+                second.phaseId(), "OPEN", second.rowVersion())))
+                .isInstanceOf(CourseRuleException.class)
+                .extracting("code").isEqualTo("COURSE_SELECTION_PHASE_ALREADY_OPEN");
+    }
+
+    @Test void studentCourseSearchGroupsTeachingClassesUnderOneCourse() {
+        TermView term = service.createTerm(termCommand());
+        service.updateTerm(new UpdateTermCommand(term.termId(), term.termCode(), term.termName(),
+                term.startDate(), term.endDate(), term.enrollmentStartAt(), term.enrollmentEndAt(),
+                term.adjustmentStartAt(), term.adjustmentEndAt(), "ACTIVE", term.rowVersion()));
+        CourseView course = service.createCourse(courseCommand("CS101", "程序设计"));
+        service.createOffering(new CreateOfferingCommand(term.termId(), course.courseId(), "teacher-1", "01班",
+                30, "OPEN", List.of(new CreateOfferingCommand.ScheduleInput("MONDAY", 1, 2, 1, 16, "A101"))));
+        service.createOffering(new CreateOfferingCommand(term.termId(), course.courseId(), "teacher-1", "02班",
+                30, "OPEN", List.of(new CreateOfferingCommand.ScheduleInput("TUESDAY", 3, 4, 1, 16, "A102"))));
+        SelectionPhaseView draft = service.createSelectionPhase(new CreateSelectionPhaseCommand(
+                term.termId(), "ENROLLMENT", "秋季选课"));
+        service.changeSelectionPhaseStatus(new ChangeSelectionPhaseStatusCommand(
+                draft.phaseId(), "OPEN", draft.rowVersion()));
+
+        PageResult<CourseSelectionView> page = service.searchStudentCourses("student",
+                new CourseSelectionQuery(term.termId(), "程序", null, 0, 20));
+
+        assertThat(page.total()).isEqualTo(1);
+        assertThat(page.items()).singleElement().satisfies(row -> {
+            assertThat(row.courseAction()).isEqualTo("SELECT_COURSE");
+            assertThat(row.teachingClasses()).hasSize(2)
+                    .allSatisfy(option -> assertThat(option.actionType()).isEqualTo("ENROLL"));
+        });
+        assertThat(service.getStudentSelectionContext("student").displayTitle()).isEqualTo("秋季选课");
+    }
+
     @Test void updatesCourseAndOfferingWithDatabaseReadbackAndVersion() {
         TermView term=service.createTerm(termCommand()); CourseView course=service.createCourse(courseCommand("CS101","程序设计"));
         CourseView changed=service.updateCourse(new UpdateCourseCommand(course.courseId(),"CS102","高级程序设计",BigDecimal.valueOf(4),64,"更新说明",false,0));
@@ -208,7 +285,7 @@ class CourseManagementServiceTest {
     }
 
     @Test void enrolledOfferingCannotMoveAcrossTermsCoursesOrSchedules() {
-        TermView originalTerm = service.createTerm(termCommand());
+        TermView originalTerm = activateEnrollmentPhase(service.createTerm(termCommand()));
         TermView otherTerm = service.createTerm(new CreateTermCommand(
                 "2026-2", "春季", LocalDate.of(2027, 2, 20), LocalDate.of(2027, 7, 1),
                 NOW.minusSeconds(60), NOW.plusSeconds(60), NOW.plusSeconds(120),
@@ -244,7 +321,7 @@ class CourseManagementServiceTest {
     }
 
     @Test void droppedEnrollmentHistoryStillFreezesOfferingMeaning() {
-        TermView term = service.createTerm(termCommand());
+        TermView term = activateEnrollmentPhase(service.createTerm(termCommand()));
         CourseView course = service.createCourse(courseCommand("CS101", "程序设计"));
         CourseView otherCourse = service.createCourse(courseCommand("CS102", "离散数学"));
         var monday = new CreateOfferingCommand.ScheduleInput("MONDAY", 1, 2, 1, 16, "教一-101");
@@ -287,6 +364,17 @@ class CourseManagementServiceTest {
     private static CreateTermCommand termCommand() {
         return new CreateTermCommand("2026-1", "秋季", LocalDate.of(2026, 9, 1), LocalDate.of(2027, 1, 15),
                 NOW.minusSeconds(60), NOW.plusSeconds(60), NOW.plusSeconds(120), NOW.plusSeconds(240), "PLANNED");
+    }
+
+    private TermView activateEnrollmentPhase(TermView term) {
+        TermView active = service.updateTerm(new UpdateTermCommand(term.termId(), term.termCode(), term.termName(),
+                term.startDate(), term.endDate(), term.enrollmentStartAt(), term.enrollmentEndAt(),
+                term.adjustmentStartAt(), term.adjustmentEndAt(), "ACTIVE", term.rowVersion()));
+        SelectionPhaseView draft = service.createSelectionPhase(new CreateSelectionPhaseCommand(
+                active.termId(), "ENROLLMENT", active.termName() + "选课"));
+        service.changeSelectionPhaseStatus(new ChangeSelectionPhaseStatusCommand(
+                draft.phaseId(), "OPEN", draft.rowVersion()));
+        return active;
     }
 
     private static CreateCourseCommand courseCommand(String code, String name) {

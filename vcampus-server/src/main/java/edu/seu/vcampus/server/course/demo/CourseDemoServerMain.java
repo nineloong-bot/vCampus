@@ -7,6 +7,9 @@ import edu.seu.vcampus.common.course.CreateTermCommand;
 import edu.seu.vcampus.common.course.OfferingSearchQuery;
 import edu.seu.vcampus.common.course.TermView;
 import edu.seu.vcampus.common.course.UpdateTermCommand;
+import edu.seu.vcampus.common.course.SelectionPhaseView;
+import edu.seu.vcampus.common.course.CreateSelectionPhaseCommand;
+import edu.seu.vcampus.common.course.ChangeSelectionPhaseStatusCommand;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.course.composition.CourseComposition;
 import edu.seu.vcampus.server.course.composition.CourseSchemaInitializer;
@@ -132,6 +135,14 @@ public final class CourseDemoServerMain {
             term = service.updateTerm(new UpdateTermCommand(old.termId(), old.termCode(), old.termName(),
                     today.minusMonths(1), today.plusMonths(5), enrollmentStart, enrollmentEnd,
                     adjustmentStart, adjustmentEnd, "ACTIVE", old.rowVersion()));
+        }
+        if (service.listSelectionPhases().stream().noneMatch(p -> "OPEN".equals(p.phaseStatus()))) {
+            String phaseType = adjustment ? "ADJUSTMENT" : "ENROLLMENT";
+            String displayTitle = term.termName() + (adjustment ? "退改补选课" : "选课");
+            SelectionPhaseView draft = service.createSelectionPhase(
+                    new CreateSelectionPhaseCommand(term.termId(), phaseType, displayTitle));
+            service.changeSelectionPhaseStatus(new ChangeSelectionPhaseStatusCommand(
+                    draft.phaseId(), "OPEN", draft.rowVersion()));
         }
 
         var catalog = service.searchCatalog(new CourseCatalogQuery("", null, 0, 100)).items();

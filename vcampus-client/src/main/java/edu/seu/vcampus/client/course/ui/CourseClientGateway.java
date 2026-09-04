@@ -23,6 +23,13 @@ import edu.seu.vcampus.common.course.CreateOfferingCommand;
 import edu.seu.vcampus.common.course.UpdateOfferingCommand;
 import edu.seu.vcampus.common.course.OfferingView;
 import edu.seu.vcampus.common.course.TermPhaseView;
+import edu.seu.vcampus.common.course.SelectionPhaseView;
+import edu.seu.vcampus.common.course.CreateSelectionPhaseCommand;
+import edu.seu.vcampus.common.course.UpdateSelectionPhaseCommand;
+import edu.seu.vcampus.common.course.ChangeSelectionPhaseStatusCommand;
+import edu.seu.vcampus.common.course.StudentSelectionContextView;
+import edu.seu.vcampus.common.course.CourseSelectionQuery;
+import edu.seu.vcampus.common.course.CourseSelectionView;
 import edu.seu.vcampus.common.protocol.EmptyResponse;
 import edu.seu.vcampus.common.course.OfferingSearchQuery;
 import edu.seu.vcampus.common.course.OfferingSummary;
@@ -112,6 +119,20 @@ public final class CourseClientGateway implements CourseUiGateway {
     public CompletableFuture<TermView> updateTerm(UpdateTermCommand command) { return client.updateTerm(command); }
     public CompletableFuture<OfferingView> createOffering(CreateOfferingCommand command) { return client.createOffering(command); }
     public CompletableFuture<OfferingView> updateOffering(UpdateOfferingCommand command) { return client.updateOffering(command); }
-    public CompletableFuture<TermPhaseView> getTermPhase(String termId) { return client.getTermPhase(termId); }
+    /** Compatibility projection for the legacy "my enrollments" view, backed by the manual phase. */
+    public CompletableFuture<TermPhaseView> getTermPhase(String termId) {
+        return client.getStudentSelectionContext().thenApply(context -> {
+            var now = context.serverTime();
+            var phase = context.phaseType() == null ? "READ_ONLY" : context.phaseType();
+            return new TermPhaseView(context.termId(), context.termStatus(), phase, now,
+                    now, now.plusNanos(1), now.plusNanos(2), now.plusNanos(3));
+        });
+    }
+    public CompletableFuture<List<SelectionPhaseView>> listSelectionPhases() { return client.listSelectionPhases(); }
+    public CompletableFuture<SelectionPhaseView> createSelectionPhase(CreateSelectionPhaseCommand command) { return client.createSelectionPhase(command); }
+    public CompletableFuture<SelectionPhaseView> updateSelectionPhase(UpdateSelectionPhaseCommand command) { return client.updateSelectionPhase(command); }
+    public CompletableFuture<SelectionPhaseView> changeSelectionPhaseStatus(ChangeSelectionPhaseStatusCommand command) { return client.changeSelectionPhaseStatus(command); }
+    public CompletableFuture<StudentSelectionContextView> studentSelectionContext() { return client.getStudentSelectionContext(); }
+    public CompletableFuture<PageResult<CourseSelectionView>> searchStudentCourses(CourseSelectionQuery query) { return client.searchStudentCourses(query); }
     public CompletableFuture<String> currentTermId() { return client.getCurrentTerm().thenApply(TermView::termId); }
 }

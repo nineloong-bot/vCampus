@@ -21,6 +21,14 @@ import edu.seu.vcampus.common.course.CreateOfferingCommand;
 import edu.seu.vcampus.common.course.UpdateOfferingCommand;
 import edu.seu.vcampus.common.course.OfferingView;
 import edu.seu.vcampus.common.course.TermPhaseView;
+import edu.seu.vcampus.common.course.SelectionPhaseView;
+import edu.seu.vcampus.common.course.CreateSelectionPhaseCommand;
+import edu.seu.vcampus.common.course.UpdateSelectionPhaseCommand;
+import edu.seu.vcampus.common.course.ChangeSelectionPhaseStatusCommand;
+import edu.seu.vcampus.common.course.StudentSelectionContextView;
+import edu.seu.vcampus.common.course.CourseSelectionQuery;
+import edu.seu.vcampus.common.course.CourseSelectionView;
+import edu.seu.vcampus.common.course.TeachingClassOptionView;
 import edu.seu.vcampus.common.protocol.EmptyResponse;
 import edu.seu.vcampus.common.course.OfferingSearchQuery;
 import edu.seu.vcampus.common.course.OfferingSummary;
@@ -58,6 +66,12 @@ public interface CourseUiGateway {
     default CompletableFuture<OfferingView> createOffering(CreateOfferingCommand command) { return unsupported(); }
     default CompletableFuture<OfferingView> updateOffering(UpdateOfferingCommand command) { return unsupported(); }
     default CompletableFuture<TermPhaseView> getTermPhase(String termId) { return unsupported(); }
+    default CompletableFuture<List<SelectionPhaseView>> listSelectionPhases() { return unsupported(); }
+    default CompletableFuture<SelectionPhaseView> createSelectionPhase(CreateSelectionPhaseCommand command) { return unsupported(); }
+    default CompletableFuture<SelectionPhaseView> updateSelectionPhase(UpdateSelectionPhaseCommand command) { return unsupported(); }
+    default CompletableFuture<SelectionPhaseView> changeSelectionPhaseStatus(ChangeSelectionPhaseStatusCommand command) { return unsupported(); }
+    default CompletableFuture<StudentSelectionContextView> studentSelectionContext() { return unsupported(); }
+    default CompletableFuture<PageResult<CourseSelectionView>> searchStudentCourses(CourseSelectionQuery query) { return unsupported(); }
     default CompletableFuture<String> currentTermId() { return CompletableFuture.completedFuture("2026-autumn"); }
 
     private static <T> CompletableFuture<T> unsupported() {
@@ -75,6 +89,42 @@ public interface CourseUiGateway {
                 }, item.courseCode(), item.courseName(),
                 item.teacherUserId(), item.className(), 40, 28, "OPEN", 0, List.of(item))).toList();
         return new CourseUiGateway() {
+            public CompletableFuture<StudentSelectionContextView> studentSelectionContext() {
+                return CompletableFuture.completedFuture(new StudentSelectionContextView("2026-autumn", "2026—2027学年秋季学期", "ACTIVE", "preview-phase", "ADJUSTMENT", "2026-2027秋季学期退改补选课", java.time.Instant.now(), true, null));
+            }
+            public CompletableFuture<PageResult<CourseSelectionView>> searchStudentCourses(CourseSelectionQuery query) {
+                List<CourseSelectionView> rows = offerings.stream().map(offering -> {
+                    boolean selected = "o1".equals(offering.offeringId());
+                    String optionAction = selected ? "SELECTED" : "LATE_ADD";
+                    List<TeachingClassOptionView> options = new java.util.ArrayList<>();
+                    options.add(new TeachingClassOptionView(offering, optionAction, null));
+                    if (selected) {
+                        OfferingSummary sibling = new OfferingSummary("o1b", offering.termId(), offering.courseId(),
+                                offering.courseCode(), offering.courseName(), "teacher-chen", "02班", 40, 31,
+                                "OPEN", 0, List.of(new ScheduleItem("s1b", "o1b", offering.courseCode(),
+                                offering.courseName(), "02班", "teacher-chen", "TUESDAY", 3, 4, 1, 16, "教二-302")));
+                        options.add(new TeachingClassOptionView(sibling, "UNAVAILABLE", "已选择相同课程"));
+                    }
+                    return new CourseSelectionView(offering.courseId(), offering.courseCode(), offering.courseName(),
+                            selected ? "CANCEL_SELECTION" : "SELECT_COURSE", null,
+                            selected ? "preview-enrollment" : null, selected ? 0L : null,
+                            selected ? offering.offeringId() : null,
+                            options);
+                }).toList();
+                return CompletableFuture.completedFuture(new PageResult<>(rows, 0, query.pageSize(), rows.size()));
+            }
+            public CompletableFuture<List<SelectionPhaseView>> listSelectionPhases() {
+                return CompletableFuture.completedFuture(List.of(new SelectionPhaseView("preview-phase", "2026-autumn", "ADJUSTMENT", "2026-2027秋季学期退改补选课", "OPEN", 1, java.time.Instant.now(), java.time.Instant.now())));
+            }
+            public CompletableFuture<SelectionPhaseView> createSelectionPhase(CreateSelectionPhaseCommand command) {
+                return CompletableFuture.completedFuture(new SelectionPhaseView("preview-created-phase", command.termId(), command.phaseType(), command.displayTitle(), "DRAFT", 0, java.time.Instant.now(), java.time.Instant.now()));
+            }
+            public CompletableFuture<SelectionPhaseView> updateSelectionPhase(UpdateSelectionPhaseCommand command) {
+                return CompletableFuture.completedFuture(new SelectionPhaseView(command.phaseId(), "2026-autumn", "ADJUSTMENT", command.displayTitle(), "DRAFT", command.expectedVersion()+1, java.time.Instant.now(), java.time.Instant.now()));
+            }
+            public CompletableFuture<SelectionPhaseView> changeSelectionPhaseStatus(ChangeSelectionPhaseStatusCommand command) {
+                return CompletableFuture.completedFuture(new SelectionPhaseView(command.phaseId(), "2026-autumn", "ADJUSTMENT", "2026-2027秋季学期退改补选课", command.targetStatus(), command.expectedVersion()+1, java.time.Instant.now(), java.time.Instant.now()));
+            }
             public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) {
                 return CompletableFuture.completedFuture(new PageResult<>(offerings, 0, 20, offerings.size()));
             }

@@ -32,6 +32,8 @@ abstract class AbstractCoursePanel extends JPanel {
     private volatile ViewState viewState = ViewState.INITIAL;
     private final UiAsyncGuard asyncGuard = new UiAsyncGuard();
     private boolean reloadWhenShown;
+    private final JLabel breadcrumbTitle;
+    private final JLabel pageTitle;
 
     protected AbstractCoursePanel(String title, String description) {
         super(new BorderLayout(0, UiSpacing.XL));
@@ -39,7 +41,9 @@ abstract class AbstractCoursePanel extends JPanel {
         setBorder(BorderFactory.createEmptyBorder(UiSpacing.PAGE_PADDING, UiSpacing.PAGE_PADDING,
                 UiSpacing.PAGE_PADDING, UiSpacing.PAGE_PADDING));
         body.setOpaque(false);
-        add(heading(title, description), BorderLayout.NORTH);
+        breadcrumbTitle = label("课程中心  /  " + title, UiTypography.CAPTION, UiColors.TEXT_SECONDARY);
+        pageTitle = label(title, UiTypography.PAGE_TITLE, UiColors.TEXT_PRIMARY);
+        add(heading(description), BorderLayout.NORTH);
         add(body, BorderLayout.CENTER);
         stateNotice.setOpaque(true);
         stateNotice.setBackground(UiColors.BACKGROUND_SUBTLE);
@@ -97,13 +101,22 @@ abstract class AbstractCoursePanel extends JPanel {
         firePropertyChange("course.viewState", previous, state);
     }
 
-    private static JPanel heading(String title, String description) {
+    protected final void setPageTitle(String title) {
+        breadcrumbTitle.setText("课程中心  /  " + title);
+        pageTitle.setText(title);
+    }
+
+    protected final void setPageTitleFont(Font font) {
+        pageTitle.setFont(font);
+    }
+
+    private JPanel heading(String description) {
         JPanel panel = new JPanel();
         panel.setOpaque(false);
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-        panel.add(label("课程中心  /  " + title, UiTypography.CAPTION, UiColors.TEXT_SECONDARY));
+        panel.add(breadcrumbTitle);
         panel.add(Box.createVerticalStrut(UiSpacing.SM));
-        panel.add(label(title, UiTypography.PAGE_TITLE, UiColors.TEXT_PRIMARY));
+        panel.add(pageTitle);
         panel.add(Box.createVerticalStrut(UiSpacing.SM));
         panel.add(label(description, UiTypography.BODY, UiColors.TEXT_SECONDARY));
         return panel;
