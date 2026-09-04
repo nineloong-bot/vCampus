@@ -14,7 +14,7 @@ public final class BookManagementPanel extends LibraryDataPanel {
             "全部栏目", "书名", "作者", "ISBN", "分类", "出版社"});
     private List<BookSummary> books = List.of();
     public BookManagementPanel(LibraryClientService service) {
-        super("library.book-management", "书目管理", "新增、搜索或维护书目元数据。", "ISBN", "书名", "作者", "状态");
+        super("library.book-management", "书目管理", "新增、搜索或维护书目元数据，双击书目管理副本。", "ISBN", "书名", "作者", "状态");
         this.service = Objects.requireNonNull(service, "service");
         JButton refresh = new JButton("搜索书目"); JButton create = new JButton("新增书目");
         JButton edit = new JButton("编辑所选");
@@ -25,21 +25,35 @@ public final class BookManagementPanel extends LibraryDataPanel {
         actions.add(new JLabel("关键词")); actions.add(keyword); actions.add(field);
         actions.add(refresh); actions.add(edit); actions.add(create); add(actions, BorderLayout.SOUTH);
         keyword.addActionListener(event -> refresh());
+        table.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override public void mouseClicked(java.awt.event.MouseEvent event) {
+                if (event.getClickCount() != 2 || !SwingUtilities.isLeftMouseButton(event)) return;
+                int row = table.rowAtPoint(event.getPoint());
+                if (row < 0) return;
+                BookSummary selected = books.get(table.convertRowIndexToModel(row));
+                CopyManagementPanel copies = new CopyManagementPanel(service, selected);
+                copies.setAfterMutation(BookManagementPanel.this::mutationSucceeded);
+                copies.setPreferredSize(new Dimension(850, 450));
+                copies.loadCopies();
+                JOptionPane.showMessageDialog(BookManagementPanel.this, copies,
+                        selected.title() + " — 馆藏副本", JOptionPane.PLAIN_MESSAGE);
+            }
+        });
     }
     public void create(CreateBookCommand command) {
-        long request = beginRequest();
+        long request = beginMutation();
         status.setText("正在新增书目……");
         service.createBook(command).whenComplete((book, failure) -> SwingUtilities.invokeLater(() -> {
-            if (!accepts(request)) return;
-            if (failure == null) status.setText("书目已新增");
+            if (!acceptsMutation(request)) return;
+            if (failure == null) { status.setText("书目已新增"); mutationSucceeded(); }
             else LibraryFeedback.failure(this, status, failure, "新增书目失败，请检查输入后重试。");
         }));
     }
     public void update(UpdateBookCommand command) {
-        long request = beginRequest();
+        long request = beginMutation();
         status.setText("正在保存书目……");
         service.updateBook(command).whenComplete((book, failure) -> SwingUtilities.invokeLater(() -> {
-            if (!accepts(request)) return;
+            if (!acceptsMutation(request)) return;
             if (failure != null) {
                 LibraryFeedback.failure(this, status, failure, "书目保存失败，请刷新后重试。");
                 return;
@@ -59,6 +73,7 @@ public final class BookManagementPanel extends LibraryDataPanel {
                 break;
             }
             status.setText("书目已保存");
+            mutationSucceeded();
         }));
     }
 
@@ -110,17 +125,26 @@ public final class BookManagementPanel extends LibraryDataPanel {
         JTextField isbn = new JTextField(), title = new JTextField(), author = new JTextField();
         JTextField publisher = new JTextField(), publishDate = new JTextField("2026-01-01"), category = new JTextField();
         JTextArea description = new JTextArea(3, 24);
+        JTextField location = new JTextField(), barcode = new JTextField();
         JPanel form = new JPanel(new GridLayout(0, 2, 8, 8));
         form.add(new JLabel("ISBN")); form.add(isbn); form.add(new JLabel("书名")); form.add(title);
         form.add(new JLabel("作者")); form.add(author); form.add(new JLabel("出版社")); form.add(publisher);
         form.add(new JLabel("出版日期（YYYY-MM-DD）")); form.add(publishDate);
         form.add(new JLabel("分类")); form.add(category); form.add(new JLabel("简介")); form.add(new JScrollPane(description));
+        form.add(new JLabel("位置（首个副本）")); form.add(location);
+        form.add(new JLabel("馆藏条码（首个副本）")); form.add(barcode);
         if (JOptionPane.showConfirmDialog(this, form, "新增书目", JOptionPane.OK_CANCEL_OPTION,
                 JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return;
         try {
+            if (location.getText().isBlank() || location.getText().trim().length() > 64) {
+                status.setText("请填写首个副本的位置（1–64 个字符）"); return;
+            }
+            if (barcode.getText().isBlank() || barcode.getText().trim().length() > 32) {
+                status.setText("请填写首个副本的馆藏条码（1–32 个字符）"); return;
+            }
             create(new CreateBookCommand(isbn.getText().trim(), title.getText().trim(), author.getText().trim(),
                     publisher.getText().trim(), LocalDate.parse(publishDate.getText().trim()),
-                    category.getText().trim(), description.getText().trim()));
+                    category.getText().trim(), description.getText().trim(), location.getText().trim(), barcode.getText().trim()));
         } catch (RuntimeException failure) { status.setText("请输入有效的书目信息和日期"); }
     }
 }

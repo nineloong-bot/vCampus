@@ -44,6 +44,8 @@ public final class BookSearchPanel extends LibraryDataPanel {
     public void connectDetail(BookDetailPanel detail) { this.detail = Objects.requireNonNull(detail); }
 
     public void search() {
+        int selectedRow = table.getSelectedRow();
+        String selectedBookId = selectedRow < 0 ? null : books.get(table.convertRowIndexToModel(selectedRow)).bookId();
         long request = beginRequest();
         search.setEnabled(false);
         status.setText("正在加载馆藏……");
@@ -63,6 +65,14 @@ public final class BookSearchPanel extends LibraryDataPanel {
                             book.author(), book.category(), book.availableCopies() + "/" + book.totalCopies()});
                     status.setText(page.items().isEmpty() ? "未找到符合条件的馆藏，可调整关键词重试"
                             : "共 " + page.total() + " 条");
+                    if (detail != null) detail.clearBook();
+                    for (int index = 0; index < books.size(); index++) {
+                        if (books.get(index).bookId().equals(selectedBookId)) {
+                            int row = table.convertRowIndexToView(index);
+                            table.setRowSelectionInterval(row, row);
+                            break;
+                        }
+                    }
                 }));
     }
 
