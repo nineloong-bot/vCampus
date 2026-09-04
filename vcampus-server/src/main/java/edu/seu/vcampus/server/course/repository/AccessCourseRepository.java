@@ -7,6 +7,7 @@ import java.util.Optional;
 /** Access/JDBC implementation that composes focused course-table repositories. */
 public final class AccessCourseRepository implements CourseRepository {
     private final AccessCatalogRepository catalog = new AccessCatalogRepository();
+    private final AccessSelectionPhaseRepository phases = new AccessSelectionPhaseRepository();
     private final AccessOfferingRepository offerings = new AccessOfferingRepository();
     private final AccessEnrollmentRepository enrollments = new AccessEnrollmentRepository();
     private final AccessAuditRepository audits = new AccessAuditRepository();
@@ -16,6 +17,15 @@ public final class AccessCourseRepository implements CourseRepository {
     @Override public List<Term> findTerms(Connection c) { return catalog.findTerms(c); }
     @Override public Term updateTerm(Connection c, Term value, long version) {
         return catalog.updateTerm(c, value, version);
+    }
+    @Override public SelectionPhase insertSelectionPhase(Connection c, SelectionPhase value) {
+        return phases.insert(c, value);
+    }
+    @Override public SelectionPhase requireSelectionPhase(Connection c, String id) { return phases.require(c, id); }
+    @Override public List<SelectionPhase> findSelectionPhases(Connection c) { return phases.findAll(c); }
+    @Override public Optional<SelectionPhase> findOpenSelectionPhase(Connection c) { return phases.findOpen(c); }
+    @Override public SelectionPhase updateSelectionPhase(Connection c, SelectionPhase value, long version) {
+        return phases.update(c, value, version);
     }
     @Override public Course insertCourse(Connection c, Course value) { return catalog.insertCourse(c, value); }
     @Override public Course requireCourse(Connection c, String id) { return catalog.requireCourse(c, id); }
@@ -85,5 +95,8 @@ public final class AccessCourseRepository implements CourseRepository {
     }
     @Override public boolean existsFailedAttempt(Connection c, String studentId, String courseId) {
         return audits.existsFailedAttempt(c, studentId, courseId);
+    }
+    @Override public boolean existsPassedAttempt(Connection c, String studentId, String courseId) {
+        return audits.existsPassedAttempt(c, studentId, courseId);
     }
 }

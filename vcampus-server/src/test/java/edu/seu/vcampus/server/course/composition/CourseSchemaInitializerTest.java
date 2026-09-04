@@ -34,7 +34,8 @@ class CourseSchemaInitializerTest {
                 while (result.next()) tables.add(result.getString("TABLE_NAME").toLowerCase());
             }
             assertThat(tables).contains("tblterm", "tblcourse", "tblcourseoffering", "tblcourseschedule",
-                    "tblenrollment", "tblenrollmentadjustment", "tblcourseattempt");
+                    "tblenrollment", "tblenrollmentadjustment", "tblcourseattempt",
+                    "tblcourseselectionphase");
         }
     }
 
@@ -54,7 +55,8 @@ class CourseSchemaInitializerTest {
 
         try (Connection connection = database.open()) {
             assertThat(tableNames(connection)).contains("tblterm", "tblcourse", "tblcourseoffering",
-                    "tblcourseschedule", "tblenrollment", "tblenrollmentadjustment", "tblcourseattempt");
+                    "tblcourseschedule", "tblenrollment", "tblenrollmentadjustment", "tblcourseattempt",
+                    "tblcourseselectionphase");
         }
     }
 

@@ -70,6 +70,19 @@ final class AccessAuditRepository {
         } catch (SQLException error) { throw CourseJdbc.failure("check failed course attempt", error); }
     }
 
+    boolean existsPassedAttempt(Connection c, String studentId, String courseId) {
+        String sql = "SELECT COUNT(*) FROM tblCourseAttempt WHERE studentId=? AND courseId=? AND outcome='PASSED'";
+        try (PreparedStatement statement = c.prepareStatement(sql)) {
+            statement.setString(1, studentId);
+            statement.setString(2, courseId);
+            try (ResultSet result = statement.executeQuery()) {
+                return result.next() && result.getInt(1) > 0;
+            }
+        } catch (SQLException error) {
+            throw CourseJdbc.failure("check passed course attempt", error);
+        }
+    }
+
     private static boolean attemptExists(Connection c, String sourceReference) {
         try (PreparedStatement s = c.prepareStatement("SELECT COUNT(*) FROM tblCourseAttempt WHERE sourceReference=?")) {
             s.setString(1, sourceReference); try (ResultSet r = s.executeQuery()) { return r.next() && r.getInt(1) > 0; }

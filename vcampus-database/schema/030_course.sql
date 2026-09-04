@@ -16,6 +16,22 @@ CREATE TABLE tblTerm (
     CONSTRAINT uk_tblTerm_termCode UNIQUE (termCode)
 );
 
+CREATE TABLE tblCourseSelectionPhase (
+    phaseId VARCHAR(36) NOT NULL,
+    termId VARCHAR(36) NOT NULL,
+    phaseType VARCHAR(16) NOT NULL,
+    displayTitle VARCHAR(64) NOT NULL,
+    phaseStatus VARCHAR(16) NOT NULL,
+    rowVersion LONG NOT NULL,
+    createdAt DATETIME NOT NULL,
+    updatedAt DATETIME NOT NULL,
+    CONSTRAINT pk_tblCourseSelectionPhase PRIMARY KEY (phaseId),
+    CONSTRAINT fk_tblCourseSelectionPhase_term FOREIGN KEY (termId) REFERENCES tblTerm (termId)
+);
+
+CREATE INDEX idx_tblCourseSelectionPhase_termId ON tblCourseSelectionPhase (termId);
+CREATE INDEX idx_tblCourseSelectionPhase_status ON tblCourseSelectionPhase (phaseStatus);
+
 CREATE TABLE tblCourse (
     courseId VARCHAR(36) NOT NULL,
     courseCode VARCHAR(24) NOT NULL,

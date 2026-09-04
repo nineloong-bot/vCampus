@@ -21,6 +21,7 @@ import edu.seu.vcampus.server.course.repository.AccessCourseRepository;
 import edu.seu.vcampus.server.course.repository.Course;
 import edu.seu.vcampus.server.course.repository.CourseRepository;
 import edu.seu.vcampus.server.course.repository.Term;
+import edu.seu.vcampus.server.course.repository.SelectionPhase;
 import edu.seu.vcampus.server.course.repository.Offering;
 import edu.seu.vcampus.server.course.repository.Enrollment;
 import edu.seu.vcampus.server.course.repository.Schedule;
@@ -88,7 +89,7 @@ class RetakeServiceTest {
     }
 
     @Test
-    void onlyFailedHistoryMakesTheCourseEligibleAndReturnsFailedAttemptIds() {
+    void passedHistoryOverridesFailedHistoryForRetakeEligibility() {
         service.importCourseOutcomes(new ImportCourseOutcomesCommand(List.of(
                 new ImportCourseOutcomesCommand.OutcomeEntry(
                         STUDENT_ID, "course-1", "term-1", CourseOutcome.FAILED, "failed-source"),
@@ -98,9 +99,19 @@ class RetakeServiceTest {
         RetakeEligibility result = service.checkRetakeEligibility(TOKEN, "course-1");
 
         assertThat(result.courseId()).isEqualTo("course-1");
-        assertThat(result.eligible()).isTrue();
+        assertThat(result.eligible()).isFalse();
         assertThat(result.failedAttemptIds()).hasSize(1).allMatch(id -> !id.isBlank());
-        assertThat(result.reason()).isNull();
+        assertThat(result.reason()).isEqualTo("COURSE_RETAKE_NOT_ELIGIBLE");
+    }
+
+    @Test
+    void forgedRetakeIsRejectedWhenTheCourseWasLaterPassed() {
+        service.importCourseOutcomes(new ImportCourseOutcomesCommand(List.of(
+                new ImportCourseOutcomesCommand.OutcomeEntry(STUDENT_ID, "course-1", "term-1", CourseOutcome.FAILED, "failed"),
+                new ImportCourseOutcomesCommand.OutcomeEntry(STUDENT_ID, "course-1", "term-1", CourseOutcome.PASSED, "passed"))));
+        seedOffering("offering-1", "course-1", 2, 0, "OPEN");
+        assertThatThrownBy(() -> service.enrollRetake(TOKEN, new RetakeCommand("offering-1")))
+                .isInstanceOf(edu.seu.vcampus.server.course.domain.CourseAlreadyPassedException.class);
     }
 
     @Test
@@ -144,13 +155,13 @@ class RetakeServiceTest {
     }
 
     @Test
-    void rejectsRetakeWithoutFailedHistoryUsingTheStableCode() {
+    void rejectsRetakeForAnAlreadyPassedCourseUsingTheStableCode() {
         importOutcome(CourseOutcome.PASSED, "passed-source");
         seedOffering("offering-1", "course-1", 2, 0, "OPEN");
 
         assertThatThrownBy(() -> service.enrollRetake(TOKEN, new RetakeCommand("offering-1")))
-                .isInstanceOf(RetakeNotEligibleException.class)
-                .extracting("code").isEqualTo("COURSE_RETAKE_NOT_ELIGIBLE");
+                .isInstanceOf(edu.seu.vcampus.server.course.domain.CourseAlreadyPassedException.class)
+                .extracting("code").isEqualTo("COURSE_ALREADY_PASSED");
         assertThat(activeCount("offering-1")).isZero();
         assertThat(readOffering("offering-1").enrolledCount()).isZero();
     }
@@ -445,7 +456,9 @@ class RetakeServiceTest {
             repository.insertTerm(connection, new Term("term-1", "2025-2026-2", "Previous",
                     LocalDate.of(2026, 2, 1), LocalDate.of(2026, 6, 30),
                     NOW.minusSeconds(7200), NOW.plusSeconds(7200),
-                    NOW.plusSeconds(10800), NOW.plusSeconds(14400), "PLANNED", 0, null, null));
+                    NOW.plusSeconds(10800), NOW.plusSeconds(14400), "ACTIVE", 0, null, null));
+            repository.insertSelectionPhase(connection, new SelectionPhase("phase-1", "term-1", "ENROLLMENT",
+                    "Retake selection", "OPEN", 0, null, null));
             repository.insertCourse(connection, new Course("course-1", "CS101", "Programming",
                     BigDecimal.valueOf(3), 48, null, true, 0, null, null));
             repository.insertCourse(connection, new Course("course-2", "CS102", "Algorithms",
@@ -479,11 +492,16 @@ class RetakeServiceTest {
 
     private void seedTerm(String termId, String termCode, String status,
                           Instant enrollmentStart, Instant enrollmentEnd) {
-        new TransactionManager(connections).inTransaction(connection -> repository.insertTerm(
-                connection, new Term(termId, termCode, termCode,
+        new TransactionManager(connections).inTransaction(connection -> {
+            repository.insertTerm(connection, new Term(termId, termCode, termCode,
                         LocalDate.of(2026, 9, 1), LocalDate.of(2027, 1, 15),
                         enrollmentStart, enrollmentEnd, NOW.plusSeconds(180),
-                        NOW.plusSeconds(240), status, 0, null, null)));
+                        NOW.plusSeconds(240), status, 0, null, null));
+            if ("ACTIVE".equals(status) && !NOW.isBefore(enrollmentStart) && NOW.isBefore(enrollmentEnd))
+                repository.insertSelectionPhase(connection, new SelectionPhase("phase-" + termId, termId,
+                        "ENROLLMENT", "Retake selection", "OPEN", 0, null, null));
+            return null;
+        });
     }
 
     private void seedActive(String offeringId, String studentId) {

@@ -121,7 +121,9 @@ class ConcurrentEnrollmentTest {
             repository.insertTerm(connection, new Term("term-1", "2026-2027-1", "Autumn",
                     LocalDate.of(2026, 9, 1), LocalDate.of(2027, 1, 15),
                     NOW.minusSeconds(3600), NOW.plusSeconds(3600),
-                    NOW.plusSeconds(7200), NOW.plusSeconds(10800), "PLANNED", 0, null, null));
+                    NOW.plusSeconds(7200), NOW.plusSeconds(10800), "ACTIVE", 0, null, null));
+            repository.insertSelectionPhase(connection, new edu.seu.vcampus.server.course.repository.SelectionPhase(
+                    "phase-1", "term-1", "ENROLLMENT", "Course selection", "OPEN", 0, null, null));
             repository.insertCourse(connection, new Course(courseId, "CS101", "Programming",
                     BigDecimal.valueOf(3), 48, null, true, 0, null, null));
             repository.insertOffering(connection, new Offering(offeringId, "term-1", courseId,

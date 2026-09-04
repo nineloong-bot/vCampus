@@ -40,6 +40,27 @@ class CourseRepositoryTest {
     }
 
     @Test
+    void storesAndOptimisticallyUpdatesSelectionPhase() {
+        seedCatalog();
+        SelectionPhase draft = repository.insertSelectionPhase(connection, new SelectionPhase(
+                "phase-1", "term-1", "ENROLLMENT", "2026-2027秋季学期选课",
+                "DRAFT", 99, null, null));
+
+        assertThat(draft.rowVersion()).isZero();
+        assertThat(repository.findSelectionPhases(connection)).containsExactly(draft);
+        assertThat(repository.findOpenSelectionPhase(connection)).isEmpty();
+
+        SelectionPhase open = repository.updateSelectionPhase(connection, new SelectionPhase(
+                draft.phaseId(), draft.termId(), draft.phaseType(), draft.displayTitle(),
+                "OPEN", draft.rowVersion(), draft.createdAt(), draft.updatedAt()), draft.rowVersion());
+
+        assertThat(open.rowVersion()).isEqualTo(1);
+        assertThat(repository.findOpenSelectionPhase(connection)).contains(open);
+        assertThatThrownBy(() -> repository.updateSelectionPhase(connection, draft, draft.rowVersion()))
+                .isInstanceOf(CourseConcurrentModificationException.class);
+    }
+
+    @Test
     void storesOfferingWithMultipleScheduleRowsVersionAndAuditTimes() {
         seedCatalog();
         Offering saved = repository.insertOffering(connection, offering("offering-1", 30),
@@ -171,6 +192,7 @@ class CourseRepositoryTest {
         assertSqlRejected("INSERT INTO tblEnrollment (enrollmentId, offeringId, studentId, enrollmentType, enrollmentStatus, enrolledAt, rowVersion, createdAt, updatedAt) VALUES ('bad-enrollment', 'missing-offering', 'student-1', 'NORMAL', 'ACTIVE', #2026-01-01#, 0, #2026-01-01#, #2026-01-01#)");
         assertSqlRejected("INSERT INTO tblCourseAttempt (attemptId, studentId, courseId, termId, outcome, sourceReference, importedAt) VALUES ('bad-attempt-course', 'student-1', 'missing-course', 'term-1', 'FAILED', 'bad-course-source', #2026-01-01#)");
         assertSqlRejected("INSERT INTO tblCourseAttempt (attemptId, studentId, courseId, termId, outcome, sourceReference, importedAt) VALUES ('bad-attempt-term', 'student-1', 'course-1', 'missing-term', 'FAILED', 'bad-term-source', #2026-01-01#)");
+        assertSqlRejected("INSERT INTO tblCourseSelectionPhase (phaseId, termId, phaseType, displayTitle, phaseStatus, rowVersion, createdAt, updatedAt) VALUES ('bad-phase', 'missing-term', 'ENROLLMENT', 'Bad', 'DRAFT', 0, #2026-01-01#, #2026-01-01#)");
     }
 
     @Test

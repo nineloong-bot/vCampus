@@ -123,6 +123,7 @@ Task 8 生成的截图及索引位于 `docs/ui-review/`：
 
 - [统一登录](ui-review/course/integrated-login.png)
 - [学生课程中心](ui-review/course/integrated-student-course.png)
+- [管理员选课阶段](ui-review/course/integrated-admin-selection-phase.png)
 - [管理员教学班结构化编辑器](ui-review/course/integrated-admin-offering-editor.png)
 - [UI review manifest](ui-review/manifest.md)
 

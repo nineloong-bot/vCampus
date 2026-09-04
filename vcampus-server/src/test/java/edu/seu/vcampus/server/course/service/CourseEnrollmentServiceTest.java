@@ -20,6 +20,7 @@ import edu.seu.vcampus.server.course.repository.Enrollment;
 import edu.seu.vcampus.server.course.repository.Offering;
 import edu.seu.vcampus.server.course.repository.Schedule;
 import edu.seu.vcampus.server.course.repository.Term;
+import edu.seu.vcampus.server.course.repository.SelectionPhase;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import edu.seu.vcampus.server.persistence.TransactionManager;
 import org.junit.jupiter.api.BeforeEach;
@@ -85,7 +86,7 @@ class CourseEnrollmentServiceTest {
 
     @Test
     void enrollsAsNormalAtTheSuppliedServerTimeAndUpdatesCount() {
-        seedCatalog("PLANNED", NOW.minusSeconds(60), NOW.plusSeconds(60));
+        seedCatalog("ACTIVE", NOW.minusSeconds(60), NOW.plusSeconds(60));
         seedOffering("offering-1", "course-1", 3, 0, "OPEN", List.of());
 
         EnrollmentView result = service.enroll(TOKEN, new EnrollCommand("offering-1"));
@@ -96,6 +97,15 @@ class CourseEnrollmentServiceTest {
         assertThat(result.enrolledAt()).isEqualTo(NOW);
         assertThat(readOffering("offering-1").enrolledCount()).isEqualTo(1);
         assertThat(activeCount("offering-1")).isEqualTo(1);
+    }
+
+    @Test void forgedNormalEnrollmentCannotBypassFailedCourseRetakeClassification() {
+        seedCatalog("ACTIVE", NOW.minusSeconds(60), NOW.plusSeconds(60));
+        seedOffering("offering-1", "course-1", 3, 0, "OPEN", List.of());
+        inTransaction(connection -> repository.insertAttemptIfAbsent(connection, new edu.seu.vcampus.server.course.repository.CourseAttempt(
+                null, STUDENT_ID, "course-1", "term-1", "FAILED", "failed", NOW)));
+        assertThatThrownBy(() -> service.enroll(TOKEN, new EnrollCommand("offering-1")))
+                .isInstanceOf(edu.seu.vcampus.server.course.domain.RetakeRequiredException.class);
     }
 
     @Test
@@ -379,10 +389,15 @@ class CourseEnrollmentServiceTest {
 
     private void seedCatalog(String termStatus, Instant enrollmentStart, Instant enrollmentEnd) {
         inTransaction(connection -> {
+            String persistedStatus = "PLANNED".equals(termStatus) ? "ACTIVE" : termStatus;
             repository.insertTerm(connection, new Term("term-1", "2026-2027-1", "Autumn",
                     LocalDate.of(2026, 9, 1), LocalDate.of(2027, 1, 15),
                     enrollmentStart, enrollmentEnd, NOW.plusSeconds(120), NOW.plusSeconds(180),
-                    termStatus, 0, null, null));
+                    persistedStatus, 0, null, null));
+            if ("ACTIVE".equals(persistedStatus) && !NOW.isBefore(enrollmentStart) && NOW.isBefore(enrollmentEnd)) {
+                repository.insertSelectionPhase(connection, new SelectionPhase("phase-1", "term-1", "ENROLLMENT",
+                        "Autumn course selection", "OPEN", 0, null, null));
+            }
             repository.insertCourse(connection, new Course("course-1", "CS101", "Programming",
                     BigDecimal.valueOf(3), 48, null, true, 0, null, null));
             return null;

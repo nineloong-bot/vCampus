@@ -18,16 +18,16 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Administrator term list showing the authoritative server-side phase windows. */
+/** Administrator academic-term list; course-selection opening is managed separately. */
 public final class TermManagementPanel extends AbstractCoursePanel {
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("MM-dd HH:mm").withZone(ZoneId.systemDefault());
     private final CourseUiGateway gateway;
-    private final DefaultTableModel model = readOnlyModel("学期代码", "学期名称", "正常选课窗口", "退改补窗口", "状态", "版本");
+    private final DefaultTableModel model = readOnlyModel("学期代码", "学期名称", "开学日期", "结束日期", "状态", "版本");
     private final JTable table = table(new Object[0][0], new Object[0]);
     private final List<TermView> terms = new ArrayList<>();
 
     public TermManagementPanel(CourseUiGateway gateway) {
-        super("学期管理", "维护正常选课窗口、退改补窗口与学期状态；全部写操作以服务器时间为准。");
+        super("学期管理", "维护学期名称、教学日期和状态；选课开放请前往“选课阶段”。");
         this.gateway = gateway;
         JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT, UiSpacing.SM, 0));
         toolbar.setOpaque(false);
@@ -60,8 +60,7 @@ public final class TermManagementPanel extends AbstractCoursePanel {
             this.terms.clear();
             this.terms.addAll(terms);
             for (TermView term : terms) model.addRow(new Object[]{
-                    term.termCode(), term.termName(), window(term.enrollmentStartAt(), term.enrollmentEndAt()),
-                    window(term.adjustmentStartAt(), term.adjustmentEndAt()), status(term.termStatus()), "v" + term.rowVersion()});
+                    term.termCode(), term.termName(), term.startDate(), term.endDate(), status(term.termStatus()), "v" + term.rowVersion()});
             showState(terms.isEmpty() ? ViewState.EMPTY : ViewState.NORMAL,
                     terms.isEmpty() ? "当前尚未配置学期，请新建学期后继续" : "");
         }));

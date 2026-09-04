@@ -73,6 +73,7 @@ mvn -pl vcampus-server,vcampus-client -am \
 
 - `docs/ui-review/course/integrated-login.png`
 - `docs/ui-review/course/integrated-student-course.png`
+- `docs/ui-review/course/integrated-admin-selection-phase.png`
 - `docs/ui-review/course/integrated-admin-offering-editor.png`
 
 ## 仍需最终验收处理
