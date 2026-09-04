@@ -360,7 +360,8 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
                     ? value : null;
             my = new MyShopPanel(user, client, sellerPort, navigator, uiKit, mySessionExpired);
             sellerApplication = sellerPort == null ? null
-                    : new SellerApplicationPanel(sellerPort, uiKit, mySessionExpired);
+                    : SellerApplicationPanel.withApprovalNavigation(sellerPort, uiKit, mySessionExpired,
+                            ignored -> navigator.open(new ShopRoute.SellerWorkspace()));
             sellerWorkspace = sellerPort == null ? null
                     : new SellerWorkspacePanel(sellerPort, uiKit, mySessionExpired);
             adminWorkspace = adminPort == null ? null

@@ -73,6 +73,23 @@ class SellerApplicationSummaryTest {
                 "seller.application.reason", JLabel.class).getText()).isEqualTo("请补充材料");
     }
 
+    @Test
+    void approvedApplicationRefreshOpensSellerWorkspace() throws Exception {
+        SellerShopClientPort port = mock(SellerShopClientPort.class);
+        CompletableFuture<Optional<SellerApplicationView>> response = new CompletableFuture<>();
+        when(port.getMyApplication()).thenReturn(response);
+        AtomicInteger workspaceOpened = new AtomicInteger();
+        SellerApplicationPanel panel = ShopSwingTestSupport.onEdt(() ->
+                new SellerApplicationPanel(port, new DefaultShopUiKit(), () -> { },
+                        new RecordingDialog(), ignored -> workspaceOpened.incrementAndGet()));
+
+        ShopSwingTestSupport.onEdt(panel::load);
+        response.complete(Optional.of(application(SellerApplicationStatus.APPROVED, null)));
+        ShopSwingTestSupport.flushEdt();
+
+        assertThat(workspaceOpened).hasValue(1);
+    }
+
     private static SellerApplicationView application(SellerApplicationStatus status, String reason) {
         return new SellerApplicationView("a-1", "student-1", "校园店", "简介", "文具",
                 "13800000000", "经营计划", status, reason, null,

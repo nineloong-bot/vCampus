@@ -33,6 +33,17 @@ class DistributionDemoScriptsTest {
     }
 
     @Test
+    void windowsServerLauncherKeepsDoubleClickFailuresVisible() throws Exception {
+        String script = Files.readString(distributionRoot().resolve("scripts/start-server-with-data.bat"));
+
+        assertThat(script)
+                .contains("where java", "chcp 65001", "lib\\vCampusServer.jar",
+                        "config\\server-with-data.properties", "if errorlevel 1",
+                        "VCAMPUS_DISTRIBUTION_NO_PAUSE", "pause")
+                .contains("cd /d \"%~dp0..\"");
+    }
+
+    @Test
     void clientLauncherLeavesServerDataUntouchedAndServerUsesSeededConfig() throws Exception {
         assumeFalse(System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win"));
         Path root = Files.createDirectories(temporaryDirectory.resolve("distribution"));

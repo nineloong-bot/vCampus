@@ -11,6 +11,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 /** Seller-application summary. Editing is owned by an application-modal dialog. */
 public final class SellerApplicationPanel extends JPanel {
@@ -22,6 +23,7 @@ public final class SellerApplicationPanel extends JPanel {
     private final SellerShopClientPort port;
     private final Runnable sessionExpired;
     private final SellerApplicationDialogPort dialog;
+    private final Consumer<SellerApplicationView> applicationApproved;
     private final LatestRequest requests = new LatestRequest();
     private final JLabel status = named(new JLabel("未申请"), "seller.application.status");
     private final JLabel reason = named(new JLabel(), "seller.application.reason");
@@ -32,15 +34,30 @@ public final class SellerApplicationPanel extends JPanel {
     private boolean disposed;
 
     public SellerApplicationPanel(SellerShopClientPort port, ShopUiKit uiKit, Runnable sessionExpired) {
-        this(port, uiKit, sessionExpired, new SwingSellerApplicationDialog(port, uiKit, sessionExpired));
+        this(port, uiKit, sessionExpired, new SwingSellerApplicationDialog(port, uiKit, sessionExpired),
+                ignored -> { });
+    }
+
+    public static SellerApplicationPanel withApprovalNavigation(SellerShopClientPort port,
+            ShopUiKit uiKit, Runnable sessionExpired,
+            Consumer<SellerApplicationView> applicationApproved) {
+        return new SellerApplicationPanel(port, uiKit, sessionExpired,
+                new SwingSellerApplicationDialog(port, uiKit, sessionExpired), applicationApproved);
     }
 
     SellerApplicationPanel(SellerShopClientPort port, ShopUiKit uiKit, Runnable sessionExpired,
             SellerApplicationDialogPort dialog) {
+        this(port, uiKit, sessionExpired, dialog, ignored -> { });
+    }
+
+    SellerApplicationPanel(SellerShopClientPort port, ShopUiKit uiKit, Runnable sessionExpired,
+            SellerApplicationDialogPort dialog, Consumer<SellerApplicationView> applicationApproved) {
         super(new BorderLayout(8, 8));
         ShopComponentStyle.pagePanel(this);
         this.port = Objects.requireNonNull(port); this.sessionExpired = Objects.requireNonNull(sessionExpired);
-        this.dialog = Objects.requireNonNull(dialog); Objects.requireNonNull(uiKit);
+        this.dialog = Objects.requireNonNull(dialog);
+        this.applicationApproved = Objects.requireNonNull(applicationApproved);
+        Objects.requireNonNull(uiKit);
         JPanel summary = uiKit.filterPanel("seller.application.summary", new GridLayout(0, 2, 8, 8));
         addRow(summary, "店铺名称", name); addRow(summary, "申请状态", status);
         addRow(summary, "审核意见", reason);
@@ -56,7 +73,7 @@ public final class SellerApplicationPanel extends JPanel {
     public SellerApplicationPanel(SellerShopClientPort port, ShopUiKit uiKit,
             Runnable sessionExpired, LeavePrompt ignored) {
         this(port, uiKit, sessionExpired,
-                new SwingSellerApplicationDialog(port, uiKit, sessionExpired));
+                new SwingSellerApplicationDialog(port, uiKit, sessionExpired), value -> { });
     }
 
     public void load() {
@@ -68,6 +85,10 @@ public final class SellerApplicationPanel extends JPanel {
             if (failure != null) {
                 String code = ShopUiErrors.code(failure); status.setText(ShopUiErrors.message(code));
                 if (ShopUiErrors.sessionExpired(code)) sessionExpired.run();
+            } else if (value.isPresent()
+                    && value.get().status() == SellerApplicationStatus.APPROVED) {
+                current = value;
+                applicationApproved.accept(value.get());
             } else render(value);
         }));
     }
