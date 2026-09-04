@@ -115,6 +115,19 @@ public final class StudentProfileApplicationRepository {
                 });
     }
 
+    public void withdraw(Connection connection, String applicationId, long expectedVersion,
+            Instant updatedAt) {
+        updateState(connection, "UPDATE tblStudentProfileApplication SET applicationStatus='DRAFT', "
+                + "submittedAt=NULL, reviewerUserId=NULL, reviewedAt=NULL, reviewComment=NULL, "
+                + "applicationVersion=applicationVersion+1, updatedAt=? "
+                + "WHERE applicationId=? AND applicationStatus='PENDING' AND applicationVersion=?",
+                statement -> {
+                    statement.setTimestamp(1, Timestamp.from(updatedAt));
+                    statement.setString(2, applicationId);
+                    statement.setLong(3, expectedVersion);
+                });
+    }
+
     public void markApproved(Connection connection, String applicationId, String reviewerUserId,
             String reviewComment, Instant reviewedAt) {
         review(connection, applicationId, reviewerUserId, reviewComment, reviewedAt, "APPROVED");

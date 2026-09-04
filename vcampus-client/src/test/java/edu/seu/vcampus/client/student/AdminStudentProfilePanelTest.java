@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class AdminStudentProfilePanelTest {
     private ClientConnection connection;
+    private final java.util.List<String> sentCommands = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     @AfterEach
     void close() throws Exception {
@@ -75,8 +76,11 @@ class AdminStudentProfilePanelTest {
         awaitText(panel, "student.detail.profile.name", "张三");
 
         assertThat(find(panel, "student.detail.academic.edit", JButton.class)).isNull();
-        assertThat(label(panel, "student.detail.profile.idDocumentNumber")).isNull();
+        assertThat(find(panel, "student.detail.profile.idDocumentNumber", JLabel.class)).isNull();
         assertThat(label(panel, "student.detail.profile.department").getText()).isEqualTo("计算机学院");
+        assertThat(find(panel, "student.detail.changes.title", JLabel.class)).isNull();
+        assertThat(find(panel, "student.detail.changes", JTable.class)).isNull();
+        assertThat(sentCommands).containsExactly("STUDENT_GET");
     }
 
     private StudentDetailPanel panel(boolean canEdit) {
@@ -87,6 +91,7 @@ class AdminStudentProfilePanelTest {
             @SuppressWarnings("unchecked")
             public <T extends Serializable> CompletableFuture<ResponseBody<T>> send(
                     String command, Serializable body, Duration timeout) {
+                sentCommands.add(command);
                 if ("STUDENT_GET_PROFILE".equals(command)) {
                     return (CompletableFuture<ResponseBody<T>>) (CompletableFuture<?>)
                             CompletableFuture.completedFuture(ResponseBody.success(profile()));

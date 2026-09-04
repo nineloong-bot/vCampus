@@ -19,7 +19,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -35,16 +34,12 @@ class OrganizationManagementPanelTest {
 
     @Test
     void treeRendersHierarchy() throws Exception {
-        var client = new AutoCompletingClient();
-        client.enqueue(ResponseBody.success(departments()));
-        client.enqueue(ResponseBody.success(majors("dept-1")));
-        client.enqueue(ResponseBody.success(new ArrayList<>()));
-        client.enqueue(ResponseBody.success(classes("major-1")));
-        client.enqueue(ResponseBody.success(new ArrayList<>()));
+        var client = new HierarchyClient();
 
         var fixture = new OrgFixture(client, ConnectionState.CONNECTED);
         SwingUtilities.invokeAndWait(fixture::showPanel);
-        fixture.waitForHierarchyLoaded();
+        fixture.waitForTreeLoaded(2);
+        fixture.waitForFirstClassLoaded();
 
         JTree tree = fixture.component("student.org.tree", JTree.class);
         DefaultMutableTreeNode root = (DefaultMutableTreeNode) tree.getModel().getRoot();
@@ -68,16 +63,12 @@ class OrganizationManagementPanelTest {
 
     @Test
     void selectingNodeSwitchesEditForm() throws Exception {
-        var client = new AutoCompletingClient();
-        client.enqueue(ResponseBody.success(departments()));
-        client.enqueue(ResponseBody.success(majors("dept-1")));
-        client.enqueue(ResponseBody.success(new ArrayList<>()));
-        client.enqueue(ResponseBody.success(classes("major-1")));
-        client.enqueue(ResponseBody.success(new ArrayList<>()));
+        var client = new HierarchyClient();
 
         var fixture = new OrgFixture(client, ConnectionState.CONNECTED);
         SwingUtilities.invokeAndWait(fixture::showPanel);
-        fixture.waitForHierarchyLoaded();
+        fixture.waitForTreeLoaded(2);
+        fixture.waitForFirstClassLoaded();
 
         JTree tree = fixture.component("student.org.tree", JTree.class);
         DefaultMutableTreeNode root = (DefaultMutableTreeNode) tree.getModel().getRoot();
@@ -98,9 +89,45 @@ class OrganizationManagementPanelTest {
     }
 
     @Test
+    void onlyTheActionForTheSelectedHierarchyLevelIsEnabled() throws Exception {
+        var fixture = new OrgFixture(new HierarchyClient(), ConnectionState.CONNECTED);
+        SwingUtilities.invokeAndWait(fixture::showPanel);
+        fixture.waitForTreeLoaded(2);
+        fixture.waitForFirstClassLoaded();
+
+        JButton department = fixture.button("student.org.add-dept");
+        JButton major = fixture.button("student.org.add-major");
+        JButton studentClass = fixture.button("student.org.add-class");
+        JButton student = fixture.button("student.org.add-student");
+        assertThat(java.util.List.of(department, major, studentClass, student))
+                .allMatch(Component::isVisible);
+        assertThat(java.util.List.of(department.isEnabled(), major.isEnabled(),
+                studentClass.isEnabled(), student.isEnabled()))
+                .containsExactly(true, false, false, false);
+
+        JTree tree = fixture.component("student.org.tree", JTree.class);
+        DefaultMutableTreeNode root = (DefaultMutableTreeNode) tree.getModel().getRoot();
+        DefaultMutableTreeNode departmentNode = (DefaultMutableTreeNode) root.getChildAt(0);
+        DefaultMutableTreeNode majorNode = (DefaultMutableTreeNode) departmentNode.getChildAt(0);
+        DefaultMutableTreeNode classNode = (DefaultMutableTreeNode) majorNode.getChildAt(0);
+
+        SwingUtilities.invokeAndWait(() -> tree.setSelectionPath(new TreePath(departmentNode.getPath())));
+        assertThat(java.util.List.of(department.isEnabled(), major.isEnabled(),
+                studentClass.isEnabled(), student.isEnabled()))
+                .containsExactly(false, true, false, false);
+        SwingUtilities.invokeAndWait(() -> tree.setSelectionPath(new TreePath(majorNode.getPath())));
+        assertThat(java.util.List.of(department.isEnabled(), major.isEnabled(),
+                studentClass.isEnabled(), student.isEnabled()))
+                .containsExactly(false, false, true, false);
+        SwingUtilities.invokeAndWait(() -> tree.setSelectionPath(new TreePath(classNode.getPath())));
+        assertThat(java.util.List.of(department.isEnabled(), major.isEnabled(),
+                studentClass.isEnabled(), student.isEnabled()))
+                .containsExactly(false, false, false, true);
+    }
+
+    @Test
     void saveNewDepartment() throws Exception {
-        var client = new AutoCompletingClient();
-        client.enqueue(ResponseBody.success(new ArrayList<>()));
+        var client = new HierarchyClient(new ArrayList<>());
 
         var fixture = new OrgFixture(client, ConnectionState.CONNECTED);
         SwingUtilities.invokeAndWait(fixture::showPanel);
@@ -115,21 +142,18 @@ class OrganizationManagementPanelTest {
             fixture.field("student.org.name").setText("物理学院");
         });
 
-        client.enqueue(ResponseBody.success(new DepartmentView("dept-new", "PHY", "物理学院", true, 1)));
+        client.enqueueWrite(ResponseBody.success(new DepartmentView("dept-new", "PHY", "物理学院", true, 1)));
         SwingUtilities.invokeAndWait(() -> fixture.button("student.org.save").doClick());
         flushEdt();
     }
 
     @Test
     void updateExistingDepartment() throws Exception {
-        var client = new AutoCompletingClient();
-        client.enqueue(ResponseBody.success(departments()));
-        client.enqueue(ResponseBody.success(new ArrayList<>()));
-        client.enqueue(ResponseBody.success(new ArrayList<>()));
+        var client = new HierarchyClient();
 
         var fixture = new OrgFixture(client, ConnectionState.CONNECTED);
         SwingUtilities.invokeAndWait(fixture::showPanel);
-        flushEdt();
+        fixture.waitForTreeLoaded(2);
 
         JTree tree = fixture.component("student.org.tree", JTree.class);
         DefaultMutableTreeNode root = (DefaultMutableTreeNode) tree.getModel().getRoot();
@@ -139,17 +163,14 @@ class OrganizationManagementPanelTest {
 
         SwingUtilities.invokeAndWait(() -> fixture.field("student.org.name").setText("计算机科学与技术学院"));
 
-        client.enqueue(ResponseBody.success(new DepartmentView("dept-1", "CS", "计算机科学与技术学院", true, 6)));
+        client.enqueueWrite(ResponseBody.success(new DepartmentView("dept-1", "CS", "计算机科学与技术学院", true, 6)));
         SwingUtilities.invokeAndWait(() -> fixture.button("student.org.save").doClick());
         flushEdt();
     }
 
     @Test
     void addMajorUnderDepartment() throws Exception {
-        var client = new AutoCompletingClient();
-        client.enqueue(ResponseBody.success(departments()));
-        client.enqueue(ResponseBody.success(new ArrayList<>()));
-        client.enqueue(ResponseBody.success(new ArrayList<>()));
+        var client = new HierarchyClient();
 
         var fixture = new OrgFixture(client, ConnectionState.CONNECTED);
         SwingUtilities.invokeAndWait(fixture::showPanel);
@@ -173,10 +194,7 @@ class OrganizationManagementPanelTest {
 
     @Test
     void conflictShowsError() throws Exception {
-        var client = new AutoCompletingClient();
-        client.enqueue(ResponseBody.success(departments()));
-        client.enqueue(ResponseBody.success(new ArrayList<>()));
-        client.enqueue(ResponseBody.success(new ArrayList<>()));
+        var client = new HierarchyClient();
 
         var fixture = new OrgFixture(client, ConnectionState.CONNECTED);
         SwingUtilities.invokeAndWait(fixture::showPanel);
@@ -190,12 +208,9 @@ class OrganizationManagementPanelTest {
 
         SwingUtilities.invokeAndWait(() -> fixture.field("student.org.name").setText("新名称"));
 
-        client.enqueue(ResponseBody.failure("COMMON_CONCURRENT_MODIFICATION", "数据已被修改", null));
-        client.enqueue(ResponseBody.success(departments()));
-        client.enqueue(ResponseBody.success(new ArrayList<>()));
-        client.enqueue(ResponseBody.success(new ArrayList<>()));
+        client.enqueueWrite(ResponseBody.failure("COMMON_CONCURRENT_MODIFICATION", "数据已被修改", null));
         SwingUtilities.invokeAndWait(() -> fixture.button("student.org.save").doClick());
-        fixture.waitForErrorContaining("刷新");
+        fixture.waitForLabelContains("student.org.error", "刷新");
         assertThat(fixture.label("student.org.error").getText()).contains("刷新");
     }
 
@@ -246,7 +261,7 @@ class OrganizationManagementPanelTest {
         final StudentClientService students;
         OrganizationManagementPanel panel;
 
-        OrgFixture(AutoCompletingClient client, ConnectionState state) {
+        OrgFixture(StudentRequestClient client, ConnectionState state) {
             this.connection = new ClientConnection("localhost", 1);
             connections.add(connection);
             this.students = new StudentClientService(client, Duration.ofSeconds(1));
@@ -279,7 +294,7 @@ class OrganizationManagementPanelTest {
             throw new AssertionError("Tree did not load within timeout");
         }
 
-        void waitForHierarchyLoaded() throws Exception {
+        void waitForFirstClassLoaded() throws Exception {
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
             while (System.nanoTime() < deadline) {
                 flushEdt();
@@ -287,28 +302,28 @@ class OrganizationManagementPanelTest {
                 SwingUtilities.invokeAndWait(() -> {
                     var tree = component("student.org.tree", JTree.class);
                     var root = (DefaultMutableTreeNode) tree.getModel().getRoot();
-                    if (root.getChildCount() < 2) return;
+                    if (root.getChildCount() == 0) return;
                     var department = (DefaultMutableTreeNode) root.getChildAt(0);
-                    if (department.getChildCount() < 1) return;
+                    if (department.getChildCount() == 0) return;
                     var major = (DefaultMutableTreeNode) department.getChildAt(0);
-                    loaded[0] = major.getChildCount() >= 1;
+                    loaded[0] = major.getChildCount() > 0;
                 });
                 if (loaded[0]) return;
-                TimeUnit.MILLISECONDS.sleep(10);
+                Thread.sleep(10);
             }
-            throw new AssertionError("Organization hierarchy did not load within timeout");
+            throw new AssertionError("Class node did not load within timeout");
         }
 
-        void waitForErrorContaining(String expectedText) throws Exception {
+        void waitForLabelContains(String name, String expected) throws Exception {
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
             while (System.nanoTime() < deadline) {
                 flushEdt();
-                String[] text = new String[1];
-                SwingUtilities.invokeAndWait(() -> text[0] = label("student.org.error").getText());
-                if (text[0].contains(expectedText)) return;
-                TimeUnit.MILLISECONDS.sleep(10);
+                String[] value = new String[1];
+                SwingUtilities.invokeAndWait(() -> value[0] = label(name).getText());
+                if (value[0] != null && value[0].contains(expected)) return;
+                Thread.sleep(10);
             }
-            throw new AssertionError("Error message did not appear within timeout");
+            throw new AssertionError("Label did not contain expected text within timeout: " + expected);
         }
 
         void waitForButtonEnabled(String name) throws Exception {
@@ -344,29 +359,33 @@ class OrganizationManagementPanelTest {
         }
     }
 
-    private static final class AutoCompletingClient implements StudentRequestClient {
-        private final BlockingQueue<ResponseBody<?>> pending = new LinkedBlockingQueue<>();
-        private final AtomicInteger consumed = new AtomicInteger();
+    private static final class HierarchyClient implements StudentRequestClient {
+        private final ArrayList<DepartmentView> departmentValues;
+        private final BlockingQueue<ResponseBody<?>> writes = new LinkedBlockingQueue<>();
 
-        void enqueue(ResponseBody<?> response) { pending.add(response); }
+        HierarchyClient() { this(departments()); }
+        HierarchyClient(ArrayList<DepartmentView> departmentValues) {
+            this.departmentValues = departmentValues;
+        }
+        void enqueueWrite(ResponseBody<?> response) { writes.add(response); }
 
         @SuppressWarnings({"unchecked", "rawtypes"})
         @Override public <T extends Serializable> CompletableFuture<ResponseBody<T>> send(
                 String command, Serializable body, Duration timeout) {
-            ResponseBody<?> response = pending.poll();
-            consumed.incrementAndGet();
-            CompletableFuture<ResponseBody<T>> future = new CompletableFuture<>();
-            if (response != null) {
-                SwingUtilities.invokeLater(() -> future.complete((ResponseBody) response));
-            }
-            return future;
-        }
-
-        void awaitResponse() throws InterruptedException {
-            int before = consumed.get();
-            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
-            while (consumed.get() == before && System.nanoTime() < deadline) Thread.onSpinWait();
-            assertThat(consumed.get()).isGreaterThan(before);
+            ResponseBody<?> response = switch (command) {
+                case "STUDENT_LIST_DEPARTMENTS" -> ResponseBody.success(departmentValues);
+                case "STUDENT_LIST_MAJORS" -> {
+                    var query = (OrganizationChildrenQuery) body;
+                    yield ResponseBody.success(majors(query.parentId()));
+                }
+                case "STUDENT_LIST_CLASSES" -> {
+                    var query = (OrganizationChildrenQuery) body;
+                    yield ResponseBody.success(classes(query.parentId()));
+                }
+                default -> writes.poll();
+            };
+            return response == null ? new CompletableFuture<>()
+                    : CompletableFuture.completedFuture((ResponseBody) response);
         }
     }
 }

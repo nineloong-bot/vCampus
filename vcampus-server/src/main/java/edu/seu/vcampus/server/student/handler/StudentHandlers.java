@@ -27,7 +27,7 @@ import java.util.function.BiFunction;
 
 /** Registers the ten student commands and enforces their authorization boundary. */
 public final class StudentHandlers {
-    public static final List<String> COMMANDS = List.of("STUDENT_CREATE", "STUDENT_GET_CURRENT",
+    public static final List<String> COMMANDS = List.of("STUDENT_CREATE", "STUDENT_CREATE_MANUAL", "STUDENT_GET_CURRENT",
             "STUDENT_GET", "STUDENT_SEARCH", "STUDENT_UPDATE_CONTACT",
             "STUDENT_UPDATE_ENROLLMENT", "STUDENT_CHANGE_STATUS", "STUDENT_UPDATE_INFO",
             "STUDENT_UPDATE_ACADEMIC",
@@ -36,7 +36,7 @@ public final class StudentHandlers {
             "STUDENT_SAVE_DEPARTMENT", "STUDENT_SAVE_MAJOR", "STUDENT_SAVE_CLASS");
     public static final List<String> PROFILE_COMMANDS = List.of(
             "STUDENT_PROFILE_GET_WORKSPACE", "STUDENT_PROFILE_SAVE_PERSONAL_DRAFT",
-            "STUDENT_PROFILE_SAVE_ATTENDANCE_DRAFT", "STUDENT_PROFILE_SUBMIT",
+            "STUDENT_PROFILE_SAVE_ATTENDANCE_DRAFT", "STUDENT_PROFILE_SUBMIT", "STUDENT_PROFILE_WITHDRAW",
             "STUDENT_PROFILE_EXPORT_PDF",
             "STUDENT_PROFILE_REVIEW_LIST", "STUDENT_PROFILE_REVIEW_GET",
             "STUDENT_PROFILE_APPROVE", "STUDENT_PROFILE_REJECT",
@@ -87,6 +87,9 @@ public final class StudentHandlers {
             if (!principal.hasPermission("STUDENT_WRITE")) return forbidden();
             return success(admissions.admit(body, context(message, principal)));
         }));
+        router.register("STUDENT_CREATE_MANUAL", typed(CreateStudentManualCommand.class,
+                (message, body) -> strictAdmin(message, () -> admissions.createManual(
+                        body, context(message, principal(message))))));
         router.register("STUDENT_GET_CURRENT", typed(EmptyRequest.class, (message, body) -> {
             StudentPrincipal principal = principal(message);
             if (!principal.hasRole("STUDENT") && !principal.hasRole("ADMIN")) return forbidden();
@@ -130,8 +133,7 @@ public final class StudentHandlers {
                 (message, body) -> authenticated(message,
                         () -> new ArrayList<>(organizations.listClasses(body.parentId(), body.activeOnly())))));
         router.register("STUDENT_GET_CHANGES", typed(EntityIdRequest.class, (message, body) -> {
-            StudentPrincipal principal = principal(message);
-            return isStaff(principal) ? success(new ArrayList<>(students.listChanges(body.entityId()))) : forbidden();
+            return strictAdmin(message, () -> new ArrayList<>(students.listChanges(body.entityId())));
         }));
         router.register("STUDENT_SAVE_DEPARTMENT", typed(SaveDepartmentCommand.class,
                 (message, body) -> write(message, () -> admin(message,
@@ -160,6 +162,9 @@ public final class StudentHandlers {
         router.register("STUDENT_PROFILE_SUBMIT", typed(SubmitStudentProfileCommand.class,
                 (message, body) -> write(message, () -> student(message,
                         () -> profiles.submit(principal(message).userId(), body)))));
+        router.register("STUDENT_PROFILE_WITHDRAW", typed(WithdrawStudentProfileCommand.class,
+                (message, body) -> write(message, () -> student(message,
+                        () -> profiles.withdraw(principal(message).userId(), body)))));
         if (pdfs != null) router.register("STUDENT_PROFILE_EXPORT_PDF", typed(EmptyRequest.class,
                 (message, body) -> student(message, () -> pdfs.generate(
                         profiles.getWorkspace(principal(message).userId()).formalProfile(),
