@@ -36,6 +36,7 @@ public final class CourseUiScreenshotGenerator {
         ClientConnection previewConnection = new ClientConnection("127.0.0.1", 8888);
         LoginFrame[] login = new LoginFrame[1];
         MainFrame[] student = new MainFrame[1];
+        MainFrame[] administrator = new MainFrame[1];
         OfferingEditorDialog[] administratorEditor = new OfferingEditorDialog[1];
         SwingUtilities.invokeAndWait(() -> {
             UserClientService users = new UserClientService(
@@ -53,6 +54,17 @@ public final class CourseUiScreenshotGenerator {
                     new CourseWorkspacePanel(CourseUiGateway.preview(), UserRole.STUDENT));
             student[0].pageNavigator().show("course");
 
+            UserView adminUser = new UserView(
+                    "demo-admin", "DEMO_ADMIN", UserRole.ADMIN,
+                    AccountStatus.ACTIVE, false,
+                    LocalDateTime.parse("2026-09-04T20:30:00"), 0,
+                    LocalDateTime.parse("2026-08-20T08:00:00"),
+                    LocalDateTime.parse("2026-09-04T20:30:00"));
+            administrator[0] = new MainFrame(adminUser);
+            administrator[0].installPage("course",
+                    new CourseWorkspacePanel(CourseUiGateway.preview(), UserRole.ADMIN));
+            administrator[0].pageNavigator().show("course");
+
             administratorEditor[0] = new OfferingEditorDialog(
                     null, CourseUiGateway.preview(), null, () -> { });
             administratorEditor[0].pack();
@@ -61,6 +73,16 @@ public final class CourseUiScreenshotGenerator {
         // Completed preview futures publish their UI state through invokeLater.
         SwingUtilities.invokeAndWait(() -> { });
         SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> descendants(administrator[0]).stream()
+                .filter(javax.swing.JTabbedPane.class::isInstance)
+                .map(javax.swing.JTabbedPane.class::cast)
+                .filter(tabs -> tabs.indexOfTab("选课阶段") >= 0)
+                .findFirst().ifPresent(tabs -> tabs.setSelectedIndex(tabs.indexOfTab("选课阶段"))));
+        SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> descendants(administrator[0]).stream()
+                .filter(javax.swing.JTable.class::isInstance).map(javax.swing.JTable.class::cast)
+                .filter(table -> table.getRowCount() > 0).findFirst()
+                .ifPresent(table -> table.setRowSelectionInterval(0, 0)));
         SwingUtilities.invokeAndWait(() -> descendants(student[0]).stream()
                 .filter(javax.swing.JButton.class::isInstance).map(javax.swing.JButton.class::cast)
                 .filter(button -> button.getText().startsWith("▶  MATH101"))
@@ -71,6 +93,8 @@ public final class CourseUiScreenshotGenerator {
                         WINDOW_WIDTH, WINDOW_HEIGHT);
                 capture(student[0], output.resolve("integrated-student-course.png"),
                         WINDOW_WIDTH, WINDOW_HEIGHT);
+                capture(administrator[0], output.resolve("integrated-admin-selection-phase.png"),
+                        WINDOW_WIDTH, WINDOW_HEIGHT);
                 Dimension editorSize = administratorEditor[0].getSize();
                 capture(administratorEditor[0],
                         output.resolve("integrated-admin-offering-editor.png"),
@@ -80,6 +104,7 @@ public final class CourseUiScreenshotGenerator {
             } finally {
                 login[0].dispose();
                 student[0].dispose();
+                administrator[0].dispose();
                 administratorEditor[0].dispose();
                 previewConnection.close();
             }

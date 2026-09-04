@@ -90,7 +90,7 @@ public interface CourseUiGateway {
                 item.teacherUserId(), item.className(), 40, 28, "OPEN", 0, List.of(item))).toList();
         return new CourseUiGateway() {
             public CompletableFuture<StudentSelectionContextView> studentSelectionContext() {
-                return CompletableFuture.completedFuture(new StudentSelectionContextView("2026-autumn", "2026—2027学年秋季学期", "ACTIVE", "preview-phase", "ADJUSTMENT", "2026-2027秋季学期退改补选课", java.time.Instant.now(), true, null));
+                return CompletableFuture.completedFuture(new StudentSelectionContextView("2026-autumn", "2026—2027学年秋季学期", "ACTIVE", "preview-phase", "ADJUSTMENT", "2026-2027秋季学期退改补选课", "OPEN", java.time.Instant.now(), true, null));
             }
             public CompletableFuture<PageResult<CourseSelectionView>> searchStudentCourses(CourseSelectionQuery query) {
                 List<CourseSelectionView> rows = offerings.stream().map(offering -> {

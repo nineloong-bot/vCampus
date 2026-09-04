@@ -17,7 +17,7 @@ public record SelectionPhaseView(String phaseId, String termId, String phaseType
         CourseValidation.text("termId", Objects.requireNonNull(termId, "termId"), 36);
         CourseValidation.text("displayTitle", Objects.requireNonNull(displayTitle, "displayTitle"), 64);
         if (!Set.of("ENROLLMENT", "ADJUSTMENT").contains(phaseType)
-                || !Set.of("DRAFT", "OPEN", "CLOSED").contains(phaseStatus)
+                || !Set.of("DRAFT", "PREVIEW", "OPEN", "CLOSED").contains(phaseStatus)
                 || rowVersion < 0) {
             throw new IllegalArgumentException("invalid selection phase");
         }

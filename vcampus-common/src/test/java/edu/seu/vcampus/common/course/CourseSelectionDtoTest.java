@@ -21,8 +21,10 @@ class CourseSelectionDtoTest {
         assertThat(roundTrip(create)).isEqualTo(create);
         assertThatThrownBy(() -> new CreateSelectionPhaseCommand("term-1", "AUTO", "选课"))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new ChangeSelectionPhaseStatusCommand("p1", "DRAFT", 0))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(new ChangeSelectionPhaseStatusCommand("p1", "DRAFT", 0).targetStatus())
+                .isEqualTo("DRAFT");
+        assertThat(new ChangeSelectionPhaseStatusCommand("p1", "PREVIEW", 0).targetStatus())
+                .isEqualTo("PREVIEW");
     }
 
     @Test
@@ -63,7 +65,7 @@ class CourseSelectionDtoTest {
     @Test
     void contextRequiresAllPhaseFieldsTogether() {
         assertThatThrownBy(() -> new StudentSelectionContextView(
-                "term-1", "秋季学期", "ACTIVE", "p1", null, "秋季选课",
+                "term-1", "秋季学期", "ACTIVE", "p1", null, "秋季选课", "PREVIEW",
                 Instant.parse("2026-09-04T00:00:00Z"), true, null))
                 .isInstanceOf(IllegalArgumentException.class);
     }

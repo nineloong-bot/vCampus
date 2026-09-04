@@ -123,7 +123,7 @@ public final class CourseClientGateway implements CourseUiGateway {
     public CompletableFuture<TermPhaseView> getTermPhase(String termId) {
         return client.getStudentSelectionContext().thenApply(context -> {
             var now = context.serverTime();
-            var phase = context.phaseType() == null ? "READ_ONLY" : context.phaseType();
+            var phase = "OPEN".equals(context.phaseStatus()) ? context.phaseType() : "READ_ONLY";
             return new TermPhaseView(context.termId(), context.termStatus(), phase, now,
                     now, now.plusNanos(1), now.plusNanos(2), now.plusNanos(3));
         });

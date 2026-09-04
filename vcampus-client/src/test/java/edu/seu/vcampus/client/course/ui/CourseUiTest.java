@@ -294,6 +294,23 @@ class CourseUiTest {
     }
 
     @Test
+    void phaseManagementKeepsEveryStateControlInsideTheToolbarAtDesktopWidth() throws Exception {
+        SelectionPhaseManagementPanel panel = onEdt(() -> new SelectionPhaseManagementPanel(CourseUiGateway.preview()));
+        SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> {
+            panel.setSize(1100, 650);
+            layoutTree(panel);
+        });
+
+        for (String text : List.of("新建阶段", "应用状态", "保存标题", "刷新")) {
+            JButton control = button(panel, text);
+            assertThat(control.getHeight()).as(text).isPositive();
+            assertThat(control.getY() + control.getHeight()).as(text)
+                    .isLessThanOrEqualTo(control.getParent().getHeight());
+        }
+    }
+
+    @Test
     void queryPageUsesReviewedTemplateAndSharedTokens() throws Exception {
         OfferingSearchPanel panel = onEdt(() -> new OfferingSearchPanel(CourseUiGateway.preview()));
         SwingUtilities.invokeAndWait(() -> { });
@@ -2528,6 +2545,13 @@ class CourseUiTest {
             if (child instanceof Container nested) all.addAll(descendants(nested));
         }
         return all;
+    }
+
+    private static void layoutTree(Container root) {
+        root.doLayout();
+        for (Component child : root.getComponents()) {
+            if (child instanceof Container nested) layoutTree(nested);
+        }
     }
 
     private static boolean isInteractiveControl(Component component) {

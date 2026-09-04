@@ -70,6 +70,7 @@ public final class StudentCourseSelectionPanel extends AbstractCoursePanel {
                     count.setText("共 "+page.total()+" 门课程");courses.revalidate();courses.repaint();
                     pager.showPage(page.page(),page.total());
                     if(context.displayTitle()==null)showState(ViewState.EMPTY,"管理员尚未开放选课阶段，可先查看课程信息");
+                    else if("PREVIEW".equals(context.phaseStatus()))showState(ViewState.CONFLICT,"预选课阶段，仅可查看课程和教学班");
                     else if(!context.studentEligible())showState(ViewState.ERROR,context.ineligibleReason());
                     else showState(page.items().isEmpty()?ViewState.EMPTY:ViewState.NORMAL,page.items().isEmpty()?"未找到符合条件的课程":"");
                 }));

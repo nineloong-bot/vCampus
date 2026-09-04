@@ -7,7 +7,6 @@ import edu.seu.vcampus.common.course.UpdateSelectionPhaseCommand;
 import edu.seu.vcampus.server.concurrency.ResourceKey;
 import edu.seu.vcampus.server.concurrency.ResourceLockManager;
 import edu.seu.vcampus.server.course.domain.SelectionPhaseAlreadyOpenException;
-import edu.seu.vcampus.server.course.domain.SelectionPhaseInvalidStateException;
 import edu.seu.vcampus.server.course.domain.TermNotActiveException;
 import edu.seu.vcampus.server.course.repository.CourseRepository;
 import edu.seu.vcampus.server.course.repository.SelectionPhase;
@@ -49,7 +48,6 @@ final class SelectionPhaseService {
         Objects.requireNonNull(command, "command");
         return locks.withLocks(List.of(GLOBAL), () -> transactions.inTransaction(connection -> {
             SelectionPhase current = repository.requireSelectionPhase(connection, command.phaseId());
-            if (!"DRAFT".equals(current.phaseStatus())) throw new SelectionPhaseInvalidStateException();
             return view(repository.updateSelectionPhase(connection, new SelectionPhase(
                     current.phaseId(), current.termId(), current.phaseType(), command.displayTitle(),
                     current.phaseStatus(), current.rowVersion(), current.createdAt(), current.updatedAt()),
@@ -61,16 +59,14 @@ final class SelectionPhaseService {
         Objects.requireNonNull(command, "command");
         return locks.withLocks(List.of(GLOBAL), () -> transactions.inTransaction(connection -> {
             SelectionPhase current = repository.requireSelectionPhase(connection, command.phaseId());
-            if ("OPEN".equals(command.targetStatus())) {
-                if (!"DRAFT".equals(current.phaseStatus())) throw new SelectionPhaseInvalidStateException();
+            if (List.of("PREVIEW", "OPEN").contains(command.targetStatus())) {
                 if (!"ACTIVE".equals(repository.requireTerm(connection, current.termId()).termStatus())) {
                     throw new TermNotActiveException();
                 }
-                if (repository.findOpenSelectionPhase(connection).isPresent()) {
+                if (repository.findOpenSelectionPhase(connection)
+                        .filter(other -> !other.phaseId().equals(current.phaseId())).isPresent()) {
                     throw new SelectionPhaseAlreadyOpenException();
                 }
-            } else if (!"OPEN".equals(current.phaseStatus())) {
-                throw new SelectionPhaseInvalidStateException();
             }
             return view(repository.updateSelectionPhase(connection, new SelectionPhase(
                     current.phaseId(), current.termId(), current.phaseType(), current.displayTitle(),

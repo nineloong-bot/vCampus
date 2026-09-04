@@ -184,10 +184,39 @@ class CourseManagementServiceTest {
         assertThat(service.listSelectionPhases()).extracting(SelectionPhaseView::displayTitle)
                 .containsExactly("2026-2027秋季学期选课");
         assertThat(closed.phaseStatus()).isEqualTo("CLOSED");
-        assertThatThrownBy(() -> service.updateSelectionPhase(new UpdateSelectionPhaseCommand(
-                closed.phaseId(), "不能修改", closed.rowVersion())))
-                .isInstanceOf(CourseRuleException.class)
-                .extracting("code").isEqualTo("COURSE_SELECTION_PHASE_INVALID_STATE");
+        assertThat(service.updateSelectionPhase(new UpdateSelectionPhaseCommand(
+                closed.phaseId(), "关闭后仍可修改标题", closed.rowVersion())).displayTitle())
+                .isEqualTo("关闭后仍可修改标题");
+    }
+
+    @Test void phaseStatusCanBeChangedFreelyAndPreviewIsReadOnlyForStudents() {
+        TermView term = service.createTerm(termCommand());
+        TermView active = service.updateTerm(new UpdateTermCommand(term.termId(), term.termCode(), term.termName(),
+                term.startDate(), term.endDate(), term.enrollmentStartAt(), term.enrollmentEndAt(),
+                term.adjustmentStartAt(), term.adjustmentEndAt(), "ACTIVE", term.rowVersion()));
+        CourseView course = service.createCourse(courseCommand("CS109", "预选课程"));
+        service.createOffering(new CreateOfferingCommand(active.termId(), course.courseId(), "teacher-1", "01班",
+                30, "OPEN", List.of()));
+        SelectionPhaseView draft = service.createSelectionPhase(new CreateSelectionPhaseCommand(
+                active.termId(), "ENROLLMENT", "秋季预选"));
+
+        SelectionPhaseView preview = service.changeSelectionPhaseStatus(new ChangeSelectionPhaseStatusCommand(
+                draft.phaseId(), "PREVIEW", draft.rowVersion()));
+        StudentSelectionContextView context = service.getStudentSelectionContext("student");
+        CourseSelectionView row = service.searchStudentCourses("student",
+                new CourseSelectionQuery(active.termId(), "", null, 0, 20)).items().getFirst();
+        SelectionPhaseView closed = service.changeSelectionPhaseStatus(new ChangeSelectionPhaseStatusCommand(
+                preview.phaseId(), "CLOSED", preview.rowVersion()));
+        SelectionPhaseView reopened = service.changeSelectionPhaseStatus(new ChangeSelectionPhaseStatusCommand(
+                closed.phaseId(), "OPEN", closed.rowVersion()));
+        SelectionPhaseView backToDraft = service.changeSelectionPhaseStatus(new ChangeSelectionPhaseStatusCommand(
+                reopened.phaseId(), "DRAFT", reopened.rowVersion()));
+
+        assertThat(context.phaseStatus()).isEqualTo("PREVIEW");
+        assertThat(row.courseAction()).isEqualTo("DISABLED");
+        assertThat(row.courseReason()).isEqualTo("预选课阶段，仅可查看");
+        assertThat(backToDraft.phaseStatus()).isEqualTo("DRAFT");
+        assertThat(service.getStudentSelectionContext("student").phaseId()).isNull();
     }
 
     @Test void refusesOpeningSecondPhaseOrPhaseForInactiveTerm() {

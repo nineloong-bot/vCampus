@@ -24,18 +24,20 @@ public final class SelectionPhasePolicy {
 
     public SelectionPhase requireEnrollmentOpen(Connection connection, String termId) {
         SelectionPhase phase = requireCurrentActiveTerm(connection, termId, new EnrollmentClosedException());
-        if (!"ENROLLMENT".equals(phase.phaseType())) throw new EnrollmentClosedException();
+        if (!"OPEN".equals(phase.phaseStatus()) || !"ENROLLMENT".equals(phase.phaseType())) throw new EnrollmentClosedException();
         return phase;
     }
 
     public SelectionPhase requireAdjustmentOpen(Connection connection, String termId) {
         SelectionPhase phase = requireCurrentActiveTerm(connection, termId, new AdjustmentClosedException());
-        if (!"ADJUSTMENT".equals(phase.phaseType())) throw new AdjustmentClosedException();
+        if (!"OPEN".equals(phase.phaseStatus()) || !"ADJUSTMENT".equals(phase.phaseType())) throw new AdjustmentClosedException();
         return phase;
     }
 
     public SelectionPhase requireDropOpen(Connection connection, String termId) {
-        return requireCurrentActiveTerm(connection, termId, new DropClosedException());
+        SelectionPhase phase = requireCurrentActiveTerm(connection, termId, new DropClosedException());
+        if (!"OPEN".equals(phase.phaseStatus())) throw new DropClosedException();
+        return phase;
     }
 
     private SelectionPhase requireCurrentActiveTerm(Connection connection, String termId,
@@ -50,7 +52,7 @@ public final class SelectionPhasePolicy {
     }
 
     private void requireKnownOpenPhase(SelectionPhase phase) {
-        if (!"OPEN".equals(phase.phaseStatus())
+        if (!Set.of("PREVIEW", "OPEN").contains(phase.phaseStatus())
                 || !Set.of("ENROLLMENT", "ADJUSTMENT").contains(phase.phaseType())) {
             throw new IllegalStateException("Invalid open selection phase: " + phase.phaseId());
         }

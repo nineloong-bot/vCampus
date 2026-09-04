@@ -60,7 +60,7 @@ final class AccessSelectionPhaseRepository {
 
     Optional<SelectionPhase> findOpen(Connection connection) {
         try (PreparedStatement statement = connection.prepareStatement(
-                "SELECT * FROM tblCourseSelectionPhase WHERE phaseStatus='OPEN' ORDER BY updatedAt DESC, phaseId");
+                "SELECT * FROM tblCourseSelectionPhase WHERE phaseStatus IN ('PREVIEW','OPEN') ORDER BY updatedAt DESC, phaseId");
              ResultSet result = statement.executeQuery()) {
             return result.next() ? Optional.of(map(result)) : Optional.empty();
         } catch (SQLException error) {

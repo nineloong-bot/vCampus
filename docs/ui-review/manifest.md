@@ -39,14 +39,16 @@ the dedicated UI design-system implementation plan.
 
 ## Unified course and user workflow evidence
 
-- Generated on 2026-09-02 from the production `LoginFrame`, `MainFrame` with an embedded
+- Generated on 2026-09-04 from the production `LoginFrame`, `MainFrame` with embedded
   student `CourseWorkspacePanel`, and the Task 7 structured `OfferingEditorDialog` using
   deterministic `CourseUiGateway.preview()` data.
 - `course/integrated-login.png`: 1280 × 800; shared login and the three consistent local
   Demo accounts are visible.
 - `course/integrated-student-course.png`: 1280 × 800; the five-module navigation and the
   student course workspace are visible without clipping or stale course-only sidebar items.
+- `course/integrated-admin-selection-phase.png`: 1280 × 800; the two-row phase editor keeps
+  create, direct status selection, apply, title-save, and refresh controls fully visible.
 - `course/integrated-admin-offering-editor.png`: 661 × 626 packed dialog size; localized
   term/course/teacher choices and a structured schedule row replace raw IDs and CSV input.
-- Visual inspection: all three images are nonblank; Chinese labels, controls, and table
+- Visual inspection: all four images are nonblank; Chinese labels, controls, and table
   content render without clipping at their recorded dimensions.

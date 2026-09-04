@@ -259,7 +259,7 @@ class CourseHandlersTest {
         public edu.seu.vcampus.common.paging.PageResult<CourseView> searchCatalog(CourseCatalogQuery q){catalogQueries.add(q);return catalogResult;}
         public edu.seu.vcampus.common.paging.PageResult<AdjustmentAuditView> searchAdjustmentAudits(AdjustmentAuditQuery q){auditQueries.add(q);return auditResult;}
         public TermPhaseView getTermPhase(String id){phaseTermIds.add(id);return phaseResult;}
-        public StudentSelectionContextView getStudentSelectionContext(String token){return new StudentSelectionContextView("t","Fall","ACTIVE","p","ENROLLMENT","Fall selection",TIME,true,null);}
+        public StudentSelectionContextView getStudentSelectionContext(String token){return new StudentSelectionContextView("t","Fall","ACTIVE","p","ENROLLMENT","Fall selection","OPEN",TIME,true,null);}
         public edu.seu.vcampus.common.paging.PageResult<CourseSelectionView> searchStudentCourses(String token,CourseSelectionQuery query){return new edu.seu.vcampus.common.paging.PageResult<>(List.of(),0,20,0);}
         public CourseView createCourse(CreateCourseCommand c){return null;} public CourseView updateCourse(UpdateCourseCommand c){return null;}
         public OfferingView createOffering(CreateOfferingCommand c){return null;} public OfferingView updateOffering(UpdateOfferingCommand c){return null;}

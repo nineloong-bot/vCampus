@@ -56,7 +56,7 @@ class CourseClientServiceTest {
   assertThat(client.listSelectionPhases().join()).containsExactly(phase);assertThat(transport.command).isEqualTo("COURSE_SELECTION_PHASE_LIST");assertThat(transport.body).isSameAs(EmptyRequest.INSTANCE);assertThat(transport.timeout).isEqualTo(Duration.ofSeconds(10));
   CreateSelectionPhaseCommand create=new CreateSelectionPhaseCommand("term-1","ENROLLMENT","2026-2027秋季学期选课");
   transport.next=CompletableFuture.completedFuture(ResponseBody.success(phase));client.createSelectionPhase(create).join();assertThat(transport.command).isEqualTo("COURSE_SELECTION_PHASE_CREATE");assertThat(transport.body).isEqualTo(create);assertThat(transport.timeout).isEqualTo(Duration.ofSeconds(15));
-  StudentSelectionContextView context=new StudentSelectionContextView("term-1","秋季学期","ACTIVE","phase-1","ENROLLMENT",phase.displayTitle(),java.time.Instant.EPOCH,true,null);
+  StudentSelectionContextView context=new StudentSelectionContextView("term-1","秋季学期","ACTIVE","phase-1","ENROLLMENT",phase.displayTitle(),"OPEN",java.time.Instant.EPOCH,true,null);
   transport.next=CompletableFuture.completedFuture(ResponseBody.success(context));assertThat(client.getStudentSelectionContext().join()).isEqualTo(context);assertThat(transport.command).isEqualTo("COURSE_STUDENT_SELECTION_CONTEXT");assertThat(transport.body).isSameAs(EmptyRequest.INSTANCE);
   CourseSelectionQuery query=new CourseSelectionQuery("term-1","",null,0,20);
   transport.next=CompletableFuture.completedFuture(ResponseBody.success(new edu.seu.vcampus.common.paging.PageResult<CourseSelectionView>(List.of(),0,20,0)));client.searchStudentCourses(query).join();assertThat(transport.command).isEqualTo("COURSE_STUDENT_COURSE_SEARCH");assertThat(transport.body).isEqualTo(query);
