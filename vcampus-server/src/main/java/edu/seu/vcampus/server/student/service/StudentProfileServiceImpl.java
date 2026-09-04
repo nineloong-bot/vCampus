@@ -97,6 +97,12 @@ public final class StudentProfileServiceImpl implements StudentProfileService {
                             ? new DraftValues(formal.personal(), formal.academic().attendanceMode())
                             : new DraftValues(open.personal(), open.attendanceMode());
                     DraftValues changed = mutation.apply(current);
+                    if (personalChange) {
+                        List<StudentFieldError> errors = StudentFieldValidator.validatePersonal(
+                                changed.personal(), LocalDate.now(), formal.core().enrollmentDate());
+                        if (!errors.isEmpty()) throw new StudentProfileApplicationException(
+                                "STUDENT_PROFILE_FIELD_INVALID", errors.getFirst().message());
+                    }
                     Instant now = Instant.now();
                     if (open == null) {
                         if (expectedVersion != 0) throw new ConcurrentModificationException("Draft version changed");

@@ -101,6 +101,17 @@ class StudentProfileUiTest {
                 .hasMessageContaining("身高", "100", "280");
     }
 
+    @Test void personalEditorRejectsBirthDateThatWouldMakeStudentUnderageAtEnrollment() {
+        PersonalProfileEditPanel editor = new PersonalProfileEditPanel(
+                emptyPersonal(), LocalDate.of(2024, 9, 1));
+        find(editor, "student.profile.personal.birthDate", JTextField.class)
+                .setText("2007-09-02");
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(editor::value)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("入学时必须已年满 18 周岁");
+    }
+
     private static StudentPersonalProfile emptyPersonal() {
         return new StudentPersonalProfile(null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null, null, null,

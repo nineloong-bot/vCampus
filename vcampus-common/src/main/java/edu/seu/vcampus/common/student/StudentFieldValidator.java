@@ -68,6 +68,11 @@ public final class StudentFieldValidator {
     }
 
     public static List<StudentFieldError> validatePersonal(StudentPersonalProfile value, LocalDate today) {
+        return validatePersonal(value, today, null);
+    }
+
+    public static List<StudentFieldError> validatePersonal(StudentPersonalProfile value, LocalDate today,
+            LocalDate enrollmentDate) {
         ArrayList<StudentFieldError> errors = new ArrayList<>();
         if (value == null) {
             errors.add(new StudentFieldError("personal", "个人信息不能为空"));
@@ -76,6 +81,10 @@ public final class StudentFieldValidator {
         validateDocument(errors, value.idDocumentType(), value.idDocumentNumber(), value.birthDate(), false);
         validateNotFuture(errors, "idIssuedDate", value.idIssuedDate(), today, "证件签发日期");
         validateNotFuture(errors, "birthDate", value.birthDate(), today, "出生日期");
+        if (value.birthDate() != null && enrollmentDate != null
+                && enrollmentDate.isBefore(value.birthDate().plusYears(18))) {
+            errors.add(new StudentFieldError("birthDate", "出生日期与入学日期不符：入学时必须已年满 18 周岁"));
+        }
         validateNotFuture(errors, "leagueJoinDate", value.leagueJoinDate(), today, "入团日期");
         validateNotFuture(errors, "partyJoinDate", value.partyJoinDate(), today, "入党日期");
         if (value.leagueMember() && value.leagueJoinDate() == null) {

@@ -194,7 +194,8 @@ public final class MyStudentProfilePanel extends JPanel {
         boolean draft = app != null && app.status() == StudentProfileApplicationStatus.DRAFT;
         StudentPersonalProfile initial = draft ? app.personal() : workspace.formalProfile().personal();
         long expected = draft ? app.applicationVersion() : 0;
-        new PersonalProfileEditDialog(SwingUtilities.getWindowAncestor(this), students, initial, expected, this::render).setVisible(true);
+        new PersonalProfileEditDialog(SwingUtilities.getWindowAncestor(this), students, initial,
+                workspace.formalProfile().core().enrollmentDate(), expected, this::render).setVisible(true);
     }
     private void editAttendance() {
         if (pendingApplication()) { promptWithdrawBeforeEditing(); return; }

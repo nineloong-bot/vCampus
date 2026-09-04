@@ -5,18 +5,23 @@ import edu.seu.vcampus.client.core.network.ConnectionState;
 import edu.seu.vcampus.client.core.ui.MainFrame;
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.client.student.service.StudentRequestClient;
+import edu.seu.vcampus.client.student.ui.ManualStudentCreationDialog;
+import edu.seu.vcampus.client.student.ui.OrganizationManagementPanel;
 import edu.seu.vcampus.client.student.ui.UpdateContactDialog;
 import edu.seu.vcampus.common.protocol.ResponseBody;
-import edu.seu.vcampus.common.student.StudentStatus;
-import edu.seu.vcampus.common.student.StudentType;
-import edu.seu.vcampus.common.student.StudentView;
+import edu.seu.vcampus.common.student.*;
 import edu.seu.vcampus.common.user.UserRole;
 import edu.seu.vcampus.common.user.UserView;
 
 import javax.imageio.ImageIO;
 import javax.swing.SwingUtilities;
+import javax.swing.JButton;
+import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JTree;
 import javax.swing.JTextField;
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.TreePath;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.GraphicsEnvironment;
@@ -34,12 +39,14 @@ import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.ArrayList;
 
 /**
  * Conditional, display-backed visual-QA entry point. Run with a desktop display:
@@ -65,7 +72,7 @@ public final class StudentVisualQaHarness {
             @SuppressWarnings("unchecked")
             public <T extends Serializable> CompletableFuture<ResponseBody<T>> send(
                     String command, Serializable body, Duration timeout) {
-                return CompletableFuture.completedFuture((ResponseBody<T>) ResponseBody.success(profile));
+                return CompletableFuture.completedFuture((ResponseBody<T>) ResponseBody.success(workspace(profile)));
             }
         }, Duration.ofSeconds(1));
         ClientConnection connection = new ClientConnection("localhost", 1);
@@ -120,11 +127,100 @@ public final class StudentVisualQaHarness {
             } finally {
                 onEdt(dialog::dispose);
             }
+            renderOrganizationAndManualStudent(output);
         } finally {
             MainFrame frame = frameReference.get();
             if (frame != null) onEdt(frame::dispose);
             connection.close();
         }
+    }
+
+    private static void renderOrganizationAndManualStudent(Path output) throws Exception {
+        DepartmentView department = new DepartmentView("dept-1", "CS", "计算机科学与工程学院", true, 1);
+        MajorView major = new MajorView("major-1", department.departmentId(), "090", "计算机科学与技术", true, 1);
+        ClassView studentClass = new ClassView("class-1", major.majorId(), "090-2024-01", "计算机科学与技术2401班",
+                2024, 1, true, 1);
+        StudentClientService students = new StudentClientService(new StudentRequestClient() {
+            @Override @SuppressWarnings("unchecked") public <T extends Serializable> CompletableFuture<ResponseBody<T>> send(
+                    String command, Serializable body, Duration timeout) {
+                Serializable data = switch (command) {
+                    case "STUDENT_LIST_DEPARTMENTS" -> new ArrayList<>(java.util.List.of(department));
+                    case "STUDENT_LIST_MAJORS" -> new ArrayList<>(java.util.List.of(major));
+                    case "STUDENT_LIST_CLASSES" -> new ArrayList<>(java.util.List.of(studentClass));
+                    default -> throw new IllegalArgumentException("Unexpected visual-QA command: " + command);
+                };
+                return CompletableFuture.completedFuture((ResponseBody<T>) ResponseBody.success(data));
+            }
+        }, Duration.ofSeconds(1));
+        ClientConnection connection = new ClientConnection("localhost", 1);
+        connected(connection);
+        AtomicReference<JFrame> frameReference = new AtomicReference<>();
+        AtomicReference<OrganizationManagementPanel> panelReference = new AtomicReference<>();
+        try {
+            onEdt(() -> {
+                JFrame frame = new JFrame("组织管理视觉检查");
+                OrganizationManagementPanel panel = new OrganizationManagementPanel(students, connection);
+                frame.setContentPane(panel);
+                frame.setSize(1280, 800);
+                frame.setVisible(true);
+                frame.validate();
+                frameReference.set(frame);
+                panelReference.set(panel);
+            });
+            awaitTree(panelReference.get());
+            JFrame frame = frameReference.get();
+            OrganizationManagementPanel panel = panelReference.get();
+            JTree tree = component(panel, "student.org.tree", JTree.class);
+            DefaultMutableTreeNode root = (DefaultMutableTreeNode) tree.getModel().getRoot();
+            DefaultMutableTreeNode departmentNode = (DefaultMutableTreeNode) root.getChildAt(0);
+            DefaultMutableTreeNode majorNode = (DefaultMutableTreeNode) departmentNode.getChildAt(0);
+            DefaultMutableTreeNode classNode = (DefaultMutableTreeNode) majorNode.getChildAt(0);
+            onEdt(() -> {
+                tree.clearSelection();
+                paint(frame, new Dimension(1280, 800), output.resolve("organization-root-1280x800.png"));
+                tree.setSelectionPath(new TreePath(departmentNode.getPath()));
+                paint(frame, new Dimension(1280, 800), output.resolve("organization-department-1280x800.png"));
+                tree.setSelectionPath(new TreePath(majorNode.getPath()));
+                paint(frame, new Dimension(1280, 800), output.resolve("organization-major-1280x800.png"));
+                tree.setSelectionPath(new TreePath(classNode.getPath()));
+                paint(frame, new Dimension(1280, 800), output.resolve("organization-class-1280x800.png"));
+            });
+
+            AtomicReference<ManualStudentCreationDialog> dialogReference = new AtomicReference<>();
+            onEdt(() -> {
+                ManualStudentCreationDialog dialog = new ManualStudentCreationDialog(frame, students,
+                        department, major, studentClass);
+                dialog.setModalityType(java.awt.Dialog.ModalityType.MODELESS);
+                dialog.setVisible(true);
+                dialog.validate();
+                dialogReference.set(dialog);
+                paint(dialog, new Dimension(700, 680), output.resolve("manual-student-700x680.png"));
+                component(dialog, "student.manual.submit", JButton.class).doClick();
+                paint(dialog, new Dimension(700, 680), output.resolve("manual-student-invalid-700x680.png"));
+            });
+            onEdt(dialogReference.get()::dispose);
+        } finally {
+            JFrame frame = frameReference.get();
+            if (frame != null) onEdt(frame::dispose);
+            connection.close();
+        }
+    }
+
+    private static void awaitTree(OrganizationManagementPanel panel) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < deadline) {
+            AtomicReference<Boolean> loaded = new AtomicReference<>(false);
+            onEdt(() -> {
+                JTree tree = component(panel, "student.org.tree", JTree.class);
+                DefaultMutableTreeNode root = (DefaultMutableTreeNode) tree.getModel().getRoot();
+                loaded.set(root.getChildCount() == 1
+                        && ((DefaultMutableTreeNode) ((DefaultMutableTreeNode) root.getChildAt(0)).getChildAt(0))
+                        .getChildCount() == 1);
+            });
+            if (loaded.get()) return;
+            Thread.sleep(10);
+        }
+        throw new IllegalStateException("Timed out waiting for organization tree render");
     }
 
     private static void paint(Window window, Dimension size, Path target) {
@@ -221,6 +317,21 @@ public final class StudentVisualQaHarness {
                 StudentType.UNDERGRADUATE, "张三", "MALE", "zhangsan@seu.edu.cn",
                 "13800000000", "major-1", "class-1", LocalDate.of(2024, 9, 1),
                 StudentStatus.ACTIVE, 1, "计算机学院", "软件工程", "计科2401");
+    }
+
+    private static StudentProfileWorkspace workspace(StudentView core) {
+        StudentPersonalProfile personal = new StudentPersonalProfile("ZHANG SAN", null, "共青团员", "汉族",
+                "未婚", "居民身份证", "320101200501010011", null, LocalDate.of(2005, 1, 1), "江苏省",
+                "中国", "南京市", "南京市", "非农业家庭户口", "南京市", "南京市", "否", "无宗教信仰",
+                true, LocalDate.of(2020, 12, 12), false, null, "健康或良好", "A", 58, 172, "魔方", "乒乓球",
+                false, core.email(), core.phone());
+        StudentAcademicProfile academic = new StudentAcademicProfile("本科生", true, true, "正常", "九龙湖校区",
+                "2024", core.departmentName(), core.majorName(), core.className(), "本科", "非定向", 4,
+                AttendanceMode.RESIDENT, null, null, LocalDate.of(2028, 7, 30), null, null, null, "张航", null);
+        StudentProfileApplicationView application = new StudentProfileApplicationView("app-1", core.studentId(),
+                StudentProfileApplicationStatus.PENDING, personal, AttendanceMode.DAY_STUDENT, core.rowVersion(), 2,
+                Instant.now(), null, null, null, Instant.now(), Instant.now());
+        return new StudentProfileWorkspace(new StudentProfileData(core, personal, academic), application);
     }
 
     private static void connected(ClientConnection connection) {

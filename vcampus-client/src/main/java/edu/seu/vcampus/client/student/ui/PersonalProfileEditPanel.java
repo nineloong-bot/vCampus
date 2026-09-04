@@ -24,7 +24,7 @@ public final class PersonalProfileEditPanel extends JPanel {
             Map.entry("idDocumentType", "选择证件类型，例：居民身份证"),
             Map.entry("idDocumentNumber", "居民身份证填 18 位号码，例：11010519491231002X"),
             Map.entry("idIssuedDate", "日期格式 yyyy-MM-dd，例：2020-08-18，不能晚于今天"),
-            Map.entry("birthDate", "日期格式 yyyy-MM-dd，例：2005-12-03，不能晚于今天"),
+            Map.entry("birthDate", "日期格式 yyyy-MM-dd，例：2005-12-03；入学时须已年满 18 周岁"),
             Map.entry("nativePlace", "填写省市，例：江苏省南京市"),
             Map.entry("countryRegion", "填写国家或地区，例：中国"),
             Map.entry("birthplace", "填写省市县，例：江苏省南京市"),
@@ -55,10 +55,16 @@ public final class PersonalProfileEditPanel extends JPanel {
     private static final String[] ETHNICITIES = {"", "汉族", "壮族", "回族", "满族", "维吾尔族", "苗族", "彝族", "土家族", "藏族", "蒙古族", "侗族", "布依族", "瑶族", "白族", "朝鲜族", "哈尼族", "黎族", "哈萨克族", "傣族", "畲族", "拉祜族", "水族", "东乡族", "纳西族", "景颇族", "柯尔克孜族", "土族", "达斡尔族", "仫佬族", "羌族", "布朗族", "撒拉族", "毛南族", "仡佬族", "锡伯族", "阿昌族", "普米族", "塔吉克族", "怒族", "乌孜别克族", "俄罗斯族", "鄂温克族", "德昂族", "保安族", "裕固族", "京族", "塔塔尔族", "独龙族", "鄂伦春族", "赫哲族", "门巴族", "珞巴族", "基诺族", "高山族", "其他"};
 
     private final Map<String, JComponent> fields = new LinkedHashMap<>();
+    private final LocalDate enrollmentDate;
     private final JCheckBox league = check("是否团员"), party = check("是否党员"), onlyChild = check("是否独生子女");
 
     public PersonalProfileEditPanel(StudentPersonalProfile value) {
+        this(value, null);
+    }
+
+    public PersonalProfileEditPanel(StudentPersonalProfile value, LocalDate enrollmentDate) {
         super(new GridBagLayout());
+        this.enrollmentDate = enrollmentDate;
         setBackground(UiColors.BACKGROUND_PAGE);
         setBorder(BorderFactory.createEmptyBorder(UiSpacing.SPACE_4, UiSpacing.SPACE_4,
                 UiSpacing.SPACE_4, UiSpacing.SPACE_4));
@@ -130,7 +136,8 @@ public final class PersonalProfileEditPanel extends JPanel {
                     party.isSelected(), party.isSelected() ? date("partyJoinDate") : null,
                     text("healthStatus"), text("bloodType"), integer("weightKg"), integer("heightCm"),
                     text("specialties"), text("hobbies"), onlyChild.isSelected(), text("email"), text("phone"));
-            List<StudentFieldError> errors = StudentFieldValidator.validatePersonal(value, LocalDate.now());
+            List<StudentFieldError> errors = StudentFieldValidator.validatePersonal(
+                    value, LocalDate.now(), enrollmentDate);
             if (!errors.isEmpty()) throw new IllegalArgumentException(errors.getFirst().message());
             return value;
         } catch (DateTimeParseException | NumberFormatException error) {

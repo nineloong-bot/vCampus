@@ -69,6 +69,20 @@ class StudentFieldValidatorTest {
                 .contains("idDocumentNumber", "idIssuedDate", "birthDate");
     }
 
+    @Test
+    void rejectsEditedBirthDateWhenStudentWasNotEighteenAtEnrollment() {
+        var personal = new StudentPersonalProfile(
+                null, null, null, null, null, null, null, null,
+                LocalDate.of(2007, 9, 2), null, null, null, null, null, null, null,
+                null, null, false, null, false, null, null, null, null, null, null,
+                null, false, null, null);
+
+        assertThat(StudentFieldValidator.validatePersonal(
+                personal, TODAY, LocalDate.of(2024, 9, 1)))
+                .extracting(StudentFieldError::field)
+                .contains("birthDate");
+    }
+
     private static StudentPersonalProfile personal(
             String email, String phone, Integer weight, Integer height,
             boolean leagueMember, LocalDate leagueDate,

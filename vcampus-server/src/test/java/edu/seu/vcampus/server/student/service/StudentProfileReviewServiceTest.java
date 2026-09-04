@@ -116,6 +116,20 @@ class StudentProfileReviewServiceTest {
     }
 
     @Test
+    void personalDraftRejectsBirthDateThatWouldMakeStudentUnderageAtEnrollment() throws Exception {
+        var invalid = new StudentPersonalProfile(null, null, null, null, null, null, null,
+                null, java.time.LocalDate.of(2007, 9, 2), null, null, null, null, null, null,
+                null, null, null, false, null, false, null, null, null, null, null, null,
+                null, false, null, null);
+
+        assertThatThrownBy(() -> service.savePersonalDraft("user-1",
+                new SaveStudentPersonalDraftCommand(invalid, 0)))
+                .isInstanceOf(StudentProfileApplicationException.class)
+                .hasMessageContaining("入学时必须已年满 18 周岁");
+        assertThat(database.count("tblStudentProfileApplication")).isZero();
+    }
+
+    @Test
     void withdrawalReturnsPendingSnapshotToEditableDraftWithoutLosingChanges() {
         var draft = service.saveAttendanceDraft("user-1",
                 new SaveStudentAttendanceDraftCommand(AttendanceMode.DAY_STUDENT, 0));
