@@ -74,9 +74,10 @@ public final class InitialPasswordChangeDialog extends JDialog {
         JLabel explanation = new JLabel("为保护账户安全，请修改初始密码后重新登录。");
         explanation.setForeground(UiColors.TEXT_SECONDARY);
         panel.add(explanation, c);
-        addField(panel, c, "旧密码", oldPassword, 2);
-        addField(panel, c, "新密码", newPassword, 3);
-        addField(panel, c, "确认密码", confirmPassword, 4);
+        addField(panel, c, "旧密码", new PasswordFieldWithVisibilityToggle(oldPassword), 2);
+        addField(panel, c, "新密码", new PasswordFieldWithVisibilityToggle(newPassword), 3);
+        addField(panel, c, "确认密码",
+                new PasswordFieldWithVisibilityToggle(confirmPassword), 4);
         c.gridy = 5;
         c.gridx = 0;
         c.gridwidth = 1;
@@ -98,7 +99,7 @@ public final class InitialPasswordChangeDialog extends JDialog {
     }
 
     private static void addField(JPanel panel, GridBagConstraints c, String label,
-                                 JPasswordField field, int row) {
+                                 java.awt.Component field, int row) {
         c.gridy = row;
         c.gridx = 0;
         c.gridwidth = 1;
