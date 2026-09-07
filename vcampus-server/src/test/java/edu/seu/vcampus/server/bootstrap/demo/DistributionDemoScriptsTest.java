@@ -34,13 +34,17 @@ class DistributionDemoScriptsTest {
 
     @Test
     void windowsServerLauncherKeepsDoubleClickFailuresVisible() throws Exception {
-        String script = Files.readString(distributionRoot().resolve("scripts/start-server-with-data.bat"));
+        byte[] content = Files.readAllBytes(
+                distributionRoot().resolve("scripts/start-server-with-data.bat"));
+        String script = new String(content, java.nio.charset.StandardCharsets.UTF_8);
 
         assertThat(script)
-                .contains("where java", "chcp 65001", "lib\\vCampusServer.jar",
+                .contains("where java", "lib\\vCampusServer.jar",
                         "config\\server-with-data.properties", "if errorlevel 1",
                         "VCAMPUS_DISTRIBUTION_NO_PAUSE", "pause")
-                .contains("cd /d \"%~dp0..\"");
+                .contains("cd /d \"%~dp0..\"")
+                .doesNotContainPattern("(?<!\\r)\\n");
+        assertThat(script.chars().allMatch(character -> character < 128)).isTrue();
     }
 
     @Test

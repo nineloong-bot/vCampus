@@ -65,9 +65,9 @@ public final class ChangePasswordDialog extends JDialog {
         JLabel title = new JLabel("修改密码");
         title.setFont(UiTypography.PAGE_TITLE);
         panel.add(title, c);
-        addField(panel, c, "旧密码", oldPassword, 1);
-        addField(panel, c, "新密码", newPassword, 2);
-        addField(panel, c, "确认密码", confirm, 3);
+        addField(panel, c, "旧密码", new PasswordFieldWithVisibilityToggle(oldPassword), 1);
+        addField(panel, c, "新密码", new PasswordFieldWithVisibilityToggle(newPassword), 2);
+        addField(panel, c, "确认密码", new PasswordFieldWithVisibilityToggle(confirm), 3);
         c.gridy = 4;
         c.insets = new Insets(UiSpacing.SPACE_4, 0, UiSpacing.SPACE_3, 0);
         submit.setBackground(UiColors.ACCENT);
@@ -129,7 +129,7 @@ public final class ChangePasswordDialog extends JDialog {
         error.setText(" ");
     }
     private static void addField(JPanel panel, GridBagConstraints c, String label,
-                                 JPasswordField field, int row) {
+                                 java.awt.Component field, int row) {
         c.gridy = row;
         c.insets = new Insets(UiSpacing.SPACE_3, 0, 0, 0);
         JPanel line = new JPanel(new java.awt.BorderLayout(UiSpacing.SPACE_3, 0));

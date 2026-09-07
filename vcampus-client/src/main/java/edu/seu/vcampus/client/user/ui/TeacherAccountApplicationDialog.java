@@ -57,8 +57,8 @@ public final class TeacherAccountApplicationDialog extends JDialog {
         title.setFont(UiTypography.PAGE_TITLE);
         panel.add(title, c);
         add(panel, c, "登录标识", loginId, 1);
-        add(panel, c, "密码", password, 2);
-        add(panel, c, "确认密码", confirm, 3);
+        add(panel, c, "密码", new PasswordFieldWithVisibilityToggle(password), 2);
+        add(panel, c, "确认密码", new PasswordFieldWithVisibilityToggle(confirm), 3);
         c.gridy = 4;
         c.insets = new Insets(UiSpacing.SPACE_4, 0, UiSpacing.SPACE_3, 0);
         submit.setBackground(UiColors.ACCENT);

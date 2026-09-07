@@ -11,3 +11,10 @@ vcampus-distribution/logs/
 **/docs/uml/
 /vCampus-release/
 /docs/student-class-diagram.md
+
+# Local test packages, runtime logs, and temporary design previews
+/artifacts/
+/logs/
+/.superpowers/brainstorm/
+**/__pycache__/
+*.laccdb

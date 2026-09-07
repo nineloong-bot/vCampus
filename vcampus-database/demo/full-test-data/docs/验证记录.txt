@@ -1,0 +1,63 @@
+﻿全模块批量测试数据验证
+SQL 导入：14797 条语句提交成功。
+数据库与密码校验：
+tblUser=1051
+tblDepartment=5
+tblMajor=10
+tblClass=20
+tblStudent=1000
+tblTerm=2
+tblCourseSelectionPhase=2
+tblCourse=120
+tblCourseOffering=240
+tblCourseSchedule=240
+tblEnrollment=2720
+tblCourseAttempt=100
+tblEnrollmentAdjustment=20
+tblBook=500
+tblBookCopy=2000
+tblBookLoan=420
+tblSellerApplication=45
+tblShop=30
+tblProduct=600
+tblProductSku=1200
+tblCart=300
+tblCartItem=600
+tblOrderGroup=600
+tblOrder=600
+tblOrderItem=600
+tblPayment=600
+tblPaymentAttempt=550
+tblInventoryReservation=600
+Password verified accounts=1057
+PASS checks=5178
+真实服务验证（使用独立副本）：
+PASS startup preserves sequence 1000
+PASS login TESTADMIN
+PASS course terms TESTADMIN
+PASS library catalog TESTADMIN
+PASS shop catalog TESTADMIN
+PASS login TESTTEACHER001
+PASS course terms TESTTEACHER001
+PASS library catalog TESTTEACHER001
+PASS shop catalog TESTTEACHER001
+PASS login 213260001
+PASS course terms 213260001
+PASS library catalog 213260001
+PASS shop catalog 213260001
+PASS seller owns shop
+PASS student active enrollment records
+PASS student dropped history
+PASS new course enrollment
+PASS borrow and return
+PASS login 213260101
+PASS course terms 213260101
+PASS library catalog 213260101
+PASS shop catalog 213260101
+PASS buyer cart
+PASS buyer order history
+PASS pending order payment
+PASS login 213260991
+PASS first password change
+PASS restart preserves advanced sequence
+SMOKE PASSED

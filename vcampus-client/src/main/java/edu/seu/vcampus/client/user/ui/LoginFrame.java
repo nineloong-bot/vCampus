@@ -110,7 +110,7 @@ public final class LoginFrame extends JFrame {
         heading.setFont(UiTypography.PAGE_TITLE);
         panel.add(heading, c);
         addField(panel, c, "登录标识", loginId, 1);
-        addField(panel, c, "密码", password, 2);
+        addField(panel, c, "密码", new PasswordFieldWithVisibilityToggle(password), 2);
         c.gridy = 3;
         c.gridwidth = 2;
         c.insets = new Insets(UiSpacing.SPACE_2, 0, UiSpacing.SPACE_2, 0);
