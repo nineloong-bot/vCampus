@@ -4,6 +4,7 @@ import edu.seu.vcampus.common.library.AdminLoanSearchQuery;
 import edu.seu.vcampus.common.library.LoanHistoryQuery;
 import edu.seu.vcampus.common.library.LoanStatus;
 import edu.seu.vcampus.common.library.LoanView;
+import edu.seu.vcampus.common.library.ReturnCondition;
 import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.server.library.domain.Loan;
 
@@ -60,7 +61,8 @@ public final class AccessLoanRepository implements LoanRepository {
     @Override
     public Loan insert(Connection connection, Loan loan) throws SQLException {
         String sql = "INSERT INTO tblBookLoan (loanId, copyId, borrowerUserId, borrowedAt, dueAt, "
-                + "returnedAt, renewCount, loanStatus, rowVersion) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                + "returnedAt, renewCount, loanStatus, rowVersion, borrowerRoleCode, overdueFine, damageFine, returnCondition) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (var statement = connection.prepareStatement(sql)) {
             bindLoan(statement, loan);
             statement.executeUpdate();
@@ -82,7 +84,9 @@ public final class AccessLoanRepository implements LoanRepository {
                         result.getString("borrowerUserId"), result.getTimestamp("borrowedAt").toInstant(),
                         result.getTimestamp("dueAt").toInstant(),
                         returnedAt == null ? null : returnedAt.toInstant(), result.getInt("renewCount"),
-                        LoanStatus.valueOf(result.getString("loanStatus")), result.getLong("rowVersion"));
+                        LoanStatus.valueOf(result.getString("loanStatus")), result.getLong("rowVersion"),
+                        result.getString("borrowerRoleCode"), result.getBigDecimal("overdueFine"),
+                        result.getBigDecimal("damageFine"), ReturnCondition.valueOf(result.getString("returnCondition")));
             }
         }
     }
@@ -90,7 +94,8 @@ public final class AccessLoanRepository implements LoanRepository {
     @Override
     public void update(Connection connection, Loan loan, long expectedVersion) throws SQLException {
         String sql = "UPDATE tblBookLoan SET copyId = ?, borrowerUserId = ?, borrowedAt = ?, "
-                + "dueAt = ?, returnedAt = ?, renewCount = ?, loanStatus = ?, rowVersion = rowVersion + 1 "
+                + "dueAt = ?, returnedAt = ?, renewCount = ?, loanStatus = ?, borrowerRoleCode = ?, "
+                + "overdueFine = ?, damageFine = ?, returnCondition = ?, rowVersion = rowVersion + 1 "
                 + "WHERE loanId = ? AND rowVersion = ?";
         try (var statement = connection.prepareStatement(sql)) {
             statement.setString(1, loan.copyId());
@@ -100,8 +105,11 @@ public final class AccessLoanRepository implements LoanRepository {
             setNullableTimestamp(statement, 5, loan.returnedAt());
             statement.setInt(6, loan.renewCount());
             statement.setString(7, loan.status().name());
-            statement.setString(8, loan.loanId());
-            statement.setLong(9, expectedVersion);
+            statement.setString(8, loan.borrowerRoleCode());
+            statement.setBigDecimal(9, loan.overdueFine()); statement.setBigDecimal(10, loan.damageFine());
+            statement.setString(11, loan.returnCondition().name());
+            statement.setString(12, loan.loanId());
+            statement.setLong(13, expectedVersion);
             if (statement.executeUpdate() != 1) {
                 throw new ConcurrentModificationException("Loan changed: " + loan.loanId());
             }
@@ -146,6 +154,9 @@ public final class AccessLoanRepository implements LoanRepository {
         statement.setInt(7, loan.renewCount());
         statement.setString(8, loan.status().name());
         statement.setLong(9, loan.rowVersion());
+        statement.setString(10, loan.borrowerRoleCode());
+        statement.setBigDecimal(11, loan.overdueFine()); statement.setBigDecimal(12, loan.damageFine());
+        statement.setString(13, loan.returnCondition().name());
     }
 
     private static void setNullableTimestamp(java.sql.PreparedStatement statement, int index,

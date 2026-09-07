@@ -13,7 +13,6 @@ import org.junit.jupiter.api.Test;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.MouseEvent;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -26,6 +25,78 @@ class BookManagementWorkflowTest {
     private final LibraryClientService service = mock(LibraryClientService.class);
     private final BookSummary book = new BookSummary("book-1", "9787300000001", "Java", "Author", "CS", 0, 0);
     private final BookCopyView copy = new BookCopyView("copy-1", "book-1", "BC-2", "A-02", CopyStatus.AVAILABLE, 0);
+
+    @Test
+    void addDialogKeepsItsBookWhenAsyncSelectionChangesDuringConfirmation() throws Exception {
+        BookSummary other = new BookSummary("book-2", "9782", "数据库", "作者", "CS", 0, 0);
+        when(service.getBook(any())).thenReturn(CompletableFuture.completedFuture(
+                new BookDetail("book-1", book.isbn(), "Java", "Author", "Press", LocalDate.of(2026, 1, 1),
+                        "CS", "", true, 0, List.of())));
+        CompletableFuture<BookCopyView> added = new CompletableFuture<>();
+        when(service.addCopy(any())).thenReturn(added);
+        CopyManagementPanel panel = new CopyManagementPanel(service, book);
+        SwingUtilities.invokeAndWait(() -> {
+            try (var dialogs = mockStatic(JOptionPane.class)) {
+                dialogs.when(() -> JOptionPane.showConfirmDialog(any(), any(), anyString(), anyInt(), anyInt()))
+                        .thenAnswer(call -> {
+                            fill((Container) call.getArgument(1), "BC-2", "A-02");
+                            panel.selectBook(other);
+                            return JOptionPane.OK_OPTION;
+                        });
+                button(panel, "新增副本").doClick();
+            }
+        });
+        verify(service).addCopy(new AddBookCopyCommand("book-1", "BC-2", "A-02"));
+    }
+
+    @Test
+    void failedMutationStillLoadsNewlySelectedBooksCopies() throws Exception {
+        BookSummary other = new BookSummary("book-2", "9782", "数据库", "作者", "CS", 1, 1);
+        when(service.getBook("book-2")).thenReturn(CompletableFuture.completedFuture(
+                new BookDetail("book-2", "9782", "数据库", "作者", "出版社", LocalDate.of(2026, 1, 1),
+                        "CS", "", true, 0, List.of(new BookCopyView("copy-2", "book-2", "DB-002", "B-02", CopyStatus.AVAILABLE, 0)))));
+        CompletableFuture<BookCopyView> added = new CompletableFuture<>();
+        when(service.addCopy(any())).thenReturn(added);
+        CopyManagementPanel panel = new CopyManagementPanel(service, book);
+        SwingUtilities.invokeAndWait(() -> {
+            panel.add(new AddBookCopyCommand("book-1", "BC-2", "A-02"));
+            panel.selectBook(other);
+            added.completeExceptionally(new IllegalArgumentException("duplicate barcode"));
+        });
+        SwingUtilities.invokeAndWait(() -> { }); SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> {
+            assertThat(first(panel, JTable.class).getRowCount()).isEqualTo(1);
+            assertThat(first(panel, JTable.class).getValueAt(0, 0)).isEqualTo("DB-002");
+        });
+    }
+
+    @Test
+    void changingSelectedBookIgnoresLateCopyResponseAndRefreshKeepsSelection() throws Exception {
+        BookSummary other = new BookSummary("book-2", "9782", "数据库", "作者", "CS", 1, 1);
+        when(service.searchManagedBooks(any())).thenReturn(CompletableFuture.completedFuture(
+                new PageResult<>(List.of(book, other), 1, 100, 2)));
+        CompletableFuture<BookDetail> late = new CompletableFuture<>();
+        when(service.getBook("book-1")).thenReturn(late);
+        when(service.getBook("book-2")).thenReturn(CompletableFuture.completedFuture(
+                new BookDetail("book-2", "9782", "数据库", "作者", "出版社", LocalDate.of(2026, 1, 1),
+                        "CS", "", true, 0, List.of(new BookCopyView("copy-2", "book-2", "DB-002", "B-02", CopyStatus.AVAILABLE, 0)))));
+        LibraryWorkspacePanel workspace = new LibraryWorkspacePanel(service, java.util.Set.of("LIBRARY_ADMIN"));
+        BookManagementPanel books = first(workspace, BookManagementPanel.class);
+        SwingUtilities.invokeAndWait(books::refresh); SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> first(books, JTable.class).setRowSelectionInterval(1, 1));
+        SwingUtilities.invokeAndWait(() -> { });
+        late.complete(new BookDetail("book-1", book.isbn(), "Java", "作者", "出版社", LocalDate.of(2026, 1, 1),
+                "CS", "", true, 0, List.of(copy)));
+        SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> assertThat(first(first(workspace, CopyManagementPanel.class), JTable.class)
+                .getValueAt(0, 0)).isEqualTo("DB-002"));
+        SwingUtilities.invokeAndWait(books::refresh); SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> {
+            assertThat(first(books, JTable.class).getSelectedRow()).isEqualTo(1);
+            assertThat(first(first(workspace, CopyManagementPanel.class), JTable.class).getValueAt(0, 0)).isEqualTo("DB-002");
+        });
+    }
 
     @Test
     void borrowingRefreshesCatalogSelectedDetailAndCurrentLoans() throws Exception {
@@ -83,6 +154,8 @@ class BookManagementWorkflowTest {
             created.complete(new BookView("book-1", book.isbn(), "Java", "Author", "Press", LocalDate.of(2026, 1, 1),
                     "CS", "", true, 0));
         });
+        SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> { });
         SwingUtilities.invokeAndWait(() -> { });
         SwingUtilities.invokeAndWait(() -> {
             assertThat(first(first(workspace, BookManagementPanel.class), JTable.class).getRowCount()).isEqualTo(1);
@@ -203,7 +276,7 @@ class BookManagementWorkflowTest {
     }
 
     @Test
-    void doubleClickOpensCopiesOfClickedBookAndAddsWithoutTypingIsbn() throws Exception {
+    void selectedBookAddsCopyInRightPaneWithoutTypingIsbn() throws Exception {
         when(service.searchManagedBooks(any())).thenReturn(CompletableFuture.completedFuture(
                 new PageResult<>(List.of(book), 1, 100, 1)));
         when(service.getBook("book-1")).thenReturn(CompletableFuture.completedFuture(
@@ -211,24 +284,19 @@ class BookManagementWorkflowTest {
                         "CS", "", true, 0, List.of())));
         when(service.addCopy(any())).thenReturn(CompletableFuture.completedFuture(copy));
         BookManagementPanel panel = new BookManagementPanel(service);
+        CopyManagementPanel copies = new CopyManagementPanel(service);
+        panel.connectCopies(copies);
         SwingUtilities.invokeAndWait(panel::refresh);
+        SwingUtilities.invokeAndWait(() -> { });
         SwingUtilities.invokeAndWait(() -> { });
         SwingUtilities.invokeAndWait(() -> {
             try (var dialogs = mockStatic(JOptionPane.class)) {
-                dialogs.when(() -> JOptionPane.showMessageDialog(any(), any(), anyString(), anyInt()))
-                        .thenAnswer(call -> {
-                            Container content = call.getArgument(1);
-                            button(content, "新增副本").doClick();
-                            return null;
-                        });
                 dialogs.when(() -> JOptionPane.showConfirmDialog(any(), any(), anyString(), anyInt(), anyInt()))
                         .thenAnswer(call -> {
                             fill((Container) call.getArgument(1), "BC-2", "A-02");
                             return JOptionPane.OK_OPTION;
                         });
-                JTable table = first(panel, JTable.class);
-                MouseEvent click = new MouseEvent(table, MouseEvent.MOUSE_CLICKED, 0, 0, 4, 4, 2, false, MouseEvent.BUTTON1);
-                for (var listener : table.getMouseListeners()) listener.mouseClicked(click);
+                button(copies, "新增副本").doClick();
             }
         });
         SwingUtilities.invokeAndWait(() -> { });

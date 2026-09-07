@@ -30,15 +30,16 @@ public final class LibraryPolicyPanel extends JPanel {
 
         JPanel header = new JPanel(new GridLayout(0, 1, 0, 4));
         header.setOpaque(false);
-        JLabel title = new JLabel("图书管理设置"); title.setFont(title.getFont().deriveFont(Font.BOLD, 22f));
-        header.add(title); header.add(new JLabel("固定展示两类身份的全部借阅配置，保存时互不影响。"));
+        JLabel title = new JLabel("借阅策略设置"); title.setFont(title.getFont().deriveFont(Font.BOLD, 22f));
+        header.add(title); header.add(new JLabel("按身份设置借阅期限和罚金。金额单位：元；设置为 0 表示该项不罚款。"));
         add(header, BorderLayout.NORTH);
 
         JPanel content = new JPanel(); content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
         content.setOpaque(false);
-        content.add(columnHeader()); content.add(student.panel()); content.add(Box.createVerticalStrut(8));
+        content.add(student.panel()); content.add(Box.createVerticalStrut(8));
         content.add(teacher.panel()); content.add(Box.createVerticalStrut(18)); content.add(statusPanel());
-        add(content, BorderLayout.CENTER);
+        JScrollPane scroll = new JScrollPane(content); scroll.setBorder(BorderFactory.createEmptyBorder());
+        scroll.getVerticalScrollBar().setUnitIncrement(20); add(scroll, BorderLayout.CENTER);
         add(message, BorderLayout.SOUTH);
         LibraryUiStyle.apply(this);
     }
@@ -101,13 +102,6 @@ public final class LibraryPolicyPanel extends JPanel {
         }));
     }
 
-    private JPanel columnHeader() {
-        JPanel row = rowPanel();
-        for (String text : new String[]{"适用身份", "最大同时借阅", "借阅期限（天）", "最大续借次数", "续借期限（天）", ""})
-            row.add(new JLabel(text));
-        return row;
-    }
-
     private JPanel statusPanel() {
         JPanel panel = new JPanel(new GridLayout(0, 2, 12, 8));
         panel.setBorder(BorderFactory.createTitledBorder("运行状态（只读）"));
@@ -118,14 +112,13 @@ public final class LibraryPolicyPanel extends JPanel {
         return panel;
     }
 
-    private static JPanel rowPanel() {
-        JPanel row = new JPanel(new GridLayout(1, 6, 10, 6)); row.setOpaque(false); return row;
-    }
-
     private final class PolicyRow {
         private final String roleCode;
         private final String label;
         private final JSpinner maxLoans, loanDays, renewals, renewalDays;
+        private final JSpinner firstTier = spinner(7, 1, 3649), secondTier = spinner(30, 2, 3650);
+        private final JSpinner firstRate = moneySpinner(0.5), secondRate = moneySpinner(1), thirdRate = moneySpinner(2);
+        private final JSpinner minorFine = moneySpinner(10), majorFine = moneySpinner(50), lostFine = moneySpinner(100);
         private JButton saveButton;
         private long version;
         private boolean dirty, applying;
@@ -134,19 +127,51 @@ public final class LibraryPolicyPanel extends JPanel {
             this.roleCode = roleCode; this.label = label;
             maxLoans = spinner(max, 1, 100); loanDays = spinner(days, 1, 365);
             renewals = spinner(renew, 0, 20); renewalDays = spinner(renewal, 1, 365);
-            for (JSpinner field : new JSpinner[]{maxLoans, loanDays, renewals, renewalDays})
+            for (JSpinner field : fields())
                 field.addChangeListener(event -> { if (!applying) dirty = true; });
         }
 
+        private JSpinner[] fields() {
+            return new JSpinner[]{maxLoans, loanDays, renewals, renewalDays, firstTier, secondTier,
+                    firstRate, secondRate, thirdRate, minorFine, majorFine, lostFine};
+        }
+
         JPanel panel() {
-            JPanel row = rowPanel(); row.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(LibraryPalette.BORDER), BorderFactory.createEmptyBorder(10, 10, 10, 10)));
-            row.add(new JLabel(label)); row.add(maxLoans); row.add(loanDays); row.add(renewals); row.add(renewalDays);
-            saveButton = new JButton("保存" + label + "设置");
-            saveButton.setEnabled(false);
-            saveButton.addActionListener(event -> save(new UpdateLibraryPolicyCommand(roleCode,
-                    value(maxLoans), value(loanDays), value(renewals), value(renewalDays), version)));
-            row.add(saveButton); return row;
+            JPanel row = new JPanel(new BorderLayout(0, 8)) {
+                @Override public Dimension getMaximumSize() {
+                    return new Dimension(Integer.MAX_VALUE, getPreferredSize().height);
+                }
+            };
+            row.setBackground(LibraryPalette.SURFACE);
+            row.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createTitledBorder(label + "借阅策略"),
+                    BorderFactory.createEmptyBorder(8, 12, 8, 12)));
+            JPanel form = new JPanel(new GridLayout(0, 4, 12, 8)); form.setOpaque(false);
+            String[] labels = {"最大同时借阅", "借阅期限（天）", "最大续借次数", "续借期限（天）",
+                    "第一档截至逾期天数", "第二档截至逾期天数", "第一档日罚金（元）", "第二档日罚金（元）",
+                    "第三档日罚金（元）", "轻度损坏赔偿（元）", "严重损坏赔偿（元）", "遗失赔偿（元）"};
+            JSpinner[] fields = fields();
+            for (int i = 0; i < fields.length; i++) {
+                fields[i].setName("library.policy." + roleCode + "." + i);
+                fields[i].getAccessibleContext().setAccessibleName(labels[i]);
+                form.add(new JLabel(labels[i])); form.add(fields[i]);
+            }
+            row.add(form, BorderLayout.CENTER);
+            JPanel footer = new JPanel(new BorderLayout()); footer.setOpaque(false);
+            footer.add(new JLabel("<html>逾期不足一天按一天；各档天数累加计费，超出第二档按第三档。<br>逾期罚金与损坏／遗失赔偿相加，归还或遗失登记时按当前策略结算。</html>"));
+            saveButton = new JButton("保存" + label + "设置"); saveButton.setEnabled(false);
+            saveButton.addActionListener(event -> {
+                try {
+                    for (JSpinner field : fields()) field.commitEdit();
+                    save(new UpdateLibraryPolicyCommand(roleCode, value(maxLoans), value(loanDays),
+                            value(renewals), value(renewalDays), version,
+                            new PenaltyPolicy(value(firstTier), value(secondTier), money(firstRate), money(secondRate),
+                                    money(thirdRate), money(minorFine), money(majorFine), money(lostFine))));
+                } catch (java.text.ParseException | IllegalArgumentException | ArithmeticException failure) {
+                    message.setText("请输入有效数值：逾期分档须递增，金额为非负数且最多两位小数。");
+                }
+            });
+            footer.add(saveButton, BorderLayout.EAST); row.add(footer, BorderLayout.SOUTH);
+            return row;
         }
 
         void apply(LibraryPolicyView policy) {
@@ -158,6 +183,11 @@ public final class LibraryPolicyPanel extends JPanel {
             applying = true;
             maxLoans.setValue(policy.maxActiveLoans()); loanDays.setValue(policy.loanDays());
             renewals.setValue(policy.maxRenewals()); renewalDays.setValue(policy.renewalDays()); version = policy.rowVersion();
+            PenaltyPolicy penalty = policy.penalties();
+            firstTier.setValue(penalty.firstTierDays()); secondTier.setValue(penalty.secondTierDays());
+            firstRate.setValue(penalty.firstDailyFine().doubleValue()); secondRate.setValue(penalty.secondDailyFine().doubleValue());
+            thirdRate.setValue(penalty.thirdDailyFine().doubleValue()); minorFine.setValue(penalty.minorDamageFine().doubleValue());
+            majorFine.setValue(penalty.majorDamageFine().doubleValue()); lostFine.setValue(penalty.lostFine().doubleValue());
             applying = false; dirty = false;
             setSaveEnabled(true);
         }
@@ -165,6 +195,13 @@ public final class LibraryPolicyPanel extends JPanel {
         void setSaveEnabled(boolean enabled) { if (saveButton != null) saveButton.setEnabled(enabled); }
     }
 
+    private static JSpinner moneySpinner(double value) {
+        JSpinner spinner = new JSpinner(new SpinnerNumberModel(value, 0.0, 1000000.0, 0.5));
+        spinner.setEditor(new JSpinner.NumberEditor(spinner, "0.00")); return spinner;
+    }
+    private static java.math.BigDecimal money(JSpinner spinner) {
+        return new java.math.BigDecimal(spinner.getValue().toString());
+    }
     private static JSpinner spinner(int value, int min, int max) { return new JSpinner(new SpinnerNumberModel(value, min, max, 1)); }
     private static int value(JSpinner spinner) { return (Integer) spinner.getValue(); }
 }

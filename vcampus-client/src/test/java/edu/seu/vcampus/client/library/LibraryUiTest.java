@@ -53,6 +53,35 @@ class LibraryUiTest {
     private final LibraryClientService service = mock(LibraryClientService.class);
 
     @Test
+    void policyFormSavesCustomPenaltyAmountsAndRejectsReversedTiers() throws Exception {
+        when(service.searchBooks(any())).thenReturn(CompletableFuture.completedFuture(new PageResult<>(List.of(), 1, 1, 0)));
+        when(service.getPolicies()).thenReturn(CompletableFuture.completedFuture(List.of(
+                new LibraryPolicyView("STUDENT", 5, 30, 1, 15, 4), new LibraryPolicyView("TEACHER", 10, 60, 2, 30, 0))));
+        var captured = new java.util.concurrent.atomic.AtomicReference<UpdateLibraryPolicyCommand>();
+        when(service.updatePolicy(any())).thenAnswer(call -> {
+            UpdateLibraryPolicyCommand command = call.getArgument(0); captured.set(command);
+            return CompletableFuture.completedFuture(new LibraryPolicyView(command.roleCode(), command.maxActiveLoans(),
+                    command.loanDays(), command.maxRenewals(), command.renewalDays(), 5, command.penalties()));
+        });
+        LibraryPolicyPanel panel = new LibraryPolicyPanel(service);
+        SwingUtilities.invokeAndWait(panel::refreshStatus); SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> {
+            ((javax.swing.JSpinner) named(panel, "library.policy.STUDENT.4")).setValue(40);
+            ((JButton) button(panel, "保存学生设置")).doClick();
+        });
+        assertThat(captured.get()).isNull();
+        SwingUtilities.invokeAndWait(() -> {
+            ((javax.swing.JSpinner) named(panel, "library.policy.STUDENT.4")).setValue(3);
+            ((javax.swing.JSpinner) named(panel, "library.policy.STUDENT.11")).setValue(88.8);
+            ((JButton) button(panel, "保存学生设置")).doClick();
+        });
+        SwingUtilities.invokeAndWait(() -> { });
+        assertThat(captured.get().expectedVersion()).isEqualTo(4);
+        assertThat(captured.get().penalties().firstTierDays()).isEqualTo(3);
+        assertThat(captured.get().penalties().lostFine()).isEqualByComparingTo("88.80");
+    }
+
+    @Test
     void signedInReadersReceiveAllFourPersonalLibraryPages() {
         LibraryWorkspacePanel workspace = new LibraryWorkspacePanel(service, Set.of());
 
@@ -67,8 +96,7 @@ class LibraryUiTest {
         LibraryWorkspacePanel workspace = new LibraryWorkspacePanel(
                 service, Set.of("LIBRARY_ADMIN"));
 
-        assertThat(tabTitles(workspace)).containsExactly("馆藏检索", "书目管理", "副本管理",
-                "借阅管理", "设置");
+        assertThat(tabTitles(workspace)).containsExactly("图书管理", "借阅管理", "借阅策略设置");
         assertThat(named(workspace, "library.loan-action")).isNull();
         assertThat(named(workspace, "library.book-management")).isNotNull();
         assertThat(named(workspace, "library.copy-management")).isNotNull();
@@ -89,7 +117,7 @@ class LibraryUiTest {
         assertThat(named(frame.content(), "page.library"))
                 .isInstanceOf(LibraryWorkspacePanel.class);
         assertThat(tabTitles((Container) named(frame.content(), "page.library")))
-                .contains("书目管理", "设置");
+                .contains("图书管理", "借阅策略设置");
         frame.dispose();
     }
 
@@ -199,7 +227,7 @@ class LibraryUiTest {
         assertThat(first(admin, JTable.class).getValueAt(0, 2))
                 .isEqualTo("Java 核心技术 / LIB-0001");
         assertThat(columnNames(first(history, JTable.class))).containsExactly("借阅号", "书名", "馆藏条码",
-                "借出时间", "到期时间", "归还时间", "续借次数", "状态");
+                "借出时间", "到期时间", "归还时间", "续借次数", "状态", "归还情况", "逾期罚金（元）", "赔偿（元）", "罚金合计（元）");
         assertThat(first(history, JTable.class).getValueAt(0, 1)).isEqualTo("Java 核心技术");
         assertThat(first(history, JTable.class).getValueAt(0, 7)).isEqualTo("已归还");
     }
@@ -238,7 +266,7 @@ class LibraryUiTest {
     }
 
     @Test
-    void openingCopyManagementLoadsAllCopies() throws Exception {
+    void openingManagementLoadsSelectedBooksCopies() throws Exception {
         BookSummary summary = new BookSummary("book-1", "978", "Java 核心技术", "作者", "计算机", 1, 1);
         BookCopyView copy = new BookCopyView("copy-1", "book-1", "LIB-0001", "A-01", CopyStatus.AVAILABLE, 0);
         when(service.searchManagedBooks(any())).thenReturn(CompletableFuture.completedFuture(
@@ -249,11 +277,11 @@ class LibraryUiTest {
         LibraryWorkspacePanel workspace = new LibraryWorkspacePanel(service, Set.of("LIBRARY_ADMIN"));
         JTabbedPane tabs = (JTabbedPane) named(workspace, "library.tabs");
 
-        tabs.setSelectedIndex(2);
+        SwingUtilities.invokeAndWait(() -> first(workspace, BookManagementPanel.class).refresh());
         SwingUtilities.invokeAndWait(() -> { });
         SwingUtilities.invokeAndWait(() -> { });
 
-        JTable table = first((Container) tabs.getSelectedComponent(), JTable.class);
+        JTable table = first(first(workspace, CopyManagementPanel.class), JTable.class);
         assertThat(table.getRowCount()).isEqualTo(1);
         assertThat(table.getValueAt(0, 0)).isEqualTo("LIB-0001");
     }
@@ -333,7 +361,7 @@ class LibraryUiTest {
         SwingUtilities.invokeAndWait(() -> { });
 
         assertThat(first(panel, JTable.class)).isNull();
-        assertThat(labels(panel)).contains("学生", "教师", "服务端状态", "数据库状态", "已连接", "可访问");
+        assertThat(labels(panel)).contains("服务端状态", "数据库状态", "已连接", "可访问");
         verify(service).updatePolicy(saved);
     }
 
@@ -394,12 +422,11 @@ class LibraryUiTest {
         JTabbedPane tabs = (JTabbedPane) named(workspace, "library.tabs");
 
         tabs.setSelectedIndex(1);
-        tabs.setSelectedIndex(2);
-        tabs.setSelectedIndex(3);
+        tabs.setSelectedIndex(0);
         SwingUtilities.invokeAndWait(() -> { });
 
         verify(service, atLeastOnce()).searchManagedBooks(
-                new BookSearchQuery("", null, false, 1, 100));
+                new BookSearchQuery("", BookSearchField.ANY, null, false, 1, 100));
         verify(service).searchAllLoans(new AdminLoanSearchQuery(null, null, 1, 20));
     }
 

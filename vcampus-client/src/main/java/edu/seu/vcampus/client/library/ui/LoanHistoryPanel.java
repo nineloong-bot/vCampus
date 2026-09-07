@@ -9,7 +9,7 @@ public final class LoanHistoryPanel extends LibraryDataPanel {
     private final LibraryClientService service;
     public LoanHistoryPanel(LibraryClientService service) {
         super("library.loan-history", "借阅历史", "查询本人全部借阅记录。", "借阅号", "书名", "馆藏条码",
-                "借出时间", "到期时间", "归还时间", "续借次数", "状态");
+                "借出时间", "到期时间", "归还时间", "续借次数", "状态", "归还情况", "逾期罚金（元）", "赔偿（元）", "罚金合计（元）");
         this.service = Objects.requireNonNull(service, "service");
         JButton refresh = new JButton("刷新历史"); refresh.addActionListener(event -> refresh());
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT)); actions.setOpaque(false);
@@ -25,7 +25,8 @@ public final class LoanHistoryPanel extends LibraryDataPanel {
                     DefaultTableModel model = (DefaultTableModel) table.getModel(); model.setRowCount(0);
                     for (LoanView loan : page.items()) model.addRow(new Object[]{loan.displayLoanNumber(),
                             LoanUiText.title(loan), LoanUiText.barcode(loan), loan.borrowedAt(), loan.dueAt(),
-                            loan.returnedAt(), loan.renewCount(), LoanUiText.status(loan.status())});
+                            loan.returnedAt(), loan.renewCount(), LoanUiText.status(loan.status()), LoanUiText.condition(loan),
+                            loan.overdueFine().setScale(2), loan.damageFine().setScale(2), loan.totalFine().setScale(2)});
                     status.setText(page.items().isEmpty() ? "暂无借阅历史" : "共 " + page.total() + " 条借阅历史");
                 }));
     }

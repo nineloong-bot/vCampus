@@ -29,6 +29,24 @@ class ReturnRenewTest {
     }
 
     @Test
+    void overdueReturnPersistsAssessedFine() throws Exception {
+        Loan overdue = fixture.seedOverdue("copy-1", "user-1");
+        service.returnBook("token-1", new ReturnBookCommand(overdue.loanId(), 0));
+        try (Connection connection = fixture.connections.open()) {
+            java.util.Set<String> columns = new java.util.HashSet<>();
+            try (var result = connection.getMetaData().getColumns(null, null, "TBLBOOKLOAN", null)) {
+                while (result.next()) columns.add(result.getString("COLUMN_NAME").toLowerCase());
+            }
+            assertThat(columns).contains("overduefine", "damagefine", "returncondition");
+            try (var query = connection.createStatement();
+                 var result = query.executeQuery("SELECT overdueFine FROM tblBookLoan")) {
+                assertThat(result.next()).isTrue();
+                assertThat(result.getBigDecimal(1)).isEqualByComparingTo("0.50");
+            }
+        }
+    }
+
+    @Test
     void duplicateReturnDoesNotChangeCopyTwice() throws Exception {
         LoanView borrowed = service.borrow("token-1", new BorrowBookCommand("copy-1"));
 

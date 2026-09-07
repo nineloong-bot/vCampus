@@ -10,16 +10,17 @@ public final class LoanAdminPanel extends LibraryDataPanel {
     private final LibraryClientService service;
     private final JTextField borrower = new JTextField(12);
     private final JComboBox<String> loanStatus = new JComboBox<>(new String[]{"全部状态", "ACTIVE", "OVERDUE", "RETURNED", "LOST"});
+    private final JComboBox<String> condition = new JComboBox<>(new String[]{"完好", "轻度损坏", "严重损坏"});
     private List<LoanView> loans = List.of();
     public LoanAdminPanel(LibraryClientService service) {
-        super("library.loan-admin", "借阅管理", "查询全校借阅及逾期记录。", "借阅号", "借阅人", "副本", "到期时间", "状态");
+        super("library.loan-admin", "借阅管理", "查询全校借阅；归还或遗失登记时计算罚金，仅登记金额。", "借阅号", "借阅人", "副本", "到期时间", "状态", "归还情况", "逾期罚金（元）", "赔偿（元）", "罚金合计（元）");
         this.service = Objects.requireNonNull(service, "service");
         JButton refresh = new JButton("查询账号"); refresh.addActionListener(event -> refresh());
         JButton returnBook = new JButton("办理归还"); returnBook.addActionListener(event -> confirmSelected(LoanStatus.RETURNED));
         JButton markLost = new JButton("标记遗失"); markLost.addActionListener(event -> confirmSelected(LoanStatus.LOST));
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT)); actions.setOpaque(false);
         actions.add(new JLabel("账号（精确查询）")); actions.add(borrower); actions.add(loanStatus);
-        actions.add(refresh); actions.add(returnBook); actions.add(markLost); add(actions, BorderLayout.SOUTH);
+        actions.add(refresh); actions.add(new JLabel("归还情况")); actions.add(condition); actions.add(returnBook); actions.add(markLost); add(actions, BorderLayout.SOUTH);
         borrower.addActionListener(event -> refresh());
     }
     public void refresh() {
@@ -36,7 +37,9 @@ public final class LoanAdminPanel extends LibraryDataPanel {
                     DefaultTableModel model = (DefaultTableModel) table.getModel(); model.setRowCount(0);
                     for (LoanView loan : loans) model.addRow(new Object[]{
                             loan.displayLoanNumber(), readable(loan.borrowerLoginId(), loan.borrowerUserId()),
-                            copyDescription(loan), loan.dueAt(), LoanUiText.status(loan.status())});
+                            copyDescription(loan), loan.dueAt(), LoanUiText.status(loan.status()),
+                            LoanUiText.condition(loan), loan.overdueFine().setScale(2), loan.damageFine().setScale(2),
+                            loan.totalFine().setScale(2)});
                     status.setText(page.items().isEmpty() ? "未找到借阅记录" : (user.isEmpty()
                             ? "共 " + page.total() + " 条借阅记录"
                             : "正在管理账号 " + user.toUpperCase(java.util.Locale.ROOT) + "，共 " + page.total() + " 条记录"));
@@ -76,7 +79,8 @@ public final class LoanAdminPanel extends LibraryDataPanel {
     private void resolve(LoanView loan, LoanStatus resolution) {
         long request = beginMutation();
         status.setText(resolution == LoanStatus.RETURNED ? "正在办理归还……" : "正在标记遗失……");
-        service.resolveLoan(new AdminResolveLoanCommand(loan.loanId(), resolution, loan.rowVersion()))
+        service.resolveLoan(new AdminResolveLoanCommand(loan.loanId(), resolution, loan.rowVersion(),
+                resolution == LoanStatus.LOST ? ReturnCondition.LOST : ReturnCondition.values()[condition.getSelectedIndex()]))
                 .whenComplete((resolved, failure) -> SwingUtilities.invokeLater(() -> {
                     if (!acceptsMutation(request)) return;
                     if (failure != null) {

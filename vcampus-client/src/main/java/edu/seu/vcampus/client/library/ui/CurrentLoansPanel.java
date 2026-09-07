@@ -18,7 +18,13 @@ public final class CurrentLoansPanel extends LibraryDataPanel {
         JButton returned = new JButton("归还所选");
         refresh.addActionListener(event -> refresh());
         renew.addActionListener(event -> confirmSelected("续借", this::renewSelected));
-        returned.addActionListener(event -> confirmSelected("归还", this::returnSelected));
+        returned.addActionListener(event -> {
+            if (selectedLoan() == null) return;
+            String[] options = {"完好", "轻度损坏", "严重损坏"};
+            int selected = JOptionPane.showOptionDialog(this, "请选择归还情况，逾期与损坏罚金将按当前借阅策略登记。",
+                    "归还图书", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+            if (selected >= 0) returnSelected(ReturnCondition.values()[selected]);
+        });
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         actions.setOpaque(false); actions.add(refresh); actions.add(renew); actions.add(returned);
         add(actions, BorderLayout.SOUTH);
@@ -48,10 +54,12 @@ public final class CurrentLoansPanel extends LibraryDataPanel {
         submit("正在续借……", "续借成功", service.renew(new RenewLoanCommand(loan.loanId(), loan.rowVersion())));
     }
 
-    public void returnSelected() {
+    public void returnSelected() { returnSelected(ReturnCondition.NORMAL); }
+
+    private void returnSelected(ReturnCondition condition) {
         LoanView loan = selectedLoan();
         if (loan == null) return;
-        submit("正在归还……", "归还成功", service.returnBook(new ReturnBookCommand(loan.loanId(), loan.rowVersion())));
+        submit("正在归还……", "归还成功", service.returnBook(new ReturnBookCommand(loan.loanId(), loan.rowVersion(), condition)));
     }
 
     private LoanView selectedLoan() {
@@ -75,7 +83,7 @@ public final class CurrentLoansPanel extends LibraryDataPanel {
         status.setText(pending);
         future.whenComplete((loan, failure) -> SwingUtilities.invokeLater(() -> {
             if (!acceptsMutation(request)) return;
-            if (failure == null) { status.setText(success); mutationSucceeded(); }
+            if (failure == null) { status.setText(success + "，已登记罚金：¥" + loan.totalFine().setScale(2)); mutationSucceeded(); }
             else LibraryFeedback.failure(this, status, failure, "操作失败，请刷新后重试。");
         }));
     }

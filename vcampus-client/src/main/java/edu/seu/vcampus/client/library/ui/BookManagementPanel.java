@@ -12,34 +12,38 @@ public final class BookManagementPanel extends LibraryDataPanel {
     private final JTextField keyword = new JTextField(18);
     private final JComboBox<String> field = new JComboBox<>(new String[]{
             "全部栏目", "书名", "作者", "ISBN", "分类", "出版社"});
+    private CopyManagementPanel copiesPanel;
+    private boolean refreshing;
     private List<BookSummary> books = List.of();
     public BookManagementPanel(LibraryClientService service) {
-        super("library.book-management", "书目管理", "新增、搜索或维护书目元数据，双击书目管理副本。", "ISBN", "书名", "作者", "状态");
+        super("library.book-management", "书目管理", "选择左侧书目，在右侧管理馆藏副本。", "ISBN", "书名", "作者", "状态");
         this.service = Objects.requireNonNull(service, "service");
         JButton refresh = new JButton("搜索书目"); JButton create = new JButton("新增书目");
         JButton edit = new JButton("编辑所选");
         refresh.addActionListener(event -> refresh());
         create.addActionListener(event -> openCreateDialog());
         edit.addActionListener(event -> editSelected());
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT)); actions.setOpaque(false);
-        actions.add(new JLabel("关键词")); actions.add(keyword); actions.add(field);
-        actions.add(refresh); actions.add(edit); actions.add(create); add(actions, BorderLayout.SOUTH);
+        JPanel actions = new JPanel(new GridLayout(0, 1)); actions.setOpaque(false);
+        JPanel filters = new JPanel(new FlowLayout(FlowLayout.LEFT)); filters.setOpaque(false);
+        keyword.setColumns(10);
+        filters.add(keyword); filters.add(field); filters.add(refresh);
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT)); buttons.setOpaque(false);
+        buttons.add(edit); buttons.add(create);
+        actions.add(filters); actions.add(buttons); add(actions, BorderLayout.SOUTH);
         keyword.addActionListener(event -> refresh());
-        table.addMouseListener(new java.awt.event.MouseAdapter() {
-            @Override public void mouseClicked(java.awt.event.MouseEvent event) {
-                if (event.getClickCount() != 2 || !SwingUtilities.isLeftMouseButton(event)) return;
-                int row = table.rowAtPoint(event.getPoint());
-                if (row < 0) return;
-                BookSummary selected = books.get(table.convertRowIndexToModel(row));
-                CopyManagementPanel copies = new CopyManagementPanel(service, selected);
-                copies.setAfterMutation(BookManagementPanel.this::mutationSucceeded);
-                copies.setPreferredSize(new Dimension(850, 450));
-                copies.loadCopies();
-                JOptionPane.showMessageDialog(BookManagementPanel.this, copies,
-                        selected.title() + " — 馆藏副本", JOptionPane.PLAIN_MESSAGE);
-            }
+        table.getSelectionModel().addListSelectionListener(event -> {
+            if (!event.getValueIsAdjusting() && !refreshing && copiesPanel != null)
+                copiesPanel.selectBook(selectedBook());
         });
     }
+
+    public void connectCopies(CopyManagementPanel copies) { copiesPanel = copies; }
+
+    private BookSummary selectedBook() {
+        int row = table.getSelectedRow();
+        return row < 0 ? null : books.get(table.convertRowIndexToModel(row));
+    }
+
     public void create(CreateBookCommand command) {
         long request = beginMutation();
         status.setText("正在新增书目……");
@@ -84,10 +88,21 @@ public final class BookManagementPanel extends LibraryDataPanel {
                 SwingUtilities.invokeLater(() -> {
                     if (!accepts(request)) return;
                     if (failure != null) { LibraryFeedback.failure(this, status, failure, "书目加载失败，请重试。"); return; }
+                    BookSummary selected = selectedBook();
+                    refreshing = true;
                     books = List.copyOf(page.items()); DefaultTableModel model = (DefaultTableModel) table.getModel();
                     model.setRowCount(0); for (BookSummary book : books)
                         model.addRow(new Object[]{book.isbn(), book.title(), book.author(),
                                 book.active() ? "已启用" : "已停用"});
+                    if (!books.isEmpty()) {
+                        int index = 0;
+                        for (int i = 0; i < books.size(); i++)
+                            if (selected != null && selected.bookId().equals(books.get(i).bookId())) index = i;
+                        int row = table.convertRowIndexToView(index);
+                        table.setRowSelectionInterval(row, row);
+                    }
+                    refreshing = false;
+                    if (copiesPanel != null) copiesPanel.selectBook(selectedBook());
                     status.setText(books.isEmpty() ? "暂无书目，可新增第一条书目" : "共 " + page.total() + " 条书目");
                 }));
     }

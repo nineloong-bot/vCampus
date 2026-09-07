@@ -86,7 +86,8 @@ public final class LibraryServiceImpl implements LibraryService {
             }
             Loan loan = new Loan(idGenerator.get(), copy.copyId(), borrower.userId(), now,
                     now.plus(policy.loanDays(), ChronoUnit.DAYS), null, 0,
-                    LoanStatus.ACTIVE, 0);
+                    LoanStatus.ACTIVE, 0, borrower.roleCode(), java.math.BigDecimal.ZERO,
+                    java.math.BigDecimal.ZERO, ReturnCondition.NORMAL);
             loans.insert(connection, loan);
             books.updateCopyStatus(connection, copy.copyId(), CopyStatus.BORROWED,
                     copy.rowVersion());
@@ -97,6 +98,8 @@ public final class LibraryServiceImpl implements LibraryService {
     @Override
     public LoanView returnBook(String sessionToken, ReturnBookCommand command) {
         Objects.requireNonNull(command, "command");
+        if (command.condition() == null || command.condition() == ReturnCondition.LOST)
+            throw new IllegalArgumentException("Return condition must be normal or damaged");
         BorrowerIdentity borrower = identities.requireBorrower(sessionToken);
         Loan snapshot = transactions.inTransaction(connection ->
                 loans.require(connection, command.loanId()));
@@ -113,12 +116,15 @@ public final class LibraryServiceImpl implements LibraryService {
                     throw new LoanNotActiveException(loan.loanId());
                 }
                 BookCopy copy = books.requireCopy(connection, loan.copyId());
+                Instant now = clock.instant();
+                PenaltyPolicy penalty = policies.require(connection, loan.borrowerRoleCode()).penalties();
                 Loan returned = new Loan(loan.loanId(), loan.copyId(), loan.borrowerUserId(),
-                        loan.borrowedAt(), loan.dueAt(), clock.instant(), loan.renewCount(),
-                        LoanStatus.RETURNED, loan.rowVersion() + 1);
+                        loan.borrowedAt(), loan.dueAt(), now, loan.renewCount(),
+                        LoanStatus.RETURNED, loan.rowVersion() + 1, loan.borrowerRoleCode(),
+                        penalty.overdueFine(loan.dueAt(), now), penalty.damageFine(command.condition()), command.condition());
                 loans.update(connection, returned, command.expectedVersion());
-                books.updateCopyStatus(connection, copy.copyId(), CopyStatus.AVAILABLE,
-                        copy.rowVersion());
+                books.updateCopyStatus(connection, copy.copyId(), command.condition() == ReturnCondition.NORMAL
+                        ? CopyStatus.AVAILABLE : CopyStatus.DAMAGED, copy.rowVersion());
                 return toView(returned, copy.bookId());
             }));
     }
@@ -154,7 +160,8 @@ public final class LibraryServiceImpl implements LibraryService {
             }
             Loan renewed = new Loan(loan.loanId(), loan.copyId(), loan.borrowerUserId(),
                     loan.borrowedAt(), loan.dueAt().plus(policy.renewalDays(), ChronoUnit.DAYS),
-                    null, loan.renewCount() + 1, LoanStatus.ACTIVE, loan.rowVersion() + 1);
+                    null, loan.renewCount() + 1, LoanStatus.ACTIVE, loan.rowVersion() + 1,
+                    loan.borrowerRoleCode(), loan.overdueFine(), loan.damageFine(), loan.returnCondition());
             loans.update(connection, renewed, command.expectedVersion());
             return toView(renewed, copy.bookId());
         }));
@@ -220,6 +227,10 @@ public final class LibraryServiceImpl implements LibraryService {
         if (command.resolution() != LoanStatus.RETURNED && command.resolution() != LoanStatus.LOST) {
             throw new IllegalArgumentException("Resolution must be RETURNED or LOST");
         }
+        if (command.condition() == null || (command.resolution() == LoanStatus.LOST)
+                != (command.condition() == ReturnCondition.LOST)) {
+            throw new IllegalArgumentException("Return condition must match the loan resolution");
+        }
         Loan snapshot = transactions.inTransaction(connection -> loans.require(connection, command.loanId()));
         return locks.withLocks(List.of(new ResourceKey("LOAN", command.loanId()),
                 new ResourceKey("BOOK_COPY", snapshot.copyId())), () -> transactions.inTransaction(connection -> {
@@ -228,12 +239,19 @@ public final class LibraryServiceImpl implements LibraryService {
                 throw new LoanNotActiveException(loan.loanId());
             }
             BookCopy copy = books.requireCopy(connection, loan.copyId());
-            Instant returnedAt = command.resolution() == LoanStatus.RETURNED ? clock.instant() : null;
+            Instant now = clock.instant();
+            PenaltyPolicy penalty = policies.require(connection, loan.borrowerRoleCode()).penalties();
+            Instant returnedAt = command.resolution() == LoanStatus.RETURNED ? now : null;
             Loan resolved = new Loan(loan.loanId(), loan.copyId(), loan.borrowerUserId(), loan.borrowedAt(),
-                    loan.dueAt(), returnedAt, loan.renewCount(), command.resolution(), loan.rowVersion() + 1);
+                    loan.dueAt(), returnedAt, loan.renewCount(), command.resolution(), loan.rowVersion() + 1,
+                    loan.borrowerRoleCode(), penalty.overdueFine(loan.dueAt(), now),
+                    penalty.damageFine(command.condition()), command.condition());
             loans.update(connection, resolved, command.expectedVersion());
-            CopyStatus copyStatus = command.resolution() == LoanStatus.RETURNED
-                    ? CopyStatus.AVAILABLE : CopyStatus.LOST;
+            CopyStatus copyStatus = switch (command.condition()) {
+                case NORMAL -> CopyStatus.AVAILABLE;
+                case MINOR_DAMAGE, MAJOR_DAMAGE -> CopyStatus.DAMAGED;
+                case LOST -> CopyStatus.LOST;
+            };
             books.updateCopyStatus(connection, copy.copyId(), copyStatus, copy.rowVersion());
             return toView(resolved, copy.bookId());
         }));
@@ -263,6 +281,7 @@ public final class LibraryServiceImpl implements LibraryService {
     private static LoanView toView(Loan loan, String bookId) {
         return new LoanView(loan.loanId(), loan.copyId(), bookId, loan.borrowerUserId(),
                 loan.borrowedAt(), loan.dueAt(), loan.returnedAt(), loan.renewCount(),
-                loan.status(), loan.rowVersion());
+                loan.status(), loan.rowVersion(), null, null, null,
+                loan.overdueFine(), loan.damageFine(), loan.returnCondition());
     }
 }

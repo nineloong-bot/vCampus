@@ -19,4 +19,14 @@ final class LoanUiText {
     private static String readable(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
     }
+    static String condition(edu.seu.vcampus.common.library.LoanView loan) {
+        if (loan.status() == edu.seu.vcampus.common.library.LoanStatus.ACTIVE
+                || loan.status() == edu.seu.vcampus.common.library.LoanStatus.OVERDUE) return "待归还";
+        return switch (loan.returnCondition()) {
+            case NORMAL -> "完好";
+            case MINOR_DAMAGE -> "轻度损坏";
+            case MAJOR_DAMAGE -> "严重损坏";
+            case LOST -> "遗失";
+        };
+    }
 }

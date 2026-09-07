@@ -140,11 +140,12 @@ final class LibraryReadAdminOperations {
     LibraryPolicyView updatePolicy(UpdateLibraryPolicyCommand command) {
         Objects.requireNonNull(command, "command");
         validatePolicy(command);
+        Objects.requireNonNull(command.penalties(), "penalties");
         LoanPolicy existing = transactions.inTransaction(connection ->
                 policies.require(connection, command.roleCode()));
         LoanPolicy changed = new LoanPolicy(existing.policyId(), existing.roleCode(),
                 command.maxActiveLoans(), command.loanDays(), command.maxRenewals(),
-                command.renewalDays(), command.expectedVersion() + 1);
+                command.renewalDays(), command.expectedVersion() + 1, command.penalties());
         transactions.inTransaction(connection -> policies.update(
                 connection, changed, command.expectedVersion()));
         return toView(changed);
@@ -176,6 +177,6 @@ final class LibraryReadAdminOperations {
     private static LibraryPolicyView toView(LoanPolicy policy) {
         return new LibraryPolicyView(policy.roleCode(), policy.maxActiveLoans(),
                 policy.loanDays(), policy.maxRenewals(), policy.renewalDays(),
-                policy.rowVersion());
+                policy.rowVersion(), policy.penalties());
     }
 }

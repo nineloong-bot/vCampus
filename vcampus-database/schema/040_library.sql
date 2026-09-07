@@ -36,6 +36,10 @@ CREATE TABLE tblBookLoan (
     returnedAt DATETIME,
     renewCount LONG NOT NULL,
     loanStatus VARCHAR(16) NOT NULL,
+    borrowerRoleCode VARCHAR(16) DEFAULT 'STUDENT' NOT NULL,
+    overdueFine CURRENCY DEFAULT 0 NOT NULL,
+    damageFine CURRENCY DEFAULT 0 NOT NULL,
+    returnCondition VARCHAR(16) DEFAULT 'NORMAL' NOT NULL,
     rowVersion LONG NOT NULL
 );
 CREATE INDEX idx_tblBookLoan_copyId ON tblBookLoan (copyId);
@@ -49,6 +53,14 @@ CREATE TABLE tblLibraryPolicy (
     loanDays LONG NOT NULL,
     maxRenewals LONG NOT NULL,
     renewalDays LONG NOT NULL,
+    firstTierDays LONG DEFAULT 7 NOT NULL,
+    secondTierDays LONG DEFAULT 30 NOT NULL,
+    firstDailyFine CURRENCY DEFAULT 0.5 NOT NULL,
+    secondDailyFine CURRENCY DEFAULT 1 NOT NULL,
+    thirdDailyFine CURRENCY DEFAULT 2 NOT NULL,
+    minorDamageFine CURRENCY DEFAULT 10 NOT NULL,
+    majorDamageFine CURRENCY DEFAULT 50 NOT NULL,
+    lostFine CURRENCY DEFAULT 100 NOT NULL,
     rowVersion LONG NOT NULL
 );
 CREATE UNIQUE INDEX uk_tblLibraryPolicy_roleCode ON tblLibraryPolicy (roleCode);

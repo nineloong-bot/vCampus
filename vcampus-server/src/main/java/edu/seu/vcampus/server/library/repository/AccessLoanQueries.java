@@ -85,7 +85,8 @@ final class AccessLoanQueries {
                         returnedAt == null ? null : returnedAt.toInstant(),
                         result.getInt("renewCount"), status, result.getLong("rowVersion"),
                         result.getString("loginId"), result.getString("title"),
-                        result.getString("barcode")));
+                        result.getString("barcode"), result.getBigDecimal("overdueFine"), result.getBigDecimal("damageFine"),
+                        edu.seu.vcampus.common.library.ReturnCondition.valueOf(result.getString("returnCondition"))));
             }
             return records;
         }

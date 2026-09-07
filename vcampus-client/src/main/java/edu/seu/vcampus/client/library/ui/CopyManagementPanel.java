@@ -13,7 +13,9 @@ import java.util.concurrent.CompletableFuture;
 
 public final class CopyManagementPanel extends LibraryDataPanel {
     private final LibraryClientService service;
-    private final BookSummary book;
+    private BookSummary book;
+    private boolean selectionRequired;
+    private boolean reloadPending;
     private final JTextField keyword = new JTextField(16);
     private final JButton add = new JButton("新增副本"), change = new JButton("更新状态 / 找回");
     private List<BookCopyView> copies = List.of();
@@ -24,16 +26,29 @@ public final class CopyManagementPanel extends LibraryDataPanel {
     }
 
     public CopyManagementPanel(LibraryClientService service, BookSummary book) {
-        super("library.copy-management", "副本管理", "查看全部副本，并按书名、条码、位置或状态搜索。",
+        super("library.copy-management", "副本管理", "查看馆藏副本，可按条码、位置或状态筛选。",
                 "条码", "书目", "位置", "状态");
         this.service = Objects.requireNonNull(service, "service");
         this.book = book;
         JButton search = new JButton("搜索副本");
         search.addActionListener(event -> filterCopies()); keyword.addActionListener(event -> filterCopies());
         add.addActionListener(event -> openAddDialog()); change.addActionListener(event -> openStatusDialog());
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT)); actions.setOpaque(false);
-        actions.add(new JLabel("关键词")); actions.add(keyword); actions.add(search); actions.add(add); actions.add(change);
-        add(actions, BorderLayout.SOUTH);
+        JPanel actions = new JPanel(new GridLayout(0, 1)); actions.setOpaque(false);
+        JPanel filters = new JPanel(new FlowLayout(FlowLayout.LEFT)); filters.setOpaque(false);
+        keyword.setColumns(10); filters.add(keyword); filters.add(search);
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT)); buttons.setOpaque(false);
+        buttons.add(add); buttons.add(change);
+        actions.add(filters); actions.add(buttons); add(actions, BorderLayout.SOUTH);
+    }
+
+    public void selectBook(BookSummary selected) {
+        selectionRequired = true;
+        book = selected;
+        beginRequest();
+        allCopies = List.of(); filterCopies();
+        // A pending mutation still owns the buttons until its callback completes.
+        if (selected == null) { status.setText("请先在左侧选择书目"); return; }
+        loadCopies();
     }
 
     public void add(AddBookCopyCommand command) {
@@ -53,7 +68,10 @@ public final class CopyManagementPanel extends LibraryDataPanel {
                 }
                 status.setText("馆藏副本已新增");
             }
-            else LibraryFeedback.failure(this, status, failure, "新增副本失败，请检查输入后重试。");
+            else {
+                LibraryFeedback.failure(this, status, failure, "新增副本失败，请检查输入后重试。");
+                if (reloadPending) loadCopies();
+            }
         }));
     }
 
@@ -68,6 +86,7 @@ public final class CopyManagementPanel extends LibraryDataPanel {
             add.setEnabled(true); change.setEnabled(true);
             if (failure != null) {
                 LibraryFeedback.failure(this, status, failure, "副本状态更新失败，请刷新后重试。");
+                if (reloadPending) loadCopies();
                 return;
             }
             allCopies = allCopies.stream().map(row -> row.copy().copyId().equals(copy.copyId())
@@ -75,11 +94,14 @@ public final class CopyManagementPanel extends LibraryDataPanel {
             filterCopies();
             status.setText("副本状态已更新");
             mutationSucceeded();
+            if (reloadPending) loadCopies();
         }));
     }
 
     public void loadCopies() {
-        if (!add.isEnabled()) return;
+        if (!add.isEnabled()) { reloadPending = true; return; }
+        reloadPending = false;
+        if (selectionRequired && book == null) { status.setText("请先在左侧选择书目"); return; }
         long request = beginRequest(); status.setText("正在加载全部馆藏副本……");
         (book == null ? loadBookPages(1, new ArrayList<>())
                 : CompletableFuture.completedFuture(List.of(book))).thenCompose(books -> {
@@ -119,19 +141,21 @@ public final class CopyManagementPanel extends LibraryDataPanel {
     }
 
     private void openAddDialog() {
+        BookSummary selectedBook = book;
+        if (selectionRequired && selectedBook == null) { status.setText("请先在左侧选择书目"); return; }
         JTextField isbn = new JTextField(), barcode = new JTextField(), location = new JTextField();
-        JPanel form = book == null
+        JPanel form = selectedBook == null
                 ? form(new String[]{"ISBN", "馆藏条码", "馆藏位置"}, new JComponent[]{isbn, barcode, location})
                 : form(new String[]{"书目", "ISBN", "馆藏条码", "馆藏位置"},
-                        new JComponent[]{new JLabel(book.title()), new JLabel(book.isbn()), barcode, location});
+                        new JComponent[]{new JLabel(selectedBook.title()), new JLabel(selectedBook.isbn()), barcode, location});
         if (JOptionPane.showConfirmDialog(this, form, "新增馆藏副本", JOptionPane.OK_CANCEL_OPTION,
                 JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return;
         if (barcode.getText().isBlank() || location.getText().isBlank()
-                || (book == null && isbn.getText().isBlank())) {
+                || (selectedBook == null && isbn.getText().isBlank())) {
             status.setText("请填写 ISBN、馆藏条码和馆藏位置"); return;
         }
-        if (book != null) {
-            add(new AddBookCopyCommand(book.bookId(), barcode.getText().trim(), location.getText().trim()));
+        if (selectedBook != null) {
+            add(new AddBookCopyCommand(selectedBook.bookId(), barcode.getText().trim(), location.getText().trim()));
             return;
         }
         long request = beginMutation(); status.setText("正在查找 ISBN 对应的书目……");

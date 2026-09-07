@@ -8,7 +8,8 @@ import java.time.Instant;
 public record LoanView(String loanId, String copyId, String bookId, String borrowerUserId,
         Instant borrowedAt, Instant dueAt, Instant returnedAt, int renewCount,
         LoanStatus status, long rowVersion, String borrowerLoginId, String bookTitle,
-        String copyBarcode) implements Serializable {
+        String copyBarcode, java.math.BigDecimal overdueFine, java.math.BigDecimal damageFine,
+        ReturnCondition returnCondition) implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
@@ -18,6 +19,17 @@ public record LoanView(String loanId, String copyId, String bookId, String borro
         this(loanId, copyId, bookId, borrowerUserId, borrowedAt, dueAt, returnedAt,
                 renewCount, status, rowVersion, null, null, null);
     }
+
+    public LoanView(String loanId, String copyId, String bookId, String borrowerUserId,
+            Instant borrowedAt, Instant dueAt, Instant returnedAt, int renewCount,
+            LoanStatus status, long rowVersion, String borrowerLoginId, String bookTitle, String copyBarcode) {
+        this(loanId, copyId, bookId, borrowerUserId, borrowedAt, dueAt, returnedAt, renewCount,
+                status, rowVersion, borrowerLoginId, bookTitle, copyBarcode,
+                java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO, ReturnCondition.NORMAL);
+    }
+
+    /** Assessed amount for future payment-module integration; no debit is performed here. */
+    public java.math.BigDecimal totalFine() { return overdueFine.add(damageFine); }
 
     public String displayLoanNumber() {
         String compact = loanId.replace("-", "").toUpperCase(java.util.Locale.ROOT);

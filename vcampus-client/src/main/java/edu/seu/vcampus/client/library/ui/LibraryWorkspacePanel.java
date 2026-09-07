@@ -28,33 +28,42 @@ public final class LibraryWorkspacePanel extends JPanel {
         tabs.setName("library.tabs");
         boolean administrator = role == UserRole.ADMIN;
         boolean mayManageLibrary = permissions.contains("LIBRARY_ADMIN");
-        BookSearchPanel search = new BookSearchPanel(service);
-        BookDetailPanel detail = new BookDetailPanel(service, !administrator);
-        detail.setAfterMutation(this::refreshAll);
-        search.connectDetail(detail);
-        JSplitPane catalog = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, search, detail);
-        catalog.setResizeWeight(0.58); catalog.setDividerLocation(0.58);
-        catalog.setDividerSize(8); catalog.setBorder(BorderFactory.createEmptyBorder());
-        catalog.setBackground(LibraryPalette.PAGE);
-        JPanel catalogPage = new JPanel(new BorderLayout());
-        catalogPage.setBackground(LibraryPalette.PAGE);
-        catalogPage.setName("library.catalog"); catalogPage.add(catalog);
-        addTab("馆藏检索", catalogPage, search::search);
-        if (!administrator) {
-            CurrentLoansPanel currentLoans = new CurrentLoansPanel(service);
-            LoanHistoryPanel history = new LoanHistoryPanel(service);
-            addTab("当前借阅", currentLoans, currentLoans::refresh);
-            addTab("借阅历史", history, history::refresh);
+        if (!administrator || !mayManageLibrary) {
+            BookSearchPanel search = new BookSearchPanel(service);
+            BookDetailPanel detail = new BookDetailPanel(service, !administrator);
+            detail.setAfterMutation(this::refreshAll);
+            search.connectDetail(detail);
+            JSplitPane catalog = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, search, detail);
+            catalog.setResizeWeight(0.58); catalog.setDividerLocation(0.58);
+            catalog.setDividerSize(8); catalog.setBorder(BorderFactory.createEmptyBorder());
+            catalog.setBackground(LibraryPalette.PAGE);
+            JPanel catalogPage = new JPanel(new BorderLayout());
+            catalogPage.setBackground(LibraryPalette.PAGE);
+            catalogPage.setName("library.catalog"); catalogPage.add(catalog);
+            addTab("馆藏检索", catalogPage, search::search);
+            if (!administrator) {
+                CurrentLoansPanel currentLoans = new CurrentLoansPanel(service);
+                LoanHistoryPanel history = new LoanHistoryPanel(service);
+                addTab("当前借阅", currentLoans, currentLoans::refresh);
+                addTab("借阅历史", history, history::refresh);
+            }
         }
         if (mayManageLibrary) {
             BookManagementPanel books = new BookManagementPanel(service);
             LoanAdminPanel loans = new LoanAdminPanel(service);
-            addTab("书目管理", books, books::refresh);
             CopyManagementPanel copies = new CopyManagementPanel(service);
-            addTab("副本管理", copies, copies::loadCopies);
+            copies.selectBook(null);
+            books.connectCopies(copies);
+            books.setAfterMutation(this::refreshAll);
+            copies.setAfterMutation(this::refreshAll);
+            JSplitPane management = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, books, copies);
+            management.setResizeWeight(0.52); management.setDividerLocation(0.52);
+            management.setDividerSize(8); management.setBorder(BorderFactory.createEmptyBorder());
+            books.setMinimumSize(new Dimension(280, 0)); copies.setMinimumSize(new Dimension(280, 0));
+            addTab("图书管理", management, books::refresh);
             addTab("借阅管理", loans, loans::refresh);
             LibraryPolicyPanel settings = new LibraryPolicyPanel(service);
-            addTab("设置", settings, settings::refreshStatus);
+            addTab("借阅策略设置", settings, settings::refreshStatus);
         }
         tabs.addChangeListener(event -> refreshSelected());
         JButton refresh = new JButton("刷新当前页");
