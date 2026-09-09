@@ -266,8 +266,8 @@ class CourseUiTest {
         SwingUtilities.invokeAndWait(() -> { });
         SwingUtilities.invokeAndWait(() -> { });
 
-        assertThat(labels(panel)).contains("2026-2027秋季学期退改补选课", "共 3 门课程");
-        assertThat(buttons(panel)).contains("取消选课", "补选课程");
+        assertThat(labels(panel)).contains("2026-2027秋季学期选课", "共 3 门课程");
+        assertThat(buttons(panel)).contains("选择课程", "重修选课");
         assertThat(buttons(panel)).doesNotContain("选择教学班");
     }
 
@@ -277,12 +277,32 @@ class CourseUiTest {
         SwingUtilities.invokeAndWait(() -> { });
         SwingUtilities.invokeAndWait(() -> { });
 
-        JButton add = button(panel, "补选课程");
+        JButton add = button(panel, "选择课程");
         assertThat(add.isEnabled()).isFalse();
         JRadioButton option = descendants(panel).stream().filter(JRadioButton.class::isInstance)
                 .map(JRadioButton.class::cast).filter(AbstractButton::isEnabled).findFirst().orElseThrow();
         SwingUtilities.invokeAndWait(option::doClick);
         assertThat(add.isEnabled()).isTrue();
+    }
+
+    @Test
+    void unifiedSelectionUsesReferenceTableFiltersAndOnlyOneExpandedTeacherCardRow() throws Exception {
+        StudentCourseSelectionPanel panel = onEdt(() -> new StudentCourseSelectionPanel(CourseUiGateway.preview()));
+        flushEdt(3);
+
+        assertThat(labels(panel)).contains("课程号", "课程名称", "教学班个数", "课程性质", "开课单位", "学分");
+        assertThat(component(panel, "是否冲突", JComboBox.class)).isNotNull();
+        assertThat(component(panel, "课程性质", JComboBox.class)).isNotNull();
+        assertThat(component(panel, "课程类别", JComboBox.class)).isNotNull();
+        assertThat(descendants(panel).stream().filter(TeachingClassCardPanel.class::isInstance)).isNotEmpty();
+
+        List<StudentCourseRowPanel> rows = descendants(panel).stream()
+                .filter(StudentCourseRowPanel.class::isInstance).map(StudentCourseRowPanel.class::cast).toList();
+        List<JButton> toggles = descendants(panel).stream().filter(JButton.class::isInstance)
+                .map(JButton.class::cast).filter(button -> button.getAccessibleContext().getAccessibleName() != null)
+                .filter(button -> button.getAccessibleContext().getAccessibleName().startsWith("展开课程")).toList();
+        SwingUtilities.invokeAndWait(() -> { toggles.get(0).doClick(); toggles.get(1).doClick(); });
+        assertThat(rows.stream().filter(StudentCourseRowPanel::isExpanded)).hasSize(1);
     }
 
     @Test
@@ -1265,7 +1285,7 @@ class CourseUiTest {
                 .filter(button -> "确认改选".equals(button.getText())).findFirst().orElseThrow();
 
         assertThat(tables.get(0).getColumnName(0)).isEqualTo("课程");
-        assertThat(tables.get(0).getValueAt(0, 0)).isEqualTo("高等数学");
+        assertThat(tables.get(0).getValueAt(0, 0)).isEqualTo("数据库原理");
         assertThat(tables.get(0).getValueAt(0, 1)).isEqualTo("01班");
         assertThat(tables.get(0).getValueAt(0, 2)).isEqualTo("正常选课");
         assertThat(tables.get(0).getValueAt(0, 3)).isEqualTo("有效");
@@ -1790,7 +1810,7 @@ class CourseUiTest {
 
         assertThat(captured.get()).isEqualTo(new OfferingSearchQuery("2026-autumn", "", null, false, 0, 50));
         assertThat(table.getRowCount()).isEqualTo(3);
-        assertThat(table.getValueAt(0, 0)).isEqualTo("MATH101");
+        assertThat(table.getValueAt(0, 0)).isEqualTo("B09D0012");
         assertThat(table.getValueAt(0, 6)).isEqualTo("开放");
         assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.NORMAL);
     }
@@ -2134,7 +2154,7 @@ class CourseUiTest {
         JComboBox<?> teachers = component(dialog, "教师", JComboBox.class);
         JComboBox<?> status = component(dialog, "教学班状态", JComboBox.class);
         assertThat(terms.getSelectedItem().toString()).contains("2026—2027学年秋季学期");
-        assertThat(courses.getItemAt(0).toString()).contains("MATH101", "高等数学");
+        assertThat(courses.getItemAt(0).toString()).contains("B09D0012", "数据库原理");
         assertThat(teachers.getItemAt(0).toString()).contains("zhang.teacher");
         assertThat(status.getItemAt(0).toString()).isEqualTo("草稿");
         assertThat(catalogQuery.get()).isEqualTo(new CourseCatalogQuery("", true, 0, 100));
@@ -2435,7 +2455,7 @@ class CourseUiTest {
                 null, source, target, "未发现时间冲突（服务端提交时将再次校验）",
                 () -> confirmed.set(true)));
 
-        assertThat(labels(dialog)).contains("原教学班", "目标教学班", "高等数学 · 01班", "高等数学 · 02班",
+        assertThat(labels(dialog)).contains("原教学班", "目标教学班", "数据库原理 · 01班", "数据库原理 · 02班",
                 "容量：28 / 40", "未发现时间冲突（服务端提交时将再次校验）");
         SwingUtilities.invokeAndWait(() -> descendants(dialog).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
                 .filter(button -> "确认改选".equals(button.getText())).findFirst().orElseThrow().doClick());

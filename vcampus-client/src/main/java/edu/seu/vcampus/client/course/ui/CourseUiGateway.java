@@ -80,35 +80,35 @@ public interface CourseUiGateway {
 
     static CourseUiGateway preview() {
         List<ScheduleItem> schedule = List.of(
-                new ScheduleItem("s1", "o1", "MATH101", "高等数学", "01班", "teacher-zhang", "MONDAY", 1, 2, 1, 16, "教一-201"),
-                new ScheduleItem("s2", "o2", "CS201", "数据结构", "02班", "teacher-li", "WEDNESDAY", 3, 4, 1, 16, "计算中心-305"),
-                new ScheduleItem("s3", "o3", "PHYS101", "大学物理", "01班", "teacher-wang", "FRIDAY", 5, 6, 1, 16, "教三-108"));
+                new ScheduleItem("s1", "o1", "B09D0012", "数据库原理", "01班", "teacher-zhang", "MONDAY", 1, 2, 1, 16, "教一-201"),
+                new ScheduleItem("s2", "o2", "B09G0011", "数字图像处理", "02班", "teacher-li", "WEDNESDAY", 3, 4, 1, 16, "计算中心-305"),
+                new ScheduleItem("s3", "o3", "BJSL0061", "数据结构", "重修01班", "teacher-wang", "FRIDAY", 5, 6, 1, 16, "教三-108"));
         List<OfferingSummary> offerings = schedule.stream().map(item -> new OfferingSummary(
                 item.offeringId(), "2026-autumn", switch (item.courseCode()) {
-                    case "MATH101" -> "c1"; case "CS201" -> "c2"; default -> "c3";
+                    case "B09D0012" -> "c1"; case "B09G0011" -> "c2"; default -> "c3";
                 }, item.courseCode(), item.courseName(),
-                item.teacherUserId(), item.className(), 40, 28, "OPEN", 0, List.of(item))).toList();
+                item.teacherUserId(), item.className(), 40, 28, 8, 2, "OPEN", 0, List.of(item))).toList();
         return new CourseUiGateway() {
             public CompletableFuture<StudentSelectionContextView> studentSelectionContext() {
-                return CompletableFuture.completedFuture(new StudentSelectionContextView("2026-autumn", "2026—2027学年秋季学期", "ACTIVE", "preview-phase", "ADJUSTMENT", "2026-2027秋季学期退改补选课", "OPEN", java.time.Instant.now(), true, null));
+                return CompletableFuture.completedFuture(new StudentSelectionContextView("2026-autumn", "2026—2027学年秋季学期", "ACTIVE", "preview-phase", "ENROLLMENT", "2026-2027秋季学期选课", "OPEN", java.time.Instant.now(), true, null));
             }
             public CompletableFuture<PageResult<CourseSelectionView>> searchStudentCourses(CourseSelectionQuery query) {
                 List<CourseSelectionView> rows = offerings.stream().map(offering -> {
-                    boolean selected = "o1".equals(offering.offeringId());
-                    String optionAction = selected ? "SELECTED" : "LATE_ADD";
+                    boolean retake = "BJSL0061".equals(offering.courseCode());
+                    String optionAction = retake ? "RETAKE" : "ENROLL";
                     List<TeachingClassOptionView> options = new java.util.ArrayList<>();
                     options.add(new TeachingClassOptionView(offering, optionAction, null));
-                    if (selected) {
+                    if ("B09D0012".equals(offering.courseCode())) {
                         OfferingSummary sibling = new OfferingSummary("o1b", offering.termId(), offering.courseId(),
                                 offering.courseCode(), offering.courseName(), "teacher-chen", "02班", 40, 31,
                                 "OPEN", 0, List.of(new ScheduleItem("s1b", "o1b", offering.courseCode(),
                                 offering.courseName(), "02班", "teacher-chen", "TUESDAY", 3, 4, 1, 16, "教二-302")));
-                        options.add(new TeachingClassOptionView(sibling, "UNAVAILABLE", "已选择相同课程"));
+                        options.add(new TeachingClassOptionView(sibling, "ENROLL", null));
                     }
                     return new CourseSelectionView(offering.courseId(), offering.courseCode(), offering.courseName(),
-                            selected ? "CANCEL_SELECTION" : "SELECT_COURSE", null,
-                            selected ? "preview-enrollment" : null, selected ? 0L : null,
-                            selected ? offering.offeringId() : null,
+                            new java.math.BigDecimal(retake ? "4.0" : "3.0"), "REQUIRED",
+                            retake ? "大类学科基础课" : "专业主干课", "计算机科学与工程学院", retake,
+                            "SELECT_COURSE", null, null, null, null,
                             options);
                 }).toList();
                 return CompletableFuture.completedFuture(new PageResult<>(rows, 0, query.pageSize(), rows.size()));
@@ -167,10 +167,10 @@ public interface CourseUiGateway {
             }
             public CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery query) {
                 List<CourseView> courses = List.of(
-                        new CourseView("c1", "MATH101", "高等数学", new java.math.BigDecimal("5.0"), 80,
-                                "理工科基础课程", true, 2, java.time.Instant.parse("2026-08-20T00:00:00Z"), java.time.Instant.parse("2026-08-27T00:00:00Z")),
-                        new CourseView("c2", "CS201", "数据结构", new java.math.BigDecimal("4.0"), 64,
-                                "计算机专业基础课程", true, 1, java.time.Instant.parse("2026-08-20T00:00:00Z"), java.time.Instant.parse("2026-08-27T00:00:00Z")));
+                        new CourseView("c1", "B09D0012", "数据库原理", new java.math.BigDecimal("3.0"), 56,
+                                "2024级计算机科学与技术培养方案", true, 2, java.time.Instant.parse("2026-08-20T00:00:00Z"), java.time.Instant.parse("2026-08-27T00:00:00Z")),
+                        new CourseView("c2", "B09G0011", "数字图像处理", new java.math.BigDecimal("3.0"), 56,
+                                "2024级计算机科学与技术培养方案", true, 1, java.time.Instant.parse("2026-08-20T00:00:00Z"), java.time.Instant.parse("2026-08-27T00:00:00Z")));
                 return CompletableFuture.completedFuture(new PageResult<>(courses, 0, query.pageSize(), courses.size()));
             }
             public CompletableFuture<PageResult<UserSummary>> searchTeachers(String keyword) {
