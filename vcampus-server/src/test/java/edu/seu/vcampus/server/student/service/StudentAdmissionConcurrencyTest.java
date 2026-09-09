@@ -37,7 +37,7 @@ class StudentAdmissionConcurrencyTest {
             organizations.insertDepartment(connection,
                     new Department("department-1", "CS", "计算机学院", true, 0));
             organizations.insertMajor(connection,
-                    new Major("major-1", "department-1", "09J", "CS拔尖班", true, 0));
+                    new Major("major-1", "department-1", "09J", "CS拔尖班", null, true, 0));
             organizations.insertClass(connection,
                     new StudentClass("class-1", "major-1", "09J-24-1", "CS拔尖24-1", 2024, 1, true, 0));
             return null;

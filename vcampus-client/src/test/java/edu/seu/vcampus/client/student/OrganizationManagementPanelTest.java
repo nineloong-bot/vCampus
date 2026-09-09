@@ -100,11 +100,12 @@ class OrganizationManagementPanelTest {
         JButton major = fixture.button("student.org.add-major");
         JButton studentClass = fixture.button("student.org.add-class");
         JButton student = fixture.button("student.org.add-student");
-        assertThat(java.util.List.of(department, major, studentClass, student))
+        JButton batchAssign = fixture.button("student.org.batch-assign");
+        assertThat(java.util.List.of(department, major, studentClass, student, batchAssign))
                 .allMatch(Component::isVisible);
         assertThat(java.util.List.of(department.isEnabled(), major.isEnabled(),
-                studentClass.isEnabled(), student.isEnabled()))
-                .containsExactly(true, false, false, false);
+                studentClass.isEnabled(), student.isEnabled(), batchAssign.isEnabled()))
+                .containsExactly(true, false, false, false, false);
 
         JTree tree = fixture.component("student.org.tree", JTree.class);
         DefaultMutableTreeNode root = (DefaultMutableTreeNode) tree.getModel().getRoot();
@@ -114,16 +115,16 @@ class OrganizationManagementPanelTest {
 
         SwingUtilities.invokeAndWait(() -> tree.setSelectionPath(new TreePath(departmentNode.getPath())));
         assertThat(java.util.List.of(department.isEnabled(), major.isEnabled(),
-                studentClass.isEnabled(), student.isEnabled()))
-                .containsExactly(false, true, false, false);
+                studentClass.isEnabled(), student.isEnabled(), batchAssign.isEnabled()))
+                .containsExactly(false, true, false, false, false);
         SwingUtilities.invokeAndWait(() -> tree.setSelectionPath(new TreePath(majorNode.getPath())));
         assertThat(java.util.List.of(department.isEnabled(), major.isEnabled(),
-                studentClass.isEnabled(), student.isEnabled()))
-                .containsExactly(false, false, true, false);
+                studentClass.isEnabled(), student.isEnabled(), batchAssign.isEnabled()))
+                .containsExactly(false, false, true, false, true);
         SwingUtilities.invokeAndWait(() -> tree.setSelectionPath(new TreePath(classNode.getPath())));
         assertThat(java.util.List.of(department.isEnabled(), major.isEnabled(),
-                studentClass.isEnabled(), student.isEnabled()))
-                .containsExactly(false, false, false, true);
+                studentClass.isEnabled(), student.isEnabled(), batchAssign.isEnabled()))
+                .containsExactly(false, false, false, true, false);
     }
 
     @Test
@@ -225,7 +226,7 @@ class OrganizationManagementPanelTest {
     private static ArrayList<MajorView> majors(String departmentId) {
         var list = new ArrayList<MajorView>();
         if ("dept-1".equals(departmentId)) {
-            list.add(new MajorView("major-1", "dept-1", "CS01", "软件工程", true, 3));
+            list.add(new MajorView("major-1", "dept-1", "CS01", "软件工程", null, true, 3));
         }
         return list;
     }

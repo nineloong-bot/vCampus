@@ -43,8 +43,10 @@ class StudentModulePageFactoryTest {
         JPanel page = onEdt(() -> StudentModulePageFactory.create(
                 user(UserRole.STUDENT), students, connection()));
 
-        assertThat(page).isInstanceOf(MyStudentProfilePanel.class);
-        assertThat(page.getName()).isEqualTo("student.profile");
+        JTabbedPane tabs = findTabbedPane(page);
+        assertThat(tabs.getTabCount()).isEqualTo(2);
+        assertThat(tabs.getComponentAt(0)).isInstanceOf(MyStudentProfilePanel.class);
+        assertThat(tabs.getTitleAt(1)).isEqualTo("转专业申请");
     }
 
     @Test
@@ -77,13 +79,14 @@ class StudentModulePageFactoryTest {
         assertThat(page.getName()).isEqualTo("student.module");
         JTabbedPane tabs = findTabbedPane(page);
         assertThat(tabs).isNotNull();
-        assertThat(tabs.getTabCount()).isEqualTo(3);
+        assertThat(tabs.getTabCount()).isEqualTo(4);
         assertThat(tabs.getTitleAt(0)).isEqualTo("学生查询");
         assertThat(tabs.getComponentAt(0)).isInstanceOf(StudentSearchPanel.class);
         assertThat(tabs.getTitleAt(1)).isEqualTo("组织管理");
         assertThat(tabs.getComponentAt(1)).isInstanceOf(OrganizationManagementPanel.class);
         assertThat(tabs.getTitleAt(2)).isEqualTo("资料审核");
         assertThat(tabs.getComponentAt(2)).isInstanceOf(StudentProfileReviewPanel.class);
+        assertThat(tabs.getTitleAt(3)).isEqualTo("转专业管理");
         assertThat(requests).hasValue(0);
     }
 
@@ -120,8 +123,8 @@ class StudentModulePageFactoryTest {
         AtomicInteger requests = new AtomicInteger();
         CountDownLatch requestStarted = new CountDownLatch(1);
         StudentClientService students = students(requests, requestStarted);
-        MyStudentProfilePanel page = onEdt(() -> (MyStudentProfilePanel)
-                StudentModulePageFactory.create(user(UserRole.STUDENT), students, connection()));
+        MyStudentProfilePanel page = onEdt(() -> (MyStudentProfilePanel) findTabbedPane(
+                StudentModulePageFactory.create(user(UserRole.STUDENT), students, connection())).getComponentAt(0));
 
         assertThat(requests).hasValue(0);
 

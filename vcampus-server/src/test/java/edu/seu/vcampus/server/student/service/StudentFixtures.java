@@ -17,7 +17,7 @@ final class StudentFixtures {
         organizations.insertDepartment(connection,
                 new Department("department-1", "CS", "计算机学院", true, 0));
         organizations.insertMajor(connection,
-                new Major("major-1", "department-1", "090", "计算机科学", true, 0));
+                new Major("major-1", "department-1", "090", "计算机科学", null, true, 0));
         organizations.insertClass(connection,
                 new StudentClass("class-1", "major-1", "090-24-1", "计科24-1", 2024, 1, true, 0));
     }

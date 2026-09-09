@@ -22,6 +22,7 @@ public final class StudentAccessTestDatabase {
         try (Connection connection = provider.open()) {
             executeSchema(connection, Path.of("..", "vcampus-database", "schema", "001_common.sql"));
             executeSchema(connection, Path.of("..", "vcampus-database", "schema", "020_student.sql"));
+            executeSchema(connection, Path.of("..", "vcampus-database", "schema", "025_major_transfer.sql"));
             try (var statement = connection.createStatement()) {
                 statement.execute("CREATE TABLE tblUser (userId VARCHAR(36) PRIMARY KEY, loginId VARCHAR(16) NOT NULL)");
                 statement.execute("CREATE UNIQUE INDEX uk_tblUser_loginId ON tblUser (loginId)");

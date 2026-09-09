@@ -44,7 +44,7 @@ public final class StudentOrganizationAdminService implements StudentOrganizatio
                 transactions.inTransaction(connection -> {
                     var department = organizations.findDepartment(connection, command.departmentId())
                             .filter(Department::active).orElseThrow(() -> new IllegalArgumentException("院系不可用"));
-                    var value = new Major(id, department.departmentId(), text(command.code()), text(command.name()), command.active(), 0);
+                    var value = new Major(id, department.departmentId(), text(command.code()), text(command.name()), command.grades(), command.active(), 0);
                     if (blank(command.majorId())) organizations.insertMajor(connection, value);
                     else organizations.updateMajor(connection, value, command.expectedVersion());
                     return view(organizations.findMajor(connection, id).orElseThrow());
@@ -81,7 +81,7 @@ public final class StudentOrganizationAdminService implements StudentOrganizatio
     }
 
     private static DepartmentView view(Department v) { return new DepartmentView(v.departmentId(), v.departmentCode(), v.departmentName(), v.active(), v.rowVersion()); }
-    private static MajorView view(Major v) { return new MajorView(v.majorId(), v.departmentId(), v.majorCode(), v.majorName(), v.active(), v.rowVersion()); }
+    private static MajorView view(Major v) { return new MajorView(v.majorId(), v.departmentId(), v.majorCode(), v.majorName(), v.grades(), v.active(), v.rowVersion()); }
     private static ClassView view(StudentClass v) { return new ClassView(v.classId(), v.majorId(), v.classCode(), v.className(), v.enrollmentYear(), v.classNumber(), v.active(), v.rowVersion()); }
     private static boolean blank(String value) { return value == null || value.isBlank(); }
     private static String text(String value) { if (blank(value)) throw new IllegalArgumentException("必填字段不能为空"); return value.trim(); }

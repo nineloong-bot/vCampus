@@ -4,7 +4,7 @@ import java.util.Locale;
 
 /** Major metadata including the three-character student-number prefix. */
 public record Major(String majorId, String departmentId, String majorCode,
-                    String majorName, boolean active, long rowVersion) {
+                    String majorName, String grades, boolean active, long rowVersion) {
     public Major {
         requireText(majorId, "majorId");
         requireText(departmentId, "departmentId");
@@ -12,6 +12,18 @@ public record Major(String majorId, String departmentId, String majorCode,
         majorCode = majorCode == null ? null : majorCode.toUpperCase(Locale.ROOT);
         if (majorCode == null || !majorCode.matches("[0-9A-Z]{3}")) {
             throw new IllegalArgumentException("majorCode must match ^[0-9A-Z]{3}$");
+        }
+        if (grades != null && !grades.isBlank()) {
+            for (String g : grades.split(",")) {
+                try {
+                    int grade = Integer.parseInt(g.trim());
+                    if (grade < 1 || grade > 4) {
+                        throw new IllegalArgumentException("grades must contain values 1-4");
+                    }
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("grades must contain valid integers");
+                }
+            }
         }
         if (rowVersion < 0) {
             throw new IllegalArgumentException("rowVersion must not be negative");

@@ -4,10 +4,10 @@ VALUES
     ('00000000-0000-0000-0000-000000000101', 'CS', '计算机科学与工程学院', TRUE, 0);
 
 INSERT INTO tblMajor
-    (majorId, departmentId, majorCode, majorName, isActive, rowVersion)
+    (majorId, departmentId, majorCode, majorName, grades, isActive, rowVersion)
 VALUES
     ('00000000-0000-0000-0000-000000000102', '00000000-0000-0000-0000-000000000101',
-     '090', '计算机科学与技术', TRUE, 0);
+     '090', '计算机科学与技术', '1,2,3,4', TRUE, 0);
 
 INSERT INTO tblClass
     (classId, majorId, classCode, className, enrollmentYear, classNumber, isActive, rowVersion)
@@ -41,7 +41,7 @@ INSERT INTO tblStudent
      createdAt, updatedAt)
 VALUES
     ('00000000-0000-0000-0000-000000000104', '00000000-0000-0000-0000-000000000003',
-     '09023101', 'UNDERGRADUATE', '测试学生', '男',
+     '09023101', 'UNDERGRADUATE', '李明', '男',
      'student@seu.edu.cn', '13800000000', '00000000-0000-0000-0000-000000000103',
      NOW(), 'ACTIVE', 0, NOW(), NOW());
 
@@ -49,7 +49,7 @@ UPDATE tblNumberSequence SET currentValue = 1
     WHERE sequenceKey = 'CAMPUS_CARD_GLOBAL';
 
 UPDATE tblStudent SET
-    namePinyin = 'CESHI XUESHENG',
+    namePinyin = 'LI MING',
     politicalStatus = '共青团员',
     ethnicity = '汉族',
     maritalStatus = '未婚',

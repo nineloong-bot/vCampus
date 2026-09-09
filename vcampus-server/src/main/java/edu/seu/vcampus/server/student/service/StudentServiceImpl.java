@@ -116,6 +116,7 @@ public final class StudentServiceImpl implements StudentService, StudentQueryPor
                     .filter(value -> value.active() || before.classId().equals(value.classId()))
                     .orElseThrow(() -> new StudentAdmissionException(
                             "STUDENT_CLASS_INACTIVE", "Target class is unavailable"));
+            requireSameMajor(before, target.majorId());
             organizations.findMajor(connection, target.majorId())
                     .filter(value -> value.active() || before.classId().equals(target.classId()))
                     .orElseThrow(() -> new StudentAdmissionException(
@@ -164,6 +165,7 @@ public final class StudentServiceImpl implements StudentService, StudentQueryPor
                     .filter(value -> value.active() || before.classId().equals(value.classId()))
                     .orElseThrow(() -> new StudentAdmissionException(
                             "STUDENT_CLASS_INACTIVE", "Target class is unavailable"));
+            requireSameMajor(before, target.majorId());
             organizations.findMajor(connection, target.majorId())
                     .filter(value -> value.active() || before.classId().equals(target.classId()))
                     .orElseThrow(() -> new StudentAdmissionException(
@@ -225,6 +227,7 @@ public final class StudentServiceImpl implements StudentService, StudentQueryPor
         return locks.withLocks(List.of(new ResourceKey("NUMBER_SEQUENCE", sequenceKey),
                 new ResourceKey("STUDENT", command.studentId())), () -> transactions.inTransaction(connection -> {
             Student before = requireById(connection, command.studentId());
+            requireSameMajor(before, target.majorId());
             String nextNumber = new AccessStudentNumberGenerator(new NumberSequenceRepository()).next(
                     new TransactionContext(connection, auditUserId, "student-service"), major.majorCode(),
                     target.enrollmentYear(), target.classNumber());
@@ -236,6 +239,11 @@ public final class StudentServiceImpl implements StudentService, StudentQueryPor
                     command.effectiveDate(), Instant.now());
             return view(connection, requireById(connection, command.studentId()));
         }));
+    }
+
+    private static void requireSameMajor(Student before, String targetMajorId) {
+        if (!before.majorId().equals(targetMajorId))
+            throw new StudentAdmissionException("STUDENT_TRANSFER_REQUIRED", "跨专业变更请通过转专业审核和生效办理");
     }
 
     @Override public StudentEligibility getEnrollmentEligibility(String userId) {

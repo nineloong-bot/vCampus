@@ -19,6 +19,10 @@ import edu.seu.vcampus.server.student.handler.DeduplicatingStudentWriteExecutor;
 import edu.seu.vcampus.server.student.handler.StudentAuthorizationPort;
 import edu.seu.vcampus.server.student.handler.StudentHandlers;
 import edu.seu.vcampus.server.student.handler.StudentPrincipal;
+import edu.seu.vcampus.server.student.handler.TrainingPlanHandlers;
+import edu.seu.vcampus.server.student.majortransfer.handler.MajorTransferHandlers;
+import edu.seu.vcampus.server.student.majortransfer.repository.MajorTransferRepository;
+import edu.seu.vcampus.server.student.majortransfer.service.MajorTransferServiceImpl;
 import edu.seu.vcampus.server.student.numbering.AccessCampusCardNumberGenerator;
 import edu.seu.vcampus.server.student.numbering.AccessStudentNumberGenerator;
 import edu.seu.vcampus.server.student.repository.AccessOrganizationRepository;
@@ -27,10 +31,14 @@ import edu.seu.vcampus.server.student.repository.OrganizationRepository;
 import edu.seu.vcampus.server.student.repository.StudentChangeRepository;
 import edu.seu.vcampus.server.student.repository.StudentRepository;
 import edu.seu.vcampus.server.student.repository.StudentProfileApplicationRepository;
+import edu.seu.vcampus.server.student.repository.StudentGradeRepository;
+import edu.seu.vcampus.server.student.repository.TrainingPlanRepository;
 import edu.seu.vcampus.server.student.service.StudentAdmissionCoordinator;
 import edu.seu.vcampus.server.student.service.StudentOrganizationAdminService;
 import edu.seu.vcampus.server.student.service.StudentServiceImpl;
 import edu.seu.vcampus.server.student.service.StudentProfileServiceImpl;
+import edu.seu.vcampus.server.student.service.TrainingPlanServiceImpl;
+import edu.seu.vcampus.server.student.service.StudentGradeServiceImpl;
 import edu.seu.vcampus.server.student.pdf.StudentProfilePdfService;
 import edu.seu.vcampus.server.user.handler.UserHandlers;
 import edu.seu.vcampus.server.user.repository.AccessAuditRepository;
@@ -90,6 +98,8 @@ public final class ServerMain {
         ServerRuntime runtime = createRuntime(config);
         new UserHandlers(router, runtime.users(), runtime.authorization(), runtime.deduplicator());
         runtime.students().register(router);
+        runtime.transfers().register(router);
+        runtime.plans().register(router);
         SocketServer server = new SocketServer(config.port(), config.workerThreads(),
                 config.maxConnections(), router);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> shutdown(server), "vcampus-shutdown"));
@@ -113,7 +123,11 @@ public final class ServerMain {
         RequestDeduplicator deduplicator = new RequestDeduplicator(transactions, locks);
         StudentHandlers students = createStudentHandlers(transactions, locks, sessions,
                 deduplicator, (UserQueryPort) users);
-        return new ServerRuntime(users, authorization, deduplicator, students);
+        MajorTransferHandlers transfers = createTransferHandlers(transactions, locks,
+                deduplicator, sessions, (UserQueryPort) users);
+        TrainingPlanHandlers planHandlers = createPlanHandlers(transactions, locks,
+                deduplicator, sessions);
+        return new ServerRuntime(users, authorization, deduplicator, students, transfers, planHandlers);
     }
 
     private static StudentHandlers createStudentHandlers(TransactionManager transactions,
@@ -153,6 +167,59 @@ public final class ServerMain {
                 new StudentProfilePdfService());
     }
 
+    private static MajorTransferHandlers createTransferHandlers(
+            TransactionManager transactions, ResourceLockManager locks,
+            RequestDeduplicator deduplicator, SessionRegistry sessions,
+            UserQueryPort users) {
+        StudentRepository students = new StudentRepository();
+        StudentChangeRepository changes = new StudentChangeRepository();
+        AccessOrganizationRepository organizations = new AccessOrganizationRepository();
+        MajorTransferRepository transferRepo = new MajorTransferRepository();
+        MajorTransferServiceImpl transferService = new MajorTransferServiceImpl(
+                transactions, locks, transferRepo, students, changes, organizations, users);
+        StudentAuthorizationPort authorization = token -> {
+            SessionRegistry.SessionSnapshot snapshot;
+            try {
+                snapshot = sessions.requireSnapshot(token);
+            } catch (SessionExpiredException error) {
+                throw new IllegalArgumentException("Invalid session", error);
+            }
+            if (snapshot.restricted()) throw new IllegalArgumentException("Invalid session");
+            UserIdentity identity = snapshot.identity();
+            return new StudentPrincipal(identity.userId(), Set.of(identity.role().name()),
+                    snapshot.permissions());
+        };
+        return new MajorTransferHandlers(transferService, authorization,
+                new DeduplicatingStudentWriteExecutor(deduplicator));
+    }
+
+    private static TrainingPlanHandlers createPlanHandlers(TransactionManager transactions,
+            ResourceLockManager locks, RequestDeduplicator deduplicator,
+            SessionRegistry sessions) {
+        TrainingPlanRepository planRepo = new TrainingPlanRepository();
+        StudentGradeRepository gradeRepo = new StudentGradeRepository();
+        StudentRepository students = new StudentRepository();
+        AccessOrganizationRepository organizations = new AccessOrganizationRepository();
+        TrainingPlanServiceImpl planService = new TrainingPlanServiceImpl(transactions, locks,
+                planRepo, students, organizations);
+        StudentGradeServiceImpl gradeService = new StudentGradeServiceImpl(transactions, locks,
+                gradeRepo, planRepo, students);
+        StudentAuthorizationPort authorization = token -> {
+            SessionRegistry.SessionSnapshot snapshot;
+            try {
+                snapshot = sessions.requireSnapshot(token);
+            } catch (SessionExpiredException error) {
+                throw new IllegalArgumentException("Invalid session", error);
+            }
+            if (snapshot.restricted()) throw new IllegalArgumentException("Invalid session");
+            UserIdentity identity = snapshot.identity();
+            return new StudentPrincipal(identity.userId(), Set.of(identity.role().name()),
+                    snapshot.permissions());
+        };
+        return new TrainingPlanHandlers(planService, gradeService, authorization,
+                new DeduplicatingStudentWriteExecutor(deduplicator));
+    }
+
     private static void shutdown(SocketServer server) {
         try {
             server.stopAccepting();
@@ -166,6 +233,7 @@ public final class ServerMain {
     }
 
     private record ServerRuntime(UserService users, AuthorizationService authorization,
-                                 RequestDeduplicator deduplicator, StudentHandlers students) {
+                                 RequestDeduplicator deduplicator, StudentHandlers students,
+                                 MajorTransferHandlers transfers, TrainingPlanHandlers plans) {
     }
 }

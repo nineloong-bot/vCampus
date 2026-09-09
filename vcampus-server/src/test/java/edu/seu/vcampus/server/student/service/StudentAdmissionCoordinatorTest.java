@@ -1,5 +1,7 @@
 package edu.seu.vcampus.server.student.service;
 
+import edu.seu.vcampus.common.student.BatchImportCommand;
+import edu.seu.vcampus.common.student.BatchStudentEntry;
 import edu.seu.vcampus.common.student.CreateStudentAdmissionCommand;
 import edu.seu.vcampus.common.student.CreateStudentManualCommand;
 import edu.seu.vcampus.common.student.StudentType;
@@ -24,6 +26,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
+import java.util.List;
 import java.util.UUID;
 import java.time.LocalDate;
 
@@ -42,9 +45,11 @@ class StudentAdmissionCoordinatorTest {
             organizations.insertDepartment(connection,
                     new Department("department-1", "CS", "计算机学院", true, 0));
             organizations.insertMajor(connection,
-                    new Major("major-1", "department-1", "090", "计算机科学", true, 0));
+                    new Major("major-1", "department-1", "090", "计算机科学", null, true, 0));
             organizations.insertClass(connection,
                     new StudentClass("class-1", "major-1", "090-24-1", "计科24-1", 2024, 1, true, 0));
+            organizations.insertClass(connection,
+                    new StudentClass("class-2", "major-1", "090-24-2", "计科24-2", 2024, 2, true, 0));
             return null;
         });
         var sequences = new NumberSequenceRepository();
@@ -126,6 +131,74 @@ class StudentAdmissionCoordinatorTest {
         assertThat(database.count("tblStudent")).isZero();
         assertThat(database.count("tblStudentChange")).isZero();
         assertThat(database.count("tblRequestDedup")).isZero();
+    }
+
+    @Test
+    void batchImportCreatesStudentsAcrossClasses() throws Exception {
+        var entries = List.of(
+                new BatchStudentEntry("213240001", "张三", "男", 92.0, 0),
+                new BatchStudentEntry("213240002", "李四", "女", 88.5, 1),
+                new BatchStudentEntry("213240003", "王五", "男", 85.0, 0),
+                new BatchStudentEntry("213240004", "赵六", "女", 90.0, 1));
+        var command = new BatchImportCommand("major-1",
+                List.of("class-1", "class-2"), entries);
+        var result = coordinator.batchImport(command,
+                request("batch-" + UUID.randomUUID()));
+
+        assertThat(result.totalCreated()).isEqualTo(4);
+        assertThat(result.totalFailed()).isZero();
+        assertThat(result.errors()).isEmpty();
+        assertThat(database.count("tblStudent")).isEqualTo(4);
+        assertThat(database.count("tblUser")).isEqualTo(4);
+    }
+
+    @Test
+    void batchImportSkipsDuplicateCampusCardAndContinues() throws Exception {
+        coordinator.createManual(manualCommand(),
+                request("pre-" + UUID.randomUUID()));
+        var entries = List.of(
+                new BatchStudentEntry("213240099", "重复", "男", 80.0, 0),
+                new BatchStudentEntry("213240005", "正常", "女", 85.0, 0));
+        var command = new BatchImportCommand("major-1",
+                List.of("class-1", "class-2"), entries);
+        var result = coordinator.batchImport(command,
+                request("batch-" + UUID.randomUUID()));
+
+        assertThat(result.totalCreated()).isEqualTo(1);
+        assertThat(result.totalFailed()).isEqualTo(1);
+        assertThat(result.errors()).hasSize(1);
+    }
+
+    @Test
+    void batchImportRejectsInvalidClassIndex() {
+        var entries = List.of(
+                new BatchStudentEntry("213240001", "张三", "男", 90.0, 5));
+        var command = new BatchImportCommand("major-1",
+                List.of("class-1", "class-2"), entries);
+
+        assertThatThrownBy(() -> coordinator.batchImport(command,
+                request(UUID.randomUUID().toString())))
+                .isInstanceOf(StudentAdmissionException.class)
+                .hasMessageContaining("班级索引无效");
+    }
+
+    @Test
+    void batchImportRejectsInactiveClass() throws Exception {
+        database.transactions().inTransaction(connection -> {
+            var orgs = new AccessOrganizationRepository();
+            orgs.insertClass(connection,
+                    new StudentClass("class-inactive", "major-1", "090-24-3", "计科24-3", 2024, 3, false, 0));
+            return null;
+        });
+        var entries = List.of(
+                new BatchStudentEntry("213240001", "张三", "男", 90.0, 0));
+        var command = new BatchImportCommand("major-1",
+                List.of("class-inactive"), entries);
+
+        assertThatThrownBy(() -> coordinator.batchImport(command,
+                request(UUID.randomUUID().toString())))
+                .isInstanceOf(StudentAdmissionException.class)
+                .hasMessageContaining("已停用");
     }
 
     private static CreateStudentAdmissionCommand command() {

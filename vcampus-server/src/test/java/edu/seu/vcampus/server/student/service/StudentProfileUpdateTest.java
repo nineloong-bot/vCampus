@@ -103,6 +103,24 @@ class StudentProfileUpdateTest {
         assertThat(database.count("tblStudentChange")).isZero();
     }
 
+    @Test void ordinaryClassChangeCannotBypassTransferReview() throws Exception {
+        database.transactions().inTransaction(connection -> {
+            var org = new AccessOrganizationRepository();
+            String department = org.findMajor(connection, "major-1").orElseThrow().departmentId();
+            org.insertMajor(connection, new edu.seu.vcampus.server.student.domain.Major(
+                    "major-2", department, "091", "新专业", "1,2,3,4", true, 0));
+            org.insertClass(connection, new StudentClass("class-2", "major-2", "091-24-1", "新专业24-1", 2024, 1, true, 0));
+            return null;
+        });
+        assertThatThrownBy(() -> service.updateEnrollment(new UpdateStudentEnrollmentCommand(
+                "student-1", "class-2", LocalDate.now(), "绕过审核", 0)))
+                .isInstanceOf(StudentAdmissionException.class).hasMessageContaining("转专业");
+        assertThatThrownBy(() -> service.updateStudentInfo(new UpdateStudentInfoCommand(
+                "student-1", "09024101", "class-2", StudentStatus.ACTIVE, LocalDate.now(), "绕过审核", 0)))
+                .isInstanceOf(StudentAdmissionException.class).hasMessageContaining("转专业");
+        assertThat(database.count("tblStudentChange")).isZero();
+    }
+
     @Test
     void academicFieldsAndStatusCommitAtomically() throws Exception {
         var updated = service.updateStudentInfo(new UpdateStudentInfoCommand(

@@ -22,7 +22,7 @@ class StudentOrganizationAdminServiceTest {
         var department = service.saveDepartment(new SaveDepartmentCommand(
                 null, "EE", "电子工程学院", true, 0));
         var major = service.saveMajor(new SaveMajorCommand(
-                null, department.departmentId(), "080", "电子信息工程", true, 0));
+                null, department.departmentId(), "080", "电子信息工程", "1,2,3,4", true, 0));
         var studentClass = service.saveClass(new SaveClassCommand(
                 null, major.majorId(), "080-24-1", "电子信息24-1", 2024, 1, true, 0));
 
@@ -63,7 +63,7 @@ class StudentOrganizationAdminServiceTest {
         var department = service.saveDepartment(new SaveDepartmentCommand(
                 null, "CS", "计算机学院", true, 0));
         service.saveMajor(new SaveMajorCommand(null, department.departmentId(),
-                "090", "计算机科学", true, 0));
+                "090", "计算机科学", "1,2,3,4", true, 0));
 
         assertThatThrownBy(() -> service.saveDepartment(new SaveDepartmentCommand(
                 department.departmentId(), department.code(), department.name(), false,

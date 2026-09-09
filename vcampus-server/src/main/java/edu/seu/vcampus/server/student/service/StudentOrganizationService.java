@@ -29,7 +29,7 @@ public final class StudentOrganizationService implements StudentOrganizationQuer
     public List<MajorView> listMajors(String departmentId) {
         return transactions.inTransaction(connection -> organizations.listActiveMajors(connection, departmentId)
                 .stream().map(value -> new MajorView(value.majorId(), value.departmentId(), value.majorCode(),
-                        value.majorName(), value.active(), value.rowVersion())).toList());
+                        value.majorName(), value.grades(), value.active(), value.rowVersion())).toList());
     }
 
     public List<ClassView> listClasses(String majorId) {

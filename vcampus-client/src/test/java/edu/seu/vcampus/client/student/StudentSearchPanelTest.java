@@ -95,7 +95,7 @@ class StudentSearchPanelTest {
                 new DepartmentView("d2", "02", "数学", true, 1)))));
         client.enqueue(ResponseBody.success(new PageResult<>(new ArrayList<>(), 1, 20, 0)));
         client.enqueue(ResponseBody.success(new ArrayList<>(List.of(
-                new MajorView("m1", "d1", "0101", "计科", true, 1)))));
+                new MajorView("m1", "d1", "0101", "计科", null, true, 1)))));
         client.enqueue(ResponseBody.success(new PageResult<>(new ArrayList<>(), 1, 20, 0)));
         client.enqueue(ResponseBody.success(new ArrayList<>(List.of(
                 new ClassView("c1", "m1", "010101", "计科1班", 2024, 1, true, 1)))));
@@ -214,7 +214,7 @@ class StudentSearchPanelTest {
             f.setAccessible(true);
             f.set(connection, edu.seu.vcampus.client.core.network.ConnectionState.CONNECTED);
         } catch (ReflectiveOperationException e) { throw new AssertionError(e); }
-        return onEdt(() -> new StudentSearchPanel(service, connection, id -> {}));
+        return onEdt(() -> new StudentSearchPanel(service, connection, false));
     }
 
     @SuppressWarnings("unchecked")
