@@ -60,14 +60,14 @@ class CourseManagementServiceTest {
             }
         };
         studentGatewayUserIds = new ArrayList<>();
-        service = new CourseServiceImpl(authorization, userId -> {
+        service = new CourseServiceImpl(authorization, CourseStudentGateway.of(userId -> {
                     studentGatewayUserIds.add(userId);
                     return switch (userId) {
                         case "student-user" -> new StudentEnrollmentEligibility("student-1", "ACTIVE");
                         case "admin-user" -> new StudentEnrollmentEligibility("admin-student", "ACTIVE");
                         default -> throw new IllegalArgumentException("unknown user");
                     };
-                },
+                }, studentId -> "student-1".equals(studentId) || "admin-student".equals(studentId)),
                 repository, new StripedResourceLockManager(), transactions, new TermWindowPolicy(),
                 new ScheduleConflictPolicy(), Clock.fixed(NOW, ZoneOffset.UTC));
     }
@@ -269,6 +269,30 @@ class CourseManagementServiceTest {
                     .allSatisfy(option -> assertThat(option.actionType()).isEqualTo("ENROLL"));
         });
         assertThat(service.getStudentSelectionContext("student").displayTitle()).isEqualTo("秋季选课");
+    }
+
+    @Test void studentCourseSearchUsesRetakeQuotaInsteadOfFullNormalQuota() {
+        TermView term = activateEnrollmentPhase(service.createTerm(termCommand()));
+        CourseView course = service.createCourse(courseCommand("CS102", "数据结构"));
+        OfferingView offering = service.createOffering(new CreateOfferingCommand(term.termId(), course.courseId(),
+                "teacher-1", "重修共享班", 1, 2, "OPEN", List.of()));
+        transactions.inTransaction(connection -> {
+            repository.changeEnrolledCount(connection, offering.offeringId(), "NORMAL", 1);
+            return null;
+        });
+        service.importCourseOutcomes(new ImportCourseOutcomesCommand(List.of(
+                new ImportCourseOutcomesCommand.OutcomeEntry("student-1", course.courseId(), term.termId(),
+                        CourseOutcome.FAILED, "failed-CS102"))));
+
+        CourseSelectionView row = service.searchStudentCourses("student",
+                new CourseSelectionQuery(term.termId(), "CS102", null, 0, 20)).items().getFirst();
+
+        assertThat(row.retakeCourse()).isTrue();
+        assertThat(row.teachingClasses()).singleElement().satisfies(option -> {
+            assertThat(option.actionType()).isEqualTo("RETAKE");
+            assertThat(option.offering().enrolledCount()).isEqualTo(1);
+            assertThat(option.offering().retakeEnrolledCount()).isZero();
+        });
     }
 
     @Test void updatesCourseAndOfferingWithDatabaseReadbackAndVersion() {

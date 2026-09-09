@@ -19,7 +19,7 @@ class CourseQueryPortTest {
         var runtime = CourseDemoServerMain.prepare(directory.resolve("query.accdb"), schema(), "ENROLLMENT");
         var term = runtime.service().listTerms().getFirst();
         var offering = runtime.service().searchOfferings(
-                new OfferingSearchQuery(term.termId(), "MATH101", null, true, 0, 20)).items().getFirst();
+                new OfferingSearchQuery(term.termId(), "B09G0011", null, true, 0, 20)).items().getFirst();
         runtime.service().enroll("student-demo-1", new EnrollCommand(offering.offeringId()));
         CourseQueryPort query = (CourseQueryPort) runtime.service();
 
@@ -27,8 +27,8 @@ class CourseQueryPortTest {
         assertThat(query.hasActiveEnrollment("student-demo-2")).isFalse();
         assertThat(query.findCoursesByStudent("student-demo-1"))
                 .singleElement().satisfies(course -> {
-                    assertThat(course.courseCode()).isEqualTo("MATH101");
-                    assertThat(course.courseName()).isEqualTo("高等数学");
+                    assertThat(course.courseCode()).isEqualTo("B09G0011");
+                    assertThat(course.courseName()).isEqualTo("数字图像处理");
                 });
     }
 

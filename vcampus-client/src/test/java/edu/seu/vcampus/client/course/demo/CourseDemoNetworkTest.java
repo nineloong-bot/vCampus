@@ -4,6 +4,9 @@ import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.course.service.CourseClientException;
 import edu.seu.vcampus.client.course.service.CourseClientService;
 import edu.seu.vcampus.common.course.EnrollCommand;
+import edu.seu.vcampus.common.course.CourseCatalogQuery;
+import edu.seu.vcampus.common.course.CourseSelectionQuery;
+import edu.seu.vcampus.common.course.CreateOfferingCommand;
 import edu.seu.vcampus.common.course.OfferingSearchQuery;
 import edu.seu.vcampus.server.course.demo.CourseDemoServerMain;
 import edu.seu.vcampus.server.network.SocketServer;
@@ -37,11 +40,16 @@ class CourseDemoNetworkTest {
             var term = step("list terms", () -> client.listTerms().join().getFirst());
             var offerings = step("search offerings", () -> client.searchOfferings(
                     new OfferingSearchQuery(term.termId(), "", null, true, 0, 20)).join().items());
+            var selectable = step("search student courses", () -> client.searchStudentCourses(
+                            new CourseSelectionQuery(term.termId(), "B09G0011", null, 0, 20)).join().items())
+                    .getFirst().teachingClasses().getFirst().offering();
 
             var enrollment = step("enroll", () -> client.enroll(
-                    new EnrollCommand(offerings.getFirst().offeringId())).join());
+                    new EnrollCommand(selectable.offeringId())).join());
 
-            assertThat(offerings).hasSize(3);
+            assertThat(offerings).extracting(offering -> offering.courseCode())
+                    .contains("B09D0012", "B09G0011", "BJSL0061")
+                    .doesNotContain("MATH101", "CS201", "DEMO-RACE");
             assertThat(enrollment.studentId()).isEqualTo("student-demo-1");
             assertThat(step("current enrollments", () -> client.getCurrentEnrollments().join())).hasSize(1);
             assertThat(step("current schedule", () -> client.getCurrentSchedule().join())).hasSize(1);
@@ -56,6 +64,11 @@ class CourseDemoNetworkTest {
     @Test
     void twoIndependentClientsCanRaceForTheDemoLastSeat() throws Exception {
         var runtime = CourseDemoServerMain.prepare(directory.resolve("course-race.accdb"), schema(), "ENROLLMENT");
+        var term = runtime.service().listTerms().getFirst();
+        var course = runtime.service().searchCatalog(new CourseCatalogQuery("B09G0011", true, 0, 10))
+                .items().getFirst();
+        var raceOffering = runtime.service().createOffering(new CreateOfferingCommand(term.termId(),
+                course.courseId(), "teacher-user", "并发名额验证班", 1, 1, "OPEN", List.of()));
         SocketServer server = new SocketServer(0, 4, 20, runtime.router());
         Thread serving = Thread.ofPlatform().start(() -> {
             try { server.serve(); } catch (Exception ignored) { }
@@ -68,12 +81,6 @@ class CourseDemoNetworkTest {
             secondConnection.setSessionToken("student-demo-2");
             CourseClientService first = new CourseClientService(firstConnection);
             CourseClientService second = new CourseClientService(secondConnection);
-            var term = first.listTerms().join().getFirst();
-            var raceOffering = first.searchOfferings(
-                    new OfferingSearchQuery(term.termId(), "并发测试", null, true, 0, 20))
-                    .join().items().stream().findFirst()
-                    .orElseThrow(() -> new AssertionError("Demo must seed a one-seat race offering"));
-
             CompletableFuture<RaceResult> firstAttempt = CompletableFuture.supplyAsync(
                     () -> attempt(first, raceOffering.offeringId()));
             CompletableFuture<RaceResult> secondAttempt = CompletableFuture.supplyAsync(
