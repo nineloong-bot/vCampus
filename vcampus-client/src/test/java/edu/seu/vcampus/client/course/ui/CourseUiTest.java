@@ -21,6 +21,8 @@ import edu.seu.vcampus.common.course.ScheduleItem;
 import edu.seu.vcampus.common.course.AdjustmentAuditQuery;
 import edu.seu.vcampus.common.course.AdjustmentAuditView;
 import edu.seu.vcampus.common.course.CourseCatalogQuery;
+import edu.seu.vcampus.common.course.CourseSelectionQuery;
+import edu.seu.vcampus.common.course.CourseSelectionView;
 import edu.seu.vcampus.common.course.CourseView;
 import edu.seu.vcampus.common.course.TermView;
 import edu.seu.vcampus.common.course.ImportCourseOutcomesCommand;
@@ -33,6 +35,7 @@ import edu.seu.vcampus.common.course.CreateOfferingCommand;
 import edu.seu.vcampus.common.course.UpdateOfferingCommand;
 import edu.seu.vcampus.common.course.OfferingView;
 import edu.seu.vcampus.common.course.TermPhaseView;
+import edu.seu.vcampus.common.course.StudentSelectionContextView;
 import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.user.UserRole;
 import edu.seu.vcampus.common.user.AccountStatus;
@@ -66,6 +69,7 @@ import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Component;
 import java.awt.Container;
+import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -261,28 +265,75 @@ class CourseUiTest {
     }
 
     @Test
-    void unifiedStudentSelectionUsesPhaseTitleAndPerCourseActions() throws Exception {
+    void unifiedStudentSelectionPutsOnePlainSelectButtonOnEveryTeacherCard() throws Exception {
         StudentCourseSelectionPanel panel = onEdt(() -> new StudentCourseSelectionPanel(CourseUiGateway.preview()));
         SwingUtilities.invokeAndWait(() -> { });
         SwingUtilities.invokeAndWait(() -> { });
 
         assertThat(labels(panel)).contains("2026-2027秋季学期选课", "共 3 门课程");
-        assertThat(buttons(panel)).contains("选择课程", "重修选课");
-        assertThat(buttons(panel)).doesNotContain("选择教学班");
+        List<TeachingClassCardPanel> teacherCards = descendants(panel).stream()
+                .filter(TeachingClassCardPanel.class::isInstance)
+                .map(TeachingClassCardPanel.class::cast).toList();
+        assertThat(teacherCards).hasSize(4)
+                .allSatisfy(card -> assertThat(buttons(card)).containsExactly("选择"));
+        assertThat(descendants(panel)).noneMatch(JRadioButton.class::isInstance);
+        assertThat(buttons(panel)).doesNotContain("选择课程", "重修选课", "查询课程", "重置条件");
     }
 
     @Test
-    void unifiedSelectionRequiresAnExplicitTeachingClassChoice() throws Exception {
-        StudentCourseSelectionPanel panel = onEdt(() -> new StudentCourseSelectionPanel(CourseUiGateway.preview()));
-        SwingUtilities.invokeAndWait(() -> { });
-        SwingUtilities.invokeAndWait(() -> { });
+    void unifiedTeacherCardButtonsSubmitNormalAndRetakeSelections() throws Exception {
+        AtomicReference<EnrollCommand> normal = new AtomicReference<>();
+        AtomicReference<RetakeCommand> retake = new AtomicReference<>();
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(CourseUiGateway.preview()) {
+            @Override public CompletableFuture<EnrollmentView> enroll(EnrollCommand command) {
+                normal.set(command);
+                return new CompletableFuture<>();
+            }
 
-        JButton add = button(panel, "选择课程");
-        assertThat(add.isEnabled()).isFalse();
-        JRadioButton option = descendants(panel).stream().filter(JRadioButton.class::isInstance)
-                .map(JRadioButton.class::cast).filter(AbstractButton::isEnabled).findFirst().orElseThrow();
-        SwingUtilities.invokeAndWait(option::doClick);
-        assertThat(add.isEnabled()).isTrue();
+            @Override public CompletableFuture<EnrollmentView> enrollRetake(RetakeCommand command) {
+                retake.set(command);
+                return new CompletableFuture<>();
+            }
+        };
+        StudentCourseSelectionPanel panel = onEdt(() -> new StudentCourseSelectionPanel(gateway));
+        flushEdt(3);
+
+        List<TeachingClassCardPanel> cards = descendants(panel).stream()
+                .filter(TeachingClassCardPanel.class::isInstance)
+                .map(TeachingClassCardPanel.class::cast).toList();
+        TeachingClassCardPanel normalCard = cards.stream()
+                .filter(card -> labels(card).stream().anyMatch(text -> text.contains("[01班]")))
+                .findFirst().orElseThrow();
+        TeachingClassCardPanel retakeCard = cards.stream()
+                .filter(card -> labels(card).stream().anyMatch(text -> text.contains("[重修01班]")))
+                .findFirst().orElseThrow();
+        JButton normalButton = button(normalCard, "选择");
+        JButton retakeButton = button(retakeCard, "选择");
+        SwingUtilities.invokeAndWait(() -> {
+            normalButton.doClick();
+            retakeButton.doClick();
+        });
+
+        assertThat(normal.get()).isEqualTo(new EnrollCommand("o1"));
+        assertThat(retake.get()).isEqualTo(new RetakeCommand("o3"));
+    }
+
+    @Test
+    void unifiedSelectionKeepsSearchAndResetVisibleAtDesktopWidth() throws Exception {
+        StudentCourseSelectionPanel panel = onEdt(() -> new StudentCourseSelectionPanel(CourseUiGateway.preview()));
+        flushEdt(3);
+        SwingUtilities.invokeAndWait(() -> {
+            panel.setSize(1600, 900);
+            layoutTree(panel);
+        });
+
+        assertThat(buttons(panel)).contains("搜索", "重置");
+        for (String text : List.of("搜索", "重置")) {
+            JButton control = button(panel, text);
+            assertThat(control.getHeight()).as(text).isPositive();
+            assertThat(control.getY() + control.getHeight()).as(text)
+                    .isLessThanOrEqualTo(control.getParent().getHeight());
+        }
     }
 
     @Test
@@ -298,11 +349,19 @@ class CourseUiTest {
 
         List<StudentCourseRowPanel> rows = descendants(panel).stream()
                 .filter(StudentCourseRowPanel.class::isInstance).map(StudentCourseRowPanel.class::cast).toList();
-        List<JButton> toggles = descendants(panel).stream().filter(JButton.class::isInstance)
-                .map(JButton.class::cast).filter(button -> button.getAccessibleContext().getAccessibleName() != null)
-                .filter(button -> button.getAccessibleContext().getAccessibleName().startsWith("展开课程")).toList();
-        SwingUtilities.invokeAndWait(() -> { toggles.get(0).doClick(); toggles.get(1).doClick(); });
+        JLabel firstCourse = descendants(rows.get(0)).stream().filter(JLabel.class::isInstance)
+                .map(JLabel.class::cast).filter(label -> "B09D0012".equals(label.getText()))
+                .findFirst().orElseThrow();
+        JLabel secondCourse = descendants(rows.get(1)).stream().filter(JLabel.class::isInstance)
+                .map(JLabel.class::cast).filter(label -> "B09G0011".equals(label.getText()))
+                .findFirst().orElseThrow();
+        SwingUtilities.invokeAndWait(() -> {
+            click(firstCourse);
+            assertThat(rows.get(0).isExpanded()).isTrue();
+            click(secondCourse);
+        });
         assertThat(rows.stream().filter(StudentCourseRowPanel::isExpanded)).hasSize(1);
+        assertThat(rows.get(1).isExpanded()).isTrue();
     }
 
     @Test
@@ -2574,6 +2633,11 @@ class CourseUiTest {
         }
     }
 
+    private static void click(Component component) {
+        component.dispatchEvent(new MouseEvent(component, MouseEvent.MOUSE_CLICKED,
+                System.currentTimeMillis(), 0, 1, 1, 1, false));
+    }
+
     private static boolean isInteractiveControl(Component component) {
         if (component instanceof JButton && component.getParent() instanceof JComboBox<?>) return false;
         return component instanceof JButton || component instanceof JTextField
@@ -2715,6 +2779,13 @@ class CourseUiTest {
         @Override public CompletableFuture<String> currentTermId() { return delegate.currentTermId(); }
         @Override public CompletableFuture<TermPhaseView> getTermPhase(String termId) {
             return delegate.getTermPhase(termId);
+        }
+        @Override public CompletableFuture<StudentSelectionContextView> studentSelectionContext() {
+            return delegate.studentSelectionContext();
+        }
+        @Override public CompletableFuture<PageResult<CourseSelectionView>> searchStudentCourses(
+                CourseSelectionQuery query) {
+            return delegate.searchStudentCourses(query);
         }
         @Override public CompletableFuture<List<TermView>> listTerms() { return delegate.listTerms(); }
         @Override public CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery query) {

@@ -9,7 +9,7 @@ import java.awt.*;
 
 /** White teaching-class card displayed inside an expanded course row. */
 final class TeachingClassCardPanel extends JPanel {
-    TeachingClassCardPanel(TeachingClassOptionView option, JRadioButton choice) {
+    TeachingClassCardPanel(TeachingClassOptionView option, JButton action) {
         OfferingSummary offering = option.offering();
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
         setBackground(Color.WHITE);
@@ -18,11 +18,9 @@ final class TeachingClassCardPanel extends JPanel {
                 BorderFactory.createEmptyBorder(UiSpacing.LG, UiSpacing.LG, UiSpacing.LG, UiSpacing.LG)));
         setPreferredSize(new Dimension(310, 210));
         setMaximumSize(new Dimension(340, 230));
-        choice.setText("[" + offering.className() + "]  教师 " + offering.teacherUserId());
-        choice.setFont(UiTypography.BODY_BOLD);
-        choice.setOpaque(false);
-        choice.getAccessibleContext().setAccessibleName("选择教学班 " + offering.className());
-        add(choice);
+        JLabel title = line("[" + offering.className() + "]  教师 " + offering.teacherUserId());
+        title.setFont(UiTypography.BODY_BOLD);
+        add(title);
         add(Box.createVerticalStrut(UiSpacing.SM));
         if (option.actionType().equals("RETAKE")) add(badge("重修专用名额"));
         add(line(StudentCourseSelectionPanel.scheduleText(offering)));
@@ -34,6 +32,9 @@ final class TeachingClassCardPanel extends JPanel {
         add(line("课容量：" + capacity + " 人"));
         add(line("已选人数：" + enrolled));
         if (option.actionReason() != null) add(line(option.actionReason()));
+        add(Box.createVerticalGlue());
+        action.setAlignmentX(LEFT_ALIGNMENT);
+        add(action);
     }
 
     private static JLabel line(String text) {

@@ -5,8 +5,6 @@ import edu.seu.vcampus.common.course.*;
 
 import javax.swing.*;
 import java.awt.*;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /** Unified student course-selection page driven by the administrator-opened phase. */
@@ -55,19 +53,46 @@ public final class StudentCourseSelectionPanel extends AbstractCoursePanel {
     }
 
     private JPanel filters() {
-        JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, UiSpacing.MD, UiSpacing.LG));panel.setBackground(UiColors.BACKGROUND_SUBTLE);
-        panel.add(label("课程关键词", UiTypography.BODY, UiColors.TEXT_PRIMARY));keyword.setPreferredSize(new Dimension(220, UiDimensions.CONTROL_HEIGHT));panel.add(keyword);
-        panel.add(label("上课日期", UiTypography.BODY, UiColors.TEXT_PRIMARY));weekday.setPreferredSize(new Dimension(128, UiDimensions.CONTROL_HEIGHT));panel.add(weekday);
-        panel.add(conflict); panel.add(nature); panel.add(category);
-        JButton query=primary("查询课程");query.addActionListener(e->refresh());panel.add(query);
-        JButton reset=secondary("重置条件");reset.addActionListener(e->{keyword.setText("");weekday.setSelectedIndex(0);conflict.setSelectedIndex(0);nature.setSelectedIndex(0);category.setSelectedIndex(0);refresh();});panel.add(reset);return panel;
+        JPanel panel = new JPanel(new BorderLayout(UiSpacing.MD, 0));
+        panel.setBackground(UiColors.BACKGROUND_SUBTLE);
+        JPanel fields = new JPanel(new FlowLayout(FlowLayout.LEFT, UiSpacing.MD, UiSpacing.LG));
+        fields.setOpaque(false);
+        fields.add(label("课程关键词", UiTypography.BODY, UiColors.TEXT_PRIMARY));
+        keyword.setPreferredSize(new Dimension(220, UiDimensions.CONTROL_HEIGHT));
+        keyword.addActionListener(e -> refresh());
+        fields.add(keyword);
+        fields.add(label("上课日期", UiTypography.BODY, UiColors.TEXT_PRIMARY));
+        weekday.setPreferredSize(new Dimension(128, UiDimensions.CONTROL_HEIGHT));
+        fields.add(weekday);
+        fields.add(conflict);
+        fields.add(nature);
+        fields.add(category);
+        panel.add(fields, BorderLayout.CENTER);
+
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, UiSpacing.SM, UiSpacing.LG));
+        actions.setOpaque(false);
+        JButton query = primary("搜索");
+        query.addActionListener(e -> refresh());
+        actions.add(query);
+        JButton reset = secondary("重置");
+        reset.addActionListener(e -> {
+            keyword.setText("");
+            weekday.setSelectedIndex(0);
+            conflict.setSelectedIndex(0);
+            nature.setSelectedIndex(0);
+            category.setSelectedIndex(0);
+            refresh();
+        });
+        actions.add(reset);
+        panel.add(actions, BorderLayout.EAST);
+        return panel;
     }
 
     private JPanel tableHeader() {
         JPanel header = new JPanel(new GridLayout(1, 7));
         header.setBackground(new Color(235, 243, 253));
         header.setBorder(BorderFactory.createEmptyBorder(UiSpacing.MD, UiSpacing.MD, UiSpacing.MD, UiSpacing.MD));
-        for (String text : new String[]{"课程号", "课程名称", "教学班个数", "课程性质", "开课单位", "学分", "操作"}) {
+        for (String text : new String[]{"课程号", "课程名称", "教学班个数", "课程性质", "开课单位", "学分", ""}) {
             JLabel label = label(text, UiTypography.BODY_BOLD, UiColors.TEXT_PRIMARY); header.add(label);
         }
         header.getAccessibleContext().setAccessibleName("可选课程表头");
@@ -106,23 +131,31 @@ public final class StudentCourseSelectionPanel extends AbstractCoursePanel {
         JPanel optionsPanel=new JPanel(new FlowLayout(FlowLayout.LEFT,UiSpacing.MD,UiSpacing.MD));
         optionsPanel.setBackground(new Color(244,245,247));
         optionsPanel.setBorder(BorderFactory.createEmptyBorder(UiSpacing.MD,UiSpacing.XL,UiSpacing.MD,UiSpacing.XL));
-        ButtonGroup group=new ButtonGroup();Map<AbstractButton,TeachingClassOptionView> choices=new LinkedHashMap<>();
         for(TeachingClassOptionView option:course.teachingClasses()){
             OfferingSummary offering=option.offering();
-            JRadioButton radio=new JRadioButton();
-            radio.setOpaque(false);radio.setFont(UiTypography.BODY);radio.setEnabled(isSelectable(option));radio.setSelected(offering.offeringId().equals(course.activeOfferingId()));group.add(radio);optionsPanel.add(radio);choices.put(radio,option);
-            optionsPanel.remove(radio);optionsPanel.add(new TeachingClassCardPanel(option,radio));
+            boolean selected=offering.offeringId().equals(course.activeOfferingId());
+            JButton action=primary(selected?"退选":"选择");
+            action.setEnabled(selected?"CANCEL_SELECTION".equals(course.courseAction()):isSelectable(option));
+            action.setToolTipText(option.actionReason()==null?course.courseReason():option.actionReason());
+            action.getAccessibleContext().setAccessibleName(
+                    (selected?"退选教学班 ":"选择教学班 ")+offering.className());
+            action.addActionListener(e->{
+                if(selected){
+                    if(confirmation.confirm(SwingUtilities.getWindowAncestor(this),course.courseCode()+" "+course.courseName()))
+                        submit(action,gateway.drop(new DropCommand(course.activeEnrollmentId(),course.activeEnrollmentVersion())));
+                    return;
+                }
+                String id=offering.offeringId();
+                CompletableFuture<?> operation=switch(option.actionType()){
+                    case "RETAKE"->gateway.enrollRetake(new RetakeCommand(id));
+                    case "LATE_ADD"->gateway.lateAdd(new LateAddCommand(id));
+                    default->gateway.enroll(new EnrollCommand(id));
+                };
+                submit(action,operation);
+            });
+            optionsPanel.add(new TeachingClassCardPanel(option,action));
         }
-        JButton action=primary("CANCEL_SELECTION".equals(course.courseAction())?"取消选课":actionLabel(choices));
-        action.setEnabled("CANCEL_SELECTION".equals(course.courseAction()));action.setToolTipText(course.courseReason());
-        choices.forEach((button,option)->button.addItemListener(e->{if(button.isSelected()){action.setText(optionLabel(option));action.setEnabled(true);}}));
-        action.addActionListener(e->{
-            if("CANCEL_SELECTION".equals(course.courseAction())){if(confirmation.confirm(SwingUtilities.getWindowAncestor(this),course.courseCode()+" "+course.courseName()))submit(action,gateway.drop(new DropCommand(course.activeEnrollmentId(),course.activeEnrollmentVersion())));return;}
-            TeachingClassOptionView selected=choices.entrySet().stream().filter(x->x.getKey().isSelected()).map(Map.Entry::getValue).findFirst().orElse(null);
-            if(selected==null){if(expandedRow!=null)expandedRow.expand();showState(ViewState.ERROR,"请先展开课程并选择一个可用教学班");return;}
-            String id=selected.offering().offeringId();CompletableFuture<?> operation=switch(selected.actionType()){case "RETAKE"->gateway.enrollRetake(new RetakeCommand(id));case "LATE_ADD"->gateway.lateAdd(new LateAddCommand(id));default->gateway.enroll(new EnrollCommand(id));};submit(action,operation);
-        });
-        StudentCourseRowPanel row=new StudentCourseRowPanel(course,action,optionsPanel,this::expandOnly);
+        StudentCourseRowPanel row=new StudentCourseRowPanel(course,optionsPanel,this::expandOnly);
         return row;
     }
 
@@ -131,8 +164,6 @@ public final class StudentCourseSelectionPanel extends AbstractCoursePanel {
     private void submit(JButton button,CompletableFuture<?> operation){long request=beginAsyncRequest();button.setEnabled(false);showState(ViewState.SUBMITTING,"正在提交，请勿重复操作");operation.whenComplete((ignored,error)->SwingUtilities.invokeLater(()->{if(!acceptsAsyncResult(request))return;if(error!=null){button.setEnabled(true);showState(ViewState.ERROR,"操作未完成，请刷新后重试");}else{onMutation.run();refresh();}}));}
     private static boolean isSelectable(TeachingClassOptionView option){return java.util.Set.of("ENROLL","RETAKE","LATE_ADD").contains(option.actionType());}
     private String selectedDay(){return switch(weekday.getSelectedIndex()){case 1->"MONDAY";case 2->"TUESDAY";case 3->"WEDNESDAY";case 4->"THURSDAY";case 5->"FRIDAY";case 6->"SATURDAY";case 7->"SUNDAY";default->null;};}
-    private static String actionLabel(Map<AbstractButton,TeachingClassOptionView> choices){return choices.values().stream().filter(StudentCourseSelectionPanel::isSelectable).findFirst().map(StudentCourseSelectionPanel::optionLabel).orElse("选择课程");}
-    private static String optionLabel(TeachingClassOptionView option){return switch(option.actionType()){case "RETAKE"->"重修选课";case "LATE_ADD"->"补选课程";default->"选择课程";};}
     static String scheduleText(OfferingSummary o){if(o.schedules().isEmpty())return "待安排";return o.schedules().stream().map(s->dayName(s.dayOfWeek())+" 第"+s.startPeriod()+"–"+s.endPeriod()+"节 "+s.classroom()).collect(java.util.stream.Collectors.joining("；"));}
     private static String dayName(String day){return switch(day){case "MONDAY"->"星期一";case "TUESDAY"->"星期二";case "WEDNESDAY"->"星期三";case "THURSDAY"->"星期四";case "FRIDAY"->"星期五";case "SATURDAY"->"星期六";case "SUNDAY"->"星期日";default->day;};}
     private record SelectionData(StudentSelectionContextView context,edu.seu.vcampus.common.paging.PageResult<CourseSelectionView> page){}

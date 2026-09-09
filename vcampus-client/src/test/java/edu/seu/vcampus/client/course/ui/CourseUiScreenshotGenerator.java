@@ -15,6 +15,7 @@ import javax.swing.RootPaneContainer;
 import javax.swing.SwingUtilities;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
+import java.awt.event.ActionEvent;
 import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,7 +30,8 @@ public final class CourseUiScreenshotGenerator {
     private CourseUiScreenshotGenerator() { }
 
     public static void main(String[] args) throws Exception {
-        Path output = Path.of("docs/ui-review/course");
+        Path output = Path.of(System.getProperty(
+                "vcampus.ui.output", "docs/ui-review/course"));
         Files.createDirectories(output);
         boolean scaled = java.util.Arrays.asList(args).contains("--scale-150");
         String suffix = scaled ? "-150" : "";
@@ -91,11 +93,13 @@ public final class CourseUiScreenshotGenerator {
                         WINDOW_WIDTH, WINDOW_HEIGHT);
                 capture(student[0], output.resolve("student-selection-normal" + suffix + ".png"),
                         WINDOW_WIDTH, WINDOW_HEIGHT);
-                descendants(student[0]).stream().filter(javax.swing.JButton.class::isInstance)
-                        .map(javax.swing.JButton.class::cast)
-                        .filter(button -> "展开课程 B09D0012".equals(
-                                button.getAccessibleContext().getAccessibleName()))
-                        .findFirst().ifPresent(javax.swing.JButton::doClick);
+                descendants(student[0]).stream().filter(StudentCourseRowPanel.class::isInstance)
+                        .map(StudentCourseRowPanel.class::cast)
+                        .filter(row -> "展开课程 B09D0012".equals(
+                                row.getAccessibleContext().getAccessibleName()))
+                        .findFirst().ifPresent(row -> row.getActionMap().get("toggle")
+                                .actionPerformed(new ActionEvent(
+                                        row, ActionEvent.ACTION_PERFORMED, "toggle")));
                 capture(student[0], output.resolve("student-selection-expanded" + suffix + ".png"),
                         WINDOW_WIDTH, WINDOW_HEIGHT);
                 if (!scaled) capture(student[0], output.resolve("student-selection-expanded-1024x680.png"),
