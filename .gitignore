@@ -8,3 +8,4 @@ vcampus-distribution/logs/
 /vCampus-release/
 /docs/student-class-diagram.md
 *.pdf
+/.mimocode/
