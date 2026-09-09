@@ -23,6 +23,7 @@ import edu.seu.vcampus.server.user.repository.AccessUserRepository;
 import edu.seu.vcampus.server.user.service.PasswordHasher;
 import edu.seu.vcampus.server.user.service.SecurityAuditService;
 import edu.seu.vcampus.server.user.service.UserServiceImpl;
+import edu.seu.vcampus.server.user.service.UserQueryPort;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -31,6 +32,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 /** Production composition root for the user and course server modules. */
 public final class ApplicationRuntime {
@@ -61,10 +63,20 @@ public final class ApplicationRuntime {
     public static ApplicationRuntime create(ConnectionProvider connections, Path databaseResourceRoot,
                                             Clock clock, Duration sessionIdleTimeout)
             throws IOException, SQLException {
+        return create(connections, databaseResourceRoot, clock, sessionIdleTimeout,
+                TemporaryUserStudentGateway::create);
+    }
+
+    /** Creates a runtime with an application-specific student-record adapter. */
+    public static ApplicationRuntime create(ConnectionProvider connections, Path databaseResourceRoot,
+                                            Clock clock, Duration sessionIdleTimeout,
+                                            Function<UserQueryPort, CourseStudentGateway> studentGatewayFactory)
+            throws IOException, SQLException {
         Objects.requireNonNull(connections, "connections");
         Objects.requireNonNull(databaseResourceRoot, "databaseResourceRoot");
         Objects.requireNonNull(clock, "clock");
         Objects.requireNonNull(sessionIdleTimeout, "sessionIdleTimeout");
+        Objects.requireNonNull(studentGatewayFactory, "studentGatewayFactory");
         new ApplicationSchemaInitializer(databaseResourceRoot).initialize(connections);
 
         ResourceLockManager locks = new StripedResourceLockManager();
@@ -82,7 +94,8 @@ public final class ApplicationRuntime {
                 snapshot -> !snapshot.restricted(),
                 (userId, role) -> users.findActiveUser(userId)
                         .map(identity -> identity.role().name().equals(role)).orElse(false));
-        CourseStudentGateway students = TemporaryUserStudentGateway.create(users);
+        CourseStudentGateway students = Objects.requireNonNull(
+                studentGatewayFactory.apply(users), "studentGateway");
         CourseComposition courses = CourseComposition.create(connections, courseAuthorization,
                 students, clock, locks);
         MessageRouter router = new MessageRouter(Map.of(

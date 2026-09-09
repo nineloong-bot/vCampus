@@ -12,9 +12,9 @@ import java.time.Instant;
 import java.util.*;
 
 /** Realistic demo fixture transcribed from the supplied 2024 Computer Science curriculum. */
-final class CourseDemoDataset {
-    static final String MAJOR = "080901";
-    static final int COHORT = 2024;
+public final class CourseDemoDataset {
+    public static final String MAJOR = "080901";
+    public static final int COHORT = 2024;
     private static final String UNIT = "计算机科学与工程学院";
 
     private static final List<Item> ITEMS = List.of(
@@ -53,6 +53,12 @@ final class CourseDemoDataset {
     private CourseDemoDataset() {}
 
     static void install(ConnectionProvider connections, CourseService service, TermView term) {
+        install(connections, service, term, "student-demo-1", "student-demo-2", "teacher-user");
+    }
+
+    /** Installs the shared fixture for a runtime's own passed-course and retake students. */
+    public static void install(ConnectionProvider connections, CourseService service, TermView term,
+                               String passedStudentId, String retakeStudentId, String teacherId) {
         removeLegacySyntheticFixtures(connections);
         Map<String, CourseView> catalog = new HashMap<>();
         for (CourseView course : service.searchCatalog(new CourseCatalogQuery("", null, 0, 100)).items()) {
@@ -64,8 +70,8 @@ final class CourseDemoDataset {
                     "来源：2024级计算机科学与技术本科专业培养方案", true)));
         }
         installCurriculum(connections, catalog);
-        installCurrentOfferings(service, term, catalog);
-        installRetakeHistory(service, term);
+        installCurrentOfferings(service, term, catalog, teacherId);
+        installRetakeHistory(service, term, passedStudentId, retakeStudentId);
     }
 
     private static void installCurriculum(ConnectionProvider connections, Map<String, CourseView> catalog) {
@@ -99,7 +105,7 @@ final class CourseDemoDataset {
     }
 
     private static void installCurrentOfferings(CourseService service, TermView term,
-                                                Map<String, CourseView> catalog) {
+                                                Map<String, CourseView> catalog, String teacherId) {
         Set<String> existing = new HashSet<>();
         for (OfferingSummary offering : service.searchOfferings(
                 new OfferingSearchQuery(term.termId(), "", null, false, 0, 100)).items()) {
@@ -116,7 +122,7 @@ final class CourseDemoDataset {
             if (existing.contains(course.courseId())) continue;
             int day = index % 5;
             int period = 1 + (index % 4) * 2;
-            service.createOffering(new CreateOfferingCommand(term.termId(), course.courseId(), "teacher-user",
+            service.createOffering(new CreateOfferingCommand(term.termId(), course.courseId(), teacherId,
                     String.format("%02d班", 1), 43, 8, "OPEN", List.of(new CreateOfferingCommand.ScheduleInput(
                     List.of("MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY").get(day),
                     period, period + 1, 1, 16, "教二-" + (301 + index)))));
@@ -124,30 +130,45 @@ final class CourseDemoDataset {
         }
     }
 
-    private static void installRetakeHistory(CourseService service, TermView term) {
+    private static void installRetakeHistory(CourseService service, TermView term,
+                                             String passedStudentId, String retakeStudentId) {
         CourseView dataStructures = service.searchCatalog(
                 new CourseCatalogQuery("BJSL0061", true, 0, 10)).items().getFirst();
         CourseView operatingSystems = service.searchCatalog(
                 new CourseCatalogQuery("BJSL0082", true, 0, 10)).items().getFirst();
+        List<ImportCourseOutcomesCommand.OutcomeEntry> outcomes = new ArrayList<>();
+        if (passedStudentId != null) {
+            outcomes.add(new ImportCourseOutcomesCommand.OutcomeEntry(passedStudentId,
+                    dataStructures.courseId(), term.termId(), CourseOutcome.PASSED,
+                    "demo-passed-" + passedStudentId + "-BJSL0061"));
+            outcomes.add(new ImportCourseOutcomesCommand.OutcomeEntry(passedStudentId,
+                    operatingSystems.courseId(), term.termId(), CourseOutcome.PASSED,
+                    "demo-passed-" + passedStudentId + "-BJSL0082"));
+        }
+        if (retakeStudentId != null) {
+            outcomes.add(new ImportCourseOutcomesCommand.OutcomeEntry(retakeStudentId,
+                    operatingSystems.courseId(), term.termId(), CourseOutcome.PASSED,
+                    "demo-passed-" + retakeStudentId + "-BJSL0082"));
+            outcomes.add(new ImportCourseOutcomesCommand.OutcomeEntry(retakeStudentId,
+                    dataStructures.courseId(), term.termId(), CourseOutcome.FAILED,
+                    "demo-failed-" + retakeStudentId + "-BJSL0061"));
+        }
+        if (outcomes.isEmpty()) return;
         try {
-            service.importCourseOutcomes(new ImportCourseOutcomesCommand(List.of(
-                    new ImportCourseOutcomesCommand.OutcomeEntry("student-demo-1", dataStructures.courseId(),
-                            term.termId(), CourseOutcome.PASSED, "demo-passed-1-BJSL0061"),
-                    new ImportCourseOutcomesCommand.OutcomeEntry("student-demo-1", operatingSystems.courseId(),
-                            term.termId(), CourseOutcome.PASSED, "demo-passed-1-BJSL0082"),
-                    new ImportCourseOutcomesCommand.OutcomeEntry("student-demo-2", operatingSystems.courseId(),
-                            term.termId(), CourseOutcome.PASSED, "demo-passed-2-BJSL0082"),
-                    new ImportCourseOutcomesCommand.OutcomeEntry("student-demo-2", dataStructures.courseId(),
-                            term.termId(), CourseOutcome.FAILED, "demo-failed-BJSL0061"))));
+            service.importCourseOutcomes(new ImportCourseOutcomesCommand(outcomes));
         } catch (RuntimeException duplicateImport) {
             // Idempotent source references are already accepted; mismatched persisted data should still fail.
-            if (!service.checkRetakeEligibility("student-demo-2", dataStructures.courseId()).eligible()) throw duplicateImport;
+            if (retakeStudentId == null
+                    || !service.checkRetakeEligibility(retakeStudentId, dataStructures.courseId()).eligible()) {
+                throw duplicateImport;
+            }
         }
     }
 
     private static void removeLegacySyntheticFixtures(ConnectionProvider connections) {
         new TransactionManager(connections).inTransaction(connection -> {
-            for (String code : List.of("MATH101", "CS201", "DEMO-RACE")) deleteCourse(connection, code);
+            for (String code : List.of("MATH101", "CS201", "DEMO-RACE",
+                    "DEMO-MATH101", "DEMO-CS201")) deleteCourse(connection, code);
             return null;
         });
     }

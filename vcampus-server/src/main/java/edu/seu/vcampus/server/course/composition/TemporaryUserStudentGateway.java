@@ -14,10 +14,19 @@ public final class TemporaryUserStudentGateway {
     }
 
     public static CourseStudentGateway create(UserQueryPort users) {
+        return create(users, null, null);
+    }
+
+    /** Maps active students to a fixed curriculum identity for isolated demo runtimes. */
+    public static CourseStudentGateway create(UserQueryPort users, String majorCode,
+                                              Integer cohortYear) {
         Objects.requireNonNull(users, "users");
         return CourseStudentGateway.of(userId -> users.findActiveUser(userId)
                         .filter(identity -> identity.role() == UserRole.STUDENT)
-                        .map(identity -> new StudentEnrollmentEligibility(identity.userId(), "ACTIVE"))
+                        .map(identity -> majorCode == null || cohortYear == null
+                                ? new StudentEnrollmentEligibility(identity.userId(), "ACTIVE")
+                                : new StudentEnrollmentEligibility(identity.userId(), "ACTIVE",
+                                        majorCode, cohortYear))
                         .orElseThrow(StudentIneligibleException::new),
                 studentId -> users.findActiveUser(studentId)
                         .map(identity -> identity.role() == UserRole.STUDENT)
