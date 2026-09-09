@@ -22,6 +22,6 @@ public record OfferingView(String offeringId, String termId, String courseId,
                         long rowVersion, Instant createdAt, Instant updatedAt,
                         List<ScheduleItem> schedules) {
         this(offeringId, termId, courseId, teacherUserId, className, capacity, enrolledCount,
-                0, 0, offeringStatus, rowVersion, createdAt, updatedAt, schedules);
+                capacity, 0, offeringStatus, rowVersion, createdAt, updatedAt, schedules);
     }
 }

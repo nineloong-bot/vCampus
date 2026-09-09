@@ -27,7 +27,7 @@ public record OfferingSummary(String offeringId, String termId, String courseId,
                            String className, int capacity, int enrolledCount,
                            String offeringStatus, long rowVersion, List<ScheduleItem> schedules) {
         this(offeringId, termId, courseId, courseCode, courseName, teacherUserId, className,
-                capacity, enrolledCount, 0, 0, offeringStatus, rowVersion, schedules);
+                capacity, enrolledCount, capacity, 0, offeringStatus, rowVersion, schedules);
     }
 
     public int normalRemaining() { return capacity - enrolledCount; }
