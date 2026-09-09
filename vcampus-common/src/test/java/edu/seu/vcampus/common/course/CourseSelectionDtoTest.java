@@ -7,6 +7,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.time.Instant;
+import java.math.BigDecimal;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -60,6 +61,30 @@ class CourseSelectionDtoTest {
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new CourseSelectionQuery("term-1", "", null, 0, 101))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void queryCarriesReferenceFiltersAndRejectsUnknownNature() {
+        CourseSelectionQuery query = new CourseSelectionQuery("term-1", "数据库", null,
+                Boolean.FALSE, "REQUIRED", "专业主干课", 0, 20);
+
+        assertThat(query.conflict()).isFalse();
+        assertThat(query.courseNature()).isEqualTo("REQUIRED");
+        assertThatThrownBy(() -> new CourseSelectionQuery("term-1", "", null,
+                null, "UNKNOWN", null, 0, 20)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void courseRowCarriesCurriculumPresentationFields() {
+        CourseSelectionView course = new CourseSelectionView("c1", "B09D0012", "数据库原理",
+                new BigDecimal("3.0"), "REQUIRED", "专业主干课", "计算机科学与工程学院",
+                false, "SELECT_COURSE", null, null, null, null,
+                List.of(new TeachingClassOptionView(offering(), "ENROLL", null)));
+
+        assertThat(course.credit()).isEqualByComparingTo("3.0");
+        assertThat(course.courseNature()).isEqualTo("REQUIRED");
+        assertThat(course.offeringUnit()).isEqualTo("计算机科学与工程学院");
+        assertThat(course.retakeCourse()).isFalse();
     }
 
     @Test
