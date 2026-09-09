@@ -177,11 +177,16 @@ public final class IntegratedDemoServerMain {
                     term.adjustmentStartAt(), term.adjustmentEndAt(), term.termStatus(),
                     term.rowVersion()));
         }
-        if (courses.listSelectionPhases().stream().noneMatch(
-                phase -> "OPEN".equals(phase.phaseStatus()))) {
-            SelectionPhaseView draft = courses.createSelectionPhase(
-                    new CreateSelectionPhaseCommand(term.termId(), "ENROLLMENT",
-                            term.termName() + "选课"));
+        var phases = courses.listSelectionPhases();
+        String termId = term.termId();
+        String termName = term.termName();
+        if (phases.stream().noneMatch(phase -> "OPEN".equals(phase.phaseStatus()))) {
+            SelectionPhaseView draft = phases.stream()
+                    .filter(phase -> termId.equals(phase.termId()))
+                    .findFirst()
+                    .orElseGet(() -> courses.createSelectionPhase(
+                            new CreateSelectionPhaseCommand(termId, "ENROLLMENT",
+                                    termName + "选课")));
             courses.changeSelectionPhaseStatus(new ChangeSelectionPhaseStatusCommand(
                     draft.phaseId(), "OPEN", draft.rowVersion()));
         }

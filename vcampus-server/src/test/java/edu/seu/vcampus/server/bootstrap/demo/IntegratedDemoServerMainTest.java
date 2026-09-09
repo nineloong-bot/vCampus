@@ -5,6 +5,7 @@ import edu.seu.vcampus.common.course.OfferingSearchQuery;
 import edu.seu.vcampus.common.course.OfferingSummary;
 import edu.seu.vcampus.common.course.CourseSelectionQuery;
 import edu.seu.vcampus.common.course.CourseSelectionView;
+import edu.seu.vcampus.common.course.ChangeSelectionPhaseStatusCommand;
 import edu.seu.vcampus.common.course.ScheduleItem;
 import edu.seu.vcampus.common.course.TermView;
 import edu.seu.vcampus.common.paging.PageResult;
@@ -33,8 +34,10 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class IntegratedDemoServerMainTest {
@@ -80,6 +83,28 @@ class IntegratedDemoServerMainTest {
                     assertThat(course.teachingClasses())
                             .allMatch(option -> "RETAKE".equals(option.actionType()));
                 });
+    }
+
+    @Test
+    void reopensAnExistingDraftPhaseWhenTheFullDemoRestarts() throws Exception {
+        Path database = temporaryDirectory.resolve("course-user-demo.accdb");
+        ApplicationRuntime first = IntegratedDemoServerMain.prepare(
+                database, databaseRoot(), CLOCK);
+        var open = first.course().service().listSelectionPhases().getFirst();
+        var closed = first.course().service().changeSelectionPhaseStatus(
+                new ChangeSelectionPhaseStatusCommand(
+                        open.phaseId(), "CLOSED", open.rowVersion()));
+        var draft = first.course().service().changeSelectionPhaseStatus(
+                new ChangeSelectionPhaseStatusCommand(
+                        closed.phaseId(), "DRAFT", closed.rowVersion()));
+        assertThat(draft.phaseStatus()).isEqualTo("DRAFT");
+
+        AtomicReference<ApplicationRuntime> restarted = new AtomicReference<>();
+        assertThatCode(() -> restarted.set(IntegratedDemoServerMain.prepare(
+                database, databaseRoot(), CLOCK))).doesNotThrowAnyException();
+        assertThat(restarted.get().course().service().listSelectionPhases())
+                .singleElement()
+                .satisfies(phase -> assertThat(phase.phaseStatus()).isEqualTo("OPEN"));
     }
 
     @Test
