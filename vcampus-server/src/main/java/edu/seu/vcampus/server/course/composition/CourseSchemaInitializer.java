@@ -49,7 +49,32 @@ public final class CourseSchemaInitializer {
                 if (table.find(0)) tables.add(normalize(table.group(1)));
                 if (index.find(0)) indexes.add(normalize(index.group(1)));
             }
+            installTermMappingColumns(connection);
             installIdentityForeignKeys(connection, tables);
+        }
+    }
+
+    private static void installTermMappingColumns(Connection connection) throws SQLException {
+        Set<String> columns = columnNames(connection, "tblTerm");
+        if (!columns.contains("academicyearstart")) {
+            execute(connection, "ALTER TABLE tblTerm ADD COLUMN academicYearStart LONG DEFAULT 2000 NOT NULL");
+        }
+        if (!columns.contains("season")) {
+            execute(connection, "ALTER TABLE tblTerm ADD COLUMN season VARCHAR(16) DEFAULT 'AUTUMN' NOT NULL");
+        }
+    }
+
+    private static Set<String> columnNames(Connection connection, String table) throws SQLException {
+        Set<String> names = new HashSet<>();
+        try (ResultSet columns = connection.getMetaData().getColumns(null, null, table, null)) {
+            while (columns.next()) names.add(normalize(columns.getString("COLUMN_NAME")));
+        }
+        return names;
+    }
+
+    private static void execute(Connection connection, String sql) throws SQLException {
+        try (Statement statement = connection.createStatement()) {
+            statement.execute(sql);
         }
     }
 

@@ -13,15 +13,17 @@ final class AccessCatalogRepository {
     Term insertTerm(Connection c, Term term) {
         Instant now = Instant.now();
         Term saved = new Term(CourseJdbc.id(term.termId()), term.termCode(), term.termName(), term.startDate(),
-                term.endDate(), term.enrollmentStartAt(), term.enrollmentEndAt(), term.adjustmentStartAt(),
+                term.endDate(), term.academicYearStart(), term.season(),
+                term.enrollmentStartAt(), term.enrollmentEndAt(), term.adjustmentStartAt(),
                 term.adjustmentEndAt(), term.termStatus(), 0, now, now);
-        String sql = "INSERT INTO tblTerm (termId, termCode, termName, startDate, endDate, enrollmentStartAt, enrollmentEndAt, adjustmentStartAt, adjustmentEndAt, termStatus, rowVersion, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO tblTerm (termId, termCode, termName, startDate, endDate, academicYearStart, season, enrollmentStartAt, enrollmentEndAt, adjustmentStartAt, adjustmentEndAt, termStatus, rowVersion, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (PreparedStatement s = c.prepareStatement(sql)) {
             s.setString(1, saved.termId()); s.setString(2, saved.termCode()); s.setString(3, saved.termName());
             s.setDate(4, java.sql.Date.valueOf(saved.startDate())); s.setDate(5, java.sql.Date.valueOf(saved.endDate()));
-            s.setTimestamp(6, CourseJdbc.timestamp(saved.enrollmentStartAt())); s.setTimestamp(7, CourseJdbc.timestamp(saved.enrollmentEndAt()));
-            s.setTimestamp(8, CourseJdbc.timestamp(saved.adjustmentStartAt())); s.setTimestamp(9, CourseJdbc.timestamp(saved.adjustmentEndAt()));
-            s.setString(10, saved.termStatus()); s.setLong(11, 0); s.setTimestamp(12, CourseJdbc.timestamp(now)); s.setTimestamp(13, CourseJdbc.timestamp(now));
+            s.setInt(6, saved.academicYearStart()); s.setString(7, saved.season().name());
+            s.setTimestamp(8, CourseJdbc.timestamp(saved.enrollmentStartAt())); s.setTimestamp(9, CourseJdbc.timestamp(saved.enrollmentEndAt()));
+            s.setTimestamp(10, CourseJdbc.timestamp(saved.adjustmentStartAt())); s.setTimestamp(11, CourseJdbc.timestamp(saved.adjustmentEndAt()));
+            s.setString(12, saved.termStatus()); s.setLong(13, 0); s.setTimestamp(14, CourseJdbc.timestamp(now)); s.setTimestamp(15, CourseJdbc.timestamp(now));
             s.executeUpdate(); return saved;
         } catch (SQLException error) { throw CourseJdbc.failure("insert term", error); }
     }
@@ -42,13 +44,17 @@ final class AccessCatalogRepository {
 
     Term updateTerm(Connection c, Term term, long expected) {
         Instant now = Instant.now();
-        String sql = "UPDATE tblTerm SET termCode=?, termName=?, startDate=?, endDate=?, enrollmentStartAt=?, enrollmentEndAt=?, adjustmentStartAt=?, adjustmentEndAt=?, termStatus=?, rowVersion=?, updatedAt=? WHERE termId=? AND rowVersion=?";
+        String sql = "UPDATE tblTerm SET termCode=?, termName=?, startDate=?, endDate=?, academicYearStart=?, season=?, enrollmentStartAt=?, enrollmentEndAt=?, adjustmentStartAt=?, adjustmentEndAt=?, termStatus=?, rowVersion=?, updatedAt=? WHERE termId=? AND rowVersion=?";
         try (PreparedStatement s = c.prepareStatement(sql)) {
             s.setString(1, term.termCode()); s.setString(2, term.termName()); s.setDate(3, java.sql.Date.valueOf(term.startDate())); s.setDate(4, java.sql.Date.valueOf(term.endDate()));
-            s.setTimestamp(5, CourseJdbc.timestamp(term.enrollmentStartAt())); s.setTimestamp(6, CourseJdbc.timestamp(term.enrollmentEndAt())); s.setTimestamp(7, CourseJdbc.timestamp(term.adjustmentStartAt())); s.setTimestamp(8, CourseJdbc.timestamp(term.adjustmentEndAt()));
-            s.setString(9, term.termStatus()); s.setLong(10, expected + 1); s.setTimestamp(11, CourseJdbc.timestamp(now)); s.setString(12, term.termId()); s.setLong(13, expected);
+            s.setInt(5, term.academicYearStart()); s.setString(6, term.season().name());
+            s.setTimestamp(7, CourseJdbc.timestamp(term.enrollmentStartAt())); s.setTimestamp(8, CourseJdbc.timestamp(term.enrollmentEndAt())); s.setTimestamp(9, CourseJdbc.timestamp(term.adjustmentStartAt())); s.setTimestamp(10, CourseJdbc.timestamp(term.adjustmentEndAt()));
+            s.setString(11, term.termStatus()); s.setLong(12, expected + 1); s.setTimestamp(13, CourseJdbc.timestamp(now)); s.setString(14, term.termId()); s.setLong(15, expected);
             if (s.executeUpdate() != 1) throw CourseJdbc.stale("term", term.termId());
-            return new Term(term.termId(), term.termCode(), term.termName(), term.startDate(), term.endDate(), term.enrollmentStartAt(), term.enrollmentEndAt(), term.adjustmentStartAt(), term.adjustmentEndAt(), term.termStatus(), expected + 1, term.createdAt(), now);
+            return new Term(term.termId(), term.termCode(), term.termName(), term.startDate(), term.endDate(),
+                    term.academicYearStart(), term.season(), term.enrollmentStartAt(), term.enrollmentEndAt(),
+                    term.adjustmentStartAt(), term.adjustmentEndAt(), term.termStatus(), expected + 1,
+                    term.createdAt(), now);
         } catch (SQLException error) { throw CourseJdbc.failure("update term", error); }
     }
 
@@ -85,7 +91,13 @@ final class AccessCatalogRepository {
     }
 
     private static Term term(ResultSet r) throws SQLException {
-        return new Term(r.getString("termId"), r.getString("termCode"), r.getString("termName"), r.getDate("startDate").toLocalDate(), r.getDate("endDate").toLocalDate(), CourseJdbc.instant(r, "enrollmentStartAt"), CourseJdbc.instant(r, "enrollmentEndAt"), CourseJdbc.instant(r, "adjustmentStartAt"), CourseJdbc.instant(r, "adjustmentEndAt"), r.getString("termStatus"), r.getLong("rowVersion"), CourseJdbc.instant(r, "createdAt"), CourseJdbc.instant(r, "updatedAt"));
+        return new Term(r.getString("termId"), r.getString("termCode"), r.getString("termName"),
+                r.getDate("startDate").toLocalDate(), r.getDate("endDate").toLocalDate(),
+                r.getInt("academicYearStart"), edu.seu.vcampus.common.course.AcademicSeason.valueOf(r.getString("season")),
+                CourseJdbc.instant(r, "enrollmentStartAt"), CourseJdbc.instant(r, "enrollmentEndAt"),
+                CourseJdbc.instant(r, "adjustmentStartAt"), CourseJdbc.instant(r, "adjustmentEndAt"),
+                r.getString("termStatus"), r.getLong("rowVersion"), CourseJdbc.instant(r, "createdAt"),
+                CourseJdbc.instant(r, "updatedAt"));
     }
 
     private static Course course(ResultSet r) throws SQLException {
