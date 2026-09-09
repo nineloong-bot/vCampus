@@ -110,6 +110,62 @@ final class AccessEnrollmentRepository {
         } catch (SQLException error) { throw CourseJdbc.failure("change enrolled count", error); }
     }
 
+    RetakeQuota findRetakeQuota(Connection c, String offeringId) {
+        try (PreparedStatement s = c.prepareStatement(
+                "SELECT capacity,enrolledCount FROM tblCourseRetakeQuota WHERE offeringId=?")) {
+            s.setString(1, offeringId);
+            try (ResultSet r = s.executeQuery()) {
+                return r.next() ? new RetakeQuota(offeringId, r.getInt(1), r.getInt(2))
+                        : new RetakeQuota(offeringId, offerings.requireOffering(c, offeringId).capacity(), 0);
+            }
+        } catch (SQLException error) { throw CourseJdbc.failure("read retake quota", error); }
+    }
+
+    RetakeQuota saveRetakeCapacity(Connection c, String offeringId, int capacity) {
+        RetakeQuota existing = findRetakeQuota(c, offeringId);
+        if (capacity < existing.enrolledCount()) throw new IllegalArgumentException("retake capacity below enrolled count");
+        String sql = !retakeRowExists(c, offeringId)
+                ? "INSERT INTO tblCourseRetakeQuota (capacity,enrolledCount,offeringId) VALUES (?,0,?)"
+                : "UPDATE tblCourseRetakeQuota SET capacity=? WHERE offeringId=?";
+        try (PreparedStatement s = c.prepareStatement(sql)) {
+            s.setInt(1, capacity); s.setString(2, offeringId); s.executeUpdate();
+            return new RetakeQuota(offeringId, capacity, existing.enrolledCount());
+        } catch (SQLException error) { throw CourseJdbc.failure("save retake quota", error); }
+    }
+
+    Offering changeEnrolledCount(Connection c, String offeringId, String enrollmentType, int delta) {
+        if (!"RETAKE".equals(enrollmentType)) return changeEnrolledCount(c, offeringId, delta);
+        if (!retakeRowExists(c, offeringId)) {
+            saveRetakeCapacity(c, offeringId, offerings.requireOffering(c, offeringId).capacity());
+        }
+        Instant now = Instant.now();
+        RetakeQuota quota = findRetakeQuota(c, offeringId);
+        int next = quota.enrolledCount() + delta;
+        if (next < 0 || next > quota.capacity()) {
+            throw CourseJdbc.failure("change retake count", new SQLException("retake quota full or inconsistent"));
+        }
+        String sql = "UPDATE tblCourseRetakeQuota SET enrolledCount=? WHERE offeringId=?";
+        try (PreparedStatement s = c.prepareStatement(sql)) {
+            s.setInt(1, next); s.setString(2, offeringId);
+            if (s.executeUpdate() != 1) throw CourseJdbc.failure("change retake count",
+                    new SQLException("retake quota missing, full, or inconsistent"));
+            try (PreparedStatement version = c.prepareStatement("UPDATE tblCourseOffering SET "
+                    + "rowVersion=rowVersion+1,updatedAt=? WHERE offeringId=?")) {
+                version.setTimestamp(1, CourseJdbc.timestamp(now)); version.setString(2, offeringId);
+                version.executeUpdate();
+            }
+            return offerings.requireOffering(c, offeringId);
+        } catch (SQLException error) { throw CourseJdbc.failure("change retake count", error); }
+    }
+
+    private boolean retakeRowExists(Connection c, String offeringId) {
+        try (PreparedStatement s = c.prepareStatement(
+                "SELECT COUNT(*) FROM tblCourseRetakeQuota WHERE offeringId=?")) {
+            s.setString(1, offeringId);
+            try (ResultSet r = s.executeQuery()) { return r.next() && r.getInt(1) > 0; }
+        } catch (SQLException error) { throw CourseJdbc.failure("check retake quota", error); }
+    }
+
     private Enrollment reactivate(Connection c, Enrollment retained, Enrollment requested) {
         Instant now = Instant.now(); Instant enrolledAt = requested.enrolledAt() == null ? now : requested.enrolledAt();
         String sql = "UPDATE tblEnrollment SET enrollmentType=?, enrollmentStatus='ACTIVE', enrolledAt=?, droppedAt=?, rowVersion=?, updatedAt=? WHERE enrollmentId=? AND rowVersion=?";
