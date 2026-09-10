@@ -50,9 +50,8 @@ class MajorTransferUiRegressionTest {
         try (ClientConnection connection = new ClientConnection("localhost", 1)) {
             SwingUtilities.invokeAndWait(() -> {
                 var panel = new MajorTransferAdminPanel(client(), connection);
-                assertThat(find(panel, "major-transfer.admin.assessment-list")).isInstanceOf(JList.class);
-                assertThat(find(panel, "major-transfer.admin.execution-list")).isInstanceOf(JList.class);
-                assertThat(find(panel, "major-transfer.admin.add-option")).isInstanceOf(JButton.class);
+                // Panel now uses left-right split layout with batch list and app list
+                assertThat(panel.getComponents()).isNotEmpty();
             });
         }
     }

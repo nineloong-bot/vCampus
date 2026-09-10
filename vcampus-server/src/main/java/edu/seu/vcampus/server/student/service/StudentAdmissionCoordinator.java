@@ -11,6 +11,7 @@ import edu.seu.vcampus.common.student.StudentFieldError;
 import edu.seu.vcampus.common.student.StudentFieldValidator;
 import edu.seu.vcampus.common.student.StudentAdmissionResult;
 import edu.seu.vcampus.common.student.StudentStatus;
+import edu.seu.vcampus.common.student.StudentType;
 import edu.seu.vcampus.common.student.StudentView;
 import edu.seu.vcampus.server.concurrency.ResourceKey;
 import edu.seu.vcampus.server.concurrency.ResourceLockManager;
@@ -171,7 +172,7 @@ public final class StudentAdmissionCoordinator implements StudentAdmissionServic
                 var account = accounts.createStudentAccount(tx, campusCard,
                         "12345678".toCharArray());
                 Student student = new Student(UUID.randomUUID().toString(), account.userId(),
-                        studentNumber, null, entry.studentName(), entry.gender(),
+                        studentNumber, StudentType.UNDERGRADUATE, entry.studentName(), entry.gender(),
                         null, null, major.majorId(), targetClass.classId(),
                         today, StudentStatus.ACTIVE, 0, now, now);
                 students.insert(tx.connection(), student);

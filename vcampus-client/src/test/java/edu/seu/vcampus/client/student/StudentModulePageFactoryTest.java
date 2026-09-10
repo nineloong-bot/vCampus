@@ -44,9 +44,11 @@ class StudentModulePageFactoryTest {
                 user(UserRole.STUDENT), students, connection()));
 
         JTabbedPane tabs = findTabbedPane(page);
-        assertThat(tabs.getTabCount()).isEqualTo(2);
+        assertThat(tabs.getTabCount()).isEqualTo(4);
         assertThat(tabs.getComponentAt(0)).isInstanceOf(MyStudentProfilePanel.class);
-        assertThat(tabs.getTitleAt(1)).isEqualTo("转专业申请");
+        assertThat(tabs.getTitleAt(1)).isEqualTo("培养方案");
+        assertThat(tabs.getTitleAt(2)).isEqualTo("成绩单");
+        assertThat(tabs.getTitleAt(3)).isEqualTo("转专业申请");
     }
 
     @Test
@@ -79,7 +81,7 @@ class StudentModulePageFactoryTest {
         assertThat(page.getName()).isEqualTo("student.module");
         JTabbedPane tabs = findTabbedPane(page);
         assertThat(tabs).isNotNull();
-        assertThat(tabs.getTabCount()).isEqualTo(4);
+        assertThat(tabs.getTabCount()).isEqualTo(6);
         assertThat(tabs.getTitleAt(0)).isEqualTo("学生查询");
         assertThat(tabs.getComponentAt(0)).isInstanceOf(StudentSearchPanel.class);
         assertThat(tabs.getTitleAt(1)).isEqualTo("组织管理");
@@ -87,7 +89,8 @@ class StudentModulePageFactoryTest {
         assertThat(tabs.getTitleAt(2)).isEqualTo("资料审核");
         assertThat(tabs.getComponentAt(2)).isInstanceOf(StudentProfileReviewPanel.class);
         assertThat(tabs.getTitleAt(3)).isEqualTo("转专业管理");
-        assertThat(requests).hasValue(0);
+        assertThat(tabs.getTitleAt(4)).isEqualTo("培养方案管理");
+        assertThat(tabs.getTitleAt(5)).isEqualTo("成绩管理");
     }
 
     @Test
@@ -126,11 +129,12 @@ class StudentModulePageFactoryTest {
         MyStudentProfilePanel page = onEdt(() -> (MyStudentProfilePanel) findTabbedPane(
                 StudentModulePageFactory.create(user(UserRole.STUDENT), students, connection())).getComponentAt(0));
 
-        assertThat(requests).hasValue(0);
+        // Other tabs (培养方案, 成绩单) fire requests on construction
+        int baseline = requests.get();
 
         onEdt(() -> page.addNotify());
         assertThat(requestStarted.await(2, TimeUnit.SECONDS)).isTrue();
-        assertThat(requests).hasValue(1);
+        assertThat(requests.get()).isGreaterThan(baseline);
         onEdt(() -> page.removeNotify());
     }
 
