@@ -58,7 +58,7 @@ public final class TrainingPlanRepository {
             statement.setString(2, plan.majorId());
             statement.setInt(3, plan.enrollmentYear());
             statement.setString(4, plan.planName());
-            statement.setLong(5, plan.minElectiveCredits().longValue());
+            statement.setLong(5, plan.minElectiveCount());
             statement.setBigDecimal(6, plan.minElectiveCredits());
             statement.setBoolean(7, plan.active());
             statement.setLong(8, plan.rowVersion());

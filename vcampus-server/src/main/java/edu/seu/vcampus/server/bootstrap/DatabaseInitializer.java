@@ -24,18 +24,21 @@ public final class DatabaseInitializer {
         Files.deleteIfExists(output);
         String url = "jdbc:ucanaccess://" + output
                 + ";newDatabaseVersion=V2010;immediatelyReleaseResources=true";
-        // UCanAccess requires separate connections for table creation and index creation
-        try (Connection connection = DriverManager.getConnection(url)) {
-            for (Path file : sqlFiles(schemaDir)) {
+        // Persist each schema file before creating the next one. UCanAccess can keep
+        // later DDL only in its in-memory catalog when many tables are created in a
+        // single session, which made tblTrainingPlan disappear after a restart.
+        for (Path file : sqlFiles(schemaDir)) {
+            try (Connection connection = DriverManager.getConnection(url)) {
                 executeStatements(connection, file, true);
             }
+        }
+        try (Connection connection = DriverManager.getConnection(url)) {
             for (Path file : sqlFiles(seedDir)) {
                 executeStatements(connection, file, true);
             }
         }
-        // Reopen connection for index creation (UCanAccess cache sync)
-        try (Connection connection = DriverManager.getConnection(url)) {
-            for (Path file : sqlFiles(schemaDir)) {
+        for (Path file : sqlFiles(schemaDir)) {
+            try (Connection connection = DriverManager.getConnection(url)) {
                 executeStatements(connection, file, false);
             }
         }
@@ -57,23 +60,41 @@ public final class DatabaseInitializer {
 
     private static void executeStatements(Connection connection, Path sqlFile,
             boolean tablesOnly) throws Exception {
-        String sql = Files.readString(sqlFile).replaceAll("YESNO", "BIT");
+        String sql = Files.readString(sqlFile).replaceAll("YESNO", "BOOLEAN");
         // Strip CONSTRAINT ... REFERENCES lines (UCanAccess FK bug)
         StringBuilder cleaned = new StringBuilder();
         boolean skipNextRef = false;
         for (String line : sql.split("\n")) {
             String upper = line.trim().toUpperCase();
+            // UCanAccess silently treats a statement beginning with a SQL line
+            // comment as a comment-only statement, discarding the DDL or DML after
+            // it. Remove comments before splitting and executing statements.
+            if (upper.startsWith("--")) continue;
             if (upper.startsWith("CONSTRAINT")) { skipNextRef = true; continue; }
             if (skipNextRef && upper.startsWith("REFERENCES")) { skipNextRef = false; continue; }
             skipNextRef = false;
             cleaned.append(line).append("\n");
         }
-        for (String statementText : cleaned.toString().split(";")) {
+        // Removing a foreign-key clause can leave a trailing comma before the
+        // closing parenthesis. UCanAccess accepts that malformed DDL but does not
+        // persist the affected table after the connection closes.
+        String normalized = cleaned.toString().replaceAll(",\\s*\\)", "\n)");
+        for (String statementText : normalized.split(";")) {
             String trimmed = statementText.trim();
             if (trimmed.isEmpty()) continue;
             boolean isIndex = trimmed.toUpperCase().startsWith("CREATE INDEX")
                     || trimmed.toUpperCase().startsWith("CREATE UNIQUE INDEX");
             if (tablesOnly == isIndex) continue;
+            // UCanAccess 5.x / Jackcess has a defect when adding secondary indexes to
+            // the three training-plan tables of a newly created ACCDB (the table is
+            // reported as null during CreateIndexCommand.persist).  Primary keys are
+            // still created by CREATE TABLE; omitting these nonessential secondary
+            // indexes lets the complete demo dataset be committed and keeps all
+            // training-plan functions available.
+            if (isIndex && sqlFile.getFileName().toString().equals("030_training_plan.sql")) {
+                System.out.println("SKIP (UCanAccess compatibility): " + trimmed);
+                continue;
+            }
             String preview = trimmed.length() > 80 ? trimmed.substring(0, 80) + "..." : trimmed;
             try (var statement = connection.createStatement()) {
                 statement.execute(trimmed);

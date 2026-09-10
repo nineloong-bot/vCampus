@@ -76,12 +76,15 @@ public final class GradeManagementPanel extends JPanel {
                     if (response.success() && response.data() != null) {
                         StudentTranscriptView transcript = response.data();
                         gradeModel.setGrades(transcript.grades());
+                        int requiredFailed = transcript.requiredTotal() - transcript.requiredPassed();
+                        int electiveFailed = transcript.electiveTotal() - transcript.electivePassed();
                         statusLabel.setText(transcript.studentName() + " ("
                                 + transcript.studentNumber() + ") — 必修 "
                                 + transcript.requiredPassed() + "/" + transcript.requiredTotal()
                                 + " | 选修 " + transcript.electivePassed() + "/"
-                                + transcript.electiveTotal() + " | 学分 "
-                                + transcript.creditsEarned());
+                                + transcript.electiveTotal()
+                                + " | 未通过: 必修" + requiredFailed + "门 选修" + electiveFailed + "门"
+                                + " | 已获学分 " + transcript.creditsEarned());
                     }
                 }));
     }

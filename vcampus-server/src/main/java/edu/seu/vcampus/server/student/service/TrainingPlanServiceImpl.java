@@ -111,19 +111,8 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
     @Override
     public TrainingPlanCourseView saveCourse(SaveTrainingPlanCourseCommand command,
             String operatorUserId) {
-        Objects.requireNonNull(command.planId());
-        Objects.requireNonNull(command.courseCode());
-        Objects.requireNonNull(command.courseName());
-        Objects.requireNonNull(command.credits());
-        Objects.requireNonNull(command.courseType());
-        if (command.credits().compareTo(BigDecimal.ZERO) <= 0)
-            throw new IllegalArgumentException("credits must be positive");
-        if (command.semester() < 1 || command.semester() > 8)
-            throw new IllegalArgumentException("semester must be 1-8");
-        if (command.courseType() == CourseType.ELECTIVE
-                && (command.semester() < 3 || command.semester() > 6))
-            throw new TrainingPlanException("TRAINING_PLAN_ELECTIVE_SEMESTER_INVALID",
-                    "选修课只能安排在第3-6学期");
+        validateCourse(command.planId(), command.courseCode(), command.courseName(),
+                command.credits(), command.courseType(), command.semester());
         return transactions.inTransaction(connection -> {
             plans.findById(connection, command.planId())
                     .orElseThrow(() -> new TrainingPlanException("TRAINING_PLAN_NOT_FOUND", "培养方案不存在"));
@@ -163,15 +152,13 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
             String operatorUserId) {
         Objects.requireNonNull(command.planId());
         Objects.requireNonNull(command.courses());
+        command.courses().forEach(entry -> validateCourse(command.planId(), entry.courseCode(),
+                entry.courseName(), entry.credits(), entry.courseType(), entry.semester()));
         return transactions.inTransaction(connection -> {
             plans.findById(connection, command.planId())
                     .orElseThrow(() -> new TrainingPlanException("TRAINING_PLAN_NOT_FOUND", "培养方案不存在"));
             Instant now = Instant.now();
             return command.courses().stream().map(entry -> {
-                if (entry.courseType() == CourseType.ELECTIVE
-                        && (entry.semester() < 3 || entry.semester() > 6))
-                    throw new TrainingPlanException("TRAINING_PLAN_ELECTIVE_SEMESTER_INVALID",
-                            "选修课 " + entry.courseCode() + " 只能安排在第3-6学期");
                 String id = UUID.randomUUID().toString();
                 TrainingPlanCourse course = new TrainingPlanCourse(id, command.planId(),
                         entry.courseCode(), entry.courseName(), entry.credits(),
@@ -214,5 +201,21 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
         return new TrainingPlanCourseView(course.planCourseId(), course.courseCode(),
                 course.courseName(), course.credits(), course.courseType(),
                 course.semester(), course.active(), course.rowVersion());
+    }
+
+    private void validateCourse(String planId, String courseCode, String courseName,
+            BigDecimal credits, CourseType courseType, int semester) {
+        Objects.requireNonNull(planId);
+        Objects.requireNonNull(courseCode);
+        Objects.requireNonNull(courseName);
+        Objects.requireNonNull(credits);
+        Objects.requireNonNull(courseType);
+        if (credits.compareTo(BigDecimal.ZERO) <= 0)
+            throw new IllegalArgumentException("credits must be positive");
+        if (semester < 1 || semester > 8)
+            throw new IllegalArgumentException("semester must be 1-8");
+        if (courseType == CourseType.ELECTIVE && (semester < 3 || semester > 6))
+            throw new TrainingPlanException("TRAINING_PLAN_ELECTIVE_SEMESTER_INVALID",
+                    "选修课只能安排在第3-6学期");
     }
 }

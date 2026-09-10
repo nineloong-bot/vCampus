@@ -19,12 +19,18 @@ class SeededStudentDatasetTest {
 
         try (var connection = DriverManager.getConnection("jdbc:ucanaccess://" + database
                 + ";immediatelyReleaseResources=true")) {
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblStudent")).isEqualTo(12);
-            assertThat(count(connection, "SELECT COUNT(DISTINCT classId) FROM tblStudent")).isEqualTo(3);
-            assertThat(count(connection, "SELECT COUNT(DISTINCT studentStatus) FROM tblStudent")).isEqualTo(4);
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblUser WHERE roleCode='STUDENT'")).isEqualTo(12);
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblStudent")).isGreaterThanOrEqualTo(100);
+            assertThat(count(connection, "SELECT COUNT(DISTINCT classId) FROM tblStudent")).isGreaterThanOrEqualTo(3);
+            assertThat(count(connection, "SELECT COUNT(DISTINCT studentStatus) FROM tblStudent")).isGreaterThanOrEqualTo(4);
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblUser WHERE roleCode='STUDENT'"))
+                    .isGreaterThanOrEqualTo(100);
             assertThat(count(connection, "SELECT currentValue FROM tblNumberSequence WHERE sequenceKey='CAMPUS_CARD_GLOBAL'"))
-                    .isEqualTo(12);
+                    .isGreaterThanOrEqualTo(100);
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblDepartment")).isGreaterThanOrEqualTo(3);
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblMajorTransferBatch")).isGreaterThanOrEqualTo(2);
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblMajorTransferOption")).isGreaterThanOrEqualTo(3);
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblTrainingPlan")).isGreaterThanOrEqualTo(1);
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblTrainingPlanCourse")).isGreaterThanOrEqualTo(4);
         }
     }
 

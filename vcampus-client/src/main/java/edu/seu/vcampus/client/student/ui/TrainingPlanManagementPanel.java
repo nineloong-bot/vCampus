@@ -1,7 +1,6 @@
 package edu.seu.vcampus.client.student.ui;
 
 import edu.seu.vcampus.client.student.service.StudentClientService;
-import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.student.*;
 
 import javax.swing.*;
@@ -14,10 +13,13 @@ import java.util.List;
 /** Admin panel for managing training plans and their courses. */
 public final class TrainingPlanManagementPanel extends JPanel {
     private final StudentClientService students;
-    private final PlanSummaryTableModel planModel = new PlanSummaryTableModel();
     private final CourseTableModel courseModel = new CourseTableModel();
     private final JLabel statusLabel = new JLabel("就绪");
     private final JTable courseTable = new JTable(courseModel);
+    private final JComboBox<DepartmentView> deptBox = new JComboBox<>();
+    private final JComboBox<MajorView> majorBox = new JComboBox<>();
+    private final JComboBox<String> yearBox = new JComboBox<>();
+    private final JLabel planInfoLabel = new JLabel("请选择院系、专业和年级");
     private TrainingPlanDetailView currentPlan;
 
     public TrainingPlanManagementPanel(StudentClientService students) {
@@ -25,36 +27,60 @@ public final class TrainingPlanManagementPanel extends JPanel {
         setLayout(new BorderLayout(8, 8));
         setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
         buildUi();
-        loadPlans();
+        loadDepartments();
     }
 
     private void buildUi() {
         JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-        splitPane.setResizeWeight(0.4);
-        splitPane.setLeftComponent(buildPlanListPanel());
+        splitPane.setResizeWeight(0.35);
+        splitPane.setLeftComponent(buildSelectorPanel());
         splitPane.setRightComponent(buildCoursePanel());
         add(splitPane, BorderLayout.CENTER);
         add(statusLabel, BorderLayout.SOUTH);
     }
 
-    private JPanel buildPlanListPanel() {
+    private JPanel buildSelectorPanel() {
         JPanel panel = new JPanel(new BorderLayout(4, 4));
-        JPanel topBar = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JButton addBtn = new JButton("新建方案");
-        addBtn.addActionListener(e -> showSavePlanDialog(null));
-        topBar.add(addBtn);
-        panel.add(topBar, BorderLayout.NORTH);
+        JPanel filterPanel = new JPanel();
+        filterPanel.setLayout(new BoxLayout(filterPanel, BoxLayout.Y_AXIS));
+        filterPanel.setBorder(BorderFactory.createTitledBorder("选择培养方案"));
 
-        JTable table = new JTable(planModel);
-        table.setRowHeight(24);
-        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        table.getSelectionModel().addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting()) {
-                int row = table.getSelectedRow();
-                if (row >= 0) loadPlanDetail(planModel.getPlan(row).planId());
-            }
-        });
-        panel.add(new JScrollPane(table), BorderLayout.CENTER);
+        JPanel row1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 2));
+        row1.add(new JLabel("院系:"));
+        deptBox.setPreferredSize(new Dimension(160, 26));
+        row1.add(deptBox);
+        filterPanel.add(row1);
+
+        JPanel row2 = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 2));
+        row2.add(new JLabel("专业:"));
+        majorBox.setPreferredSize(new Dimension(160, 26));
+        row2.add(majorBox);
+        filterPanel.add(row2);
+
+        JPanel row3 = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 2));
+        row3.add(new JLabel("年级:"));
+        yearBox.setPreferredSize(new Dimension(160, 26));
+        row3.add(yearBox);
+        filterPanel.add(row3);
+
+        JPanel row4 = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 2));
+        JButton queryBtn = new JButton("查询方案");
+        queryBtn.addActionListener(e -> queryPlan());
+        row4.add(queryBtn);
+        JButton createBtn = new JButton("新建方案");
+        createBtn.addActionListener(e -> createPlan());
+        row4.add(createBtn);
+        filterPanel.add(row4);
+
+        filterPanel.add(Box.createVerticalStrut(8));
+        planInfoLabel.setFont(planInfoLabel.getFont().deriveFont(Font.BOLD, 13f));
+        planInfoLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        filterPanel.add(planInfoLabel);
+
+        deptBox.addActionListener(e -> onDepartmentChanged());
+        majorBox.addActionListener(e -> onMajorChanged());
+
+        panel.add(filterPanel, BorderLayout.NORTH);
         return panel;
     }
 
@@ -65,8 +91,11 @@ public final class TrainingPlanManagementPanel extends JPanel {
         addCourseBtn.addActionListener(e -> showSaveCourseDialog(null));
         JButton removeBtn = new JButton("删除选中课程");
         removeBtn.addActionListener(e -> removeSelectedCourse());
+        JButton editPlanBtn = new JButton("编辑方案信息");
+        editPlanBtn.addActionListener(e -> editPlan());
         topBar.add(addCourseBtn);
         topBar.add(removeBtn);
+        topBar.add(editPlanBtn);
         panel.add(topBar, BorderLayout.NORTH);
 
         courseTable.setRowHeight(24);
@@ -80,12 +109,48 @@ public final class TrainingPlanManagementPanel extends JPanel {
         return panel;
     }
 
-    private void loadPlans() {
-        students.searchTrainingPlans(new TrainingPlanQuery(null, null, 1, 100))
+    private void loadDepartments() {
+        students.listDepartments(true).thenAccept(r -> SwingUtilities.invokeLater(() -> {
+            if (r.success() && r.data() != null) {
+                deptBox.removeAllItems();
+                r.data().forEach(deptBox::addItem);
+            }
+        }));
+    }
+
+    private void onDepartmentChanged() {
+        majorBox.removeAllItems();
+        yearBox.removeAllItems();
+        DepartmentView dept = (DepartmentView) deptBox.getSelectedItem();
+        if (dept == null) return;
+        students.listMajors(dept.departmentId()).thenAccept(r -> SwingUtilities.invokeLater(() -> {
+            if (r.success() && r.data() != null) r.data().forEach(majorBox::addItem);
+        }));
+    }
+
+    private void onMajorChanged() {
+        yearBox.removeAllItems();
+        MajorView major = (MajorView) majorBox.getSelectedItem();
+        if (major == null) return;
+        for (int y = 2020; y <= 2030; y++) yearBox.addItem(y + "级");
+    }
+
+    private void queryPlan() {
+        MajorView major = (MajorView) majorBox.getSelectedItem();
+        String yearStr = (String) yearBox.getSelectedItem();
+        if (major == null || yearStr == null) {
+            statusLabel.setText("请先选择院系、专业和年级");
+            return;
+        }
+        int year = Integer.parseInt(yearStr.replace("级", ""));
+        students.searchTrainingPlans(new TrainingPlanQuery(major.majorId(), year, 1, 10))
                 .thenAccept(response -> SwingUtilities.invokeLater(() -> {
-                    if (response.success() && response.data() != null) {
-                        planModel.setPlans(response.data().items());
-                        statusLabel.setText("共 " + response.data().total() + " 个培养方案");
+                    if (response.success() && response.data() != null && !response.data().items().isEmpty()) {
+                        loadPlanDetail(response.data().items().get(0).planId());
+                    } else {
+                        currentPlan = null;
+                        courseModel.setCourses(List.of());
+                        planInfoLabel.setText(major.majorName() + " " + year + "级 — 暂无方案，可点击\"新建方案\"");
                     }
                 }));
     }
@@ -95,87 +160,88 @@ public final class TrainingPlanManagementPanel extends JPanel {
             if (response.success() && response.data() != null) {
                 currentPlan = response.data();
                 courseModel.setCourses(currentPlan.courses());
+                long required = currentPlan.courses().stream()
+                        .filter(c -> c.courseType() == CourseType.REQUIRED).count();
+                long elective = currentPlan.courses().stream()
+                        .filter(c -> c.courseType() == CourseType.ELECTIVE).count();
+                planInfoLabel.setText(currentPlan.majorName() + " " + currentPlan.enrollmentYear()
+                        + "级 — " + currentPlan.planName()
+                        + " | 必修" + required + "门 选修" + elective + "门"
+                        + " | 选修毕业要求≥" + currentPlan.minElectiveCount() + "门"
+                        + "≥" + currentPlan.minElectiveCredits() + "学分");
+                statusLabel.setText("已加载方案");
             }
         }));
     }
 
-    private void showSavePlanDialog(TrainingPlanSummary existing) {
-        JTextField nameField = new JTextField(existing != null ? existing.planName() : "", 20);
-        JTextField minCountField = new JTextField(existing != null
-                ? String.valueOf(existing.minElectiveCount()) : "4", 5);
-        JTextField minCreditsField = new JTextField(existing != null
-                ? existing.minElectiveCredits().toPlainString() : "8", 5);
-
+    private void createPlan() {
+        MajorView major = (MajorView) majorBox.getSelectedItem();
+        String yearStr = (String) yearBox.getSelectedItem();
+        if (major == null || yearStr == null) {
+            statusLabel.setText("请先选择院系、专业和年级");
+            return;
+        }
+        int year = Integer.parseInt(yearStr.replace("级", ""));
+        JTextField nameField = new JTextField(major.majorName() + year + "级培养方案", 20);
+        JTextField minCountField = new JTextField("4", 5);
+        JTextField minCreditsField = new JTextField("8", 5);
         JPanel panel = new JPanel(new GridLayout(0, 2, 4, 4));
-        panel.add(new JLabel("方案名称:"));
-        panel.add(nameField);
-        panel.add(new JLabel("最少选修门数:"));
-        panel.add(minCountField);
-        panel.add(new JLabel("最少选修学分:"));
-        panel.add(minCreditsField);
-
-        if (existing == null) {
-            JComboBox<DepartmentView> deptBox = new JComboBox<>();
-            JComboBox<MajorView> majorBox = new JComboBox<>();
-            JTextField yearField = new JTextField("2024", 5);
-            panel.add(new JLabel("院系:"));
-            panel.add(deptBox);
-            panel.add(new JLabel("专业:"));
-            panel.add(majorBox);
-            panel.add(new JLabel("入学年份:"));
-            panel.add(yearField);
-
-            students.listDepartments(true).thenAccept(r -> SwingUtilities.invokeLater(() -> {
-                if (r.success() && r.data() != null) {
-                    r.data().forEach(deptBox::addItem);
-                    if (!r.data().isEmpty()) {
-                        deptBox.setSelectedIndex(0);
-                        loadMajors(deptBox, majorBox);
-                    }
+        panel.add(new JLabel("方案名称:")); panel.add(nameField);
+        panel.add(new JLabel("最少选修门数:")); panel.add(minCountField);
+        panel.add(new JLabel("最少选修学分:")); panel.add(minCreditsField);
+        int result = JOptionPane.showConfirmDialog(this, panel, "新建培养方案",
+                JOptionPane.OK_CANCEL_OPTION);
+        if (result == JOptionPane.OK_OPTION) {
+            SaveTrainingPlanCommand cmd = new SaveTrainingPlanCommand(null, major.majorId(),
+                    year, nameField.getText().trim(),
+                    Long.parseLong(minCountField.getText().trim()),
+                    new BigDecimal(minCreditsField.getText().trim()), true, 0);
+            students.saveTrainingPlan(cmd).thenAccept(r -> SwingUtilities.invokeLater(() -> {
+                if (r.success()) {
+                    loadPlanDetail(r.data().planId());
+                    statusLabel.setText("方案创建成功");
+                } else {
+                    statusLabel.setText("创建失败: " + r.message());
                 }
             }));
-            deptBox.addActionListener(e -> loadMajors(deptBox, majorBox));
+        }
+    }
 
-            int result = JOptionPane.showConfirmDialog(this, panel, "新建培养方案",
-                    JOptionPane.OK_CANCEL_OPTION);
-            if (result == JOptionPane.OK_OPTION && majorBox.getSelectedItem() != null) {
-                MajorView major = (MajorView) majorBox.getSelectedItem();
-                SaveTrainingPlanCommand cmd = new SaveTrainingPlanCommand(null, major.majorId(),
-                        Integer.parseInt(yearField.getText().trim()), nameField.getText().trim(),
-                        Long.parseLong(minCountField.getText().trim()),
-                        new BigDecimal(minCreditsField.getText().trim()), true, 0);
-                students.saveTrainingPlan(cmd).thenAccept(r -> SwingUtilities.invokeLater(() -> {
-                    if (r.success()) {
-                        loadPlans();
-                        statusLabel.setText("方案创建成功");
-                    } else {
-                        statusLabel.setText("创建失败: " + r.message());
-                    }
-                }));
-            }
-        } else {
-            int result = JOptionPane.showConfirmDialog(this, panel, "编辑培养方案",
-                    JOptionPane.OK_CANCEL_OPTION);
-            if (result == JOptionPane.OK_OPTION) {
-                SaveTrainingPlanCommand cmd = new SaveTrainingPlanCommand(existing.planId(),
-                        existing.majorId(), existing.enrollmentYear(), nameField.getText().trim(),
-                        Long.parseLong(minCountField.getText().trim()),
-                        new BigDecimal(minCreditsField.getText().trim()), true, existing.rowVersion());
-                students.saveTrainingPlan(cmd).thenAccept(r -> SwingUtilities.invokeLater(() -> {
-                    if (r.success()) {
-                        loadPlans();
-                        statusLabel.setText("方案更新成功");
-                    } else {
-                        statusLabel.setText("更新失败: " + r.message());
-                    }
-                }));
-            }
+    private void editPlan() {
+        if (currentPlan == null) {
+            statusLabel.setText("请先查询并选择一个方案");
+            return;
+        }
+        JTextField nameField = new JTextField(currentPlan.planName(), 20);
+        JTextField minCountField = new JTextField(String.valueOf(currentPlan.minElectiveCount()), 5);
+        JTextField minCreditsField = new JTextField(currentPlan.minElectiveCredits().toPlainString(), 5);
+        JPanel panel = new JPanel(new GridLayout(0, 2, 4, 4));
+        panel.add(new JLabel("方案名称:")); panel.add(nameField);
+        panel.add(new JLabel("最少选修门数:")); panel.add(minCountField);
+        panel.add(new JLabel("最少选修学分:")); panel.add(minCreditsField);
+        int result = JOptionPane.showConfirmDialog(this, panel, "编辑培养方案",
+                JOptionPane.OK_CANCEL_OPTION);
+        if (result == JOptionPane.OK_OPTION) {
+            SaveTrainingPlanCommand cmd = new SaveTrainingPlanCommand(currentPlan.planId(),
+                    currentPlan.majorId(), currentPlan.enrollmentYear(),
+                    nameField.getText().trim(),
+                    Long.parseLong(minCountField.getText().trim()),
+                    new BigDecimal(minCreditsField.getText().trim()),
+                    true, currentPlan.rowVersion());
+            students.saveTrainingPlan(cmd).thenAccept(r -> SwingUtilities.invokeLater(() -> {
+                if (r.success()) {
+                    loadPlanDetail(currentPlan.planId());
+                    statusLabel.setText("方案更新成功");
+                } else {
+                    statusLabel.setText("更新失败: " + r.message());
+                }
+            }));
         }
     }
 
     private void showSaveCourseDialog(TrainingPlanCourseView existing) {
         if (currentPlan == null) {
-            statusLabel.setText("请先选择一个培养方案");
+            statusLabel.setText("请先查询并选择一个培养方案");
             return;
         }
         JTextField codeField = new JTextField(existing != null ? existing.courseCode() : "", 10);
@@ -183,22 +249,26 @@ public final class TrainingPlanManagementPanel extends JPanel {
         JTextField creditsField = new JTextField(existing != null
                 ? existing.credits().toPlainString() : "2", 5);
         JComboBox<CourseType> typeBox = new JComboBox<>(CourseType.values());
+        typeBox.setRenderer(new DefaultListCellRenderer() {
+            @Override public Component getListCellRendererComponent(JList<?> list, Object value,
+                    int index, boolean isSelected, boolean cellHasFocus) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                if (value == CourseType.REQUIRED) setText("必修");
+                else if (value == CourseType.ELECTIVE) setText("选修");
+                return this;
+            }
+        });
         if (existing != null) typeBox.setSelectedItem(existing.courseType());
         JComboBox<String> semesterBox = new JComboBox<>();
         for (int i = 1; i <= 8; i++) semesterBox.addItem("第" + i + "学期");
         if (existing != null) semesterBox.setSelectedIndex(existing.semester() - 1);
 
         JPanel panel = new JPanel(new GridLayout(0, 2, 4, 4));
-        panel.add(new JLabel("课程代码:"));
-        panel.add(codeField);
-        panel.add(new JLabel("课程名称:"));
-        panel.add(nameField);
-        panel.add(new JLabel("学分:"));
-        panel.add(creditsField);
-        panel.add(new JLabel("类型:"));
-        panel.add(typeBox);
-        panel.add(new JLabel("学期:"));
-        panel.add(semesterBox);
+        panel.add(new JLabel("课程代码:")); panel.add(codeField);
+        panel.add(new JLabel("课程名称:")); panel.add(nameField);
+        panel.add(new JLabel("学分:")); panel.add(creditsField);
+        panel.add(new JLabel("类型:")); panel.add(typeBox);
+        panel.add(new JLabel("学期:")); panel.add(semesterBox);
 
         int result = JOptionPane.showConfirmDialog(this, panel,
                 existing != null ? "编辑课程" : "添加课程", JOptionPane.OK_CANCEL_OPTION);
@@ -239,41 +309,6 @@ public final class TrainingPlanManagementPanel extends JPanel {
                         loadPlanDetail(currentPlan.planId());
                         statusLabel.setText("课程已删除");
                     }));
-        }
-    }
-
-    private void loadMajors(JComboBox<DepartmentView> deptBox, JComboBox<MajorView> majorBox) {
-        DepartmentView dept = (DepartmentView) deptBox.getSelectedItem();
-        if (dept == null) return;
-        majorBox.removeAllItems();
-        students.listMajors(dept.departmentId()).thenAccept(r -> SwingUtilities.invokeLater(() -> {
-            if (r.success() && r.data() != null) r.data().forEach(majorBox::addItem);
-        }));
-    }
-
-    private static class PlanSummaryTableModel extends AbstractTableModel {
-        private static final String[] COLUMNS = {"方案名称", "入学年份", "课程数", "状态"};
-        private List<TrainingPlanSummary> plans = List.of();
-
-        void setPlans(List<TrainingPlanSummary> plans) {
-            this.plans = List.copyOf(plans);
-            fireTableDataChanged();
-        }
-
-        TrainingPlanSummary getPlan(int row) { return plans.get(row); }
-        @Override public int getRowCount() { return plans.size(); }
-        @Override public int getColumnCount() { return COLUMNS.length; }
-        @Override public String getColumnName(int col) { return COLUMNS[col]; }
-
-        @Override public Object getValueAt(int row, int col) {
-            TrainingPlanSummary p = plans.get(row);
-            return switch (col) {
-                case 0 -> p.departmentName() + " " + p.majorName();
-                case 1 -> p.enrollmentYear() + "级";
-                case 2 -> p.courseCount();
-                case 3 -> p.isActive() ? "启用" : "停用";
-                default -> "";
-            };
         }
     }
 
