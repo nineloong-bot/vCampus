@@ -15,9 +15,9 @@ class StudentChangeHistoryTest {
         var repository = new StudentChangeRepository();
         database.transactions().inTransaction(connection -> {
             try (var statement = connection.createStatement()) {
-                statement.execute("INSERT INTO tblDepartment VALUES ('d1','CS','计算机学院',TRUE,0)");
-                statement.execute("INSERT INTO tblMajor VALUES ('m1','d1','090','计算机科学',TRUE,0)");
-                statement.execute("INSERT INTO tblClass VALUES ('c1','m1','090-24-1','计科24-1',2024,1,TRUE,0)");
+                statement.execute("INSERT INTO tblDepartment VALUES ('d1','CS','计算机学院',1,0)");
+                statement.execute("INSERT INTO tblMajor VALUES ('m1','d1','090','计算机科学','1,2,3,4',1,0)");
+                statement.execute("INSERT INTO tblClass VALUES ('c1','m1','090-24-1','计科24-1',2024,1,1,0)");
                 statement.execute("INSERT INTO tblStudent "
                         + "(studentId,userId,studentNumber,studentType,studentName,gender,email,phone,"
                         + "classId,enrollmentDate,studentStatus,rowVersion,createdAt,updatedAt) "

@@ -800,7 +800,7 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
         try (var statement = c.prepareStatement("SELECT enrolled, onCampus FROM tblStudent WHERE studentId=?")) {
             statement.setString(1, student.studentId());
             try (var row = statement.executeQuery()) {
-                if (!row.next() || Boolean.FALSE.equals(row.getObject(1)) || Boolean.FALSE.equals(row.getObject(2)))
+                if (!row.next() || isFalse(row.getObject(1)) || isFalse(row.getObject(2)))
                     throw error("TRANSFER_INELIGIBLE", "学生必须在籍且在校");
             }
         } catch (java.sql.SQLException error) { throw new IllegalStateException("无法核实在籍在校状态", error); }
@@ -932,6 +932,10 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
 
     private static MajorTransferException error(String code, String message) {
         return new MajorTransferException(code, message);
+    }
+
+    private static boolean isFalse(Object value) {
+        return Boolean.FALSE.equals(value) || Integer.valueOf(0).equals(value);
     }
 
     private static java.util.ConcurrentModificationException concurrent() {

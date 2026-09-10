@@ -143,7 +143,7 @@ class StudentAdmissionCoordinatorTest {
         var command = new BatchImportCommand("major-1",
                 List.of("class-1", "class-2"), entries);
         var result = coordinator.batchImport(command,
-                request("batch-" + UUID.randomUUID()));
+                request(UUID.randomUUID().toString()));
 
         assertThat(result.totalCreated()).isEqualTo(4);
         assertThat(result.totalFailed()).isZero();
@@ -155,14 +155,14 @@ class StudentAdmissionCoordinatorTest {
     @Test
     void batchImportSkipsDuplicateCampusCardAndContinues() throws Exception {
         coordinator.createManual(manualCommand(),
-                request("pre-" + UUID.randomUUID()));
+                request(UUID.randomUUID().toString()));
         var entries = List.of(
                 new BatchStudentEntry("213240099", "重复", "男", 80.0, 0),
                 new BatchStudentEntry("213240005", "正常", "女", 85.0, 0));
         var command = new BatchImportCommand("major-1",
                 List.of("class-1", "class-2"), entries);
         var result = coordinator.batchImport(command,
-                request("batch-" + UUID.randomUUID()));
+                request(UUID.randomUUID().toString()));
 
         assertThat(result.totalCreated()).isEqualTo(1);
         assertThat(result.totalFailed()).isEqualTo(1);

@@ -89,8 +89,18 @@ public final class StudentAccessTestDatabase {
     }
 
     private static void executeSchema(Connection connection, Path schema) throws Exception {
-        String sql = Files.readString(schema);
-        for (String statementSql : sql.split(";")) {
+        String sql = Files.readString(schema).replaceAll("YESNO", "BIT");
+        // Strip CONSTRAINT ... REFERENCES lines (UCanAccess FK bug)
+        StringBuilder cleaned = new StringBuilder();
+        boolean skipNextRef = false;
+        for (String line : sql.split("\n")) {
+            String upper = line.trim().toUpperCase();
+            if (upper.startsWith("CONSTRAINT")) { skipNextRef = true; continue; }
+            if (skipNextRef && upper.startsWith("REFERENCES")) { skipNextRef = false; continue; }
+            skipNextRef = false;
+            cleaned.append(line).append("\n");
+        }
+        for (String statementSql : cleaned.toString().split(";")) {
             String statementText = statementSql.trim();
             if (!statementText.isEmpty()) {
                 try (var statement = connection.createStatement()) {

@@ -168,8 +168,8 @@ class StudentProfileUpdateTest {
     void statusCanStillBeChangedWhileCurrentClassIsInactive() throws Exception {
         database.transactions().inTransaction(connection -> {
             try (var statement = connection.createStatement()) {
-                statement.executeUpdate("UPDATE tblClass SET isActive=FALSE WHERE classId='class-1'");
-                statement.executeUpdate("UPDATE tblMajor SET isActive=FALSE WHERE majorId='major-1'");
+                statement.executeUpdate("UPDATE tblClass SET isActive=0 WHERE classId='class-1'");
+                statement.executeUpdate("UPDATE tblMajor SET isActive=0 WHERE majorId='major-1'");
             }
             return null;
         });

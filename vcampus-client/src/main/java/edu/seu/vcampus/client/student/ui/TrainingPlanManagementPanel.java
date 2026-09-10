@@ -150,7 +150,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
                     } else {
                         currentPlan = null;
                         courseModel.setCourses(List.of());
-                        planInfoLabel.setText(major.majorName() + " " + year + "级 — 暂无方案，可点击\"新建方案\"");
+                        planInfoLabel.setText(major.name() + " " + year + "级 — 暂无方案，可点击\"新建方案\"");
                     }
                 }));
     }
@@ -182,7 +182,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
             return;
         }
         int year = Integer.parseInt(yearStr.replace("级", ""));
-        JTextField nameField = new JTextField(major.majorName() + year + "级培养方案", 20);
+        JTextField nameField = new JTextField(major.name() + year + "级培养方案", 20);
         JTextField minCountField = new JTextField("4", 5);
         JTextField minCreditsField = new JTextField("8", 5);
         JPanel panel = new JPanel(new GridLayout(0, 2, 4, 4));

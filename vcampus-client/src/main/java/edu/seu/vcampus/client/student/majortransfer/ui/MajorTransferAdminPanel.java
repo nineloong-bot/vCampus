@@ -453,7 +453,7 @@ public final class MajorTransferAdminPanel extends JPanel {
                 }));
     }
 
-    private void downloadAttachment(MajorTransferAttachmentView attachment) {
+    private void downloadAttachment(MajorTransferApplicationView.AttachmentInfo attachment) {
         students.getTransferAttachment(attachment.attachmentId()).whenComplete((response, error) ->
                 SwingUtilities.invokeLater(() -> {
                     if (response == null || !response.success()) { errorLabel.setText("附件下载失败"); return; }

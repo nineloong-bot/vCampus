@@ -55,8 +55,8 @@ class MajorTransferStudentWorkflowTest {
                     0, NOW, NOW));
             return null;
         });
-        sql("UPDATE tblStudent SET enrolled=TRUE, onCampus=TRUE");
-        assertThat(database.stringValue("SELECT enrolled FROM tblStudent WHERE studentId='student-1'")).isEqualToIgnoringCase("true");
+        sql("UPDATE tblStudent SET enrolled=1, onCampus=1");
+        assertThat(database.stringValue("SELECT enrolled FROM tblStudent WHERE studentId='student-1'")).isEqualTo("1");
         UserQueryPort users = new UserQueryPort() {
             @Override public Optional<UserIdentity> findActiveUser(String userId) {
                 return findByUserId(userId);
@@ -197,7 +197,7 @@ class MajorTransferStudentWorkflowTest {
 
     @Test void explicitOffCampusStatusPreventsSubmission() {
         var app = draft();
-        sql("UPDATE tblStudent SET onCampus=FALSE WHERE studentId='student-1'");
+        sql("UPDATE tblStudent SET onCampus=0 WHERE studentId='student-1'");
         assertThatThrownBy(() -> service.submit("user-1", new SubmitMajorTransferCommand(app.applicationId(), 0)))
                 .isInstanceOf(MajorTransferException.class);
     }
@@ -216,7 +216,7 @@ class MajorTransferStudentWorkflowTest {
 
     @Test void difficultyExemptionDoesNotConsumeOrdinaryQuota() {
         var app = assessed();
-        sql("UPDATE tblMajorTransferOption SET receiveQuota=0, difficultyQuotaExempt=TRUE");
+        sql("UPDATE tblMajorTransferOption SET receiveQuota=0, difficultyQuotaExempt=1");
         sql("UPDATE tblMajorTransferApplication SET applicationType='DIFFICULTY'");
         service.generateProposal("admin", new GenerateMajorTransferProposalCommand("opt-1", 0));
         assertThat(service.getApplicationDetail(app.applicationId()).status()).isEqualTo(MajorTransferStatus.PROPOSED);
