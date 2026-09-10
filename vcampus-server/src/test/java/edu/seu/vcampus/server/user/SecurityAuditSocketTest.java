@@ -68,7 +68,7 @@ class SecurityAuditSocketTest {
             return null;
         });
         SessionRegistry sessions = new SessionRegistry();
-        String token = sessions.create(new UserIdentity("admin", "ADMIN", UserRole.ADMIN,
+        String token = sessions.create(new UserIdentity("admin", "USER_ADMIN", UserRole.USER_ADMIN,
                 AccountStatus.ACTIVE), Set.of("USER_AUDIT_READ"), false, "client");
         SecurityAuditHandler handler = new SecurityAuditHandler(
                 new AuthorizationService(sessions),

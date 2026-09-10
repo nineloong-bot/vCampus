@@ -6,6 +6,8 @@ import edu.seu.vcampus.server.concurrency.ResourceLockManager;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.config.ConfigurationException;
 import edu.seu.vcampus.server.config.ServerConfig;
+import edu.seu.vcampus.server.governance.AccessModuleAdministrationRepository;
+import edu.seu.vcampus.server.governance.ModuleAdministrationService;
 import edu.seu.vcampus.server.network.SocketServer;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import edu.seu.vcampus.server.persistence.TransactionManager;
@@ -34,6 +36,7 @@ import edu.seu.vcampus.server.student.service.StudentServiceImpl;
 import edu.seu.vcampus.server.student.service.StudentProfileServiceImpl;
 import edu.seu.vcampus.server.student.pdf.StudentProfilePdfService;
 import edu.seu.vcampus.server.user.handler.UserHandlers;
+import edu.seu.vcampus.server.user.handler.ModuleAdministrationHandlers;
 import edu.seu.vcampus.server.user.handler.SecurityAuditHandler;
 import edu.seu.vcampus.server.user.repository.AccessAuditRepository;
 import edu.seu.vcampus.server.user.repository.AccessPermissionRepository;
@@ -92,6 +95,8 @@ public final class ServerMain {
                 "PING", (request, context) -> ResponseBody.success(EmptyResponse.INSTANCE)));
         ServerRuntime runtime = createRuntime(config);
         new UserHandlers(router, runtime.users(), runtime.authorization(), runtime.deduplicator());
+        new ModuleAdministrationHandlers(router, runtime.governance(),
+                runtime.authorization(), runtime.deduplicator());
         registerSecurityAudit(router, runtime.auditHandler());
         runtime.students().register(router);
         SocketServer server = new SocketServer(config.port(), config.workerThreads(),
@@ -118,11 +123,14 @@ public final class ServerMain {
                 audits, passwords, sessions, clock);
         AuthorizationService authorization = new AuthorizationService(sessions);
         RequestDeduplicator deduplicator = new RequestDeduplicator(transactions, locks);
+        ModuleAdministrationService governance = new ModuleAdministrationService(
+                transactions, locks, new AccessModuleAdministrationRepository(), audits, sessions);
         SecurityAuditHandler auditHandler = new SecurityAuditHandler(authorization,
                 new SecurityAuditService(transactions, audits));
         StudentHandlers students = createStudentHandlers(transactions, locks, sessions,
                 deduplicator, (UserQueryPort) users, userRepository, audits, passwords);
-        return new ServerRuntime(users, authorization, deduplicator, auditHandler, students);
+        return new ServerRuntime(users, authorization, deduplicator, auditHandler,
+                governance, students);
     }
 
     private static void registerSecurityAudit(
@@ -184,6 +192,7 @@ public final class ServerMain {
     private record ServerRuntime(UserService users, AuthorizationService authorization,
                                  RequestDeduplicator deduplicator,
                                  SecurityAuditHandler auditHandler,
+                                 ModuleAdministrationService governance,
                                  StudentHandlers students) {
     }
 }

@@ -179,7 +179,7 @@ class UserHandlerAuthorizationDeduplicationTest {
 
     private static final class AllowAllAuthorization implements AuthorizationPort {
         private static final UserIdentity ADMIN = new UserIdentity(
-                "admin", "ADMIN", UserRole.ADMIN, AccountStatus.ACTIVE);
+                "admin", "USER_ADMIN", UserRole.USER_ADMIN, AccountStatus.ACTIVE);
         @Override public UserIdentity requireSession(String token) { return ADMIN; }
         @Override public void requirePermission(String token, String permission) { }
     }
@@ -205,7 +205,7 @@ class UserHandlerAuthorizationDeduplicationTest {
     }
 
     private static final class CountingUsers implements UserService {
-        private static final UserView VIEW = new UserView("target", "TARGET", UserRole.ADMIN,
+        private static final UserView VIEW = new UserView("target", "TARGET", UserRole.STUDENT,
                 AccountStatus.ACTIVE, false, null, 1, LocalDateTime.MIN, LocalDateTime.MIN);
         private final ConcurrentHashMap<String, AtomicInteger> counts = new ConcurrentHashMap<>();
         private String rejectedActor;

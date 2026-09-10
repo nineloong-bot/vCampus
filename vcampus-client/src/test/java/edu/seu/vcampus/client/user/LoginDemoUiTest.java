@@ -9,6 +9,7 @@ import edu.seu.vcampus.common.protocol.EmptyResponse;
 import edu.seu.vcampus.common.user.ChangePasswordCommand;
 import edu.seu.vcampus.common.user.LoginCommand;
 import edu.seu.vcampus.common.user.LoginResult;
+import edu.seu.vcampus.common.user.UserRole;
 import edu.seu.vcampus.common.user.UserView;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -21,6 +22,7 @@ import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 import java.awt.Component;
 import java.awt.Container;
+import java.awt.Dimension;
 import java.awt.Frame;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -35,6 +37,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static edu.seu.vcampus.common.user.AccountStatus.ACTIVE;
 import static edu.seu.vcampus.common.user.UserRole.ADMIN;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -137,10 +140,54 @@ class LoginDemoUiTest {
                 .isEqualTo("教师：DEMO_TEACHER / Teacher123456");
         assertThat(component(login[0], "login.demoStudent", JLabel.class).getText())
                 .isEqualTo("学生：213242478 / 12345678");
+        assertThat(component(login[0], "login.demoManagementPassword", JLabel.class).getText())
+                .isEqualTo("管理类账号统一密码：admin123456");
+        assertThat(component(login[0], "login.demoModuleAdmins1", JLabel.class).getText())
+                .isEqualTo("模块：学籍 STUDENT_ADMIN ｜ 课程 COURSE_ADMIN");
+        assertThat(component(login[0], "login.demoModuleAdmins2", JLabel.class).getText())
+                .isEqualTo("模块：图书 LIBRARY_ADMIN ｜ 商城 SHOP_ADMIN");
+        assertThat(component(login[0], "login.demoModuleAdmins3", JLabel.class).getText())
+                .isEqualTo("模块：用户 USER_ADMIN");
+        assertThat(component(login[0], "login.demoCollegeAdmins", JLabel.class).getText())
+                .isEqualTo("学院：计算机 CS_COLLEGE_ADMIN ｜ 数学 MATH_COLLEGE_ADMIN");
         assertThat(component(login[0], "login.loginId", JTextField.class).getText())
                 .isEmpty();
         assertThat(component(login[0], "login.password", JPasswordField.class).getPassword())
                 .isEmpty();
+        assertThatThrownBy(() -> component(login[0], "login.applyTeacher",
+                AbstractButton.class)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void loginWindowUsesExpandedDemoDimensions() throws Exception {
+        UserClientService service = mock(UserClientService.class);
+        LoginFrame[] login = new LoginFrame[1];
+
+        SwingUtilities.invokeAndWait(() ->
+                login[0] = new LoginFrame(service, result -> { }));
+
+        assertThat(login[0].getSize()).isEqualTo(new Dimension(880, 620));
+        assertThat(login[0].getMinimumSize()).isEqualTo(new Dimension(800, 560));
+    }
+
+    @Test
+    void hierarchicalAdministratorRolesCanEnterTheSharedShell() throws Exception {
+        LocalDateTime now = LocalDateTime.of(2026, 9, 9, 12, 0);
+        for (var entry : java.util.Map.of(
+                UserRole.SUPER_ADMIN, "超级管理员",
+                UserRole.STUDENT_ADMIN, "学籍管理员",
+                UserRole.COLLEGE_ADMIN, "学院管理员",
+                UserRole.COURSE_ADMIN, "课程管理员",
+                UserRole.LIBRARY_ADMIN, "图书管理员",
+                UserRole.SHOP_ADMIN, "商城管理员",
+                UserRole.USER_ADMIN, "用户管理员").entrySet()) {
+            MainFrame[] frame = new MainFrame[1];
+            SwingUtilities.invokeAndWait(() -> frame[0] = new MainFrame(new UserView(
+                    "demo", "DEMO_ROLE", entry.getKey(), ACTIVE, false,
+                    now, 0, now, now)));
+            assertThat(visibleText(frame[0])).contains("DEMO_ROLE", entry.getValue());
+            SwingUtilities.invokeAndWait(frame[0]::dispose);
+        }
     }
 
     @Test

@@ -4,7 +4,6 @@ import edu.seu.vcampus.client.user.service.UserClientService;
 import edu.seu.vcampus.client.user.ui.ChangePasswordDialog;
 import edu.seu.vcampus.client.user.ui.InitialPasswordChangeDialog;
 import edu.seu.vcampus.client.user.ui.LoginFrame;
-import edu.seu.vcampus.client.user.ui.TeacherAccountApplicationDialog;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -45,8 +44,6 @@ class PasswordVisibilityToggleUiTest {
                 "password.old", "password.new", "password.confirm"));
         assertHiddenFields(windows.change(), List.of(
                 "change.old", "change.new", "change.confirm"));
-        assertHiddenFields(windows.teacherApplication(), List.of(
-                "teacher.password", "teacher.confirm"));
     }
 
     @Test
@@ -120,8 +117,7 @@ class PasswordVisibilityToggleUiTest {
         SwingUtilities.invokeAndWait(() -> result[0] = new WindowSet(
                 new LoginFrame(users, ignored -> { }),
                 new InitialPasswordChangeDialog(null, users, () -> { }, () -> { }),
-                new ChangePasswordDialog(null, users, () -> { }),
-                new TeacherAccountApplicationDialog(null, users, () -> { })));
+                new ChangePasswordDialog(null, users, () -> { })));
         return result[0];
     }
 
@@ -166,7 +162,6 @@ class PasswordVisibilityToggleUiTest {
     private record WindowSet(
             LoginFrame login,
             InitialPasswordChangeDialog initialChange,
-            ChangePasswordDialog change,
-            TeacherAccountApplicationDialog teacherApplication) {
+            ChangePasswordDialog change) {
     }
 }

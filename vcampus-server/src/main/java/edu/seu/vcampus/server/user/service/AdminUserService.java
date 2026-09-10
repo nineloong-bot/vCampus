@@ -138,6 +138,10 @@ final class AdminUserService {
             return withAccountLocks(command.userId(), () -> {
                 UserView result = transactions.inTransaction(connection -> {
                     UserAccount account = account(connection, command.userId());
+                    if (account.role() != UserRole.STUDENT
+                            && account.role() != UserRole.TEACHER) {
+                        throw new IllegalArgumentException("COMMON_VALIDATION_FAILED");
+                    }
                     if (!canChangeStatus(account.accountStatus(), command.newStatus())) {
                         throw new IllegalStateException("USER_STATUS_CONFLICT");
                     }
@@ -180,8 +184,7 @@ final class AdminUserService {
     }
 
     private static boolean canChangeStatus(AccountStatus from, AccountStatus to) {
-        return (from == AccountStatus.PENDING && (to == AccountStatus.ACTIVE || to == AccountStatus.CANCELLED))
-                || (from == AccountStatus.ACTIVE && (to == AccountStatus.DISABLED || to == AccountStatus.CANCELLED))
+        return (from == AccountStatus.ACTIVE && (to == AccountStatus.DISABLED || to == AccountStatus.CANCELLED))
                 || (from == AccountStatus.DISABLED && to == AccountStatus.ACTIVE);
     }
 

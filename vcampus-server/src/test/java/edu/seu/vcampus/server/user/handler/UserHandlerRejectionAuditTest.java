@@ -91,13 +91,15 @@ class UserHandlerRejectionAuditTest {
     }
 
     @Test
-    void serviceFailureIsNotAuditedAgainByHandler() {
+    void retiredRegistrationIsRejectedAndAuditedOnce() {
         ResponseBody<?> response = route(new RejectingAuthorization(), "USER_REGISTER",
                 new edu.seu.vcampus.common.user.TeacherAccountApplicationCommand(
                         "TEACHER01", "weakpass".toCharArray()));
 
-        assertThat(response.code()).isEqualTo("AUTH_PASSWORD_POLICY_VIOLATION");
+        assertThat(response.code()).isEqualTo("COMMON_VALIDATION_FAILED");
         assertThat(countAudits("USER_REGISTER")).isEqualTo(1);
+        assertThat(onlyAudit("USER_REGISTER")).isEqualTo(new AuditRow(
+                null, "TEACHER01", "COMMON_VALIDATION_FAILED", "10.0.0.7"));
     }
 
     private ResponseBody<?> route(AuthorizationPort authorization, String command,

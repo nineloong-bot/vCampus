@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static edu.seu.vcampus.common.user.AccountStatus.ACTIVE;
 import static edu.seu.vcampus.common.user.UserRole.ADMIN;
 import static edu.seu.vcampus.common.user.UserRole.TEACHER;
+import static edu.seu.vcampus.common.user.UserRole.USER_ADMIN;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
@@ -47,7 +48,7 @@ class AccountPanelSelectionUiTest {
     void accountPageButtonsUseGreenSelectionAndNonRedKeyboardFocus() throws Exception {
         AccountPanel[] panel = new AccountPanel[1];
         SwingUtilities.invokeAndWait(() -> panel[0] = new AccountPanel(
-                service(), user(ADMIN), ADMIN_PERMISSIONS, () -> { }));
+                service(), user(USER_ADMIN), ADMIN_PERMISSIONS, () -> { }));
         flushEdt();
         AbstractButton detail = component(panel[0], "account.detail", AbstractButton.class);
         AbstractButton password = component(panel[0], "account.password", AbstractButton.class);

@@ -59,6 +59,13 @@ public final class IdentityHeader extends JPanel {
 
     private static String roleName(UserRole role) {
         return switch (role) {
+            case SUPER_ADMIN -> "超级管理员";
+            case STUDENT_ADMIN -> "学籍管理员";
+            case COLLEGE_ADMIN -> "学院管理员";
+            case COURSE_ADMIN -> "课程管理员";
+            case LIBRARY_ADMIN -> "图书管理员";
+            case SHOP_ADMIN -> "商城管理员";
+            case USER_ADMIN -> "用户管理员";
             case ADMIN -> "管理员";
             case TEACHER -> "教师";
             case STUDENT -> "学生";

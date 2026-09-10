@@ -147,6 +147,46 @@ class AdminUserOperationsTest {
                 ADMIN_ID, target.userId());
     }
 
+    @Test
+    void accountAdministrationCannotChangeManagementAccountStatus() {
+        UserAccount target = account("COURSE_MANAGER", UserRole.COURSE_ADMIN);
+        insert(target);
+
+        assertThatThrownBy(() -> service.changeStatus(ADMIN_ID,
+                new ChangeUserStatusCommand(target.userId(), AccountStatus.DISABLED,
+                        "not an ordinary account", 0), ADMIN_CONTEXT))
+                .hasMessage("COMMON_VALIDATION_FAILED");
+
+        UserAccount unchanged = transactions.inTransaction(connection ->
+                repository.findById(connection, target.userId()).orElseThrow());
+        assertThat(unchanged.accountStatus()).isEqualTo(AccountStatus.ACTIVE);
+        assertThat(unchanged.rowVersion()).isZero();
+    }
+
+    @Test
+    void pendingTeacherCannotBeApprovedOrCancelled() {
+        PasswordHash password = new PasswordHasher().hash("Pass1234".toCharArray());
+        UserAccount pending = new UserAccount(UUID.randomUUID().toString(), "PENDING_TEACHER",
+                password.hash(), password.salt(), password.iterations(), UserRole.TEACHER,
+                AccountStatus.PENDING, false, 0, null, null, 0,
+                LocalDateTime.now(), LocalDateTime.now());
+        insert(pending);
+
+        assertThatThrownBy(() -> service.changeStatus(ADMIN_ID,
+                new ChangeUserStatusCommand(pending.userId(), AccountStatus.ACTIVE,
+                        "approve", 0), ADMIN_CONTEXT))
+                .hasMessage("USER_STATUS_CONFLICT");
+        assertThatThrownBy(() -> service.changeStatus(ADMIN_ID,
+                new ChangeUserStatusCommand(pending.userId(), AccountStatus.CANCELLED,
+                        "reject", 0), ADMIN_CONTEXT))
+                .hasMessage("USER_STATUS_CONFLICT");
+
+        UserAccount unchanged = transactions.inTransaction(connection ->
+                repository.findById(connection, pending.userId()).orElseThrow());
+        assertThat(unchanged.accountStatus()).isEqualTo(AccountStatus.PENDING);
+        assertThat(unchanged.rowVersion()).isZero();
+    }
+
     private void assertAudit(String action, String resultCode, String actor, String target) {
         transactions.inTransaction(connection -> {
             try (var statement = connection.prepareStatement(

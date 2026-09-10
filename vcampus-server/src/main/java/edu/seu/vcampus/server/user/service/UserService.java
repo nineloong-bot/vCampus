@@ -16,10 +16,12 @@ import edu.seu.vcampus.common.paging.PageResult;
 
 /** Application boundary for user-management use cases implemented so far. */
 public interface UserService {
-    /** Applies for a pending teacher account using a public registration command. */
+    /** Retained compatibility entry point; teacher account applications are retired. */
+    @Deprecated(forRemoval = false)
     UserView applyForTeacherAccount(TeacherAccountApplicationCommand command);
 
-    /** Applies for a teacher account with request metadata used only by audit. */
+    /** Retained compatibility entry point; teacher account applications are retired. */
+    @Deprecated(forRemoval = false)
     default UserView applyForTeacherAccount(
             TeacherAccountApplicationCommand command, ClientContext context) {
         return applyForTeacherAccount(command);

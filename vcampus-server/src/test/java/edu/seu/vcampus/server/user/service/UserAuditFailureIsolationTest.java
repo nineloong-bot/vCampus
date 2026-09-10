@@ -3,7 +3,6 @@ package edu.seu.vcampus.server.user.service;
 import edu.seu.vcampus.common.user.AccountStatus;
 import edu.seu.vcampus.common.user.ChangeUserStatusCommand;
 import edu.seu.vcampus.common.user.LoginCommand;
-import edu.seu.vcampus.common.user.TeacherAccountApplicationCommand;
 import edu.seu.vcampus.common.user.UpdateUserRoleCommand;
 import edu.seu.vcampus.common.user.UserRole;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
@@ -11,7 +10,6 @@ import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import edu.seu.vcampus.server.persistence.TransactionManager;
 import edu.seu.vcampus.server.routing.ClientContext;
 import edu.seu.vcampus.server.user.domain.UserAccount;
-import edu.seu.vcampus.server.user.repository.AccessAuditRepository;
 import edu.seu.vcampus.server.user.repository.AccessUserRepository;
 import edu.seu.vcampus.server.user.repository.AuditRepository;
 import edu.seu.vcampus.server.user.repository.UserRepository;
@@ -25,7 +23,6 @@ import java.sql.DriverManager;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -54,17 +51,11 @@ class UserAuditFailureIsolationTest {
     }
 
     @Test
-    void failureAuditOutageCannotReplaceStableRegistrationOrLoginErrors() {
-        UserService healthy = service(new AccessAuditRepository());
-        healthy.applyForTeacherAccount(new TeacherAccountApplicationCommand(
-                "TEACHER01", "Password1".toCharArray()));
+    void failureAuditOutageCannotReplaceStableLoginErrors() {
         insert(account("LOGIN_TARGET", UserRole.TEACHER));
         ThrowingAudits failing = new ThrowingAudits(false);
         UserService subject = service(failing);
 
-        assertThatThrownBy(() -> subject.applyForTeacherAccount(
-                new TeacherAccountApplicationCommand("TEACHER01", "Password1".toCharArray())))
-                .hasMessage("USER_LOGIN_ID_EXISTS");
         assertThatThrownBy(() -> subject.login(new LoginCommand(
                 "LOGIN_TARGET", "WrongPass1".toCharArray(), "client"),
                 new ClientContext("connection", "127.0.0.1")))
@@ -78,25 +69,16 @@ class UserAuditFailureIsolationTest {
         ThrowingAudits failing = new ThrowingAudits(false);
         UserService subject = service(failing);
         ClientContext context = new ClientContext("admin", "127.0.0.1");
+        UserAccount teacher = account("STATUS_TARGET", UserRole.TEACHER);
+        insert(teacher);
 
         assertThatThrownBy(() -> subject.updateRole(ADMIN_ID,
                 new UpdateUserRoleCommand(ADMIN_ID, UserRole.TEACHER, 0), context))
                 .hasMessage("COMMON_VALIDATION_FAILED");
         assertThatThrownBy(() -> subject.changeStatus(ADMIN_ID,
-                new ChangeUserStatusCommand(ADMIN_ID, AccountStatus.PENDING, "invalid", 0),
+                new ChangeUserStatusCommand(teacher.userId(), AccountStatus.PENDING,
+                        "invalid", 0),
                 context)).hasMessage("USER_STATUS_CONFLICT");
-    }
-
-    @Test
-    void successAuditOutageRollsBackBusinessWrite() {
-        UserService subject = service(new ThrowingAudits(true));
-
-        assertThatThrownBy(() -> subject.applyForTeacherAccount(
-                new TeacherAccountApplicationCommand("TEACHER02", "Password1".toCharArray())))
-                .hasMessageContaining("audit storage unavailable");
-        Optional<UserAccount> stored = transactions.inTransaction(connection ->
-                users.findByNormalizedLoginId(connection, "TEACHER02"));
-        assertThat(stored).isEmpty();
     }
 
     private UserService service(AuditRepository audits) {

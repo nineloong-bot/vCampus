@@ -3,6 +3,12 @@ INSERT INTO tblDepartment
 VALUES
     ('00000000-0000-0000-0000-000000000111', 'MATH', '数学学院', TRUE, 0);
 
+INSERT INTO tblStudentCollegeAdministrator
+    (departmentId, userId, isActive, rowVersion, createdAt, updatedAt)
+VALUES
+    ('00000000-0000-0000-0000-000000000111',
+     '00000000-0000-0000-0000-000000000203', TRUE, 0, NOW(), NOW());
+
 INSERT INTO tblMajor
     (majorId, departmentId, majorCode, majorName, isActive, rowVersion)
 VALUES

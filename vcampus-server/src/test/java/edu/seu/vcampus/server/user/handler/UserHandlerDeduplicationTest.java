@@ -70,9 +70,7 @@ class UserHandlerDeduplicationTest {
     }
 
     @Test
-    void deduplicatesFiveWritesWhileTheirAuthenticationRemainsValid() {
-        assertReplay("USER_REGISTER",
-                new TeacherAccountApplicationCommand("TEACHER", "Password1".toCharArray()));
+    void deduplicatesSupportedWritesWhileTheirAuthenticationRemainsValid() {
         assertReplay("USER_LOGOUT", EmptyRequest.INSTANCE);
         assertReplay("USER_CHANGE_PASSWORD", new ChangePasswordCommand(
                 "OldPass123".toCharArray(), "NewPass123".toCharArray()));
@@ -215,13 +213,13 @@ class UserHandlerDeduplicationTest {
 
     private static final class AllowAllAuthorization implements AuthorizationPort {
         private static final UserIdentity IDENTITY = new UserIdentity(
-                "admin", "ADMIN", UserRole.ADMIN, AccountStatus.ACTIVE);
+                "admin", "USER_ADMIN", UserRole.USER_ADMIN, AccountStatus.ACTIVE);
         @Override public UserIdentity requireSession(String sessionToken) { return IDENTITY; }
         @Override public void requirePermission(String sessionToken, String permissionCode) { }
     }
 
     private static final class CountingUsers implements UserService {
-        private static final UserView VIEW = new UserView("target", "TARGET", UserRole.ADMIN,
+        private static final UserView VIEW = new UserView("target", "TARGET", UserRole.STUDENT,
                 AccountStatus.ACTIVE, false, null, 1, LocalDateTime.MIN, LocalDateTime.MIN);
         private final ConcurrentHashMap<String, AtomicInteger> counts = new ConcurrentHashMap<>();
         private final ConcurrentHashMap<String, AtomicInteger> auditCounts = new ConcurrentHashMap<>();

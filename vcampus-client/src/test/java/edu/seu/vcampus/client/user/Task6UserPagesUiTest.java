@@ -3,7 +3,6 @@ import edu.seu.vcampus.client.user.service.UserClientService;
 import edu.seu.vcampus.client.user.ui.AccountPanel;
 import edu.seu.vcampus.client.user.ui.ChangePasswordDialog;
 import edu.seu.vcampus.client.user.ui.SecurityAuditPanel;
-import edu.seu.vcampus.client.user.ui.TeacherAccountApplicationDialog;
 import edu.seu.vcampus.client.user.ui.UserManagementPanel;
 import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.user.SecurityAuditQuery;
@@ -16,7 +15,6 @@ import org.junit.jupiter.api.Test;
 import javax.swing.AbstractButton;
 import javax.swing.JLabel;
 import javax.swing.JPasswordField;
-import javax.swing.JTextField;
 import javax.swing.JTable;
 import javax.swing.SwingUtilities;
 import java.awt.Component;
@@ -30,7 +28,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import static edu.seu.vcampus.common.user.AccountStatus.ACTIVE;
 import static edu.seu.vcampus.common.user.UserRole.ADMIN;
+import static edu.seu.vcampus.common.user.UserRole.COURSE_ADMIN;
+import static edu.seu.vcampus.common.user.UserRole.SUPER_ADMIN;
 import static edu.seu.vcampus.common.user.UserRole.STUDENT;
+import static edu.seu.vcampus.common.user.UserRole.USER_ADMIN;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
@@ -43,34 +44,6 @@ class Task6UserPagesUiTest {
     void disposeWindows() throws Exception {
         SwingUtilities.invokeAndWait(() -> Arrays.stream(Window.getWindows())
                 .forEach(Window::dispose));
-    }
-
-    @Test
-    void teacherApplicationHasNoRoleChoiceAndClearsPasswordsOnSuccess() throws Exception {
-        UserClientService users = mock(UserClientService.class);
-        doReturn(CompletableFuture.completedFuture(view("teacher", ADMIN)))
-                .when(users).applyForTeacherAccount(any(), any(char[].class));
-        AtomicBoolean submitted = new AtomicBoolean();
-        TeacherAccountApplicationDialog[] dialog = new TeacherAccountApplicationDialog[1];
-        SwingUtilities.invokeAndWait(() -> dialog[0] = new TeacherAccountApplicationDialog(
-                null, users, () -> submitted.set(true)));
-
-        SwingUtilities.invokeAndWait(() -> {
-            component(dialog[0], "teacher.loginId", JTextField.class).setText("teacher");
-            component(dialog[0], "teacher.password", JPasswordField.class)
-                    .setText("Teacher123456");
-            component(dialog[0], "teacher.confirm", JPasswordField.class)
-                    .setText("Teacher123456");
-            component(dialog[0], "teacher.submit", AbstractButton.class).doClick();
-        });
-        flushEdt();
-
-        verify(users).applyForTeacherAccount(org.mockito.ArgumentMatchers.eq("teacher"),
-                any(char[].class));
-        assertThat(submitted).isTrue();
-        assertThat(text(dialog[0])).doesNotContain("角色", "ADMIN", "STUDENT");
-        assertThat(component(dialog[0], "teacher.password", JPasswordField.class)
-                .getPassword()).isEmpty();
     }
 
     @Test
@@ -89,6 +62,45 @@ class Task6UserPagesUiTest {
                         "是否首次改密");
         assertThat(find(panel[0], "account.users")).isNull();
         assertThat(find(panel[0], "account.audit")).isNull();
+        assertThat(find(panel[0], "account.governance")).isNull();
+    }
+
+    @Test
+    void managementButtonsFollowDedicatedAdministratorRoles() throws Exception {
+        UserClientService users = mock(UserClientService.class);
+        doReturn(CompletableFuture.completedFuture(view("USER_ADMIN", USER_ADMIN)))
+                .when(users).getCurrentUser();
+        doReturn(CompletableFuture.completedFuture(
+                new PageResult<UserSummary>(List.of(), 0, 20, 0)))
+                .when(users).searchUsers(any(UserSearchQuery.class));
+        doReturn(CompletableFuture.completedFuture(
+                new PageResult<SecurityAuditView>(List.of(), 0, 20, 0)))
+                .when(users).searchSecurityAudits(any(SecurityAuditQuery.class));
+        doReturn(CompletableFuture.completedFuture(
+                new edu.seu.vcampus.common.governance.ModuleAdministrationSnapshot(List.of())))
+                .when(users).listModuleAdministrators();
+        AccountPanel[] userAdmin = new AccountPanel[1];
+        AccountPanel[] superAdmin = new AccountPanel[1];
+        AccountPanel[] courseAdmin = new AccountPanel[1];
+        SwingUtilities.invokeAndWait(() -> {
+            userAdmin[0] = new AccountPanel(users, view("USER_ADMIN", USER_ADMIN),
+                    Set.of("USER_READ_ALL", "USER_AUDIT_READ", "USER_STATUS_WRITE",
+                            "USER_PASSWORD_RESET"), () -> { });
+            superAdmin[0] = new AccountPanel(users, view("SUPER_ADMIN", SUPER_ADMIN),
+                    Set.of("PLATFORM_MODULE_ADMIN_READ", "PLATFORM_MODULE_ADMIN_WRITE"),
+                    () -> { });
+            courseAdmin[0] = new AccountPanel(users, view("COURSE_ADMIN", COURSE_ADMIN),
+                    Set.of(), () -> { });
+        });
+
+        assertThat(find(userAdmin[0], "account.users")).isNotNull();
+        assertThat(find(userAdmin[0], "account.governance")).isNull();
+        assertThat(find(superAdmin[0], "account.users")).isNull();
+        assertThat(find(superAdmin[0], "account.governance")).isNotNull();
+        assertThat(((AbstractButton) find(superAdmin[0], "account.governance")).getText())
+                .isEqualTo("权限管理");
+        assertThat(find(courseAdmin[0], "account.users")).isNull();
+        assertThat(find(courseAdmin[0], "account.governance")).isNull();
     }
 
     @Test

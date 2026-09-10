@@ -13,6 +13,10 @@ import java.util.UUID;
 
 import static edu.seu.vcampus.common.user.UserRole.ADMIN;
 import static edu.seu.vcampus.common.user.UserRole.STUDENT;
+import static edu.seu.vcampus.common.user.UserRole.COLLEGE_ADMIN;
+import static edu.seu.vcampus.common.user.UserRole.STUDENT_ADMIN;
+import static edu.seu.vcampus.common.user.UserRole.SUPER_ADMIN;
+import static edu.seu.vcampus.common.user.UserRole.USER_ADMIN;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class AccessPermissionRepositoryTest {
@@ -36,15 +40,30 @@ class AccessPermissionRepositoryTest {
 
     @Test
     void loadsRolePermissionsFromRolePermissionTable() {
-        Set<String> administratorPermissions = transactions.inTransaction(connection ->
+        Set<String> superAdministratorPermissions = transactions.inTransaction(connection ->
+                permissions.findByRole(connection, SUPER_ADMIN));
+        Set<String> collegeAdministratorPermissions = transactions.inTransaction(connection ->
+                permissions.findByRole(connection, COLLEGE_ADMIN));
+        Set<String> studentAdministratorPermissions = transactions.inTransaction(connection ->
+                permissions.findByRole(connection, STUDENT_ADMIN));
+        Set<String> userAdministratorPermissions = transactions.inTransaction(connection ->
+                permissions.findByRole(connection, USER_ADMIN));
+        Set<String> legacyAdministratorPermissions = transactions.inTransaction(connection ->
                 permissions.findByRole(connection, ADMIN));
         Set<String> studentPermissions = transactions.inTransaction(connection ->
                 permissions.findByRole(connection, STUDENT));
 
-        assertThat(administratorPermissions)
-                .containsExactlyInAnyOrder("USER_READ_ALL", "USER_ROLE_WRITE",
-                        "USER_STATUS_WRITE", "USER_AUDIT_READ",
-                        "USER_PASSWORD_RESET", "STUDENT_WRITE");
+        assertThat(superAdministratorPermissions)
+                .containsExactlyInAnyOrder("PLATFORM_MODULE_ADMIN_READ",
+                        "PLATFORM_MODULE_ADMIN_WRITE", "PLATFORM_GOVERNANCE_AUDIT_READ");
+        assertThat(collegeAdministratorPermissions)
+                .containsExactlyInAnyOrder("STUDENT_READ", "STUDENT_WRITE");
+        assertThat(studentAdministratorPermissions)
+                .containsExactlyInAnyOrder("STUDENT_READ", "STUDENT_WRITE");
+        assertThat(userAdministratorPermissions)
+                .containsExactlyInAnyOrder("USER_READ_ALL", "USER_STATUS_WRITE",
+                        "USER_AUDIT_READ", "USER_PASSWORD_RESET");
+        assertThat(legacyAdministratorPermissions).isEmpty();
         assertThat(studentPermissions).isEmpty();
     }
 
