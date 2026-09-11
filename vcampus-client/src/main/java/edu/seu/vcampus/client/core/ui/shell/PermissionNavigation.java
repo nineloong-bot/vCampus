@@ -84,6 +84,18 @@ public final class PermissionNavigation extends JPanel {
         }
     }
 
+    /** Programmatically selects the navigation button matching the given page id. */
+    public void selectById(String pageId) {
+        for (int i = 0; i < getComponentCount(); i++) {
+            if (!(getComponent(i) instanceof JToggleButton button)) continue;
+            if (ITEMS.get(i).id().equals(pageId)) {
+                select(button);
+                button.setSelected(true);
+                return;
+            }
+        }
+    }
+
     private void select(JToggleButton selected) {
         selected.setSelected(true);
         for (java.awt.Component component : getComponents()) {
