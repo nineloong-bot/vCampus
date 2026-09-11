@@ -53,24 +53,25 @@ public final class ModuleAdministrationService {
         Objects.requireNonNull(command, "command");
         try {
             UserRole requestedRole = role(command.moduleCode());
-            locked(keys(command.moduleCode(), command.userId()), () ->
-                    transactions.inTransaction(connection -> {
-                        var account = repository.requireAccount(connection, command.userId(),
-                                command.expectedModuleVersion());
-                        requireGovernable(account.role());
-                        if (account.status() == AccountStatus.ACTIVE
-                                && account.role() != requestedRole
-                                && repository.countActive(connection, account.role()) <= 1) {
-                            throw lastAdministrator();
-                        }
-                        repository.updateRoleAndStatus(connection, account.userId(),
-                                requestedRole, AccountStatus.ACTIVE, account.rowVersion());
-                        audits.record(connection, actorUserId,
-                                "GOVERNANCE_MODULE_ADMIN_ASSIGN",
-                                "MODULE:" + command.moduleCode(), account.userId(), "SUCCESS");
-                        return null;
-                    }));
-            sessions.revokeAllForUser(command.userId());
+            locked(assignKeys(command.moduleCode(), command.userId()), () -> {
+                transactions.inTransaction(connection -> {
+                    var account = repository.requireAccount(connection, command.userId(),
+                            command.expectedModuleVersion());
+                    requireGovernable(account.role());
+                    if (account.status() == AccountStatus.ACTIVE
+                            && account.role() != requestedRole
+                            && repository.countActive(connection, account.role()) <= 1) {
+                        throw lastAdministrator();
+                    }
+                    repository.updateRoleAndStatus(connection, account.userId(),
+                            requestedRole, AccountStatus.ACTIVE, account.rowVersion());
+                    audits.record(connection, actorUserId,
+                            "GOVERNANCE_MODULE_ADMIN_ASSIGN",
+                            "MODULE:" + command.moduleCode(), account.userId(), "SUCCESS");
+                    return null;
+                });
+                sessions.revokeAllForUser(command.userId());
+            });
         } catch (RuntimeException error) {
             auditFailure(actorUserId, "GOVERNANCE_MODULE_ADMIN_ASSIGN",
                     command.moduleCode(), command.userId(), error);
@@ -83,25 +84,26 @@ public final class ModuleAdministrationService {
         Objects.requireNonNull(command, "command");
         try {
             UserRole requiredRole = role(command.moduleCode());
-            locked(keys(command.moduleCode(), command.userId()), () ->
-                    transactions.inTransaction(connection -> {
-                        var account = repository.requireAccount(connection, command.userId(),
-                                command.expectedAssignmentVersion());
-                        if (account.role() != requiredRole
-                                || account.status() != AccountStatus.ACTIVE) {
-                            throw new IllegalArgumentException("COMMON_VALIDATION_FAILED");
-                        }
-                        if (repository.countActive(connection, requiredRole) <= 1) {
-                            throw lastAdministrator();
-                        }
-                        repository.updateRoleAndStatus(connection, account.userId(),
-                                account.role(), AccountStatus.DISABLED, account.rowVersion());
-                        audits.record(connection, actorUserId,
-                                "GOVERNANCE_MODULE_ADMIN_REMOVE",
-                                "MODULE:" + command.moduleCode(), account.userId(), "SUCCESS");
-                        return null;
-                    }));
-            sessions.revokeAllForUser(command.userId());
+            locked(keys(command.moduleCode(), command.userId()), () -> {
+                transactions.inTransaction(connection -> {
+                    var account = repository.requireAccount(connection, command.userId(),
+                            command.expectedAssignmentVersion());
+                    if (account.role() != requiredRole
+                            || account.status() != AccountStatus.ACTIVE) {
+                        throw new IllegalArgumentException("COMMON_VALIDATION_FAILED");
+                    }
+                    if (repository.countActive(connection, requiredRole) <= 1) {
+                        throw lastAdministrator();
+                    }
+                    repository.updateRoleAndStatus(connection, account.userId(),
+                            account.role(), AccountStatus.DISABLED, account.rowVersion());
+                    audits.record(connection, actorUserId,
+                            "GOVERNANCE_MODULE_ADMIN_REMOVE",
+                            "MODULE:" + command.moduleCode(), account.userId(), "SUCCESS");
+                    return null;
+                });
+                sessions.revokeAllForUser(command.userId());
+            });
         } catch (RuntimeException error) {
             auditFailure(actorUserId, "GOVERNANCE_MODULE_ADMIN_REMOVE",
                     command.moduleCode(), command.userId(), error);
@@ -122,27 +124,29 @@ public final class ModuleAdministrationService {
             locked(List.of(key("MODULE", command.firstModuleCode()),
                     key("MODULE", command.secondModuleCode()),
                     key("USER", command.firstUserId()), key("USER", command.secondUserId())),
-                    () -> transactions.inTransaction(connection -> {
-                        var first = repository.requireAccount(connection,
-                                command.firstUserId(), command.firstExpectedVersion());
-                        var second = repository.requireAccount(connection,
-                                command.secondUserId(), command.secondExpectedVersion());
-                        requireActiveRole(first, firstRole);
-                        requireActiveRole(second, secondRole);
-                        repository.updateRoleAndStatus(connection, first.userId(), secondRole,
-                                AccountStatus.ACTIVE, first.rowVersion());
-                        repository.updateRoleAndStatus(connection, second.userId(), firstRole,
-                                AccountStatus.ACTIVE, second.rowVersion());
-                        audits.record(connection, actorUserId,
-                                "GOVERNANCE_MODULE_ADMIN_SWAP",
-                                "MODULE:" + command.secondModuleCode(), first.userId(), "SUCCESS");
-                        audits.record(connection, actorUserId,
-                                "GOVERNANCE_MODULE_ADMIN_SWAP",
-                                "MODULE:" + command.firstModuleCode(), second.userId(), "SUCCESS");
-                        return null;
-                    }));
-            sessions.revokeAllForUser(command.firstUserId());
-            sessions.revokeAllForUser(command.secondUserId());
+                    () -> {
+                transactions.inTransaction(connection -> {
+                    var first = repository.requireAccount(connection,
+                            command.firstUserId(), command.firstExpectedVersion());
+                    var second = repository.requireAccount(connection,
+                            command.secondUserId(), command.secondExpectedVersion());
+                    requireActiveRole(first, firstRole);
+                    requireActiveRole(second, secondRole);
+                    repository.updateRoleAndStatus(connection, first.userId(), secondRole,
+                            AccountStatus.ACTIVE, first.rowVersion());
+                    repository.updateRoleAndStatus(connection, second.userId(), firstRole,
+                            AccountStatus.ACTIVE, second.rowVersion());
+                    audits.record(connection, actorUserId,
+                            "GOVERNANCE_MODULE_ADMIN_SWAP",
+                            "MODULE:" + command.secondModuleCode(), first.userId(), "SUCCESS");
+                    audits.record(connection, actorUserId,
+                            "GOVERNANCE_MODULE_ADMIN_SWAP",
+                            "MODULE:" + command.firstModuleCode(), second.userId(), "SUCCESS");
+                    return null;
+                });
+                sessions.revokeAllForUser(command.firstUserId());
+                sessions.revokeAllForUser(command.secondUserId());
+            });
         } catch (RuntimeException error) {
             auditFailure(actorUserId, "GOVERNANCE_MODULE_ADMIN_SWAP",
                     command.firstModuleCode(), command.firstUserId(), error);
@@ -194,6 +198,11 @@ public final class ModuleAdministrationService {
 
     private static List<ResourceKey> keys(String module, String user) {
         return List.of(key("MODULE", module), key("USER", user));
+    }
+
+    private static List<ResourceKey> assignKeys(String targetModule, String user) {
+        return List.of(key("MODULE", targetModule), key("USER", user),
+                key("GOVERNANCE", "ASSIGN"));
     }
 
     private static ResourceKey key(String type, String id) {
