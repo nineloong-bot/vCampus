@@ -18,3 +18,7 @@ vcampus-distribution/logs/
 /.superpowers/brainstorm/
 **/__pycache__/
 *.laccdb
+
+!/artifacts/
+/artifacts/*
+!/artifacts/vCampus-full-test-data-20260911.zip

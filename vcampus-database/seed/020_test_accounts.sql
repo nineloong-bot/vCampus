@@ -46,7 +46,7 @@ VALUES
      NOW(), 'ACTIVE', 0, NOW(), NOW());
 
 UPDATE tblNumberSequence SET currentValue = 1
-    WHERE sequenceKey = 'CAMPUS_CARD_GLOBAL';
+    WHERE sequenceKey = 'CAMPUS_CARD_GLOBAL' AND currentValue < 1;
 
 UPDATE tblStudent SET
     namePinyin = 'CESHI XUESHENG',

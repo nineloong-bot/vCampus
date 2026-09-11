@@ -9,6 +9,10 @@ Java 21 校园管理应用，包含统一登录与账户管理、学籍档案、
 1. 运行 `start-server-with-data.bat`，等待服务端监听 8888 端口。
 2. 运行 `start-client.bat`。
 
+默认发行数据库已包含 1,000 名测试学生及教师、课程、图书和商城数据。管理员 `TESTADMIN`，学生 `213260001`，教师 `TESTTEACHER001`，初始密码均为 `Test12345`。
+
+完整独立测试包：[下载压缩包](artifacts/vCampus-full-test-data-20260911.zip)，解压后依次运行 `start-server.bat` 和 `start-client.bat`（端口 18888）。
+
 账号初始值及密码初始化说明见 [测试账号说明](vcampus-distribution/scripts/测试账号与密码.txt)。
 
 ## 全模块批量测试数据
