@@ -65,7 +65,6 @@ class UserLoginSocketDemoTest {
         transactions = new TransactionManager(provider);
         try (Connection connection = provider.open()) {
             executeScript(connection, projectFile("schema", "010_user.sql"));
-            executeScript(connection, projectFile("seed", "010_roles_permissions.sql"));
         }
         UserRepository users = new AccessUserRepository();
         demoPassword = randomPassword("Demo", '7');
@@ -214,6 +213,9 @@ class UserLoginSocketDemoTest {
                 Base64.getEncoder().encodeToString(salt), 120_000,
                 ADMIN, ACTIVE, false, 0, null, null, 0, now, now);
         transactions.inTransaction(connection -> {
+            try (var stmt = connection.createStatement()) {
+                stmt.execute("INSERT INTO tblRole (roleCode, roleName) VALUES ('ADMIN', '遗留管理员（已停用）')");
+            }
             users.insert(connection, account);
             return null;
         });

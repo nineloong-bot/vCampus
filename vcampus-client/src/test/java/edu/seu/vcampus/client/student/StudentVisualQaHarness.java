@@ -137,7 +137,7 @@ public final class StudentVisualQaHarness {
 
     private static void renderOrganizationAndManualStudent(Path output) throws Exception {
         DepartmentView department = new DepartmentView("dept-1", "CS", "计算机科学与工程学院", true, 1);
-        MajorView major = new MajorView("major-1", department.departmentId(), "090", "计算机科学与技术", true, 1);
+        MajorView major = new MajorView("major-1", department.departmentId(), "090", "计算机科学与技术", null, true, 1);
         ClassView studentClass = new ClassView("class-1", major.majorId(), "090-2024-01", "计算机科学与技术2401班",
                 2024, 1, true, 1);
         StudentClientService students = new StudentClientService(new StudentRequestClient() {

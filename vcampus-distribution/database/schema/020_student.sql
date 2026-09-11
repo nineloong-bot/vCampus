@@ -14,6 +14,7 @@ CREATE TABLE tblMajor (
     departmentId VARCHAR(36) NOT NULL,
     majorCode VARCHAR(3) NOT NULL,
     majorName VARCHAR(64) NOT NULL,
+    grades VARCHAR(16),
     isActive YESNO NOT NULL,
     rowVersion LONG NOT NULL,
     CONSTRAINT fk_tblMajor_department FOREIGN KEY (departmentId)

@@ -35,7 +35,9 @@ public final class FoundationShopUserAdapter implements ShopUserPort {
             ShopUserKind kind = switch (identity.role()) {
                 case STUDENT -> ShopUserKind.STUDENT;
                 case TEACHER -> ShopUserKind.TEACHER;
-                case ADMIN -> ShopUserKind.ADMINISTRATOR;
+                case SUPER_ADMIN, SHOP_ADMIN, ADMIN -> ShopUserKind.ADMINISTRATOR;
+                case STUDENT_ADMIN, COLLEGE_ADMIN, COURSE_ADMIN, LIBRARY_ADMIN, USER_ADMIN ->
+                        ShopUserKind.OTHER;
             };
             return new ShopUser(identity.userId(), kind, identity.accountStatus() == ACTIVE);
         } catch (SessionExpiredException error) {

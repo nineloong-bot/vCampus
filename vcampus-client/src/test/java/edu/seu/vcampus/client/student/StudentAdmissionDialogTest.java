@@ -61,7 +61,7 @@ class StudentAdmissionDialogTest {
         client.enqueue(ResponseBody.success(new ArrayList<>(List.of(
                 new DepartmentView("dept-1", "D01", "计算机科学与工程学院", true, 1)))));
         client.enqueue(ResponseBody.success(new ArrayList<>(List.of(
-                new MajorView("maj-1", "dept-1", "M01", "计算机科学与技术", true, 1)))));
+                new MajorView("maj-1", "dept-1", "M01", "计算机科学与技术", null, true, 1)))));
         client.enqueue(ResponseBody.success(new ArrayList<>(List.of(
                 new ClassView("cls-1", "maj-1", "C01", "计科2401", 2024, 1, true, 1)))));
 
@@ -93,7 +93,7 @@ class StudentAdmissionDialogTest {
         client.enqueue(ResponseBody.success(new ArrayList<>(List.of(
                 new DepartmentView("dept-1", "D01", "计算机科学与工程学院", true, 1)))));
         client.enqueue(ResponseBody.success(new ArrayList<>(List.of(
-                new MajorView("maj-1", "dept-1", "M01", "计算机科学与技术", true, 1)))));
+                new MajorView("maj-1", "dept-1", "M01", "计算机科学与技术", null, true, 1)))));
         client.enqueue(ResponseBody.success(new ArrayList<>(List.of(
                 new ClassView("cls-1", "maj-1", "C01", "计科2401", 2024, 1, true, 1)))));
         StudentView sv = new StudentView("student-new", "user-new", "09024101", "213240001",

@@ -68,7 +68,7 @@ class ManualStudentCreationDialogTest {
             result[0] = new ManualStudentCreationDialog(null,
                     new StudentClientService(requests, Duration.ofSeconds(1)),
                     new DepartmentView("department-1", "CS", "计算机学院", true, 0),
-                    new MajorView("major-1", "department-1", "090", "软件工程", true, 0),
+                    new MajorView("major-1", "department-1", "090", "软件工程", null, true, 0),
                     new ClassView("class-1", "major-1", "090-24-1", "软工2401", 2024, 1, true, 0));
             result[0].addNotify();
         });

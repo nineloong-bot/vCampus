@@ -80,7 +80,7 @@ class AdminStudentInfoEditDialogTest {
 
         Call majors = client.await("STUDENT_LIST_MAJORS");
         client.complete(majors, ResponseBody.success(new ArrayList<>(List.of(
-                new MajorView("m2", "d2", "m2", "应用数学", true, 1)))));
+                new MajorView("m2", "d2", "m2", "应用数学", null, true, 1)))));
         flushEdt();
         assertThat(button(dialog, "student.info.submit").isEnabled()).isFalse();
 
@@ -113,9 +113,9 @@ class AdminStudentInfoEditDialogTest {
         Call older = client.await("STUDENT_LIST_MAJORS");
         Call current = client.await("STUDENT_LIST_MAJORS");
         client.complete(current, ResponseBody.success(new ArrayList<>(List.of(
-                new MajorView("m3", "d3", "0301", "应用物理", true, 1)))));
+                new MajorView("m3", "d3", "0301", "应用物理", null, true, 1)))));
         client.complete(older, ResponseBody.success(new ArrayList<>(List.of(
-                new MajorView("m2", "d2", "0201", "应用数学", true, 1)))));
+                new MajorView("m2", "d2", "0201", "应用数学", null, true, 1)))));
         flushEdt();
 
         JComboBox<?> majors = combo(dialog, "student.info.major");
@@ -151,7 +151,7 @@ class AdminStudentInfoEditDialogTest {
         Call majors = client.await("STUDENT_LIST_MAJORS");
         assertThat(majors.body()).isEqualTo(new OrganizationChildrenQuery(departmentId, false));
         client.complete(majors, ResponseBody.success(new ArrayList<>(List.of(
-                new MajorView(majorId, departmentId, majorId, majorName, true, 1)))));
+                new MajorView(majorId, departmentId, majorId, majorName, null, true, 1)))));
         Call classes = client.await("STUDENT_LIST_CLASSES");
         assertThat(classes.body()).isEqualTo(new OrganizationChildrenQuery(majorId, false));
         client.complete(classes, ResponseBody.success(new ArrayList<>(List.of(

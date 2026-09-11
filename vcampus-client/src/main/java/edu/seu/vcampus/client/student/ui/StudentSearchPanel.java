@@ -16,12 +16,11 @@ import java.awt.*;
 import java.util.ArrayList;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
 
 public final class StudentSearchPanel extends JPanel {
     private final StudentClientService students;
     private final ClientConnection connection;
-    private final Consumer<String> viewStudent;
+    private final boolean canEdit;
     private final AtomicLong requestGeneration = new AtomicLong();
     private final java.util.List<StudentSummary> currentResults = new ArrayList<>();
     private volatile boolean active;
@@ -44,13 +43,15 @@ public final class StudentSearchPanel extends JPanel {
     private JButton nextButton;
     private JLabel statusLabel;
     private JLabel errorLabel;
+    private JSplitPane splitPane;
+    private StudentDetailPanel detailPanel;
 
     public StudentSearchPanel(StudentClientService students, ClientConnection connection,
-                              Consumer<String> viewStudent) {
+                              boolean canEdit) {
         super(new BorderLayout(0, UiSpacing.SPACE_3));
         this.students = Objects.requireNonNull(students, "students");
         this.connection = Objects.requireNonNull(connection, "connection");
-        this.viewStudent = Objects.requireNonNull(viewStudent, "viewStudent");
+        this.canEdit = canEdit;
         setName("student.search");
         setBackground(UiColors.BACKGROUND_PAGE);
         setBorder(UiBorders.pageInset());
@@ -59,6 +60,9 @@ public final class StudentSearchPanel extends JPanel {
     }
 
     private void buildPage() {
+        JPanel leftPanel = new JPanel(new BorderLayout(0, UiSpacing.SPACE_3));
+        leftPanel.setOpaque(false);
+
         JPanel heading = new JPanel(new BorderLayout(0, UiSpacing.SPACE_2));
         heading.setOpaque(false);
         JLabel title = new JLabel("学生查询");
@@ -73,7 +77,7 @@ public final class StudentSearchPanel extends JPanel {
         heading.add(statusLabel, BorderLayout.SOUTH);
         JPanel filterBar = buildFilterBar();
         heading.add(filterBar, BorderLayout.CENTER);
-        add(heading, BorderLayout.NORTH);
+        leftPanel.add(heading, BorderLayout.NORTH);
 
         JPanel center = new JPanel(new BorderLayout(0, UiSpacing.SPACE_2));
         center.setOpaque(false);
@@ -96,10 +100,9 @@ public final class StudentSearchPanel extends JPanel {
                 return this;
             }
         });
-        resultsTable.addMouseListener(new java.awt.event.MouseAdapter() {
-            @Override public void mouseClicked(java.awt.event.MouseEvent e) {
-                if (e.getClickCount() == 2) openSelectedStudent();
-            }
+        resultsTable.getSelectionModel().addListSelectionListener(e -> {
+            if (e.getValueIsAdjusting()) return;
+            onStudentSelected();
         });
         resultsScrollPane = new JScrollPane(resultsTable,
                 ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
@@ -139,7 +142,7 @@ public final class StudentSearchPanel extends JPanel {
         paginationPanel.add(nextButton);
         center.add(tableArea, BorderLayout.CENTER);
         center.add(paginationPanel, BorderLayout.SOUTH);
-        add(center, BorderLayout.CENTER);
+        leftPanel.add(center, BorderLayout.CENTER);
 
         JPanel bottom = new JPanel(new BorderLayout(UiSpacing.SPACE_3, 0));
         bottom.setOpaque(false);
@@ -148,7 +151,51 @@ public final class StudentSearchPanel extends JPanel {
         errorLabel.setForeground(UiColors.ERROR_FG);
         errorLabel.setName("student.search.error");
         bottom.add(errorLabel, BorderLayout.WEST);
-        add(bottom, BorderLayout.SOUTH);
+        leftPanel.add(bottom, BorderLayout.SOUTH);
+
+        JPanel placeholder = new JPanel(new BorderLayout());
+        placeholder.setOpaque(false);
+        JLabel placeholderLabel = new JLabel("点击学生查看详情", SwingConstants.CENTER);
+        placeholderLabel.setFont(UiTypography.SECTION_TITLE);
+        placeholderLabel.setForeground(UiColors.TEXT_SECONDARY);
+        placeholder.add(placeholderLabel, BorderLayout.CENTER);
+
+        splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, placeholder);
+        splitPane.setDividerSize(6);
+        splitPane.setResizeWeight(0.55);
+        splitPane.setOneTouchExpandable(true);
+        splitPane.setBorder(null);
+        add(splitPane, BorderLayout.CENTER);
+        SwingUtilities.invokeLater(() -> splitPane.setDividerLocation(0.55));
+    }
+
+    private void onStudentSelected() {
+        int row = resultsTable.getSelectedRow();
+        if (row < 0 || row >= currentResults.size()) {
+            showPlaceholder();
+            return;
+        }
+        String studentId = currentResults.get(row).studentId();
+        showDetail(studentId);
+    }
+
+    private void showDetail(String studentId) {
+        if (detailPanel == null) {
+            // Save divider location before replacing component to prevent layout jump
+            int savedLocation = splitPane.getDividerLocation();
+            detailPanel = new StudentDetailPanel(students, connection, studentId, canEdit);
+            splitPane.setRightComponent(detailPanel);
+            // Restore divider location after component swap
+            SwingUtilities.invokeLater(() -> splitPane.setDividerLocation(savedLocation));
+        } else {
+            detailPanel.loadStudent(studentId);
+        }
+    }
+
+    private void showPlaceholder() {
+        if (detailPanel != null) {
+            detailPanel.clear();
+        }
     }
 
     private JPanel buildFilterBar() {
@@ -447,6 +494,7 @@ public final class StudentSearchPanel extends JPanel {
         nextButton.setEnabled((long) page.page() * page.pageSize() < total && connection.state() == ConnectionState.CONNECTED);
         statusLabel.setText("搜索完成");
         errorLabel.setText(" ");
+        showPlaceholder();
     }
 
     private void renderError(String message) {
@@ -461,6 +509,7 @@ public final class StudentSearchPanel extends JPanel {
         nextButton.setEnabled(false);
         statusLabel.setText("搜索失败");
         errorLabel.setText(message);
+        showPlaceholder();
     }
 
     private void setSearching(boolean searching) {
@@ -488,12 +537,6 @@ public final class StudentSearchPanel extends JPanel {
             statusCombo.setEnabled(connected);
             statusLabel.setText(connected ? "就绪" : "连接已断开");
         });
-    }
-
-    private void openSelectedStudent() {
-        int row = resultsTable.getSelectedRow();
-        if (row < 0 || row >= currentResults.size()) return;
-        viewStudent.accept(currentResults.get(row).studentId());
     }
 
     private String getSelectedId(JComboBox<Object> combo, Class<?> type) {

@@ -18,6 +18,9 @@ vcampus-distribution/logs/
 /.superpowers/brainstorm/
 **/__pycache__/
 *.laccdb
+*.pdf
+/.mimocode/
+/docs/转专业与培养方案功能说明及测试账号.md
 
 !/artifacts/
 /artifacts/*

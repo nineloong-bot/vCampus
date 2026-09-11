@@ -27,7 +27,8 @@ import java.util.function.BiFunction;
 
 /** Registers the ten student commands and enforces their authorization boundary. */
 public final class StudentHandlers {
-    public static final List<String> COMMANDS = List.of("STUDENT_CREATE", "STUDENT_CREATE_MANUAL", "STUDENT_GET_CURRENT",
+    public static final List<String> COMMANDS = List.of("STUDENT_CREATE", "STUDENT_CREATE_MANUAL", "STUDENT_BATCH_IMPORT",
+            "STUDENT_GET_CURRENT",
             "STUDENT_GET", "STUDENT_SEARCH", "STUDENT_UPDATE_CONTACT",
             "STUDENT_UPDATE_ENROLLMENT", "STUDENT_CHANGE_STATUS", "STUDENT_UPDATE_INFO",
             "STUDENT_UPDATE_ACADEMIC",
@@ -90,6 +91,9 @@ public final class StudentHandlers {
         router.register("STUDENT_CREATE_MANUAL", typed(CreateStudentManualCommand.class,
                 (message, body) -> strictAdmin(message, () -> admissions.createManual(
                         body, context(message, principal(message))))));
+        router.register("STUDENT_BATCH_IMPORT", typed(BatchImportCommand.class,
+                (message, body) -> strictAdmin(message, () -> admissions.batchImport(
+                        body, context(message, principal(message))))));
         router.register("STUDENT_GET_CURRENT", typed(EmptyRequest.class, (message, body) -> {
             StudentPrincipal principal = principal(message);
             if (!principal.hasRole("STUDENT") && !principal.hasRole("ADMIN")) return forbidden();
@@ -98,7 +102,8 @@ public final class StudentHandlers {
         router.register("STUDENT_GET", typed(EntityIdRequest.class, (message, body) -> {
             StudentPrincipal principal = principal(message);
             if (!isStaff(principal)) return forbidden();
-            return success(students.getStudent(body.entityId()));
+            StudentView value = students.getStudent(body.entityId());
+            return success(principal.hasRole("TEACHER") ? withoutContact(value) : value);
         }));
         router.register("STUDENT_SEARCH", typed(StudentSearchQuery.class, (message, body) -> {
             StudentPrincipal principal = principal(message);
@@ -190,7 +195,8 @@ public final class StudentHandlers {
             UpdateStudentContactCommand body) {
         StudentPrincipal principal = principal(message);
         var student = students.getStudent(body.studentId());
-        return principal.hasRole("ADMIN") || principal.userId().equals(student.userId())
+        return principal.hasRole("ADMIN") || principal.hasRole("STUDENT_ADMIN")
+                || principal.userId().equals(student.userId())
                 ? success(students.updateContact(body)) : forbidden();
     }
 
@@ -215,7 +221,8 @@ public final class StudentHandlers {
     private ResponseBody<? extends Serializable> strictAdmin(Message message,
             java.util.function.Supplier<? extends Serializable> action) {
         StudentPrincipal principal = principal(message);
-        return principal.hasRole("ADMIN") ? success(action.get()) : forbidden();
+        return principal.hasRole("ADMIN") || principal.hasRole("STUDENT_ADMIN")
+                ? success(action.get()) : forbidden();
     }
 
     private ResponseBody<? extends Serializable> authenticated(Message message,
@@ -231,7 +238,16 @@ public final class StudentHandlers {
     }
 
     private static boolean isStaff(StudentPrincipal principal) {
-        return principal.hasRole("TEACHER") || principal.hasRole("ADMIN");
+        return principal.hasRole("TEACHER") || principal.hasRole("ADMIN")
+                || principal.hasRole("STUDENT_ADMIN");
+    }
+
+    private static StudentView withoutContact(StudentView value) {
+        return new StudentView(value.studentId(), value.userId(), value.campusCardNumber(),
+                value.studentNumber(), value.studentType(), value.studentName(), value.gender(),
+                null, null, value.majorId(), value.classId(), value.enrollmentDate(),
+                value.status(), value.rowVersion(), value.departmentName(), value.majorName(),
+                value.className());
     }
 
     private static RequestContext context(Message message, StudentPrincipal principal) {

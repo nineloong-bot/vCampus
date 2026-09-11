@@ -35,7 +35,7 @@ class NumberSequenceConcurrencyTest {
             organizations.insertDepartment(connection,
                     new Department("dep-eng", "ENG", "工学院", true, 0));
             organizations.insertMajor(connection,
-                    new Major("major-honors", "dep-eng", "09J", "计算机拔尖班", true, 0));
+                    new Major("major-honors", "dep-eng", "09J", "计算机拔尖班", null, true, 0));
             organizations.insertClass(connection,
                     new StudentClass("class-1", "major-honors", "09J-2024-1", "拔尖一班",
                             2024, 1, true, 0));

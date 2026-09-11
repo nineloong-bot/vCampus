@@ -8,6 +8,7 @@ import edu.seu.vcampus.client.student.ui.OrganizationManagementPanel;
 import edu.seu.vcampus.client.student.ui.StudentModulePageFactory;
 import edu.seu.vcampus.client.student.ui.StudentSearchPanel;
 import edu.seu.vcampus.client.student.ui.StudentProfileReviewPanel;
+import edu.seu.vcampus.client.student.majortransfer.ui.MajorTransferAdminPanel;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.user.UserRole;
 import edu.seu.vcampus.common.user.UserView;
@@ -43,8 +44,12 @@ class StudentModulePageFactoryTest {
         JPanel page = onEdt(() -> StudentModulePageFactory.create(
                 user(UserRole.STUDENT), students, connection()));
 
-        assertThat(page).isInstanceOf(MyStudentProfilePanel.class);
-        assertThat(page.getName()).isEqualTo("student.profile");
+        JTabbedPane tabs = findTabbedPane(page);
+        assertThat(tabs.getTabCount()).isEqualTo(4);
+        assertThat(tabs.getComponentAt(0)).isInstanceOf(MyStudentProfilePanel.class);
+        assertThat(tabs.getTitleAt(1)).isEqualTo("培养方案");
+        assertThat(tabs.getTitleAt(2)).isEqualTo("成绩单");
+        assertThat(tabs.getTitleAt(3)).isEqualTo("转专业申请");
     }
 
     @Test
@@ -66,25 +71,39 @@ class StudentModulePageFactoryTest {
     }
 
     @Test
-    void adminReceivesSearchOrganizationAndProfileReviewTabs() throws Exception {
+    void studentAdminReceivesSearchOrganizationAndProfileReviewTabs() throws Exception {
         AtomicInteger requests = new AtomicInteger();
         CountDownLatch requestStarted = new CountDownLatch(1);
         StudentClientService students = students(requests, requestStarted);
 
         JPanel page = onEdt(() -> StudentModulePageFactory.create(
-                user(UserRole.ADMIN), students, connection()));
+                user(UserRole.STUDENT_ADMIN), students, connection()));
 
         assertThat(page.getName()).isEqualTo("student.module");
         JTabbedPane tabs = findTabbedPane(page);
         assertThat(tabs).isNotNull();
-        assertThat(tabs.getTabCount()).isEqualTo(3);
+        assertThat(tabs.getTabCount()).isEqualTo(6);
         assertThat(tabs.getTitleAt(0)).isEqualTo("学生查询");
         assertThat(tabs.getComponentAt(0)).isInstanceOf(StudentSearchPanel.class);
         assertThat(tabs.getTitleAt(1)).isEqualTo("组织管理");
         assertThat(tabs.getComponentAt(1)).isInstanceOf(OrganizationManagementPanel.class);
         assertThat(tabs.getTitleAt(2)).isEqualTo("资料审核");
         assertThat(tabs.getComponentAt(2)).isInstanceOf(StudentProfileReviewPanel.class);
-        assertThat(requests).hasValue(0);
+        assertThat(tabs.getTitleAt(3)).isEqualTo("转专业管理");
+        assertThat(tabs.getTitleAt(4)).isEqualTo("培养方案管理");
+        assertThat(tabs.getTitleAt(5)).isEqualTo("成绩管理");
+    }
+
+    @Test
+    void collegeAdminReceivesOnlyTheTransferApprovalWorkspace() throws Exception {
+        JPanel page = onEdt(() -> StudentModulePageFactory.create(
+                user(UserRole.COLLEGE_ADMIN),
+                students(new AtomicInteger(), new CountDownLatch(1)), connection()));
+
+        JTabbedPane tabs = findTabbedPane(page);
+        assertThat(tabs.getTabCount()).isEqualTo(1);
+        assertThat(tabs.getTitleAt(0)).isEqualTo("转专业审批");
+        assertThat(tabs.getComponentAt(0)).isInstanceOf(MajorTransferAdminPanel.class);
     }
 
     @Test
@@ -120,14 +139,15 @@ class StudentModulePageFactoryTest {
         AtomicInteger requests = new AtomicInteger();
         CountDownLatch requestStarted = new CountDownLatch(1);
         StudentClientService students = students(requests, requestStarted);
-        MyStudentProfilePanel page = onEdt(() -> (MyStudentProfilePanel)
-                StudentModulePageFactory.create(user(UserRole.STUDENT), students, connection()));
+        MyStudentProfilePanel page = onEdt(() -> (MyStudentProfilePanel) findTabbedPane(
+                StudentModulePageFactory.create(user(UserRole.STUDENT), students, connection())).getComponentAt(0));
 
-        assertThat(requests).hasValue(0);
+        // Other tabs (培养方案, 成绩单) fire requests on construction
+        int baseline = requests.get();
 
         onEdt(() -> page.addNotify());
         assertThat(requestStarted.await(2, TimeUnit.SECONDS)).isTrue();
-        assertThat(requests).hasValue(1);
+        assertThat(requests.get()).isGreaterThan(baseline);
         onEdt(() -> page.removeNotify());
     }
 

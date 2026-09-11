@@ -32,14 +32,15 @@ public final class AccessOrganizationRepository implements OrganizationRepositor
     @Override
     public void insertMajor(Connection connection, Major major) {
         executeInsert(connection,
-                "INSERT INTO tblMajor (majorId, departmentId, majorCode, majorName, isActive, rowVersion) VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO tblMajor (majorId, departmentId, majorCode, majorName, grades, isActive, rowVersion) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 statement -> {
                     statement.setString(1, major.majorId());
                     statement.setString(2, major.departmentId());
                     statement.setString(3, major.majorCode());
                     statement.setString(4, major.majorName());
-                    statement.setBoolean(5, major.active());
-                    statement.setLong(6, major.rowVersion());
+                    statement.setString(5, major.grades());
+                    statement.setBoolean(6, major.active());
+                    statement.setLong(7, major.rowVersion());
                 });
     }
 
@@ -73,7 +74,7 @@ public final class AccessOrganizationRepository implements OrganizationRepositor
 
     @Override
     public Optional<Major> findMajor(Connection connection, String majorId) {
-        String sql = "SELECT majorId, departmentId, majorCode, majorName, isActive, rowVersion FROM tblMajor WHERE majorId = ?";
+        String sql = "SELECT majorId, departmentId, majorCode, majorName, grades, isActive, rowVersion FROM tblMajor WHERE majorId = ?";
         return queryOne(connection, sql, majorId, this::mapMajor);
     }
 
@@ -101,8 +102,8 @@ public final class AccessOrganizationRepository implements OrganizationRepositor
 
     @Override
     public List<Major> listMajors(Connection connection, String departmentId, boolean activeOnly) {
-        String sql = "SELECT majorId, departmentId, majorCode, majorName, isActive, rowVersion FROM tblMajor WHERE departmentId = ? AND isActive = TRUE ORDER BY majorCode";
-        if (!activeOnly) sql = "SELECT majorId, departmentId, majorCode, majorName, isActive, rowVersion FROM tblMajor WHERE departmentId = ? ORDER BY majorCode";
+        String sql = "SELECT majorId, departmentId, majorCode, majorName, grades, isActive, rowVersion FROM tblMajor WHERE departmentId = ? AND isActive = TRUE ORDER BY majorCode";
+        if (!activeOnly) sql = "SELECT majorId, departmentId, majorCode, majorName, grades, isActive, rowVersion FROM tblMajor WHERE departmentId = ? ORDER BY majorCode";
         return queryMany(connection, sql, departmentId, this::mapMajor);
     }
 
@@ -133,10 +134,11 @@ public final class AccessOrganizationRepository implements OrganizationRepositor
         if (!value.active() && count(connection,
                 "SELECT COUNT(*) FROM tblClass WHERE majorId = ? AND isActive = TRUE", value.majorId()) > 0)
             throw new OrganizationHierarchyException("Major has active classes");
-        update(connection, "UPDATE tblMajor SET departmentId=?, majorCode=?, majorName=?, isActive=?, rowVersion=rowVersion+1 WHERE majorId=? AND rowVersion=?",
+        update(connection, "UPDATE tblMajor SET departmentId=?, majorCode=?, majorName=?, grades=?, isActive=?, rowVersion=rowVersion+1 WHERE majorId=? AND rowVersion=?",
                 statement -> { statement.setString(1, value.departmentId()); statement.setString(2, value.majorCode());
-                    statement.setString(3, value.majorName()); statement.setBoolean(4, value.active());
-                    statement.setString(5, value.majorId()); statement.setLong(6, expectedVersion); });
+                    statement.setString(3, value.majorName()); statement.setString(4, value.grades());
+                    statement.setBoolean(5, value.active());
+                    statement.setString(6, value.majorId()); statement.setLong(7, expectedVersion); });
     }
 
     @Override
@@ -219,7 +221,7 @@ public final class AccessOrganizationRepository implements OrganizationRepositor
     private Major mapMajor(ResultSet result) throws SQLException {
         return new Major(result.getString("majorId"), result.getString("departmentId"),
                 result.getString("majorCode"), result.getString("majorName"),
-                result.getBoolean("isActive"), result.getLong("rowVersion"));
+                result.getString("grades"), result.getBoolean("isActive"), result.getLong("rowVersion"));
     }
 
     private StudentClass mapClass(ResultSet result) throws SQLException {

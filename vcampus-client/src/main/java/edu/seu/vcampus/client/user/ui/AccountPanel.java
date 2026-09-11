@@ -46,6 +46,7 @@ public final class AccountPanel extends JPanel {
     private final JPanel detail = new JPanel(new GridLayout(0, 2,
             UiSpacing.SPACE_4, UiSpacing.SPACE_3));
     private final JLabel state = new JLabel("正在加载账户信息…");
+    private boolean closed;
 
     /** Creates the account page from the login snapshot and current permissions. */
     public AccountPanel(UserClientService users, UserView signedInUser,
@@ -74,24 +75,29 @@ public final class AccountPanel extends JPanel {
         this.onSessionInvalid = Objects.requireNonNull(onSessionInvalid, "onSessionInvalid");
         setName("page.account"); setBackground(UiColors.BACKGROUND_PAGE);
         setBorder(UiBorders.pageInset());
-        boolean administrator = signedInUser.role() == UserRole.ADMIN;
-        add(heading(permissions, administrator), BorderLayout.NORTH);
+        boolean userAdministrator = signedInUser.role() == UserRole.USER_ADMIN;
+        boolean superAdministrator = signedInUser.role() == UserRole.SUPER_ADMIN;
+        add(heading(permissions, userAdministrator, superAdministrator), BorderLayout.NORTH);
         JPanel detailPage = new JPanel(new BorderLayout(0, UiSpacing.SPACE_3));
         detailPage.setOpaque(false); detail.setOpaque(false);
         detailPage.add(detail, BorderLayout.NORTH); detailPage.add(state, BorderLayout.SOUTH);
         cards.setOpaque(false); cards.add(detailPage, DETAIL);
-        if (administrator && permissions.contains("USER_READ_ALL")) {
+        if (userAdministrator && permissions.contains("USER_READ_ALL")) {
             cards.add(new UserManagementPanel(users, permissions), "users");
         }
-        if (administrator && permissions.contains("USER_AUDIT_READ")) {
+        if (userAdministrator && permissions.contains("USER_AUDIT_READ")) {
             cards.add(new SecurityAuditPanel(users), "audit");
+        }
+        if (superAdministrator && permissions.contains("PLATFORM_MODULE_ADMIN_READ")) {
+            cards.add(new ModulePermissionManagementPanel(users), "governance");
         }
         add(cards, BorderLayout.CENTER);
         show(signedInUser);
         refresh();
     }
 
-    private JPanel heading(Set<String> permissions, boolean administrator) {
+    private JPanel heading(Set<String> permissions, boolean userAdministrator,
+                           boolean superAdministrator) {
         JPanel panel = new JPanel(new BorderLayout(0, UiSpacing.SPACE_2));
         panel.setOpaque(false);
         JPanel titles = new JPanel(new GridLayout(0, 1, 0, UiSpacing.SPACE_2));
@@ -118,15 +124,21 @@ public final class AccountPanel extends JPanel {
             previous.setSelected(true);
             refreshStyles(actions);
         }); actions.add(password);
-        if (administrator && permissions.contains("USER_READ_ALL")) {
+        if (userAdministrator && permissions.contains("USER_READ_ALL")) {
             JToggleButton management = button("账户管理", "account.users");
             pages.add(management);
             management.addActionListener(event -> select("users")); actions.add(management);
         }
-        if (administrator && permissions.contains("USER_AUDIT_READ")) {
+        if (userAdministrator && permissions.contains("USER_AUDIT_READ")) {
             JToggleButton audits = button("安全审计", "account.audit");
             pages.add(audits);
             audits.addActionListener(event -> select("audit")); actions.add(audits);
+        }
+        if (superAdministrator && permissions.contains("PLATFORM_MODULE_ADMIN_READ")) {
+            JToggleButton governance = button("权限管理", "account.governance");
+            pages.add(governance);
+            governance.addActionListener(event -> select("governance"));
+            actions.add(governance);
         }
         for (java.awt.Component component : actions.getComponents()) {
             if (component instanceof JToggleButton button) {
@@ -148,6 +160,7 @@ public final class AccountPanel extends JPanel {
             return;
         }
         response.whenComplete((user, failure) -> onEdt(() -> {
+            if (closed) return;
             if (failure != null || user == null) {
                 state.setText(UserErrorMessages.operation(failure, "账户信息加载失败，请重试"));
             } else {
@@ -193,7 +206,16 @@ public final class AccountPanel extends JPanel {
         response.whenComplete((ignored, failure) -> onEdt(this::finishLogout));
     }
     private void finishLogout() {
+        if (closed) return;
         onLoggedOut.run();
+    }
+    @Override public void addNotify() {
+        closed = false;
+        super.addNotify();
+    }
+    @Override public void removeNotify() {
+        closed = true;
+        super.removeNotify();
     }
     private void select(String card) { ((CardLayout) cards.getLayout()).show(cards, card); }
     private static JButton logoutButton() {
@@ -242,7 +264,18 @@ public final class AccountPanel extends JPanel {
                 .map(JToggleButton.class::cast).findFirst().orElseThrow();
     }
     private static String role(UserRole role) {
-        return switch (role) { case STUDENT -> "学生"; case TEACHER -> "教师"; case ADMIN -> "管理员"; };
+        return switch (role) {
+            case SUPER_ADMIN -> "超级管理员";
+            case STUDENT_ADMIN -> "学籍管理员";
+            case COLLEGE_ADMIN -> "学院管理员";
+            case COURSE_ADMIN -> "课程管理员";
+            case LIBRARY_ADMIN -> "图书管理员";
+            case SHOP_ADMIN -> "商城管理员";
+            case USER_ADMIN -> "用户管理员";
+            case STUDENT -> "学生";
+            case TEACHER -> "教师";
+            case ADMIN -> "管理员";
+        };
     }
     private static String status(AccountStatus status) {
         return switch (status) { case ACTIVE -> "正常"; case PENDING -> "待审核";

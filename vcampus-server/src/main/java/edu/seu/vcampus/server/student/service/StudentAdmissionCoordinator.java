@@ -3,12 +3,15 @@ package edu.seu.vcampus.server.student.service;
 import edu.seu.vcampus.common.protocol.Message;
 import edu.seu.vcampus.common.protocol.MessageType;
 import edu.seu.vcampus.common.protocol.ResponseBody;
+import edu.seu.vcampus.common.student.BatchImportCommand;
+import edu.seu.vcampus.common.student.BatchImportResult;
 import edu.seu.vcampus.common.student.CreateStudentAdmissionCommand;
 import edu.seu.vcampus.common.student.CreateStudentManualCommand;
 import edu.seu.vcampus.common.student.StudentFieldError;
 import edu.seu.vcampus.common.student.StudentFieldValidator;
 import edu.seu.vcampus.common.student.StudentAdmissionResult;
 import edu.seu.vcampus.common.student.StudentStatus;
+import edu.seu.vcampus.common.student.StudentType;
 import edu.seu.vcampus.common.student.StudentView;
 import edu.seu.vcampus.server.concurrency.ResourceKey;
 import edu.seu.vcampus.server.concurrency.ResourceLockManager;
@@ -29,6 +32,7 @@ import edu.seu.vcampus.server.user.service.UserAccountProvisioningPort;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -110,6 +114,78 @@ public final class StudentAdmissionCoordinator implements StudentAdmissionServic
                     new TransactionContext(connection, request.userId(), request.clientInstanceId()),
                     command, request));
         });
+    }
+
+    @Override
+    public BatchImportResult batchImport(BatchImportCommand command, RequestContext request) {
+        Objects.requireNonNull(command, "command");
+        Objects.requireNonNull(request, "request");
+        if (command.classIds() == null || command.classIds().isEmpty())
+            throw new StudentAdmissionException("STUDENT_BATCH_NO_CLASSES", "至少需要一个班级");
+        if (command.entries() == null || command.entries().isEmpty())
+            throw new StudentAdmissionException("STUDENT_BATCH_NO_ENTRIES", "至少需要一条学生记录");
+        for (int i = 0; i < command.entries().size(); i++) {
+            var e = command.entries().get(i);
+            if (e.classIndex() < 0 || e.classIndex() >= command.classIds().size())
+                throw new StudentAdmissionException("STUDENT_BATCH_INVALID_CLASS_INDEX",
+                        "第 " + (i + 1) + " 条记录的班级索引无效");
+        }
+        return transactions.inTransaction(connection -> batchImportInTransaction(
+                new TransactionContext(connection, request.userId(), request.clientInstanceId()),
+                command, request));
+    }
+
+    private BatchImportResult batchImportInTransaction(TransactionContext tx,
+            BatchImportCommand command, RequestContext request) throws Exception {
+        Major major = organizations.findMajor(tx.connection(), command.majorId())
+                .orElseThrow(() -> new StudentAdmissionException(
+                        "STUDENT_ORGANIZATION_MISMATCH", "专业不存在"));
+        if (!major.active())
+            throw new StudentAdmissionException("STUDENT_CLASS_INACTIVE", "专业已停用");
+        List<StudentClass> classes = new ArrayList<>();
+        for (String classId : command.classIds()) {
+            StudentClass sc = organizations.findClass(tx.connection(), classId)
+                    .orElseThrow(() -> new StudentAdmissionException(
+                            "STUDENT_ORGANIZATION_MISMATCH", "班级不存在: " + classId));
+            if (!sc.active())
+                throw new StudentAdmissionException("STUDENT_CLASS_INACTIVE", "班级已停用: " + sc.className());
+            if (!sc.majorId().equals(major.majorId()))
+                throw new StudentAdmissionException("STUDENT_ORGANIZATION_MISMATCH",
+                        "班级 " + sc.className() + " 不属于所选专业");
+            classes.add(sc);
+        }
+        Instant now = Instant.now();
+        LocalDate today = now.atZone(ZoneOffset.UTC).toLocalDate();
+        int created = 0;
+        List<String> errors = new ArrayList<>();
+        for (int i = 0; i < command.entries().size(); i++) {
+            var entry = command.entries().get(i);
+            String campusCard = entry.campusCardNumber();
+            if (campusCard == null || campusCard.isBlank()) {
+                errors.add("第 " + (i + 1) + " 条: 一卡通号为空");
+                continue;
+            }
+            try {
+                StudentClass targetClass = classes.get(entry.classIndex());
+                String studentNumber = studentNumbers.next(tx, major.majorCode(),
+                        targetClass.enrollmentYear(), targetClass.classNumber());
+                var account = accounts.createStudentAccount(tx, campusCard,
+                        "12345678".toCharArray());
+                Student student = new Student(UUID.randomUUID().toString(), account.userId(),
+                        studentNumber, StudentType.UNDERGRADUATE, entry.studentName(), entry.gender(),
+                        null, null, major.majorId(), targetClass.classId(),
+                        today, StudentStatus.ACTIVE, 0, now, now);
+                students.insert(tx.connection(), student);
+                changes.insertChange(tx.connection(), UUID.randomUUID().toString(),
+                        student.studentId(), "BATCH_IMPORT", null,
+                        "studentNumber=" + studentNumber + ";classId=" + targetClass.classId(),
+                        "批量导入学生", request.userId(), today, now);
+                created++;
+            } catch (Exception e) {
+                errors.add("第 " + (i + 1) + " 条 (" + entry.studentName() + "): " + e.getMessage());
+            }
+        }
+        return new BatchImportResult(created, errors.size(), errors);
     }
 
     private StudentAdmissionResult createManualInTransaction(TransactionContext tx,

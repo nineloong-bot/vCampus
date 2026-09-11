@@ -50,7 +50,8 @@ class StudentHandlersTest {
                 assertThat(router.isRegistered(command)).isTrue());
         assertThat(StudentHandlers.COMMANDS).contains(
                 "STUDENT_GET_CHANGES", "STUDENT_SAVE_DEPARTMENT",
-                "STUDENT_SAVE_MAJOR", "STUDENT_SAVE_CLASS", "STUDENT_CREATE_MANUAL");
+                "STUDENT_SAVE_MAJOR", "STUDENT_SAVE_CLASS", "STUDENT_CREATE_MANUAL",
+                "STUDENT_BATCH_IMPORT");
     }
 
     @Test
@@ -128,7 +129,7 @@ class StudentHandlersTest {
     }
 
     @Test
-    void teacherDetailResponseKeepsContactFields() {
+    void teacherDetailResponseOmitsContactFields() {
         var router = new MessageRouter(Map.of());
         StudentService profiles = studentServiceWithProfile();
         new StudentHandlers((command, context) -> null, profiles, organizationQuery(),
@@ -138,9 +139,40 @@ class StudentHandlersTest {
                 new edu.seu.vcampus.common.student.EntityIdRequest("student-1")), client());
         var view = (edu.seu.vcampus.common.student.StudentView) response.data();
 
-        assertThat(view.email()).isEqualTo("private@seu.edu.cn");
-        assertThat(view.phone()).isEqualTo("13800000000");
+        assertThat(view.email()).isNull();
+        assertThat(view.phone()).isNull();
         assertThat(view.studentNumber()).isEqualTo("09024101");
+        assertThat(view.departmentName()).isEqualTo("计算机学院");
+        assertThat(view.majorName()).isEqualTo("软件工程");
+        assertThat(view.className()).isEqualTo("软工2401");
+    }
+
+    @Test
+    void batchImportRequiresAdminRole() {
+        var called = new AtomicBoolean();
+        StudentAdmissionService admissions = new StudentAdmissionService() {
+            public edu.seu.vcampus.common.student.StudentAdmissionResult admit(
+                    edu.seu.vcampus.common.student.CreateStudentAdmissionCommand command,
+                    edu.seu.vcampus.server.routing.RequestContext context) { return null; }
+            public edu.seu.vcampus.common.student.BatchImportResult batchImport(
+                    edu.seu.vcampus.common.student.BatchImportCommand command,
+                    edu.seu.vcampus.server.routing.RequestContext context) {
+                called.set(true);
+                return null;
+            }
+        };
+        var router = new MessageRouter(Map.of());
+        new StudentHandlers(admissions, studentService(), organizationQuery(),
+                token -> new StudentPrincipal("teacher-1", Set.of("TEACHER"), Set.of("STUDENT_WRITE")))
+                .register(router);
+        var command = new edu.seu.vcampus.common.student.BatchImportCommand("major-1",
+                java.util.List.of("class-1"), java.util.List.of(
+                new edu.seu.vcampus.common.student.BatchStudentEntry("213240001", "张三", "男", 90.0, 0)));
+
+        var response = router.route(request("STUDENT_BATCH_IMPORT", command), client());
+
+        assertThat(response.code()).isEqualTo("COMMON_FORBIDDEN");
+        assertThat(called).isFalse();
     }
 
     @Test

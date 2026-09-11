@@ -4,7 +4,8 @@ import java.awt.Dimension;
 
 /** Shared dimensions for the authentication windows and application shell. */
 public final class UiDimensions {
-    public static final Dimension LOGIN_WINDOW = new Dimension(760, 480);
+    public static final Dimension LOGIN_WINDOW = new Dimension(880, 620);
+    public static final Dimension LOGIN_MINIMUM = new Dimension(800, 560);
     public static final Dimension MAIN_WINDOW = new Dimension(1280, 800);
     public static final Dimension MAIN_MINIMUM = new Dimension(1024, 680);
     public static final Dimension PASSWORD_DIALOG = new Dimension(520, 430);

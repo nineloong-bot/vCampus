@@ -12,6 +12,7 @@ import edu.seu.vcampus.common.user.ChangeUserStatusCommand;
 import edu.seu.vcampus.common.user.LoginCommand;
 import edu.seu.vcampus.common.user.LoginResult;
 import edu.seu.vcampus.common.user.ResetStudentPasswordCommand;
+import edu.seu.vcampus.common.user.ResetTeacherPasswordCommand;
 import edu.seu.vcampus.common.user.TeacherAccountApplicationCommand;
 import edu.seu.vcampus.common.user.UpdateUserRoleCommand;
 import edu.seu.vcampus.common.user.UserRole;
@@ -57,7 +58,9 @@ class UserHandlersTest {
 
     @Test
     void registersCompatibleUserCommandsIncludingStudentPasswordReset() {
-        assertThat(route("USER_REGISTER", new TeacherAccountApplicationCommand("TEACHER", "Pass1234".toCharArray())).success()).isTrue();
+        assertThat(route("USER_REGISTER", new TeacherAccountApplicationCommand(
+                "TEACHER", "Pass1234".toCharArray())).code())
+                .isEqualTo("COMMON_VALIDATION_FAILED");
         assertThat(route("USER_LOGIN", new LoginCommand("ADMIN", "Admin1234".toCharArray(), "client")).success()).isTrue();
         assertThat(route("USER_LOGOUT", EmptyRequest.INSTANCE).success()).isTrue();
         assertThat(route("USER_GET_CURRENT", EmptyRequest.INSTANCE).success()).isTrue();
@@ -68,6 +71,8 @@ class UserHandlersTest {
         assertThat(route("USER_CHANGE_STATUS", new ChangeUserStatusCommand("user", AccountStatus.DISABLED, "reviewed", 0)).success()).isTrue();
         assertThat(route("USER_RESET_STUDENT_PASSWORD",
                 new ResetStudentPasswordCommand("user", 0)).success()).isTrue();
+        assertThat(route("USER_RESET_TEACHER_PASSWORD",
+                new ResetTeacherPasswordCommand("user", 0)).success()).isTrue();
         assertThatThrownBy(() -> route("USER_CREATE_STUDENT", EmptyResponse.INSTANCE))
                 .isInstanceOf(CommandNotFoundException.class);
     }
@@ -78,6 +83,18 @@ class UserHandlersTest {
         assertThat(route(command, bodyFor(command)).success()).isTrue();
 
         assertThat(((TrackingAuthorization) authorization).permission).isEqualTo(permission);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"USER_SEARCH", "USER_CHANGE_STATUS", "USER_RESET_STUDENT_PASSWORD",
+            "USER_RESET_TEACHER_PASSWORD"})
+    void onlyUserAdministratorMayUseAccountAdministrationCommands(String command) {
+        MessageRouter superRouter = new MessageRouter(Map.of());
+        new UserHandlers(superRouter, users, authorizationAs(UserRole.SUPER_ADMIN));
+
+        ResponseBody<?> response = route(superRouter, command, "token", bodyFor(command));
+
+        assertThat(response.code()).isEqualTo("AUTH_FORBIDDEN");
     }
 
     @ParameterizedTest
@@ -104,6 +121,22 @@ class UserHandlersTest {
         assertThat(audited.roleCalls).isZero();
         assertThat(audited.rejectedAction).isEqualTo("USER_UPDATE_ROLE");
         assertThat(audited.rejectedTarget).isEqualTo("target");
+    }
+
+    @Test
+    void retiredTeacherRegistrationNeverCallsAccountCreationAndAuditsRejection() {
+        StubUsers audited = new StubUsers();
+        MessageRouter retiredRouter = new MessageRouter(Map.of());
+        new UserHandlers(retiredRouter, audited, authorization);
+
+        ResponseBody<?> response = route(retiredRouter, "USER_REGISTER", null,
+                new TeacherAccountApplicationCommand(
+                        "TEACHER", "Password1".toCharArray()));
+
+        assertThat(response.code()).isEqualTo("COMMON_VALIDATION_FAILED");
+        assertThat(audited.applicationCalls).isZero();
+        assertThat(audited.rejectedAction).isEqualTo("USER_REGISTER");
+        assertThat(audited.rejectedTarget).isEqualTo("TEACHER");
     }
 
     @Test
@@ -136,6 +169,36 @@ class UserHandlersTest {
                 .isEqualTo("AUTH_FORBIDDEN");
     }
 
+    @Test
+    void resetTeacherPasswordValidatesBodyThenRequiresResetPermissionAndAdminRole() {
+        ResponseBody<?> success = route("USER_RESET_TEACHER_PASSWORD",
+                new ResetTeacherPasswordCommand("teacher", 2));
+        assertThat(success.success()).isTrue();
+        assertThat(((TrackingAuthorization) authorization).permission)
+                .isEqualTo("USER_PASSWORD_RESET");
+
+        RejectingAuthorization rejecting = new RejectingAuthorization();
+        MessageRouter bodyFirst = new MessageRouter(Map.of());
+        new UserHandlers(bodyFirst, users, rejecting);
+        ResponseBody<?> malformed = route(bodyFirst, "USER_RESET_TEACHER_PASSWORD",
+                "token", EmptyRequest.INSTANCE);
+        assertThat(malformed.code()).isEqualTo("COMMON_VALIDATION_FAILED");
+        assertThat(rejecting.calls).isZero();
+
+        AuthorizationPort teacher = new AuthorizationPort() {
+            @Override public UserIdentity requireSession(String token) {
+                return new UserIdentity("teacher", "TEACHER", UserRole.TEACHER,
+                        AccountStatus.ACTIVE);
+            }
+            @Override public void requirePermission(String token, String permission) { }
+        };
+        MessageRouter teacherRouter = new MessageRouter(Map.of());
+        new UserHandlers(teacherRouter, users, teacher);
+        assertThat(route(teacherRouter, "USER_RESET_TEACHER_PASSWORD", "token",
+                new ResetTeacherPasswordCommand("teacher", 2)).code())
+                .isEqualTo("AUTH_FORBIDDEN");
+    }
+
     @ParameterizedTest
     @CsvSource({"USER_LOGOUT", "USER_GET_CURRENT"})
     void emptyRequestCommandsRejectEmptyResponseAsRequestBody(String command) {
@@ -147,7 +210,7 @@ class UserHandlersTest {
 
     @ParameterizedTest
     @CsvSource({"USER_GET_CURRENT", "USER_CHANGE_PASSWORD", "USER_SEARCH",
-            "USER_UPDATE_ROLE", "USER_CHANGE_STATUS"})
+            "USER_UPDATE_ROLE", "USER_CHANGE_STATUS", "USER_RESET_TEACHER_PASSWORD"})
     void malformedProtectedBodiesAreRejectedBeforeAuthorization(String command) {
         RejectingAuthorization rejecting = new RejectingAuthorization();
         MessageRouter bodyFirstRouter = new MessageRouter(Map.of());
@@ -284,22 +347,39 @@ class UserHandlersTest {
             case "USER_SEARCH" -> new UserSearchQuery(null, null, null, 0, 10);
             case "USER_UPDATE_ROLE" -> new UpdateUserRoleCommand("user", UserRole.TEACHER, 0);
             case "USER_CHANGE_STATUS" -> new ChangeUserStatusCommand("user", AccountStatus.DISABLED, "reviewed", 0);
+            case "USER_RESET_STUDENT_PASSWORD" ->
+                    new ResetStudentPasswordCommand("student", 0);
+            case "USER_RESET_TEACHER_PASSWORD" ->
+                    new ResetTeacherPasswordCommand("teacher", 0);
             default -> throw new IllegalArgumentException(command);
         };
     }
 
     private static UserIdentity identity(boolean restricted) {
-        return new UserIdentity("user", "USER", UserRole.ADMIN, AccountStatus.ACTIVE);
+        return new UserIdentity("user", "USER", UserRole.USER_ADMIN, AccountStatus.ACTIVE);
+    }
+
+    private static AuthorizationPort authorizationAs(UserRole role) {
+        return new AuthorizationPort() {
+            @Override public UserIdentity requireSession(String sessionToken) {
+                return new UserIdentity("actor", "ACTOR", role, AccountStatus.ACTIVE);
+            }
+            @Override public void requirePermission(String sessionToken, String permissionCode) { }
+        };
     }
 
     private static class StubUsers implements UserService {
         private static final UserView VIEW = new UserView("user", "USER", UserRole.ADMIN,
                 AccountStatus.ACTIVE, false, null, 0, LocalDateTime.MIN, LocalDateTime.MIN);
         private int roleCalls;
+        private int applicationCalls;
         private String rejectedAction;
         private String rejectedTarget;
 
-        @Override public UserView applyForTeacherAccount(TeacherAccountApplicationCommand command) { return VIEW; }
+        @Override public UserView applyForTeacherAccount(TeacherAccountApplicationCommand command) {
+            applicationCalls++;
+            return VIEW;
+        }
         @Override public LoginResult login(LoginCommand command, ClientContext context) { return new LoginResult("opaque", VIEW, Set.of(), false); }
         @Override public void logout(String sessionToken) { }
         @Override public UserView getCurrentUser(String sessionToken) { return VIEW; }
@@ -312,6 +392,8 @@ class UserHandlersTest {
         }
         @Override public UserView resetStudentPassword(String actorUserId,
                 ResetStudentPasswordCommand command, ClientContext context) { return VIEW; }
+        @Override public UserView resetTeacherPassword(String actorUserId,
+                ResetTeacherPasswordCommand command, ClientContext context) { return VIEW; }
         @Override public UserView changeStatus(ChangeUserStatusCommand command) { return VIEW; }
         @Override public void auditRejectedRequest(String actor, String action, String target,
                 RuntimeException failure, ClientContext context) {

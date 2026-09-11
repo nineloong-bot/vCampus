@@ -38,8 +38,6 @@ public final class LoginFrame extends JFrame {
     private final JPasswordField password = named(
             new JPasswordField(20), "login.password", "登录密码");
     private final JButton submit = named(new JButton("登录"), "login.submit", "登录");
-    private final JButton apply = named(
-            new JButton("申请教师账户"), "login.applyTeacher", "申请教师账户");
     private final JLabel status = named(new JLabel(" "), "login.status", "登录状态");
     private final JLabel error = named(new JLabel(" "), "login.error", "登录提示");
     private final Timer lockoutTimer = new Timer(1_000, event -> tickLockoutCountdown());
@@ -58,15 +56,21 @@ public final class LoginFrame extends JFrame {
         this.onSuccess = Objects.requireNonNull(onSuccess, "onSuccess");
         lockoutTimer.setCoalesce(true);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setLayout(new GridLayout(1, 2));
-        add(brandPanel());
-        add(formPanel(connection));
+        setLayout(new GridBagLayout());
+        GridBagConstraints split = new GridBagConstraints();
+        split.gridy = 0;
+        split.fill = GridBagConstraints.BOTH;
+        split.weighty = 1;
+        split.weightx = 0.25;
+        add(brandPanel(), split);
+        split.gridx = 1;
+        split.weightx = 0.75;
+        add(formPanel(connection), split);
         getRootPane().setDefaultButton(submit);
         submit.addActionListener(event -> submitLogin());
-        apply.addActionListener(event -> new TeacherAccountApplicationDialog(
-                this, users, () -> showNotice("申请已提交，等待管理员审核")).setVisible(true));
         setSize(UiDimensions.LOGIN_WINDOW);
-        setResizable(false);
+        setMinimumSize(UiDimensions.LOGIN_MINIMUM);
+        setResizable(true);
         setLocationRelativeTo(null);
         SwingUtilities.invokeLater(loginId::requestFocusInWindow);
     }
@@ -124,12 +128,9 @@ public final class LoginFrame extends JFrame {
         submit.setForeground(UiColors.TEXT_ON_PRIMARY);
         panel.add(submit, c);
         c.gridy = 6;
-        apply.setForeground(UiColors.PRIMARY);
-        panel.add(apply, c);
-        c.gridy = 7;
         status.setForeground(UiColors.TEXT_SECONDARY);
         panel.add(status, c);
-        c.gridy = 8;
+        c.gridy = 7;
         error.setForeground(UiColors.ERROR_FG);
         panel.add(error, c);
         return panel;
@@ -193,9 +194,21 @@ public final class LoginFrame extends JFrame {
         panel.getAccessibleContext().setAccessibleName("课程演示账号");
         panel.add(demoLabel("演示账号", "login.demoTitle"));
         panel.add(demoLabel("管理员：DEMO_ADMIN / admin123456", "login.demoAdmin"));
+        panel.add(demoLabel("身份：SUPER_ADMIN（超级管理员）", "login.demoAdminRole"));
         panel.add(demoLabel("教师：DEMO_TEACHER / Teacher123456", "login.demoTeacher"));
         panel.add(demoLabel("学生：213242478 / 12345678",
                 "login.demoStudent"));
+        panel.add(demoLabel("管理类账号统一密码：admin123456",
+                "login.demoManagementPassword"));
+        panel.add(demoLabel("模块：学籍 STUDENT_ADMIN ｜ 课程 COURSE_ADMIN",
+                "login.demoModuleAdmins1"));
+        panel.add(demoLabel("模块：图书 LIBRARY_ADMIN ｜ 商城 SHOP_ADMIN",
+                "login.demoModuleAdmins2"));
+        panel.add(demoLabel("模块：用户 USER_ADMIN", "login.demoModuleAdmins3"));
+        panel.add(demoLabel("学院：计算机 CS_COLLEGE_ADMIN ｜ 数学 MATH_COLLEGE_ADMIN",
+                "login.demoCollegeAdmins"));
+        panel.add(demoLabel("学院：信息工程 EE_COLLEGE_ADMIN ｜ 外国语 FL_COLLEGE_ADMIN",
+                "login.demoCollegeAdmins2"));
         return panel;
     }
 

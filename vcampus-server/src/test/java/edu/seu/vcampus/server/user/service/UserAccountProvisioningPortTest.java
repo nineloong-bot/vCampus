@@ -45,7 +45,15 @@ class UserAccountProvisioningPortTest {
         transactions = new TransactionManager(provider);
         try (Connection connection = provider.open()) {
             executeScript(connection, projectFile("schema", "010_user.sql"));
-            executeScript(connection, projectFile("seed", "010_roles_permissions.sql"));
+            try (var stmt = connection.createStatement()) {
+                stmt.execute("INSERT INTO tblRole (roleCode, roleName) VALUES ('STUDENT', '学生')");
+                stmt.execute("INSERT INTO tblRole (roleCode, roleName) VALUES ('ADMIN', '遗留管理员（已停用）')");
+                stmt.execute("INSERT INTO tblUser (userId, loginId, passwordHash, passwordSalt, "
+                        + "passwordIterations, roleCode, accountStatus, mustChangePassword, "
+                        + "failedLoginCount, rowVersion, createdAt, updatedAt) VALUES ("
+                        + "'" + ADMIN_ID + "', 'ADMIN', 'hash', 'salt', 0, 'ADMIN', 'ACTIVE', "
+                        + "FALSE, 0, 0, NOW(), NOW())");
+            }
         }
         users = new AccessUserRepository();
         AuditRepository audits = new AccessAuditRepository();

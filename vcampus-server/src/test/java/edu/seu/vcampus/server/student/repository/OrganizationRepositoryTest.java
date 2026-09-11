@@ -39,9 +39,9 @@ class OrganizationRepositoryTest {
             Department engineering = new Department("dep-eng", "ENG", "工学院", true, 0);
             repository.insertDepartment(connection, engineering);
             repository.insertMajor(connection,
-                    new Major("major-cs", engineering.departmentId(), "090", "计算机科学", true, 0));
+                    new Major("major-cs", engineering.departmentId(), "090", "计算机科学", null, true, 0));
             repository.insertMajor(connection,
-                    new Major("major-old", engineering.departmentId(), "091", "停用专业", false, 0));
+                    new Major("major-old", engineering.departmentId(), "091", "停用专业", null, false, 0));
             repository.insertClass(connection,
                     new StudentClass("class-1", "major-cs", "090-2024-1", "计算机一班",
                             2024, 1, true, 0));
@@ -64,7 +64,7 @@ class OrganizationRepositoryTest {
             repository.insertDepartment(connection,
                     new Department("dep-law", "LAW", "法学院", true, 0));
             repository.insertMajor(connection,
-                    new Major("major-law", "dep-law", "120", "法学", true, 0));
+                    new Major("major-law", "dep-law", "120", "法学", null, true, 0));
             repository.insertClass(connection,
                     new StudentClass("class-law", "major-law", "120-2024-1", "法学一班",
                             2024, 1, true, 0));
@@ -82,7 +82,7 @@ class OrganizationRepositoryTest {
             repository.insertDepartment(connection,
                     new Department("dep-eng", "ENG", "工学院", true, 0));
             repository.insertMajor(connection,
-                    new Major("major-cs", "dep-eng", "090", "计算机科学", true, 0));
+                    new Major("major-cs", "dep-eng", "090", "计算机科学", null, true, 0));
             repository.insertClass(connection,
                     new StudentClass("class-1", "major-cs", "090-2024-1", "计算机一班",
                             2024, 1, true, 0));
@@ -102,13 +102,13 @@ class OrganizationRepositoryTest {
             repository.insertDepartment(connection,
                     new Department("dep-eng", "ENG", "工学院", true, 0));
             repository.insertMajor(connection,
-                    new Major("major-cs", "dep-eng", "09J", "计算机拔尖班", true, 0));
+                    new Major("major-cs", "dep-eng", "09J", "计算机拔尖班", null, true, 0));
             repository.insertClass(connection,
                     new StudentClass("class-1", "major-cs", "09J-2024-1", "拔尖一班",
                             2024, 1, true, 0));
 
             assertThatThrownBy(() -> repository.insertMajor(connection,
-                    new Major("major-duplicate", "dep-eng", "09J", "重复代码", true, 0)))
+                    new Major("major-duplicate", "dep-eng", "09J", "重复代码", null, true, 0)))
                     .isInstanceOf(OrganizationPersistenceException.class);
             assertThatThrownBy(() -> repository.insertClass(connection,
                     new StudentClass("class-duplicate", "major-cs", "09J-2024-X", "重复班号",
@@ -123,7 +123,7 @@ class OrganizationRepositoryTest {
             repository.insertDepartment(connection,
                     new Department("dep-eng", "ENG", "工学院", true, 0));
             repository.insertMajor(connection,
-                    new Major("major-honors", "dep-eng", "09J", "计算机拔尖班", true, 0));
+                    new Major("major-honors", "dep-eng", "09J", "计算机拔尖班", null, true, 0));
             repository.insertClass(connection,
                     new StudentClass("class-1", "major-honors", "09J-2024-1", "拔尖一班",
                             2024, 1, true, 0));

@@ -1,6 +1,7 @@
 package edu.seu.vcampus.server.session;
 
 import edu.seu.vcampus.server.security.SessionExpiredException;
+import edu.seu.vcampus.server.security.PasswordResetSessionRevokedException;
 import edu.seu.vcampus.server.security.UserIdentity;
 
 import java.security.SecureRandom;
@@ -12,11 +13,14 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /** Stores short-lived authenticated sessions in memory only. */
 public final class SessionRegistry {
     private static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMinutes(30);
     private final ConcurrentHashMap<String, Session> sessions = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Instant> passwordResetRevocations =
+            new ConcurrentHashMap<>();
     private final SecureRandom random = new SecureRandom();
     private final Clock clock;
     private final Duration idleTimeout;
@@ -64,6 +68,11 @@ public final class SessionRegistry {
         Instant now = clock.instant();
         if (session == null || session.expired(now, idleTimeout)) {
             sessions.remove(token, session);
+            Instant reasonExpiresAt = passwordResetRevocations.get(token);
+            if (reasonExpiresAt != null && reasonExpiresAt.isAfter(now)) {
+                throw new PasswordResetSessionRevokedException();
+            }
+            passwordResetRevocations.remove(token, reasonExpiresAt);
             throw new SessionExpiredException();
         }
         session.touch(now);
@@ -95,6 +104,35 @@ public final class SessionRegistry {
             }
         }
         return removed;
+    }
+
+    /**
+     * Revokes a user's sessions after administrator password initialization.
+     *
+     * <p>The short-lived in-memory reason lets an already-open client distinguish this
+     * security action from a newer login replacing its session. Tokens are never logged
+     * or persisted.</p>
+     */
+    public int revokeAllForUserAfterPasswordReset(String userId) {
+        Objects.requireNonNull(userId, "userId");
+        Instant now = clock.instant();
+        cleanupPasswordResetRevocations(now);
+        Instant expiresAt = now.plus(idleTimeout);
+        AtomicInteger removed = new AtomicInteger();
+        for (String token : sessions.keySet()) {
+            sessions.computeIfPresent(token, (key, session) -> {
+                if (!session.snapshot.identity().userId().equals(userId)) return session;
+                passwordResetRevocations.put(key, expiresAt);
+                removed.incrementAndGet();
+                return null;
+            });
+        }
+        return removed.get();
+    }
+
+    private void cleanupPasswordResetRevocations(Instant now) {
+        passwordResetRevocations.entrySet().removeIf(
+                entry -> !entry.getValue().isAfter(now));
     }
 
     /** Immutable server-internal authorization state attached to one live session. */

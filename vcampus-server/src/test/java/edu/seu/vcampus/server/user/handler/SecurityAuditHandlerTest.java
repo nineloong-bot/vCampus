@@ -38,7 +38,7 @@ class SecurityAuditHandlerTest {
         SecurityAuditView view = new SecurityAuditView("audit", "actor",
                 "USER_LOGIN", "USER", "target", "SUCCESS", LocalDateTime.MIN);
         when(authorization.requireSession("token")).thenReturn(new UserIdentity(
-                "admin", "ADMIN", UserRole.ADMIN, AccountStatus.ACTIVE));
+                "admin", "USER_ADMIN", UserRole.USER_ADMIN, AccountStatus.ACTIVE));
         when(audits.search(query)).thenReturn(new PageResult<>(List.of(view), 0, 20, 1));
 
         ResponseBody<?> response = new SecurityAuditHandler(authorization, audits)

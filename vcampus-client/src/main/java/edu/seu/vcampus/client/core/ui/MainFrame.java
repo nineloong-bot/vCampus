@@ -148,7 +148,19 @@ public final class MainFrame extends JFrame {
         register("library", "图书借阅", "用于检索馆藏并管理个人借阅。");
         register("shop", "校园商城", "用于浏览校园商品和管理订单。");
         register("account", "账户设置", "用于查看账户信息和安全设置。");
-        pageNavigator.show("student");
+        String defaultPage = defaultPage(user);
+        pageNavigator.show(defaultPage);
+        if (!"student".equals(defaultPage)) {
+            ((PermissionNavigation) navigation).selectById(defaultPage);
+        }
+    }
+
+    private static String defaultPage(UserView user) {
+        if (user == null) return "student";
+        return switch (user.role()) {
+            case SUPER_ADMIN, ADMIN, USER_ADMIN -> "account";
+            default -> "student";
+        };
     }
 
     private void register(String id, String title, String description) {

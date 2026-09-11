@@ -70,6 +70,20 @@ class StudentClientServiceTest {
     }
 
     @Test
+    void batchImportUsesDedicatedCommand() {
+        var client = new RecordingClient();
+        var service = new StudentClientService(client, Duration.ofSeconds(3));
+        var command = new BatchImportCommand("major-1",
+                java.util.List.of("class-1", "class-2"),
+                java.util.List.of(new BatchStudentEntry("213240001", "张三", "男", 90.0, 0)));
+
+        service.batchImport(command).join();
+
+        assertThat(client.command).isEqualTo("STUDENT_BATCH_IMPORT");
+        assertThat(client.body).isSameAs(command);
+    }
+
+    @Test
     void organizationSaveUsesAdministrativeMessageContract() {
         var client = new RecordingClient();
         var service = new StudentClientService(client, Duration.ofSeconds(3));

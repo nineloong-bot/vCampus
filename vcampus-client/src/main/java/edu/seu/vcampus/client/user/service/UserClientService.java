@@ -1,6 +1,10 @@
 package edu.seu.vcampus.client.user.service;
 
 import edu.seu.vcampus.client.core.network.ClientConnection;
+import edu.seu.vcampus.common.governance.AssignModuleAdministratorCommand;
+import edu.seu.vcampus.common.governance.ModuleAdministrationSnapshot;
+import edu.seu.vcampus.common.governance.RemoveModuleAdministratorCommand;
+import edu.seu.vcampus.common.governance.SwapModuleAdministratorsCommand;
 import edu.seu.vcampus.common.protocol.EmptyRequest;
 import edu.seu.vcampus.common.protocol.EmptyResponse;
 import edu.seu.vcampus.common.protocol.ResponseBody;
@@ -9,9 +13,9 @@ import edu.seu.vcampus.common.user.ChangeUserStatusCommand;
 import edu.seu.vcampus.common.user.LoginCommand;
 import edu.seu.vcampus.common.user.LoginResult;
 import edu.seu.vcampus.common.user.ResetStudentPasswordCommand;
+import edu.seu.vcampus.common.user.ResetTeacherPasswordCommand;
 import edu.seu.vcampus.common.user.SecurityAuditQuery;
 import edu.seu.vcampus.common.user.SecurityAuditView;
-import edu.seu.vcampus.common.user.TeacherAccountApplicationCommand;
 import edu.seu.vcampus.common.user.UpdateUserRoleCommand;
 import edu.seu.vcampus.common.user.UserSearchQuery;
 import edu.seu.vcampus.common.user.UserSummary;
@@ -29,14 +33,19 @@ public class UserClientService {
     private static final String USER_LOGIN = "USER_LOGIN";
     private static final String USER_CHANGE_PASSWORD = "USER_CHANGE_PASSWORD";
     private static final String USER_LOGOUT = "USER_LOGOUT";
-    private static final String USER_REGISTER = "USER_REGISTER";
     private static final String USER_GET_CURRENT = "USER_GET_CURRENT";
     private static final String USER_SEARCH = "USER_SEARCH";
     private static final String USER_UPDATE_ROLE = "USER_UPDATE_ROLE";
     private static final String USER_CHANGE_STATUS = "USER_CHANGE_STATUS";
     private static final String USER_RESET_STUDENT_PASSWORD =
             "USER_RESET_STUDENT_PASSWORD";
+    private static final String USER_RESET_TEACHER_PASSWORD =
+            "USER_RESET_TEACHER_PASSWORD";
     private static final String SECURITY_AUDIT_SEARCH = "SECURITY_AUDIT_SEARCH";
+    private static final String MODULE_ADMIN_LIST = "PLATFORM_MODULE_ADMIN_LIST";
+    private static final String MODULE_ADMIN_ASSIGN = "PLATFORM_MODULE_ADMIN_ASSIGN";
+    private static final String MODULE_ADMIN_REMOVE = "PLATFORM_MODULE_ADMIN_REMOVE";
+    private static final String MODULE_ADMIN_SWAP = "PLATFORM_MODULE_ADMIN_SWAP";
 
     private final ClientConnection connection;
     private final String clientInstanceId;
@@ -63,18 +72,17 @@ public class UserClientService {
                 .thenApply(this::requireLoginSuccess);
     }
 
-    /** Submits a public teacher-account application and clears all password copies. */
+    /** Retained compatibility entry point; public teacher applications are retired. */
+    @Deprecated(forRemoval = false)
     public CompletableFuture<UserView> applyForTeacherAccount(
             String loginId, char[] password) {
         Objects.requireNonNull(password, "password");
-        TeacherAccountApplicationCommand command;
         try {
-            command = new TeacherAccountApplicationCommand(loginId, password);
+            return CompletableFuture.failedFuture(
+                    new IllegalArgumentException("COMMON_VALIDATION_FAILED"));
         } finally {
             Arrays.fill(password, '\0');
         }
-        return this.<UserView>sendAsync(USER_REGISTER, command, command::clearPassword)
-                .thenApply(UserClientService::requireSuccess);
     }
 
     /** Gets the current safe account projection. */
@@ -102,6 +110,13 @@ public class UserClientService {
                 .thenApply(UserClientService::requireSuccess);
     }
 
+    /** Requests administrator-controlled initialization of a teacher's password. */
+    public CompletableFuture<UserView> resetTeacherPassword(
+            ResetTeacherPasswordCommand command) {
+        return this.<UserView>sendAsync(USER_RESET_TEACHER_PASSWORD, command, () -> { })
+                .thenApply(UserClientService::requireSuccess);
+    }
+
     /** Updates an account lifecycle status using optimistic locking. */
     public CompletableFuture<UserView> changeStatus(ChangeUserStatusCommand command) {
         return this.<UserView>sendAsync(USER_CHANGE_STATUS, command, () -> { })
@@ -114,6 +129,31 @@ public class UserClientService {
         return this.<PageResult<SecurityAuditView>>sendAsync(
                         SECURITY_AUDIT_SEARCH, query, () -> { })
                 .thenApply(UserClientService::requireSuccess);
+    }
+
+    /** Loads the five dedicated module-administrator role assignments. */
+    public CompletableFuture<ModuleAdministrationSnapshot> listModuleAdministrators() {
+        return this.<ModuleAdministrationSnapshot>sendAsync(
+                        MODULE_ADMIN_LIST, EmptyRequest.INSTANCE, () -> { })
+                .thenApply(UserClientService::requireSuccess);
+    }
+
+    /** Changes an existing module administrator to another dedicated module role. */
+    public CompletableFuture<Void> assignModuleAdministrator(
+            AssignModuleAdministratorCommand command) {
+        return writeGovernance(MODULE_ADMIN_ASSIGN, command);
+    }
+
+    /** Deactivates a module administrator while preserving the last-active invariant. */
+    public CompletableFuture<Void> removeModuleAdministrator(
+            RemoveModuleAdministratorCommand command) {
+        return writeGovernance(MODULE_ADMIN_REMOVE, command);
+    }
+
+    /** Atomically exchanges two administrators' dedicated module roles. */
+    public CompletableFuture<Void> swapModuleAdministrators(
+            SwapModuleAdministratorsCommand command) {
+        return writeGovernance(MODULE_ADMIN_SWAP, command);
     }
 
     /** Changes the password and clears the revoked local session after success. */
@@ -144,6 +184,12 @@ public class UserClientService {
     /** Removes the in-memory session token without logging or persisting it. */
     public void clearSession() {
         connection.setSessionToken(null);
+    }
+
+    private CompletableFuture<Void> writeGovernance(String command, Serializable body) {
+        return this.<EmptyResponse>sendAsync(command, body, () -> { })
+                .thenApply(UserClientService::requireSuccess)
+                .thenAccept(ignored -> { });
     }
 
     private <T extends Serializable> CompletableFuture<ResponseBody<T>> sendAsync(
@@ -178,6 +224,10 @@ public class UserClientService {
     }
 
     private static <T extends Serializable> T requireSessionSuccess(ResponseBody<T> response) {
+        if (!response.success()
+                && "AUTH_SESSION_REVOKED_PASSWORD_RESET".equals(response.code())) {
+            throw new PasswordResetSessionClientException();
+        }
         if (!response.success() && "AUTH_SESSION_EXPIRED".equals(response.code())) {
             throw new SessionExpiredClientException();
         }

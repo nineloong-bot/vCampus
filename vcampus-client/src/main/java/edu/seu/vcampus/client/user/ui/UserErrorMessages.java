@@ -27,7 +27,14 @@ final class UserErrorMessages {
         return hasCode(failure, "AUTH_ACCOUNT_LOCKED");
     }
 
+    static boolean isConcurrentModification(Throwable failure) {
+        return hasCode(failure, "COMMON_CONCURRENT_MODIFICATION");
+    }
+
     static String operation(Throwable failure, String fallback) {
+        if (hasCode(failure, "GOVERNANCE_LAST_MODULE_ADMIN_PROTECTED")) {
+            return "该模块至少需要保留一名有效管理员，无法完成此操作。";
+        }
         if (hasCode(failure, "AUTH_INVALID_CREDENTIALS")) return "当前密码不正确";
         if (hasCode(failure, "AUTH_PASSWORD_POLICY_VIOLATION")) {
             return "密码需为 8–64 位，并同时包含字母和数字";

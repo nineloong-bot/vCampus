@@ -65,8 +65,8 @@ class EnrollmentChangeDialogTest {
         var majorCall = client.await("STUDENT_LIST_MAJORS");
         awaitServiceDependent(majorCall.response());
         client.complete(majorCall, ResponseBody.success(new ArrayList<>(List.of(
-                new MajorView("m1", "d1", "0101", "计算机科学与技术", true, 1),
-                new MajorView("m2", "d1", "0102", "软件工程", true, 1)))));
+                new MajorView("m1", "d1", "0101", "计算机科学与技术", null, true, 1),
+                new MajorView("m2", "d1", "0102", "软件工程", null, true, 1)))));
         await(majorSignal);
         flushEdt();
 

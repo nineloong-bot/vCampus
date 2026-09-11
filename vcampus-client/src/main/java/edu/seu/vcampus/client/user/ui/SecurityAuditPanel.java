@@ -42,6 +42,7 @@ public final class SecurityAuditPanel extends JPanel {
         @Override public boolean isCellEditable(int row, int column) { return false; }
     };
     private int page;
+    private boolean closed;
 
     /** Creates the audit query page and loads its first page asynchronously. */
     public SecurityAuditPanel(UserClientService users) {
@@ -86,6 +87,7 @@ public final class SecurityAuditPanel extends JPanel {
     }
 
     private void load() {
+        if (closed) return;
         setBusy(true);
         SecurityAuditQuery query;
         try {
@@ -101,6 +103,7 @@ public final class SecurityAuditPanel extends JPanel {
     }
 
     private void finish(PageResult<SecurityAuditView> resultPage, Throwable failure) {
+        if (closed) return;
         setBusy(false); model.setRowCount(0);
         if (failure != null || resultPage == null) {
             state.setText(UserErrorMessages.operation(failure, "审计记录加载失败，请重试")); return;
@@ -116,6 +119,14 @@ public final class SecurityAuditPanel extends JPanel {
     private void setBusy(boolean busy) {
         search.setEnabled(!busy); previous.setEnabled(!busy && page > 0);
         next.setEnabled(!busy); if (busy) state.setText("正在加载…");
+    }
+    @Override public void addNotify() {
+        closed = false;
+        super.addNotify();
+    }
+    @Override public void removeNotify() {
+        closed = true;
+        super.removeNotify();
     }
     private static JPanel labeled(String label, JTextField field) {
         JPanel panel = new JPanel(new BorderLayout(UiSpacing.SPACE_1, 0));

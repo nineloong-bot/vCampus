@@ -2,44 +2,56 @@
 
 本目录包含统一登录、学籍、课程、图书馆和校园商城。服务端统一监听 `8888`，所有模块共享同一登录会话与 Access 数据库。
 
-## 启动
+## 运行要求
 
-要求 Windows 与 JDK 21 或更高版本。进入 `vcampus-distribution/scripts`：
+- Windows 系统；
+- JDK 21 或更高版本。
 
-1. 双击 `start-server-with-data.bat`，看到“监听端口 8888”后保持窗口开启。
-2. 双击 `start-client.bat`。
-3. 停止时先关闭客户端，再在服务端窗口按 `Ctrl+C`。
+## 直接启动
 
-也可在 PowerShell 中运行：
+clone 或 pull 仓库后，进入：
 
-```powershell
-cd E:\summer-school\vCampus\.worktrees\shop-auth-demo\vcampus-distribution\scripts
-.\start-server-with-data.bat
-# 另开一个 PowerShell
-.\start-client.bat
+```text
+vcampus-distribution/scripts
 ```
 
-## 测试账号
+1. 双击 `start-server-with-data.bat`。
+2. 看到服务端监听 8888 端口后，双击 `start-client.bat`。
 
-| 用途 | 账号 | 初始密码 | 说明 |
-|---|---|---|---|
-| 综合管理员 | `ADMIN` | `admin123` | 首次登录必须修改密码，然后重新登录；拥有用户、学籍和图书馆管理权限，并可审核商城申请 |
-| 教师 | `TEACHER01` | `admin123` | 测试教师课程功能与普通图书检索 |
-| 普通学生/买家 | `213230001` | `admin123` | 有完整学籍，购物车含两种颜色中性笔，并有待支付和已支付订单 |
-| 店主 | `SHOPOWNER` | `admin123` | 已开店；商品含草稿、下架、上架及黑/红两种商品种类 |
-| 申请草稿 | `SHOPDRAFT` | `admin123` | 开店申请为草稿 |
-| 待审核申请 | `SHOPPENDING` | `admin123` | 开店申请待管理员审核 |
+仓库已随附 `vcampus-distribution/lib/vCampusServer.jar` 和
+`vcampus-distribution/lib/vCampusClient.jar`，仅运行演示不需要安装 Maven。
 
-详细步骤见 [统一人工测试指南](../docs/testing/2026-09-02-vcampus-unified-manual-test-guide.md)。
+## 从源码重新构建（可选）
 
-## 重置与构建
-
-`reset-data.bat` 会在确认后只删除 `data/vCampus.accdb`；再次启动服务端会按 `database/schema` 与 `database/seed` 重建测试库。
-
-从源码更新 JAR：
+需要验证或更新分发 JAR 时，在仓库根目录执行：
 
 ```powershell
 mvn -pl vcampus-server,vcampus-client -am package
 ```
 
-发布 JAR 的主类分别是 `edu.seu.vcampus.server.bootstrap.ServerMain` 与 `edu.seu.vcampus.client.ClientMain`。
+打包成功后，Maven 会更新 `vcampus-distribution/lib` 中的两个 JAR。
+
+主要演示账号（管理类账号统一密码 `admin123456`）：
+
+- 超级管理员：`DEMO_ADMIN`
+- 学籍管理员：`STUDENT_ADMIN`
+- 选课管理员：`COURSE_ADMIN`
+- 图书管理员：`LIBRARY_ADMIN`
+- 商城管理员：`SHOP_ADMIN`
+- 用户管理员：`USER_ADMIN`
+- 计算机学院管理员：`CS_COLLEGE_ADMIN`
+- 数学学院管理员：`MATH_COLLEGE_ADMIN`
+- 信息科学与工程学院管理员：`EE_COLLEGE_ADMIN`
+- 外国语学院管理员：`FL_COLLEGE_ADMIN`
+
+该密码仅用于课程 demo，不得用于真实环境或真实账户。
+
+## 数据与日志
+
+- `data/vCampus.accdb` 是全模块演示数据库；
+- `logs` 目录包含本机运行日志；
+- 不要在 Git 中提交 `logs` 或 `target`；源码更新后应同步更新分发 JAR。
+
+## 停止
+
+先关闭客户端窗口，再回到服务端窗口按 `Ctrl+C` 停止服务。

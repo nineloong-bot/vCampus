@@ -13,6 +13,7 @@ import javax.swing.table.AbstractTableModel;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
@@ -26,7 +27,7 @@ public final class StudentDetailPanel extends JPanel {
 
     private final StudentClientService students;
     private final ClientConnection connection;
-    private final String studentId;
+    private String studentId;
     private final boolean canEdit;
     private final AtomicLong requestGeneration = new AtomicLong();
     private final Map<String, JLabel> values = new LinkedHashMap<>();
@@ -44,7 +45,7 @@ public final class StudentDetailPanel extends JPanel {
         super(new BorderLayout(0, UiSpacing.SPACE_4));
         this.students = Objects.requireNonNull(students, "students");
         this.connection = Objects.requireNonNull(connection, "connection");
-        this.studentId = Objects.requireNonNull(studentId, "studentId");
+        this.studentId = studentId;
         this.canEdit = canEdit;
         setName("student.detail");
         setBackground(UiColors.BACKGROUND_PAGE);
@@ -203,7 +204,30 @@ public final class StudentDetailPanel extends JPanel {
         super.addNotify();
         active = true;
         connectionChanged(connection.state());
-        loadProfile();
+        if (studentId != null) loadProfile();
+    }
+
+    public void loadStudent(String newStudentId) {
+        this.studentId = newStudentId;
+        this.loaded = false;
+        this.profile = null;
+        requestGeneration.incrementAndGet();
+        values.forEach((k, v) -> v.setText("未填写"));
+        changesModel.setData(List.of());
+        if (newStudentId != null) loadProfile();
+        else clear();
+    }
+
+    public void clear() {
+        this.studentId = null;
+        this.loaded = false;
+        this.profile = null;
+        requestGeneration.incrementAndGet();
+        values.forEach((k, v) -> v.setText("未填写"));
+        changesModel.setData(List.of());
+        statusLabel.setText("请选择学生");
+        errorLabel.setText(" ");
+        setEditingEnabled(false);
     }
 
     @Override public void removeNotify() {
@@ -339,7 +363,12 @@ public final class StudentDetailPanel extends JPanel {
 
     private void put(String key, Object value) {
         JLabel target = values.get(key);
-        if (target != null) target.setText(filled(value));
+        if (target != null) {
+            String text = filled(value);
+            target.setText(text);
+            // Set tooltip so hovering shows full text when truncated
+            target.setToolTipText(text);
+        }
     }
 
     private static String filled(Object value) { return value == null || value.toString().isBlank() ? "未填写" : value.toString(); }

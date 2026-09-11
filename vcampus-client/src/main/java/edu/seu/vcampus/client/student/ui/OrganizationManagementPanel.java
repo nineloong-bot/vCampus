@@ -18,6 +18,7 @@ import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
 import java.awt.*;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
@@ -39,6 +40,7 @@ public final class OrganizationManagementPanel extends JPanel {
     private final JButton addMajorButton = new JButton("新增专业");
     private final JButton addClassButton = new JButton("新增班级");
     private final JButton addStudentButton = new JButton("新增学生");
+    private final JButton batchAssignButton = new JButton("批量分班");
     private final JPanel editPanel = new JPanel(new BorderLayout());
 
     private DefaultMutableTreeNode selectedNode;
@@ -111,6 +113,11 @@ public final class OrganizationManagementPanel extends JPanel {
         addStudentButton.setEnabled(false);
         addStudentButton.addActionListener(e -> startAddStudent());
         treeButtons.add(addStudentButton);
+        batchAssignButton.setName("student.org.batch-assign");
+        batchAssignButton.setFont(UiTypography.BODY);
+        batchAssignButton.setEnabled(false);
+        batchAssignButton.addActionListener(e -> startBatchAssign());
+        treeButtons.add(batchAssignButton);
         left.add(treeButtons, BorderLayout.SOUTH);
 
         add(left, BorderLayout.WEST);
@@ -191,7 +198,7 @@ public final class OrganizationManagementPanel extends JPanel {
                 for (MajorView major : body.data()) {
                     DefaultMutableTreeNode majorNode = new DefaultMutableTreeNode(major, true);
                     deptNode.add(majorNode);
-                    loadClasses(majorNode, major.majorId(), generation);
+                    loadClasses(majorNode, major, generation);
                 }
                 treeModel.reload();
                 expandAll();
@@ -199,12 +206,34 @@ public final class OrganizationManagementPanel extends JPanel {
         }));
     }
 
-    private void loadClasses(DefaultMutableTreeNode majorNode, String majorId, long generation) {
-        students.listClasses(majorId, false).whenComplete((body, failure) -> onEdt(() -> {
+    private void loadClasses(DefaultMutableTreeNode majorNode, MajorView major, long generation) {
+        students.listClasses(major.majorId(), false).whenComplete((body, failure) -> onEdt(() -> {
             if (!active || generation != requestGeneration.get()) return;
             if (failure == null && body != null && body.success() && body.data() != null) {
-                for (ClassView cls : body.data()) {
-                    majorNode.add(new DefaultMutableTreeNode(cls, false));
+                List<ClassView> classes = body.data();
+                String grades = major.grades();
+                if (grades != null && !grades.isBlank()) {
+                    List<DefaultMutableTreeNode> yearNodes = new ArrayList<>();
+                    for (String g : grades.split(",")) {
+                        int grade = Integer.parseInt(g.trim());
+                        YearNode yearNode = YearNode.of(grade, major.majorId());
+                        DefaultMutableTreeNode yearTreeNode = new DefaultMutableTreeNode(yearNode, true);
+                        majorNode.add(yearTreeNode);
+                        yearNodes.add(yearTreeNode);
+                    }
+                    for (ClassView cls : classes) {
+                        DefaultMutableTreeNode targetYear = null;
+                        for (DefaultMutableTreeNode yn : yearNodes) {
+                            YearNode y = (YearNode) yn.getUserObject();
+                            if (y.enrollmentYear() == cls.enrollmentYear()) { targetYear = yn; break; }
+                        }
+                        if (targetYear != null) targetYear.add(new DefaultMutableTreeNode(cls, false));
+                        else majorNode.add(new DefaultMutableTreeNode(cls, false));
+                    }
+                } else {
+                    for (ClassView cls : classes) {
+                        majorNode.add(new DefaultMutableTreeNode(cls, false));
+                    }
                 }
                 treeModel.reload();
                 expandAll();
@@ -232,10 +261,14 @@ public final class OrganizationManagementPanel extends JPanel {
             editingTarget = major;
             isNewItem = false;
             showMajorForm(major, false);
+        } else if (userObject instanceof YearNode year) {
+            editingTarget = year;
+            isNewItem = false;
+            showYearInfo(year);
         } else if (userObject instanceof ClassView cls) {
             editingTarget = cls;
             isNewItem = false;
-            showClassForm(cls, false);
+            showClassForm(cls, false, null);
         } else {
             selectedNode = null;
             editingTarget = null;
@@ -250,11 +283,13 @@ public final class OrganizationManagementPanel extends JPanel {
         boolean none = editingTarget == null;
         boolean isDept = editingTarget instanceof DepartmentView;
         boolean isMajor = editingTarget instanceof MajorView;
+        boolean isYear = editingTarget instanceof YearNode;
         boolean isClass = editingTarget instanceof ClassView;
         addDeptButton.setEnabled(connected && none);
         addMajorButton.setEnabled(connected && isDept);
-        addClassButton.setEnabled(connected && isMajor);
+        addClassButton.setEnabled(connected && (isMajor || isYear));
         addStudentButton.setEnabled(connected && isClass);
+        batchAssignButton.setEnabled(connected && (isMajor || isYear));
     }
 
     private void showPlaceholder() {
@@ -328,15 +363,35 @@ public final class OrganizationManagementPanel extends JPanel {
         activeBox.setOpaque(false);
         activeBox.setSelected(major == null || major.active());
 
+        JCheckBox grade1 = new JCheckBox("大一"); grade1.setFont(UiTypography.BODY); grade1.setOpaque(false);
+        JCheckBox grade2 = new JCheckBox("大二"); grade2.setFont(UiTypography.BODY); grade2.setOpaque(false);
+        JCheckBox grade3 = new JCheckBox("大三"); grade3.setFont(UiTypography.BODY); grade3.setOpaque(false);
+        JCheckBox grade4 = new JCheckBox("大四"); grade4.setFont(UiTypography.BODY); grade4.setOpaque(false);
+        if (major != null && major.grades() != null) {
+            for (String g : major.grades().split(",")) {
+                switch (g.trim()) {
+                    case "1" -> grade1.setSelected(true);
+                    case "2" -> grade2.setSelected(true);
+                    case "3" -> grade3.setSelected(true);
+                    case "4" -> grade4.setSelected(true);
+                }
+            }
+        }
+        JPanel gradesPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, UiSpacing.SPACE_2, 0));
+        gradesPanel.setOpaque(false);
+        gradesPanel.add(grade1); gradesPanel.add(grade2); gradesPanel.add(grade3); gradesPanel.add(grade4);
+
         addFormRow(form, c, "所属院系", parentLabel, 0);
         addFormRow(form, c, "编号", codeField, 1);
         addFormRow(form, c, "名称", nameField, 2);
-        c.gridy = 3; c.gridx = 0; c.gridwidth = 2; c.fill = GridBagConstraints.NONE;
+        addFormRow(form, c, "年级", gradesPanel, 3);
+        c.gridy = 4; c.gridx = 0; c.gridwidth = 2; c.fill = GridBagConstraints.NONE;
         form.add(activeBox, c);
 
         JButton saveButton = saveButton();
-        saveButton.addActionListener(e -> saveMajor(codeField, nameField, activeBox, major, isNew));
-        c.gridy = 4; c.gridx = 1; c.anchor = GridBagConstraints.EAST;
+        saveButton.addActionListener(e -> saveMajor(codeField, nameField, activeBox,
+                new JCheckBox[]{grade1, grade2, grade3, grade4}, major, isNew));
+        c.gridy = 5; c.gridx = 1; c.anchor = GridBagConstraints.EAST;
         form.add(saveButton, c);
 
         editPanel.add(form, BorderLayout.NORTH);
@@ -344,7 +399,32 @@ public final class OrganizationManagementPanel extends JPanel {
         editPanel.repaint();
     }
 
-    private void showClassForm(ClassView cls, boolean isNew) {
+    private void showYearInfo(YearNode year) {
+        editPanel.removeAll();
+        JPanel info = new JPanel(new GridBagLayout());
+        info.setOpaque(false);
+        GridBagConstraints c = new GridBagConstraints();
+        c.insets = new Insets(UiSpacing.SPACE_2, 0, UiSpacing.SPACE_2, UiSpacing.SPACE_3);
+        c.anchor = GridBagConstraints.WEST;
+        c.gridx = 0; c.gridy = 0; c.gridwidth = 2;
+
+        JLabel title = new JLabel(year.displayName());
+        title.setFont(UiTypography.SECTION_TITLE);
+        title.setForeground(UiColors.TEXT_PRIMARY);
+        info.add(title, c);
+
+        c.gridy = 1;
+        JLabel hint = new JLabel("点击「新增班级」为此年级添加班级");
+        hint.setFont(UiTypography.CAPTION);
+        hint.setForeground(UiColors.TEXT_SECONDARY);
+        info.add(hint, c);
+
+        editPanel.add(info, BorderLayout.NORTH);
+        editPanel.revalidate();
+        editPanel.repaint();
+    }
+
+    private void showClassForm(ClassView cls, boolean isNew, YearNode yearContext) {
         editPanel.removeAll();
         JPanel form = buildEditForm();
         GridBagConstraints c = new GridBagConstraints();
@@ -352,7 +432,9 @@ public final class OrganizationManagementPanel extends JPanel {
         c.anchor = GridBagConstraints.WEST;
 
         String parentName = "";
-        if (selectedNode != null) {
+        if (yearContext != null) {
+            parentName = yearContext.displayName();
+        } else if (selectedNode != null) {
             Object nodeObj = selectedNode.getUserObject();
             if (nodeObj instanceof MajorView major) {
                 parentName = major.code() + " - " + major.name();
@@ -368,11 +450,12 @@ public final class OrganizationManagementPanel extends JPanel {
 
         JTextField codeField = editField("student.org.code", cls == null ? "" : cls.code());
         JTextField nameField = editField("student.org.name", cls == null ? "" : cls.name());
-        JSpinner yearSpinner = new JSpinner(new SpinnerNumberModel(
-                cls == null ? 2025 : cls.enrollmentYear(), 2000, 2099, 1));
+        int defaultYear = yearContext != null ? yearContext.enrollmentYear() : (cls == null ? 2025 : cls.enrollmentYear());
+        JSpinner yearSpinner = new JSpinner(new SpinnerNumberModel(defaultYear, 2000, 2099, 1));
         yearSpinner.setName("student.org.year");
         yearSpinner.setFont(UiTypography.BODY);
         yearSpinner.getAccessibleContext().setAccessibleName("入学年份");
+        if (yearContext != null) yearSpinner.setEnabled(false);
         JSpinner numberSpinner = new JSpinner(new SpinnerNumberModel(
                 cls == null ? 1 : cls.classNumber(), 1, 9, 1));
         numberSpinner.setName("student.org.number");
@@ -426,7 +509,7 @@ public final class OrganizationManagementPanel extends JPanel {
     }
 
     private void saveMajor(JTextField codeField, JTextField nameField, JCheckBox activeBox,
-                           MajorView base, boolean isNew) {
+                           JCheckBox[] gradeBoxes, MajorView base, boolean isNew) {
         String code = codeField.getText().trim();
         String name = nameField.getText().trim();
         if (code.isEmpty()) { errorLabel.setText("编号不能为空"); return; }
@@ -443,11 +526,19 @@ public final class OrganizationManagementPanel extends JPanel {
             }
         }
         if (departmentId == null) { errorLabel.setText("请选择所属院系"); return; }
+        StringBuilder gradesBuilder = new StringBuilder();
+        for (int i = 0; i < gradeBoxes.length; i++) {
+            if (gradeBoxes[i].isSelected()) {
+                if (gradesBuilder.length() > 0) gradesBuilder.append(",");
+                gradesBuilder.append(i + 1);
+            }
+        }
+        String grades = gradesBuilder.length() > 0 ? gradesBuilder.toString() : null;
         String id = isNew || base == null ? "" : base.majorId();
         long version = isNew || base == null ? 0 : base.rowVersion();
         long generation = requestGeneration.incrementAndGet();
         errorLabel.setText(" ");
-        students.saveMajor(new SaveMajorCommand(id, departmentId, code, name, activeBox.isSelected(), version))
+        students.saveMajor(new SaveMajorCommand(id, departmentId, code, name, grades, activeBox.isSelected(), version))
                 .whenComplete((body, failure) -> onEdt(() -> {
                     if (!active || generation != requestGeneration.get()) return;
                     if (failure != null) { errorLabel.setText("保存失败，请稍后重试"); return; }
@@ -464,20 +555,23 @@ public final class OrganizationManagementPanel extends JPanel {
                            JSpinner numberSpinner, JCheckBox activeBox, ClassView base, boolean isNew) {
         String code = codeField.getText().trim();
         String name = nameField.getText().trim();
-        int year = (Integer) yearSpinner.getValue();
-        int number = (Integer) numberSpinner.getValue();
+        int enrollmentYear = (Integer) yearSpinner.getValue();
+        int classNum = (Integer) numberSpinner.getValue();
         if (code.isEmpty()) { errorLabel.setText("编号不能为空"); return; }
         if (name.isEmpty()) { errorLabel.setText("名称不能为空"); return; }
-        if (year < 2000 || year > 2099) { errorLabel.setText("入学年份必须在2000-2099之间"); return; }
-        if (number < 1 || number > 9) { errorLabel.setText("班级序号必须在1-9之间"); return; }
+        if (enrollmentYear < 2000 || enrollmentYear > 2099) { errorLabel.setText("入学年份必须在2000-2099之间"); return; }
+        if (classNum < 1 || classNum > 9) { errorLabel.setText("班级序号必须在1-9之间"); return; }
         String majorId = null;
         if (selectedNode != null) {
             Object nodeObj = selectedNode.getUserObject();
             if (nodeObj instanceof MajorView major) {
                 majorId = major.majorId();
+            } else if (nodeObj instanceof YearNode y) {
+                majorId = y.majorId();
             } else if (selectedNode.getParent() != null) {
                 Object parentObj = ((DefaultMutableTreeNode) selectedNode.getParent()).getUserObject();
                 if (parentObj instanceof MajorView major) majorId = major.majorId();
+                else if (parentObj instanceof YearNode y) majorId = y.majorId();
             }
         }
         if (majorId == null) { errorLabel.setText("请选择所属专业"); return; }
@@ -485,7 +579,7 @@ public final class OrganizationManagementPanel extends JPanel {
         long version = isNew || base == null ? 0 : base.rowVersion();
         long generation = requestGeneration.incrementAndGet();
         errorLabel.setText(" ");
-        students.saveClass(new SaveClassCommand(id, majorId, code, name, year, number, activeBox.isSelected(), version))
+        students.saveClass(new SaveClassCommand(id, majorId, code, name, enrollmentYear, classNum, activeBox.isSelected(), version))
                 .whenComplete((body, failure) -> onEdt(() -> {
                     if (!active || generation != requestGeneration.get()) return;
                     if (failure != null) { errorLabel.setText("保存失败，请稍后重试"); return; }
@@ -514,21 +608,73 @@ public final class OrganizationManagementPanel extends JPanel {
     }
 
     private void startAddClass() {
-        if (selectedNode == null || !(selectedNode.getUserObject() instanceof MajorView)) return;
-        isNewItem = true;
-        showClassForm(null, true);
+        if (selectedNode == null) return;
+        Object obj = selectedNode.getUserObject();
+        if (obj instanceof MajorView) {
+            isNewItem = true;
+            showClassForm(null, true, null);
+        } else if (obj instanceof YearNode year) {
+            isNewItem = true;
+            showClassForm(null, true, year);
+        }
     }
 
     private void startAddStudent() {
         if (selectedNode == null || !(selectedNode.getUserObject() instanceof ClassView cls)) return;
-        DefaultMutableTreeNode majorNode = (DefaultMutableTreeNode) selectedNode.getParent();
-        DefaultMutableTreeNode departmentNode = majorNode == null ? null
-                : (DefaultMutableTreeNode) majorNode.getParent();
-        if (majorNode == null || departmentNode == null
-                || !(majorNode.getUserObject() instanceof MajorView major)
-                || !(departmentNode.getUserObject() instanceof DepartmentView department)) return;
+        DefaultMutableTreeNode parentNode = (DefaultMutableTreeNode) selectedNode.getParent();
+        if (parentNode == null) return;
+        MajorView major = null;
+        DepartmentView department = null;
+        if (parentNode.getUserObject() instanceof MajorView m) {
+            major = m;
+            DefaultMutableTreeNode deptNode = (DefaultMutableTreeNode) parentNode.getParent();
+            if (deptNode != null && deptNode.getUserObject() instanceof DepartmentView d) department = d;
+        } else if (parentNode.getUserObject() instanceof YearNode) {
+            DefaultMutableTreeNode majorNode = (DefaultMutableTreeNode) parentNode.getParent();
+            if (majorNode != null && majorNode.getUserObject() instanceof MajorView m) {
+                major = m;
+                DefaultMutableTreeNode deptNode = (DefaultMutableTreeNode) majorNode.getParent();
+                if (deptNode != null && deptNode.getUserObject() instanceof DepartmentView d) department = d;
+            }
+        }
+        if (major == null || department == null) return;
         new ManualStudentCreationDialog(SwingUtilities.getWindowAncestor(this), students,
                 department, major, cls).setVisible(true);
+    }
+
+    private MajorView resolveMajor() {
+        if (selectedNode == null) return null;
+        Object obj = selectedNode.getUserObject();
+        if (obj instanceof MajorView m) return m;
+        if (obj instanceof YearNode) {
+            DefaultMutableTreeNode parent = (DefaultMutableTreeNode) selectedNode.getParent();
+            if (parent != null && parent.getUserObject() instanceof MajorView m) return m;
+        }
+        return null;
+    }
+
+    private void startBatchAssign() {
+        if (selectedNode == null) return;
+        MajorView major = resolveMajor();
+        if (major == null) return;
+        long gen = requestGeneration.incrementAndGet();
+        errorLabel.setText("正在加载班级列表...");
+        MajorView selectedMajor = major;
+        students.listClasses(selectedMajor.majorId(), true).whenComplete((body, failure) -> onEdt(() -> {
+            if (!active || gen != requestGeneration.get()) return;
+            if (failure != null || body == null || !body.success() || body.data() == null) {
+                errorLabel.setText("无法加载班级列表");
+                return;
+            }
+            ArrayList<ClassView> classes = body.data();
+            if (classes.size() < 2) {
+                errorLabel.setText("至少需要2个启用的班级才能批量分班");
+                return;
+            }
+            errorLabel.setText(" ");
+            new BatchClassAssignmentDialog(SwingUtilities.getWindowAncestor(this),
+                    students, selectedMajor, classes).setVisible(true);
+        }));
     }
 
     private void connectionChanged(ConnectionState state) {
@@ -591,6 +737,7 @@ public final class OrganizationManagementPanel extends JPanel {
                 Object obj = node.getUserObject();
                 if (obj instanceof DepartmentView dept) setText(dept.code() + " - " + dept.name());
                 else if (obj instanceof MajorView major) setText(major.code() + " - " + major.name());
+                else if (obj instanceof YearNode year) setText(year.displayName());
                 else if (obj instanceof ClassView cls) setText(cls.code() + " - " + cls.name());
             }
             if (selected) {

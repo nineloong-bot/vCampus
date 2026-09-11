@@ -42,7 +42,7 @@ class StudentPasswordResetUiTest {
     }
 
     @Test
-    void removesRoleEntryAndShowsResetOnlyForSelectedStudentAfterConfirmation()
+    void removesRoleEntryAndKeepsStudentResetAfterTeacherResetIsAdded()
             throws Exception {
         UserClientService users = mock(UserClientService.class);
         UserSummary teacher = summary("teacher", UserRole.TEACHER, 1);
@@ -62,7 +62,7 @@ class StudentPasswordResetUiTest {
         JTable table = component(panel[0], "users.table", JTable.class);
         AbstractButton reset = component(panel[0], "users.resetPassword", AbstractButton.class);
         SwingUtilities.invokeAndWait(() -> table.setRowSelectionInterval(0, 0));
-        assertThat(reset.isVisible()).isFalse();
+        assertThat(reset.isVisible()).isTrue();
         SwingUtilities.invokeAndWait(() -> table.setRowSelectionInterval(1, 1));
         assertThat(reset.isVisible()).isTrue();
 

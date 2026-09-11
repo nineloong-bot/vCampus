@@ -1,5 +1,5 @@
 CREATE TABLE tblRole (
-    roleCode VARCHAR(16) PRIMARY KEY,
+    roleCode VARCHAR(32) PRIMARY KEY,
     roleName VARCHAR(32) NOT NULL
 );
 
@@ -9,7 +9,7 @@ CREATE TABLE tblPermission (
 );
 
 CREATE TABLE tblRolePermission (
-    roleCode VARCHAR(16) NOT NULL,
+    roleCode VARCHAR(32) NOT NULL,
     permissionCode VARCHAR(64) NOT NULL,
     CONSTRAINT pk_tblRolePermission PRIMARY KEY (roleCode, permissionCode),
     CONSTRAINT fk_tblRolePermission_role FOREIGN KEY (roleCode)
@@ -24,7 +24,7 @@ CREATE TABLE tblUser (
     passwordHash VARCHAR(256) NOT NULL,
     passwordSalt VARCHAR(128) NOT NULL,
     passwordIterations LONG NOT NULL,
-    roleCode VARCHAR(16) NOT NULL,
+    roleCode VARCHAR(32) NOT NULL,
     accountStatus VARCHAR(16) NOT NULL,
     mustChangePassword YESNO NOT NULL,
     failedLoginCount LONG DEFAULT 0 NOT NULL,

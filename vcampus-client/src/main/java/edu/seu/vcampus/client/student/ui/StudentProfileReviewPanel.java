@@ -37,7 +37,7 @@ public final class StudentProfileReviewPanel extends JPanel {
         JPanel copy = new JPanel(); copy.setOpaque(false); copy.setLayout(new BoxLayout(copy, BoxLayout.Y_AXIS));
         JLabel title = label("学生资料审核", UiTypography.PAGE_TITLE, UiColors.TEXT_PRIMARY);
         copy.add(title); copy.add(label("修改仅在审核通过后写入正式学籍档案", UiTypography.CAPTION, UiColors.TEXT_SECONDARY));
-        heading.add(copy); JButton refresh = new JButton("刷新待审核"); refresh.setName("student.profile.review.refresh");
+        heading.add(copy); JButton refresh = new JButton("刷新"); refresh.setName("student.profile.review.refresh");
         refresh.addActionListener(e -> refresh()); heading.add(refresh, BorderLayout.EAST); add(heading, BorderLayout.NORTH);
 
         queue.setName("student.profile.review.queue"); queue.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);

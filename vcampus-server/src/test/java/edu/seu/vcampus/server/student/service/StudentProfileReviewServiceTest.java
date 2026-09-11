@@ -31,7 +31,7 @@ class StudentProfileReviewServiceTest {
             new StudentRepository().insert(connection,
                     StudentProfileUpdateTest.student(edu.seu.vcampus.common.student.StudentStatus.ACTIVE));
             try (var statement = connection.prepareStatement(
-                    "UPDATE tblStudent SET attendanceMode='RESIDENT', enrolled=TRUE, onCampus=TRUE, "
+                    "UPDATE tblStudent SET attendanceMode='RESIDENT', enrolled=1, onCampus=1, "
                             + "campus='九龙湖校区', educationLevel='本科', trainingMode='非定向', "
                             + "programLengthYears=4 WHERE studentId='student-1'")) {
                 statement.executeUpdate();

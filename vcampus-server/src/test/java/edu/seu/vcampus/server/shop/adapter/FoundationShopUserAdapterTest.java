@@ -58,6 +58,26 @@ class FoundationShopUserAdapterTest {
     }
 
     @Test
+    void mapsModernShopAdministratorsWithoutGrantingOtherModuleRolesShopAdministration() {
+        when(authorization.requireSession("super-token"))
+                .thenReturn(new UserIdentity("super-1", "DEMO_ADMIN",
+                        UserRole.SUPER_ADMIN, ACTIVE));
+        when(authorization.requireSession("shop-admin-token"))
+                .thenReturn(new UserIdentity("shop-admin-1", "SHOP_ADMIN",
+                        UserRole.SHOP_ADMIN, ACTIVE));
+        when(authorization.requireSession("student-admin-token"))
+                .thenReturn(new UserIdentity("student-admin-1", "STUDENT_ADMIN",
+                        UserRole.STUDENT_ADMIN, ACTIVE));
+
+        assertThat(adapter.requireUser("super-token").kind())
+                .isEqualTo(ShopUserKind.ADMINISTRATOR);
+        assertThat(adapter.requireUser("shop-admin-token").kind())
+                .isEqualTo(ShopUserKind.ADMINISTRATOR);
+        assertThat(adapter.requireUser("student-admin-token").kind())
+                .isEqualTo(ShopUserKind.OTHER);
+    }
+
+    @Test
     void mapsDisabledAccountAsInactiveShopUser() {
         when(authorization.requireSession("disabled-token"))
                 .thenReturn(new UserIdentity("buyer-3", "DISABLED_BUYER",

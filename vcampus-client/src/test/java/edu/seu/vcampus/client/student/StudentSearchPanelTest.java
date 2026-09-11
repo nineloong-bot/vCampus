@@ -95,29 +95,26 @@ class StudentSearchPanelTest {
                 new DepartmentView("d2", "02", "数学", true, 1)))));
         client.enqueue(ResponseBody.success(new PageResult<>(new ArrayList<>(), 1, 20, 0)));
         client.enqueue(ResponseBody.success(new ArrayList<>(List.of(
-                new MajorView("m1", "d1", "0101", "计科", true, 1)))));
+                new MajorView("m1", "d1", "0101", "计科", null, true, 1)))));
         client.enqueue(ResponseBody.success(new PageResult<>(new ArrayList<>(), 1, 20, 0)));
         client.enqueue(ResponseBody.success(new ArrayList<>(List.of(
                 new ClassView("c1", "m1", "010101", "计科1班", 2024, 1, true, 1)))));
         client.enqueue(ResponseBody.success(new PageResult<>(new ArrayList<>(), 1, 20, 0)));
 
         var panel = showPanel(client);
-        flushEdt();
+        waitForComboItems(panel, "student.search.department", 3);
 
-        JComboBox<?> deptCombo = find(panel, "student.search.department");
-        assertThat(deptCombo.getItemCount()).isEqualTo(3);
+        onEdt(() -> {
+            find(panel, "student.search.department", JComboBox.class).setSelectedIndex(1);
+            return null;
+        });
+        waitForComboItems(panel, "student.search.major", 2);
 
-        deptCombo.setSelectedIndex(1);
-        flushEdt();
-
-        JComboBox<?> majorCombo = find(panel, "student.search.major");
-        assertThat(majorCombo.getItemCount()).isEqualTo(2);
-
-        majorCombo.setSelectedIndex(1);
-        flushEdt();
-
-        JComboBox<?> classCombo = find(panel, "student.search.class");
-        assertThat(classCombo.getItemCount()).isEqualTo(2);
+        onEdt(() -> {
+            find(panel, "student.search.major", JComboBox.class).setSelectedIndex(1);
+            return null;
+        });
+        waitForComboItems(panel, "student.search.class", 2);
     }
 
     @Test void emptyResultsShowMessage() throws Exception {
@@ -214,7 +211,7 @@ class StudentSearchPanelTest {
             f.setAccessible(true);
             f.set(connection, edu.seu.vcampus.client.core.network.ConnectionState.CONNECTED);
         } catch (ReflectiveOperationException e) { throw new AssertionError(e); }
-        return onEdt(() -> new StudentSearchPanel(service, connection, id -> {}));
+        return onEdt(() -> new StudentSearchPanel(service, connection, false));
     }
 
     @SuppressWarnings("unchecked")
@@ -291,6 +288,19 @@ class StudentSearchPanelTest {
             if (enabled[0]) return;
         }
         throw new AssertionError("Button " + buttonName + " not enabled within timeout");
+    }
+
+    /** Waits for an asynchronous cascade response to replace its loading placeholder on the EDT. */
+    private static void waitForComboItems(JPanel panel, String comboName, int expectedItems) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < deadline) {
+            int count = onEdt(() -> find(panel, comboName, JComboBox.class).getItemCount());
+            if (count == expectedItems) return;
+            Thread.sleep(10);
+        }
+        int actual = onEdt(() -> find(panel, comboName, JComboBox.class).getItemCount());
+        throw new AssertionError("Combo " + comboName + " did not reach " + expectedItems
+                + " items within timeout; actual=" + actual);
     }
 
     private static final class AutoCompletingClient implements StudentRequestClient {

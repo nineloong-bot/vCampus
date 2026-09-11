@@ -23,6 +23,7 @@ import javax.crypto.spec.PBEKeySpec;
 
 import static edu.seu.vcampus.common.user.AccountStatus.ACTIVE;
 import static edu.seu.vcampus.common.user.UserRole.ADMIN;
+import static edu.seu.vcampus.common.user.UserRole.SUPER_ADMIN;
 import static edu.seu.vcampus.common.user.UserRole.TEACHER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -98,11 +99,11 @@ class AccessUserRepositoryTest {
     }
 
     @Test
-    void seedsActiveAdministratorWithApprovedTemporaryPassword() throws Exception {
+    void seedsActiveSuperAdministratorWithApprovedTemporaryPassword() throws Exception {
         UserAccount administrator = transactions.inTransaction(connection ->
                 repository.findByNormalizedLoginId(connection, "ADMIN").orElseThrow());
 
-        assertThat(administrator.role()).isEqualTo(ADMIN);
+        assertThat(administrator.role()).isEqualTo(SUPER_ADMIN);
         assertThat(administrator.accountStatus()).isEqualTo(ACTIVE);
         assertThat(administrator.mustChangePassword()).isTrue();
         assertThat(administrator.passwordIterations()).isEqualTo(120_000);

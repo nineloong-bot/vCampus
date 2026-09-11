@@ -34,7 +34,8 @@ public final class SecurityAuditHandler implements MessageHandler {
                 throw new IllegalArgumentException("COMMON_VALIDATION_FAILED");
             }
             authorization.requirePermission(message.sessionToken(), "USER_AUDIT_READ");
-            if (authorization.requireSession(message.sessionToken()).role() != UserRole.ADMIN) {
+            if (authorization.requireSession(message.sessionToken()).role()
+                    != UserRole.USER_ADMIN) {
                 throw new ForbiddenException();
             }
             return ResponseBody.success(audits.search(query));
