@@ -1,6 +1,7 @@
 package edu.seu.vcampus.server.user.handler;
 
 import edu.seu.vcampus.common.paging.PageResult;
+import edu.seu.vcampus.common.course.CourseTeacherQuery;
 import edu.seu.vcampus.common.protocol.EmptyRequest;
 import edu.seu.vcampus.common.protocol.EmptyResponse;
 import edu.seu.vcampus.common.protocol.Message;
@@ -95,6 +96,19 @@ class UserHandlersTest {
         ResponseBody<?> response = route(superRouter, command, "token", bodyFor(command));
 
         assertThat(response.code()).isEqualTo("AUTH_FORBIDDEN");
+    }
+
+    @Test
+    void courseTeacherOptionsAreAvailableToCourseAdministratorsButNotStudents() {
+        MessageRouter courseRouter = new MessageRouter(Map.of());
+        new UserHandlers(courseRouter, users, authorizationAs(UserRole.COURSE_ADMIN));
+        assertThat(route(courseRouter, "COURSE_TEACHER_OPTIONS", "token",
+                new CourseTeacherQuery(null, 0, 100)).success()).isTrue();
+
+        MessageRouter studentRouter = new MessageRouter(Map.of());
+        new UserHandlers(studentRouter, users, authorizationAs(UserRole.STUDENT));
+        assertThat(route(studentRouter, "COURSE_TEACHER_OPTIONS", "token",
+                new CourseTeacherQuery(null, 0, 100)).code()).isEqualTo("AUTH_FORBIDDEN");
     }
 
     @ParameterizedTest
@@ -386,6 +400,9 @@ class UserHandlersTest {
         @Override public void changePassword(String sessionToken, ChangePasswordCommand command) { }
         @Override public void revokeSessionsForUser(String userId) { }
         @Override public PageResult<UserSummary> searchUsers(UserSearchQuery query) { return new PageResult<>(java.util.List.of(), 0, 10, 0); }
+        @Override public PageResult<UserSummary> searchCourseTeachers(CourseTeacherQuery query) {
+            return new PageResult<>(java.util.List.of(), query.page(), query.pageSize(), 0);
+        }
         @Override public UserView updateRole(UpdateUserRoleCommand command) {
             roleCalls++;
             return VIEW;

@@ -5,6 +5,8 @@ import edu.seu.vcampus.common.user.UserRole;
 
 import javax.swing.JPanel;
 import javax.swing.JTabbedPane;
+import javax.swing.JLabel;
+import javax.swing.SwingConstants;
 import java.awt.BorderLayout;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -46,7 +48,7 @@ public final class CourseWorkspacePanel extends JPanel {
                 addTab("教学班查询", () -> new OfferingSearchPanel(gateway));
                 addTab("教师课表", () -> new MySchedulePanel(gateway));
             }
-            case ADMIN -> {
+            case SUPER_ADMIN, COURSE_ADMIN, ADMIN -> {
                 addTab("学期管理", () -> new TermManagementPanel(gateway));
                 addTab("选课阶段", () -> new SelectionPhaseManagementPanel(gateway));
                 addTab("课程目录", () -> new CourseCatalogPanel(gateway));
@@ -54,6 +56,14 @@ public final class CourseWorkspacePanel extends JPanel {
                 addTab("修读结果导入", () -> new OutcomeImportPanel(gateway));
                 addTab("选退记录", () -> new AdjustmentAuditPanel(gateway));
             }
+        }
+        if (factories.isEmpty()) {
+            JLabel unavailable = new JLabel("当前角色无课程中心权限", SwingConstants.CENTER);
+            unavailable.setName("course.unavailable");
+            unavailable.getAccessibleContext().setAccessibleName("course.unavailable");
+            unavailable.setForeground(UiColors.TEXT_SECONDARY);
+            add(unavailable, BorderLayout.CENTER);
+            return;
         }
         tabs.addChangeListener(event -> open(tabs.getSelectedIndex()));
         add(tabs, BorderLayout.CENTER);

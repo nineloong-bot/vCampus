@@ -7,6 +7,8 @@ import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.student.*;
 import edu.seu.vcampus.server.routing.MessageHandler;
 import edu.seu.vcampus.server.routing.MessageRouter;
+import edu.seu.vcampus.server.security.InitialPasswordChangeRequiredException;
+import edu.seu.vcampus.server.security.SessionExpiredException;
 import edu.seu.vcampus.server.student.repository.TrainingPlanException;
 import edu.seu.vcampus.server.student.service.StudentGradeService;
 import edu.seu.vcampus.server.student.service.TrainingPlanService;
@@ -113,7 +115,7 @@ public final class TrainingPlanHandlers {
 
     private StudentPrincipal principal(Message message) {
         StudentPrincipal p = authorization.authenticate(message.sessionToken());
-        if (p == null) throw new IllegalArgumentException("Invalid session");
+        if (p == null) throw new SessionExpiredException();
         return p;
     }
 
@@ -131,6 +133,10 @@ public final class TrainingPlanHandlers {
                 return ResponseBody.failure(error.code(), error.getMessage(), null);
             } catch (edu.seu.vcampus.server.student.service.StudentNotFoundException error) {
                 return ResponseBody.failure("STUDENT_NOT_FOUND", "学生不存在", null);
+            } catch (SessionExpiredException error) {
+                return ResponseBody.failure(error.getMessage(), "会话已过期，请重新登录", null);
+            } catch (InitialPasswordChangeRequiredException error) {
+                return ResponseBody.failure(error.getMessage(), "请先修改初始密码", null);
             } catch (IllegalArgumentException | IllegalStateException error) {
                 return ResponseBody.failure("COMMON_INVALID_REQUEST", error.getMessage(), null);
             }

@@ -58,7 +58,8 @@ class AccessPermissionRepositoryTest {
 
         assertThat(superAdministratorPermissions)
                 .containsExactlyInAnyOrder("PLATFORM_MODULE_ADMIN_READ",
-                        "PLATFORM_MODULE_ADMIN_WRITE", "PLATFORM_GOVERNANCE_AUDIT_READ");
+                        "PLATFORM_MODULE_ADMIN_WRITE", "PLATFORM_GOVERNANCE_AUDIT_READ",
+                        "COURSE_TEACHER_OPTIONS_READ");
         assertThat(collegeAdministratorPermissions)
                 .containsExactlyInAnyOrder("STUDENT_READ", "STUDENT_WRITE");
         assertThat(studentAdministratorPermissions)
@@ -67,7 +68,7 @@ class AccessPermissionRepositoryTest {
                 .containsExactlyInAnyOrder("USER_READ_ALL", "USER_STATUS_WRITE",
                         "USER_AUDIT_READ", "USER_PASSWORD_RESET");
         assertThat(libraryAdministratorPermissions).containsExactly("LIBRARY_ADMIN");
-        assertThat(legacyAdministratorPermissions).isEmpty();
+        assertThat(legacyAdministratorPermissions).containsExactly("COURSE_TEACHER_OPTIONS_READ");
         assertThat(studentPermissions).isEmpty();
     }
 

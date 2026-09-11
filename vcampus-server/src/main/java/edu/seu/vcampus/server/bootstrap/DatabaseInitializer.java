@@ -61,7 +61,9 @@ public final class DatabaseInitializer {
     private static void executeStatements(Connection connection, Path sqlFile,
             boolean tablesOnly) throws Exception {
         String sql = Files.readString(sqlFile).replaceAll("YESNO", "BOOLEAN");
-        // Strip CONSTRAINT ... REFERENCES lines (UCanAccess FK bug)
+        // Strip only foreign-key clauses (UCanAccess FK bug). Primary-key and
+        // unique constraints are part of the release database's integrity model
+        // and must survive database generation.
         StringBuilder cleaned = new StringBuilder();
         boolean skipNextRef = false;
         for (String line : sql.split("\n")) {
@@ -70,7 +72,10 @@ public final class DatabaseInitializer {
             // comment as a comment-only statement, discarding the DDL or DML after
             // it. Remove comments before splitting and executing statements.
             if (upper.startsWith("--")) continue;
-            if (upper.startsWith("CONSTRAINT")) { skipNextRef = true; continue; }
+            if (upper.startsWith("CONSTRAINT") && upper.contains("FOREIGN KEY")) {
+                skipNextRef = !upper.contains("REFERENCES");
+                continue;
+            }
             if (skipNextRef && upper.startsWith("REFERENCES")) { skipNextRef = false; continue; }
             skipNextRef = false;
             cleaned.append(line).append("\n");
@@ -85,12 +90,10 @@ public final class DatabaseInitializer {
             boolean isIndex = trimmed.toUpperCase().startsWith("CREATE INDEX")
                     || trimmed.toUpperCase().startsWith("CREATE UNIQUE INDEX");
             if (tablesOnly == isIndex) continue;
-            // UCanAccess 5.x / Jackcess has a defect when adding secondary indexes to
-            // the three training-plan tables of a newly created ACCDB (the table is
-            // reported as null during CreateIndexCommand.persist).  Primary keys are
-            // still created by CREATE TABLE; omitting these nonessential secondary
-            // indexes lets the complete demo dataset be committed and keeps all
-            // training-plan functions available.
+            // UCanAccess 5.x / Jackcess has a defect when adding optional lookup
+            // indexes to these freshly-created tables. Business UNIQUE constraints
+            // are inline in CREATE TABLE, so skipping these indexes affects only
+            // lookup performance, not integrity.
             if (isIndex && sqlFile.getFileName().toString().equals("030_training_plan.sql")) {
                 System.out.println("SKIP (UCanAccess compatibility): " + trimmed);
                 continue;

@@ -94,7 +94,7 @@ class LibraryUiTest {
     @Test
     void libraryAdministratorsReceiveManagementPagesWithoutPersonalBorrowingControls() {
         LibraryWorkspacePanel workspace = new LibraryWorkspacePanel(
-                service, Set.of("LIBRARY_ADMIN"));
+                service, Set.of("LIBRARY_ADMIN"), UserRole.LIBRARY_ADMIN);
 
         assertThat(tabTitles(workspace)).containsExactly("图书管理", "借阅管理", "借阅策略设置");
         assertThat(named(workspace, "library.loan-action")).isNull();
@@ -107,7 +107,7 @@ class LibraryUiTest {
     @Test
     void userMainFrameHostsTheRealPermissionFilteredLibraryWorkspace() {
         LocalDateTime now = LocalDateTime.of(2026, 8, 30, 12, 0);
-        UserView user = new UserView("user-1", "ADMIN", UserRole.ADMIN,
+        UserView user = new UserView("user-1", "LIBRARY_ADMIN", UserRole.LIBRARY_ADMIN,
                 AccountStatus.ACTIVE, false, now, 0, now, now);
         ClientConnection connection = mock(ClientConnection.class);
         when(connection.state()).thenReturn(ConnectionState.CONNECTED);
@@ -118,6 +118,21 @@ class LibraryUiTest {
                 .isInstanceOf(LibraryWorkspacePanel.class);
         assertThat(tabTitles((Container) named(frame.content(), "page.library")))
                 .contains("图书管理", "借阅策略设置");
+        frame.dispose();
+    }
+
+    @Test
+    void unrelatedModernAdministratorGetsReadOnlyCatalogWithoutBorrowingControls() {
+        LocalDateTime now = LocalDateTime.of(2026, 8, 30, 12, 0);
+        UserView user = new UserView("user-1", "COURSE_ADMIN", UserRole.COURSE_ADMIN,
+                AccountStatus.ACTIVE, false, now, 0, now, now);
+        ClientConnection connection = mock(ClientConnection.class);
+        when(connection.state()).thenReturn(ConnectionState.CONNECTED);
+        MainFrame frame = new MainFrame(user, connection, service, Set.of());
+        Container workspace = (Container) named(frame.content(), "page.library");
+
+        assertThat(tabTitles(workspace)).containsExactly("馆藏检索");
+        assertThat(named(workspace, "library.loan-action")).isNull();
         frame.dispose();
     }
 

@@ -11,6 +11,7 @@ import edu.seu.vcampus.common.user.ResetTeacherPasswordCommand;
 import edu.seu.vcampus.common.user.TeacherAccountApplicationCommand;
 import edu.seu.vcampus.common.user.UpdateUserRoleCommand;
 import edu.seu.vcampus.common.user.UserSearchQuery;
+import edu.seu.vcampus.common.course.CourseTeacherQuery;
 import edu.seu.vcampus.server.routing.ClientContext;
 import edu.seu.vcampus.server.routing.MessageHandler;
 import edu.seu.vcampus.server.routing.MessageRouter;
@@ -51,6 +52,7 @@ public final class UserHandlers {
         router.register("USER_GET_CURRENT", currentUserHandler());
         router.register("USER_CHANGE_PASSWORD", passwordChangeHandler());
         router.register("USER_SEARCH", searchHandler());
+        router.register("COURSE_TEACHER_OPTIONS", courseTeacherOptionsHandler());
         router.register("USER_UPDATE_ROLE", roleUpdateHandler());
         router.register("USER_CHANGE_STATUS", statusChangeHandler());
         router.register("USER_RESET_STUDENT_PASSWORD", studentPasswordResetHandler());
@@ -139,6 +141,21 @@ public final class UserHandlers {
             return safely(() -> ResponseBody.success(users.searchUsers(query)));
         };
     }
+
+    private MessageHandler courseTeacherOptionsHandler() {
+        return (message, context) -> {
+            try {
+                CourseTeacherQuery query = requireBody(CourseTeacherQuery.class, message.body());
+                authorization.requirePermission(message.sessionToken(),
+                        "COURSE_TEACHER_OPTIONS_READ");
+                UserIdentity actor = authorization.requireSession(message.sessionToken());
+                requireCourseAdministrator(actor);
+                return ResponseBody.success(users.searchCourseTeachers(query));
+            } catch (RuntimeException error) {
+                return rejected(null, "COURSE_TEACHER_OPTIONS", null, error, context);
+            }
+        };
+    }
     private MessageHandler roleUpdateHandler() {
         return (message, context) -> {
             UpdateUserRoleCommand command = null;
@@ -222,6 +239,14 @@ public final class UserHandlers {
 
     private static void requireUserAdministrator(UserIdentity identity) {
         if (identity.role() != edu.seu.vcampus.common.user.UserRole.USER_ADMIN) {
+            throw new ForbiddenException();
+        }
+    }
+
+    private static void requireCourseAdministrator(UserIdentity identity) {
+        if (identity.role() != edu.seu.vcampus.common.user.UserRole.COURSE_ADMIN
+                && identity.role() != edu.seu.vcampus.common.user.UserRole.SUPER_ADMIN
+                && identity.role() != edu.seu.vcampus.common.user.UserRole.ADMIN) {
             throw new ForbiddenException();
         }
     }

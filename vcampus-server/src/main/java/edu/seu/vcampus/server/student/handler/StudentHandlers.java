@@ -7,6 +7,8 @@ import edu.seu.vcampus.common.student.*;
 import edu.seu.vcampus.server.routing.MessageHandler;
 import edu.seu.vcampus.server.routing.MessageRouter;
 import edu.seu.vcampus.server.routing.RequestContext;
+import edu.seu.vcampus.server.security.InitialPasswordChangeRequiredException;
+import edu.seu.vcampus.server.security.SessionExpiredException;
 import edu.seu.vcampus.server.student.service.StudentAdmissionService;
 import edu.seu.vcampus.server.student.service.StudentOrganizationQuery;
 import edu.seu.vcampus.server.student.service.StudentService;
@@ -233,7 +235,7 @@ public final class StudentHandlers {
 
     private StudentPrincipal principal(Message message) {
         StudentPrincipal principal = authorization.authenticate(message.sessionToken());
-        if (principal == null) throw new IllegalArgumentException("Invalid session");
+        if (principal == null) throw new SessionExpiredException();
         return principal;
     }
 
@@ -273,6 +275,10 @@ public final class StudentHandlers {
                 return ResponseBody.failure(error.code(), error.getMessage(), null);
             } catch (OrganizationHierarchyException error) {
                 return ResponseBody.failure("STUDENT_ORGANIZATION_HAS_ACTIVE_CHILDREN", error.getMessage(), null);
+            } catch (SessionExpiredException error) {
+                return ResponseBody.failure(error.getMessage(), "会话已过期，请重新登录", null);
+            } catch (InitialPasswordChangeRequiredException error) {
+                return ResponseBody.failure(error.getMessage(), "请先修改初始密码", null);
             } catch (UnsupportedOperationException error) {
                 return ResponseBody.failure("COMMON_NOT_SUPPORTED", error.getMessage(), null);
             } catch (IllegalArgumentException error) {

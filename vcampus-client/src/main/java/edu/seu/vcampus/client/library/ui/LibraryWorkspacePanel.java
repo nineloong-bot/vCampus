@@ -26,7 +26,8 @@ public final class LibraryWorkspacePanel extends JPanel {
         setName("page.library");
         setBackground(LibraryPalette.PAGE);
         tabs.setName("library.tabs");
-        boolean administrator = role == UserRole.ADMIN;
+        boolean borrowingUser = role == UserRole.STUDENT || role == UserRole.TEACHER;
+        boolean administrator = !borrowingUser;
         boolean mayManageLibrary = permissions.contains("LIBRARY_ADMIN");
         if (!administrator || !mayManageLibrary) {
             BookSearchPanel search = new BookSearchPanel(service);

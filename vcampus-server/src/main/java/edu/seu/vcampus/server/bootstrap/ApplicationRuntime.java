@@ -2,6 +2,7 @@ package edu.seu.vcampus.server.bootstrap;
 
 import edu.seu.vcampus.common.protocol.EmptyResponse;
 import edu.seu.vcampus.common.protocol.ResponseBody;
+import edu.seu.vcampus.common.user.UserRole;
 import edu.seu.vcampus.server.concurrency.ResourceLockManager;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.course.composition.CourseComposition;
@@ -101,13 +102,15 @@ public final class ApplicationRuntime {
         CourseAuthorizationGateway courseAuthorization = CourseRuntimeAdapters.authorization(
                 sessions::requireSnapshot,
                 snapshot -> snapshot.identity().userId(),
-                snapshot -> snapshot.identity().role().name(),
+                snapshot -> courseRole(snapshot.identity().role()),
                 snapshot -> !snapshot.restricted(),
                 (userId, role) -> users.findActiveUser(userId)
                         .map(identity -> identity.role().name().equals(role)).orElse(false));
         MessageRouter router = new MessageRouter(Map.of(
                 "PING", (request, context) -> ResponseBody.success(EmptyResponse.INSTANCE)));
         new UserHandlers(router, users, authorization, deduplicator);
+        UnifiedModuleRegistry.registerGovernance(router, transactions, locks, sessions,
+                authorization, deduplicator, audits);
         router.register("SECURITY_AUDIT_SEARCH", new SecurityAuditHandler(authorization,
                 new SecurityAuditService(transactions, audits)));
         StudentQueryPort studentQueries = UnifiedModuleRegistry.registerStudent(router,
@@ -118,6 +121,8 @@ public final class ApplicationRuntime {
                         studentQueries::getEnrollmentEligibility,
                         eligibility -> eligibility.studentId(),
                         eligibility -> eligibility.status().name(),
+                        eligibility -> eligibility.majorCode(),
+                        eligibility -> eligibility.cohortYear(),
                         studentQueries::existsActiveStudent)
                 : Objects.requireNonNull(studentGatewayFactory.apply(users), "studentGateway");
         CourseComposition courses = CourseComposition.create(connections, courseAuthorization,
@@ -146,5 +151,12 @@ public final class ApplicationRuntime {
     /** Exposes the shared authorization state to the production bootstrap. */
     AuthorizationService authorization() {
         return authorization;
+    }
+
+    private static String courseRole(UserRole role) {
+        return switch (role) {
+            case SUPER_ADMIN, COURSE_ADMIN, ADMIN -> "ADMIN";
+            default -> role.name();
+        };
     }
 }

@@ -70,7 +70,7 @@ public final class MyShopPanel extends JPanel {
         businessAction.addActionListener(event -> openBusinessPage());
         JPanel north = uiKit.filterPanel("my.header", new BorderLayout(8, 8));
         north.add(named(new JLabel("商城个人中心"), "my.title"), BorderLayout.CENTER);
-        if (navigator != null && (role == UserRole.ADMIN || seller != null)) {
+        if (navigator != null && (isAdministrator() || seller != null)) {
             north.add(businessAction, BorderLayout.EAST);
         }
         add(north, BorderLayout.NORTH);
@@ -99,12 +99,12 @@ public final class MyShopPanel extends JPanel {
     }
 
     private String businessLabel() {
-        if (role == UserRole.ADMIN) return "商城管理";
+        if (isAdministrator()) return "商城管理";
         return seller == null ? "" : "加载申请状态…";
     }
 
     private void loadBusinessAction() {
-        if (role == UserRole.ADMIN || seller == null || disposed) return;
+        if (isAdministrator() || seller == null || disposed) return;
         businessAction.setEnabled(false);
         long request = businessRequests.begin();
         seller.getMyApplication().whenComplete((application, failure) ->
@@ -135,7 +135,7 @@ public final class MyShopPanel extends JPanel {
 
     private void openBusinessPage() {
         if (navigator == null) return;
-        if (role == UserRole.ADMIN) {
+        if (isAdministrator()) {
             navigator.open(new ShopRoute.AdminWorkspace());
             return;
         }
@@ -143,6 +143,11 @@ public final class MyShopPanel extends JPanel {
         navigator.open(status == SellerApplicationStatus.APPROVED
                 ? new ShopRoute.SellerWorkspace()
                 : new ShopRoute.SellerApplication());
+    }
+
+    private boolean isAdministrator() {
+        return role == UserRole.ADMIN || role == UserRole.SHOP_ADMIN
+                || role == UserRole.SUPER_ADMIN;
     }
 
     private void finish(long request, PaidOrderHistory history, Throwable failure) {

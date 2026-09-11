@@ -77,12 +77,14 @@ class MyShopRoleActionTest {
         ShopSwingTestSupport.onEdt(() -> sellerAction.doClick());
         assertThat(approved.routes).containsExactly(new ShopRoute.SellerWorkspace());
 
-        Fixture admin = fixture(UserRole.ADMIN, null);
-        JButton adminAction = ShopSwingTestSupport.component(
-                admin.panel, "my.business.action", JButton.class);
-        assertThat(adminAction.getText()).isEqualTo("商城管理");
-        ShopSwingTestSupport.onEdt(() -> adminAction.doClick());
-        assertThat(admin.routes).containsExactly(new ShopRoute.AdminWorkspace());
+        for (UserRole role : List.of(UserRole.ADMIN, UserRole.SHOP_ADMIN, UserRole.SUPER_ADMIN)) {
+            Fixture admin = fixture(role, null);
+            JButton adminAction = ShopSwingTestSupport.component(
+                    admin.panel, "my.business.action", JButton.class);
+            assertThat(adminAction.getText()).isEqualTo("商城管理");
+            ShopSwingTestSupport.onEdt(() -> adminAction.doClick());
+            assertThat(admin.routes).containsExactly(new ShopRoute.AdminWorkspace());
+        }
     }
 
     private static Fixture fixture(UserRole role, SellerShopClientPort seller) throws Exception {

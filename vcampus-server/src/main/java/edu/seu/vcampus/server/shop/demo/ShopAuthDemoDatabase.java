@@ -43,11 +43,18 @@ public final class ShopAuthDemoDatabase {
             executeScript(connection, schemas.resolve("001_common.sql"));
             executeScript(connection, schemas.resolve("010_user.sql"));
             executeScript(connection, seeds.resolve("010_roles_permissions.sql"));
+            clearSharedDemoUsers(connection);
             executeScript(connection, schemas.resolve("050_shop.sql"));
             seedUsers(connection);
             seedCatalog(connection);
             seedApplications(connection);
             seedOrders(connection);
+        }
+    }
+
+    private static void clearSharedDemoUsers(Connection connection) throws Exception {
+        try (var statement = connection.createStatement()) {
+            statement.executeUpdate("DELETE FROM tblUser");
         }
     }
 

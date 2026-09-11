@@ -6,6 +6,8 @@ import edu.seu.vcampus.server.concurrency.ResourceLockManager;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.config.ConfigurationException;
 import edu.seu.vcampus.server.config.ServerConfig;
+import edu.seu.vcampus.server.governance.AccessModuleAdministrationRepository;
+import edu.seu.vcampus.server.governance.ModuleAdministrationService;
 import edu.seu.vcampus.server.network.SocketServer;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import edu.seu.vcampus.server.persistence.TransactionManager;
@@ -13,6 +15,7 @@ import edu.seu.vcampus.server.routing.MessageRouter;
 import edu.seu.vcampus.server.routing.MessageHandler;
 import edu.seu.vcampus.server.routing.RequestDeduplicator;
 import edu.seu.vcampus.server.security.AuthorizationService;
+import edu.seu.vcampus.server.security.InitialPasswordChangeRequiredException;
 import edu.seu.vcampus.server.security.SessionExpiredException;
 import edu.seu.vcampus.server.security.UserIdentity;
 import edu.seu.vcampus.server.session.SessionRegistry;
@@ -97,19 +100,14 @@ public final class ServerMain {
     }
 
     private static MessageRouter createApplicationRouter(ServerConfig config) throws Exception {
-        String databaseUrl = "jdbc:ucanaccess://" + config.databasePath()
-                + (config.databaseCreateIfMissing() ? ";newDatabaseVersion=V2010" : "")
-                + ";immediatelyReleaseResources=true";
-        ConnectionProvider connections = () -> DriverManager.getConnection(databaseUrl);
+        ConnectionProvider connections = () -> DriverManager.getConnection(databaseUrl(config));
         return ApplicationRuntime.create(connections, config.databaseResourceRoot(),
                 java.time.Clock.systemUTC(),
                 Duration.ofMinutes(config.sessionTimeoutMinutes())).router();
     }
 
     private static ServerRuntime createRuntime(ServerConfig config) {
-        String databaseUrl = "jdbc:ucanaccess://" + config.databasePath()
-                + ";immediatelyReleaseResources=true";
-        ConnectionProvider connections = () -> DriverManager.getConnection(databaseUrl);
+        ConnectionProvider connections = () -> DriverManager.getConnection(databaseUrl(config));
         java.time.Clock clock = java.time.Clock.systemUTC();
         TransactionManager transactions = new TransactionManager(connections);
         StripedResourceLockManager locks = new StripedResourceLockManager();
@@ -123,11 +121,19 @@ public final class ServerMain {
                 audits, passwords, sessions, clock);
         AuthorizationService authorization = new AuthorizationService(sessions);
         RequestDeduplicator deduplicator = new RequestDeduplicator(transactions, locks);
+        ModuleAdministrationService governance = new ModuleAdministrationService(
+                transactions, locks, new AccessModuleAdministrationRepository(), audits, sessions);
         SecurityAuditHandler auditHandler = new SecurityAuditHandler(authorization,
                 new SecurityAuditService(transactions, audits));
         StudentHandlers students = createStudentHandlers(transactions, locks, sessions,
                 deduplicator, (UserQueryPort) users, userRepository, audits, passwords);
-        return new ServerRuntime(users, authorization, deduplicator, auditHandler, students);
+        return new ServerRuntime(users, authorization, deduplicator, auditHandler,
+                governance, students);
+    }
+
+    static String databaseUrl(ServerConfig config) {
+        return "jdbc:ucanaccess://" + config.databasePath()
+                + (config.databaseCreateIfMissing() ? ";newDatabaseVersion=V2010" : "");
     }
 
     private static void registerSecurityAudit(
@@ -155,15 +161,8 @@ public final class ServerMain {
         StudentProfileServiceImpl profiles = new StudentProfileServiceImpl(transactions, locks,
                 students, new StudentProfileApplicationRepository(), changes, users);
         StudentAuthorizationPort authorization = token -> {
-            SessionRegistry.SessionSnapshot snapshot;
-            try {
-                snapshot = sessions.requireSnapshot(token);
-            } catch (SessionExpiredException error) {
-                throw new IllegalArgumentException("Invalid session", error);
-            }
-            if (snapshot.restricted()) {
-                throw new IllegalArgumentException("Invalid session");
-            }
+            SessionRegistry.SessionSnapshot snapshot = sessions.requireSnapshot(token);
+            if (snapshot.restricted()) throw new InitialPasswordChangeRequiredException();
             UserIdentity identity = snapshot.identity();
             return new StudentPrincipal(identity.userId(), Set.of(identity.role().name()),
                     snapshot.permissions());
@@ -189,6 +188,7 @@ public final class ServerMain {
     private record ServerRuntime(UserService users, AuthorizationService authorization,
                                  RequestDeduplicator deduplicator,
                                  SecurityAuditHandler auditHandler,
+                                 ModuleAdministrationService governance,
                                  StudentHandlers students) {
     }
 }

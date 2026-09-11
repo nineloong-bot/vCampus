@@ -35,7 +35,7 @@ class ServerMainAuditAssemblyTest {
     }
 
     @Test
-    void unifiedProductionRuntimeReplaysAUserWriteWithTheSameRequestId() throws Exception {
+    void unifiedProductionRuntimeConsistentlyRejectsDisabledPublicTeacherRegistration() throws Exception {
         Path database = Files.createTempDirectory("vcampus-dedup-runtime-").resolve("runtime.accdb");
         ConnectionProvider connections = () -> DriverManager.getConnection(
                 "jdbc:ucanaccess://" + database + ";newDatabaseVersion=V2010");
@@ -45,8 +45,10 @@ class ServerMainAuditAssemblyTest {
         ResponseBody<?> first = register(runtime, requestId, "TEACHER_DEDUP");
         ResponseBody<?> replay = register(runtime, requestId, "TEACHER_DEDUP");
 
-        assertThat(first.success()).isTrue();
-        assertThat(replay.success()).isTrue();
+        assertThat(first.success()).isFalse();
+        assertThat(first.code()).isEqualTo("COMMON_VALIDATION_FAILED");
+        assertThat(replay.success()).isFalse();
+        assertThat(replay.code()).isEqualTo("COMMON_VALIDATION_FAILED");
     }
 
     private static ResponseBody<?> register(ApplicationRuntime runtime, String requestId, String loginId) {

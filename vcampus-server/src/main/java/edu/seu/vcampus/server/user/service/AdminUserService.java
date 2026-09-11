@@ -1,6 +1,7 @@
 package edu.seu.vcampus.server.user.service;
 
 import edu.seu.vcampus.common.paging.PageResult;
+import edu.seu.vcampus.common.course.CourseTeacherQuery;
 import edu.seu.vcampus.common.user.AccountStatus;
 import edu.seu.vcampus.common.user.ChangeUserStatusCommand;
 import edu.seu.vcampus.common.user.ResetStudentPasswordCommand;
@@ -57,6 +58,16 @@ final class AdminUserService {
             return new PageResult<>(accounts.items().stream().map(AdminUserService::summary).toList(),
                     accounts.page(), accounts.pageSize(), accounts.total());
         });
+    }
+
+    PageResult<UserSummary> searchCourseTeachers(CourseTeacherQuery query) {
+        Objects.requireNonNull(query, "query");
+        PageResult<UserSummary> page = search(new UserSearchQuery(query.keyword(),
+                UserRole.TEACHER, AccountStatus.ACTIVE, query.page(), query.pageSize()));
+        return new PageResult<>(page.items().stream()
+                .map(teacher -> new UserSummary(teacher.userId(), teacher.loginId(),
+                        UserRole.TEACHER, AccountStatus.ACTIVE, null, 0))
+                .toList(), page.page(), page.pageSize(), page.total());
     }
 
     UserView updateRole(UpdateUserRoleCommand command) {

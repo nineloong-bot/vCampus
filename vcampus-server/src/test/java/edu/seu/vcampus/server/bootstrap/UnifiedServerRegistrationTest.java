@@ -23,6 +23,9 @@ class UnifiedServerRegistrationTest {
 
         assertThat(runtime.router().isRegistered("USER_LOGIN")).isTrue();
         assertThat(runtime.router().isRegistered("STUDENT_GET_CURRENT")).isTrue();
+        assertThat(runtime.router().isRegistered("MAJOR_TRANSFER_GET_WORKSPACE")).isTrue();
+        assertThat(runtime.router().isRegistered("TRAINING_PLAN_GET_MY")).isTrue();
+        assertThat(runtime.router().isRegistered("PLATFORM_MODULE_ADMIN_LIST")).isTrue();
         assertThat(runtime.router().isRegistered("COURSE_SEARCH_OFFERINGS")).isTrue();
         assertThat(runtime.router().isRegistered("LIBRARY_SEARCH_BOOKS")).isTrue();
         assertThat(runtime.router().isRegistered("SHOP_HOME")).isTrue();

@@ -4,6 +4,7 @@ import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.course.service.CourseClientException;
 import edu.seu.vcampus.client.course.service.CourseClientService;
 import edu.seu.vcampus.client.course.ui.CourseUiComposition;
+import edu.seu.vcampus.client.course.ui.CourseClientGateway;
 import edu.seu.vcampus.client.course.ui.CourseWorkspacePanel;
 import edu.seu.vcampus.client.user.service.UserClientService;
 import edu.seu.vcampus.common.course.CreateCourseCommand;
@@ -15,11 +16,11 @@ import edu.seu.vcampus.common.course.EnrollmentView;
 import edu.seu.vcampus.common.course.OfferingSearchQuery;
 import edu.seu.vcampus.common.course.CreateSelectionPhaseCommand;
 import edu.seu.vcampus.common.course.ChangeSelectionPhaseStatusCommand;
+import edu.seu.vcampus.common.course.AcademicSeason;
 import edu.seu.vcampus.common.user.AccountStatus;
 import edu.seu.vcampus.common.user.LoginResult;
 import edu.seu.vcampus.common.user.UserRole;
 import edu.seu.vcampus.common.user.UpdateUserRoleCommand;
-import edu.seu.vcampus.common.user.UserSearchQuery;
 import edu.seu.vcampus.server.bootstrap.ApplicationRuntime;
 import edu.seu.vcampus.server.network.SocketServer;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
@@ -74,20 +75,22 @@ class LoginCourseSocketIntegrationTest {
     private ClientConnection connection;
     private UserClientService users;
     private CourseClientService courses;
+    private ConnectionProvider connections;
 
     @BeforeEach
     void startProductionApplicationOnARealSocketAndAccessDatabase() throws Exception {
         Path database = temporaryDirectory.resolve("integration.accdb");
-        ConnectionProvider connections = () -> DriverManager.getConnection(
+        connections = () -> DriverManager.getConnection(
                 "jdbc:ucanaccess://" + database + ";newDatabaseVersion=V2010");
         ApplicationRuntime runtime = ApplicationRuntime.create(
                 connections, databaseRoot(), Clock.fixed(NOW, ZoneOffset.UTC));
         insertUser(connections, STUDENT_USER_ID, "STUDENT1", UserRole.STUDENT, false);
         insertStudent(connections, STUDENT_ID, STUDENT_USER_ID);
         insertUser(connections, TEACHER_USER_ID, "TEACHER1", UserRole.TEACHER, false);
-        insertUser(connections, "admin-user-001", "ADMIN1", UserRole.ADMIN, false);
-        insertUser(connections, "admin-user-002", "ADMIN2", UserRole.ADMIN, false);
-        insertUser(connections, "restricted-user-001", "RESTRICTED1", UserRole.ADMIN, true);
+        insertUser(connections, "admin-user-001", "ADMIN1", UserRole.SUPER_ADMIN, false);
+        insertUser(connections, "admin-user-002", "ADMIN2", UserRole.SUPER_ADMIN, false);
+        insertUser(connections, "course-admin-user", "COURSEADMIN", UserRole.COURSE_ADMIN, false);
+        insertUser(connections, "restricted-user-001", "RESTRICTED1", UserRole.SUPER_ADMIN, true);
 
         server = new SocketServer(0, 4, 20, runtime.router());
         serverThread = Executors.newSingleThreadExecutor();
@@ -122,7 +125,7 @@ class LoginCourseSocketIntegrationTest {
     @Test
     void authenticatesEveryCourseRoleAndPreservesSessionSecurityAcrossTheProductionBoundary() {
         LoginResult administrator = login("ADMIN1");
-        assertThat(administrator.user().role()).isEqualTo(UserRole.ADMIN);
+        assertThat(administrator.user().role()).isEqualTo(UserRole.SUPER_ADMIN);
         assertWorkspaceTabs(administrator, List.of(
                 "学期管理", "选课阶段", "课程目录", "教学班管理", "修读结果导入", "选退记录"));
         var term = courses.createTerm(term()).join();
@@ -132,10 +135,17 @@ class LoginCourseSocketIntegrationTest {
                 phase.phaseId(), "OPEN", phase.rowVersion())).join();
         var course = courses.createCourse(new CreateCourseCommand(
                 "CS-E2E", "端到端系统测试", BigDecimal.valueOf(3), 48, null, true)).join();
+        addCourseToStudentCurriculum(course.courseId());
         var offering = courses.createOffering(new CreateOfferingCommand(
                 term.termId(), course.courseId(), TEACHER_USER_ID, "E2E-01", 20, "OPEN",
                 List.of(new CreateOfferingCommand.ScheduleInput(
                         "MONDAY", 1, 2, 1, 16, "TEST-101")))).join();
+        assertTeacherOptionsAvailableOverProductionSocket();
+        users.logout().join();
+
+        LoginResult courseAdministrator = login("COURSEADMIN");
+        assertThat(courseAdministrator.user().role()).isEqualTo(UserRole.COURSE_ADMIN);
+        assertTeacherOptionsAvailableOverProductionSocket();
         users.logout().join();
 
         LoginResult student = login("STUDENT1");
@@ -147,7 +157,8 @@ class LoginCourseSocketIntegrationTest {
                 term.termId(), "CS-E2E", null, false, 0, 20);
         assertThat(courses.searchOfferings(query).join().items())
                 .extracting("offeringId").containsExactly(offering.offeringId());
-        EnrollmentView enrollment = courses.enroll(new EnrollCommand(offering.offeringId())).join();
+        EnrollmentView enrollment = courseResult(
+                courses.enroll(new EnrollCommand(offering.offeringId())));
         assertThat(enrollment.studentId())
                 .as("course enrollment uses the student module's studentId mapping")
                 .isEqualTo(STUDENT_ID);
@@ -188,7 +199,7 @@ class LoginCourseSocketIntegrationTest {
                     targetConnection, "demoted-admin", Duration.ofSeconds(10));
             CourseClientService targetCourses = new CourseClientService(targetConnection);
             LoginResult target = targetUsers.login("ADMIN2", PASSWORD.toCharArray()).join();
-            assertThat(target.user().role()).isEqualTo(UserRole.ADMIN);
+            assertThat(target.user().role()).isEqualTo(UserRole.SUPER_ADMIN);
 
             login("ADMIN1");
             var update = connection.send("USER_UPDATE_ROLE", new UpdateUserRoleCommand(
@@ -197,9 +208,8 @@ class LoginCourseSocketIntegrationTest {
             assertThat(update.success()).isFalse();
             assertThat(update.code()).isEqualTo("COMMON_VALIDATION_FAILED");
 
-            var userAdminResponse = targetConnection.send("USER_SEARCH",
-                    new UserSearchQuery(null, null, null, 0, 10), Duration.ofSeconds(10)).join();
-            assertThat(userAdminResponse.success()).isTrue();
+            assertThat(targetUsers.getCurrentUser().join().role())
+                    .isEqualTo(UserRole.SUPER_ADMIN);
             assertThat(targetCourses.listTerms().join()).isNotEmpty();
         } finally {
             targetConnection.close();
@@ -209,7 +219,7 @@ class LoginCourseSocketIntegrationTest {
     @Test
     void restrictedAdministratorReceivesPasswordPolicyCodeAcrossProductionSocket() {
         LoginResult restricted = login("RESTRICTED1");
-        assertThat(restricted.user().role()).isEqualTo(UserRole.ADMIN);
+        assertThat(restricted.user().role()).isEqualTo(UserRole.SUPER_ADMIN);
         assertThat(restricted.mustChangePassword()).isTrue();
 
         Throwable failure = catchThrowable(() -> users.changePassword(
@@ -266,9 +276,33 @@ class LoginCourseSocketIntegrationTest {
                 courseFailure -> assertThat(courseFailure.code()).isEqualTo(code));
     }
 
+    private void assertTeacherOptionsAvailableOverProductionSocket() {
+        var teachers = new CourseClientGateway(courses, users).searchTeachers("").join();
+        assertThat(teachers.items()).anySatisfy(teacher -> {
+            assertThat(teacher.userId()).isEqualTo(TEACHER_USER_ID);
+            assertThat(teacher.loginId()).isEqualTo("TEACHER1");
+            assertThat(teacher.lastLoginAt()).as("teacher options omit account activity").isNull();
+            assertThat(teacher.rowVersion()).as("teacher options omit account versions").isZero();
+        });
+    }
+
+    private static <T> T courseResult(java.util.concurrent.CompletableFuture<T> result) {
+        try {
+            return result.join();
+        } catch (java.util.concurrent.CompletionException failure) {
+            Throwable root = failure;
+            while (root.getCause() != null) root = root.getCause();
+            if (root instanceof CourseClientException courseFailure) {
+                throw new AssertionError("Course operation failed with " + courseFailure.code(), failure);
+            }
+            throw failure;
+        }
+    }
+
     private static CreateTermCommand term() {
         return new CreateTermCommand("2026-E2E", "端到端测试学期",
                 LocalDate.of(2026, 8, 1), LocalDate.of(2027, 1, 31),
+                2026, AcademicSeason.AUTUMN,
                 NOW.minus(Duration.ofDays(7)), NOW.plus(Duration.ofDays(7)),
                 NOW.plus(Duration.ofDays(8)), NOW.plus(Duration.ofDays(14)), "ACTIVE");
     }
@@ -313,7 +347,8 @@ class LoginCourseSocketIntegrationTest {
                                       String userId) throws Exception {
         try (var connection = connections.open();
              var classQuery = connection.createStatement();
-             var classes = classQuery.executeQuery("SELECT TOP 1 classId FROM tblClass");
+             var classes = classQuery.executeQuery(
+                     "SELECT classId FROM tblClass WHERE classCode='090-2023-01'");
              var statement = connection.prepareStatement("""
                      INSERT INTO tblStudent (studentId, userId, studentNumber, studentType,
                          studentName, gender, classId, enrollmentDate, studentStatus,
@@ -324,7 +359,7 @@ class LoginCourseSocketIntegrationTest {
             LocalDateTime now = LocalDateTime.ofInstant(NOW, ZoneOffset.UTC);
             statement.setString(1, studentId);
             statement.setString(2, userId);
-            statement.setString(3, "23990001");
+            statement.setString(3, "09023998");
             statement.setString(4, "UNDERGRADUATE");
             statement.setString(5, "课程集成学生");
             statement.setString(6, "UNKNOWN");
@@ -335,6 +370,21 @@ class LoginCourseSocketIntegrationTest {
             statement.setTimestamp(11, Timestamp.valueOf(now));
             statement.setTimestamp(12, Timestamp.valueOf(now));
             statement.executeUpdate();
+        }
+    }
+
+    private void addCourseToStudentCurriculum(String courseId) {
+        try (var database = connections.open(); var statement = database.prepareStatement("""
+                INSERT INTO tblCurriculumCourse (planCourseId, planId, courseId, academicYearNo,
+                    season, courseNature, courseCategory, offeringUnit)
+                VALUES (?, 'demo-curriculum-090-2023', ?, 4, 'AUTUMN', 'REQUIRED',
+                    '专业核心课', '计算机科学与工程学院')
+                """)) {
+            statement.setString(1, UUID.randomUUID().toString());
+            statement.setString(2, courseId);
+            statement.executeUpdate();
+        } catch (Exception error) {
+            throw new AssertionError(error);
         }
     }
 

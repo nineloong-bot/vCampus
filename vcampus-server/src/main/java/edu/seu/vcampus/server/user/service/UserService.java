@@ -13,6 +13,7 @@ import edu.seu.vcampus.common.user.UserSummary;
 import edu.seu.vcampus.common.user.UserView;
 import edu.seu.vcampus.server.routing.ClientContext;
 import edu.seu.vcampus.common.paging.PageResult;
+import edu.seu.vcampus.common.course.CourseTeacherQuery;
 
 /** Application boundary for user-management use cases implemented so far. */
 public interface UserService {
@@ -52,6 +53,11 @@ public interface UserService {
 
     /** Searches safe account summaries using administrator-controlled filters and paging. */
     PageResult<UserSummary> searchUsers(UserSearchQuery query);
+
+    /** Returns only sanitized active-teacher choices for course administration. */
+    default PageResult<UserSummary> searchCourseTeachers(CourseTeacherQuery query) {
+        throw new UnsupportedOperationException("Course teacher lookup is unavailable");
+    }
 
     /** Retained compatibility entry point that permanently rejects role changes. */
     UserView updateRole(UpdateUserRoleCommand command);

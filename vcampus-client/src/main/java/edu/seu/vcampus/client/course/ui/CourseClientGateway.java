@@ -30,14 +30,12 @@ import edu.seu.vcampus.common.course.ChangeSelectionPhaseStatusCommand;
 import edu.seu.vcampus.common.course.StudentSelectionContextView;
 import edu.seu.vcampus.common.course.CourseSelectionQuery;
 import edu.seu.vcampus.common.course.CourseSelectionView;
+import edu.seu.vcampus.common.course.CourseTeacherQuery;
 import edu.seu.vcampus.common.protocol.EmptyResponse;
 import edu.seu.vcampus.common.course.OfferingSearchQuery;
 import edu.seu.vcampus.common.course.OfferingSummary;
 import edu.seu.vcampus.common.course.ScheduleItem;
 import edu.seu.vcampus.common.paging.PageResult;
-import edu.seu.vcampus.common.user.AccountStatus;
-import edu.seu.vcampus.common.user.UserRole;
-import edu.seu.vcampus.common.user.UserSearchQuery;
 import edu.seu.vcampus.common.user.UserSummary;
 
 import java.util.List;
@@ -87,8 +85,7 @@ public final class CourseClientGateway implements CourseUiGateway {
         if (users == null) {
             return CompletableFuture.failedFuture(new IllegalStateException("User client is not connected"));
         }
-        return users.searchUsers(new UserSearchQuery(
-                keyword, UserRole.TEACHER, AccountStatus.ACTIVE, 0, 100));
+        return users.searchCourseTeachers(new CourseTeacherQuery(keyword, 0, 100));
     }
     public CompletableFuture<Optional<UserSummary>> resolveTeacher(String userId) {
         Objects.requireNonNull(userId, "userId");
@@ -99,8 +96,7 @@ public final class CourseClientGateway implements CourseUiGateway {
     }
 
     private CompletableFuture<Optional<UserSummary>> resolveTeacher(String userId, int pageNumber) {
-        return users.searchUsers(new UserSearchQuery(
-                        null, UserRole.TEACHER, AccountStatus.ACTIVE, pageNumber, 100))
+        return users.searchCourseTeachers(new CourseTeacherQuery(null, pageNumber, 100))
                 .thenCompose(page -> {
                     Optional<UserSummary> match = page.items().stream()
                             .filter(teacher -> userId.equals(teacher.userId())).findFirst();

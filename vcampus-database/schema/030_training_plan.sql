@@ -11,12 +11,11 @@ CREATE TABLE tblTrainingPlan (
     rowVersion LONG NOT NULL,
     createdAt DATETIME NOT NULL,
     updatedAt DATETIME NOT NULL,
+    CONSTRAINT uk_tblTrainingPlan_major_year UNIQUE (majorId, enrollmentYear),
     CONSTRAINT fk_tblTrainingPlan_major FOREIGN KEY (majorId)
         REFERENCES tblMajor (majorId)
 );
 
-CREATE UNIQUE INDEX uk_tblTrainingPlan_major_year
-    ON tblTrainingPlan (majorId, enrollmentYear);
 CREATE INDEX idx_tblTrainingPlan_major ON tblTrainingPlan (majorId);
 
 CREATE TABLE tblTrainingPlanCourse (
@@ -31,12 +30,11 @@ CREATE TABLE tblTrainingPlanCourse (
     rowVersion LONG NOT NULL,
     createdAt DATETIME NOT NULL,
     updatedAt DATETIME NOT NULL,
+    CONSTRAINT uk_tblTrainingPlanCourse_plan_code UNIQUE (planId, courseCode),
     CONSTRAINT fk_tblTrainingPlanCourse_plan FOREIGN KEY (planId)
         REFERENCES tblTrainingPlan (planId)
 );
 
-CREATE UNIQUE INDEX uk_tblTrainingPlanCourse_plan_code
-    ON tblTrainingPlanCourse (planId, courseCode);
 CREATE INDEX idx_tblTrainingPlanCourse_plan
     ON tblTrainingPlanCourse (planId);
 
@@ -50,13 +48,12 @@ CREATE TABLE tblStudentGrade (
     rowVersion LONG NOT NULL,
     createdAt DATETIME NOT NULL,
     updatedAt DATETIME NOT NULL,
+    CONSTRAINT uk_tblStudentGrade_student_course UNIQUE (studentId, planCourseId),
     CONSTRAINT fk_tblStudentGrade_student FOREIGN KEY (studentId)
         REFERENCES tblStudent (studentId),
     CONSTRAINT fk_tblStudentGrade_course FOREIGN KEY (planCourseId)
         REFERENCES tblTrainingPlanCourse (planCourseId)
 );
 
-CREATE UNIQUE INDEX uk_tblStudentGrade_student_course
-    ON tblStudentGrade (studentId, planCourseId);
 CREATE INDEX idx_tblStudentGrade_student ON tblStudentGrade (studentId);
 CREATE INDEX idx_tblStudentGrade_course ON tblStudentGrade (planCourseId);

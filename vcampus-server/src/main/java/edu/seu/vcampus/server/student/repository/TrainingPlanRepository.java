@@ -189,6 +189,35 @@ public final class TrainingPlanRepository {
         }
     }
 
+    public Optional<TrainingPlanCourse> findCourseByPlanAndCode(Connection connection,
+            String planId, String courseCode) {
+        String sql = "SELECT planCourseId, planId, courseCode, courseName, credits, courseType, "
+                + "semester, isActive, rowVersion, createdAt, updatedAt "
+                + "FROM tblTrainingPlanCourse WHERE planId = ? AND courseCode = ?";
+        try (var statement = connection.prepareStatement(sql)) {
+            statement.setString(1, planId);
+            statement.setString(2, courseCode);
+            try (var result = statement.executeQuery()) {
+                return result.next() ? Optional.of(mapCourse(result)) : Optional.empty();
+            }
+        } catch (java.sql.SQLException error) {
+            throw new OrganizationPersistenceException("Cannot read training plan course", error);
+        }
+    }
+
+    public boolean hasGradesForCourse(Connection connection, String planCourseId) {
+        String sql = "SELECT COUNT(*) FROM tblStudentGrade WHERE planCourseId = ?";
+        try (var statement = connection.prepareStatement(sql)) {
+            statement.setString(1, planCourseId);
+            try (var result = statement.executeQuery()) {
+                result.next();
+                return result.getLong(1) > 0;
+            }
+        } catch (java.sql.SQLException error) {
+            throw new OrganizationPersistenceException("Cannot inspect training plan course grades", error);
+        }
+    }
+
     public void insertCourse(Connection connection, TrainingPlanCourse course) {
         String sql = "INSERT INTO tblTrainingPlanCourse (planCourseId, planId, courseCode, "
                 + "courseName, credits, courseType, semester, isActive, rowVersion, createdAt, updatedAt) "

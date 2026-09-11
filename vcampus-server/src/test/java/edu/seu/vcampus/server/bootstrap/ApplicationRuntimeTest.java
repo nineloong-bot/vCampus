@@ -59,6 +59,8 @@ class ApplicationRuntimeTest {
         LoginResult restricted = login(runtime, "RESTRICTED1");
         assertThat(route(runtime, "COURSE_TERM_LIST", restricted.sessionToken(), EmptyRequest.INSTANCE).code())
                 .isEqualTo("AUTH_INITIAL_PASSWORD_CHANGE_REQUIRED");
+        assertStudentModuleAuthCodes(runtime, restricted.sessionToken(),
+                "AUTH_INITIAL_PASSWORD_CHANGE_REQUIRED");
         assertThat(runtime.course().resourceLocks()).isSameAs(runtime.resourceLocks());
     }
 
@@ -115,6 +117,17 @@ class ApplicationRuntimeTest {
         assertThat(course.code()).isEqualTo("AUTH_SESSION_EXPIRED");
         assertThat(user.code()).isEqualTo("AUTH_SESSION_EXPIRED");
         assertThat(audit.code()).isEqualTo("AUTH_SESSION_EXPIRED");
+        assertStudentModuleAuthCodes(runtime, null, "AUTH_SESSION_EXPIRED");
+    }
+
+    private static void assertStudentModuleAuthCodes(ApplicationRuntime runtime, String token,
+                                                     String expectedCode) {
+        assertThat(route(runtime, "STUDENT_GET_CURRENT", token, EmptyRequest.INSTANCE).code())
+                .isEqualTo(expectedCode);
+        assertThat(route(runtime, "TRAINING_PLAN_GET_MY", token, EmptyRequest.INSTANCE).code())
+                .isEqualTo(expectedCode);
+        assertThat(route(runtime, "MAJOR_TRANSFER_GET_WORKSPACE", token, EmptyRequest.INSTANCE).code())
+                .isEqualTo(expectedCode);
     }
 
     private static LoginResult login(ApplicationRuntime runtime, String loginId) {

@@ -39,7 +39,9 @@ public final class StudentGradeServiceImpl implements StudentGradeService {
         Objects.requireNonNull(command.studentId());
         Objects.requireNonNull(command.planCourseId());
         Objects.requireNonNull(command.result());
-        return locks.withLocks(List.of(new ResourceKey("STUDENT", command.studentId())),
+        return locks.withLocks(List.of(
+                        new ResourceKey("STUDENT", command.studentId()),
+                        new ResourceKey("TRAINING_PLAN_COURSE", command.planCourseId())),
                 () -> transactions.inTransaction(connection -> {
             students.findById(connection, command.studentId())
                     .orElseThrow(StudentNotFoundException::new);

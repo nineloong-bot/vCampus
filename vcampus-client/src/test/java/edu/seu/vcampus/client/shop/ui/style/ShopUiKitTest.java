@@ -153,7 +153,7 @@ class ShopUiKitTest {
         String sources;
         try (Stream<Path> files = Files.walk(root)) {
             sources = files.filter(path -> path.toString().endsWith(".java"))
-                    .filter(path -> !path.toString().contains("\\style\\"))
+                    .filter(path -> !path.startsWith(root.resolve("style")))
                     .filter(path -> !path.getFileName().toString()
                             .equals("BuiltinProductImageLoader.java"))
                     .map(path -> assertDoesNotThrow(() -> Files.readString(path)))

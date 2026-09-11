@@ -7,6 +7,8 @@ import edu.seu.vcampus.common.student.EntityIdRequest;
 import edu.seu.vcampus.common.student.majortransfer.*;
 import edu.seu.vcampus.server.routing.MessageHandler;
 import edu.seu.vcampus.server.routing.MessageRouter;
+import edu.seu.vcampus.server.security.InitialPasswordChangeRequiredException;
+import edu.seu.vcampus.server.security.SessionExpiredException;
 import edu.seu.vcampus.server.student.handler.StudentAuthorizationPort;
 import edu.seu.vcampus.server.student.handler.StudentPrincipal;
 import edu.seu.vcampus.server.student.handler.StudentWriteExecutor;
@@ -231,7 +233,7 @@ public final class MajorTransferHandlers {
 
     private StudentPrincipal principal(Message message) {
         StudentPrincipal p = authorization.authenticate(message.sessionToken());
-        if (p == null) throw new IllegalArgumentException("Invalid session");
+        if (p == null) throw new SessionExpiredException();
         return p;
     }
 
@@ -248,6 +250,10 @@ public final class MajorTransferHandlers {
                         "数据已被修改，请刷新", null);
             } catch (MajorTransferException error) {
                 return ResponseBody.failure(error.code(), error.getMessage(), null);
+            } catch (SessionExpiredException error) {
+                return ResponseBody.failure(error.getMessage(), "会话已过期，请重新登录", null);
+            } catch (InitialPasswordChangeRequiredException error) {
+                return ResponseBody.failure(error.getMessage(), "请先修改初始密码", null);
             } catch (IllegalArgumentException error) {
                 return ResponseBody.failure("COMMON_INVALID_REQUEST",
                         error.getMessage(), null);

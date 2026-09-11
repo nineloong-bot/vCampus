@@ -23,6 +23,7 @@ import edu.seu.vcampus.common.course.AdjustmentAuditView;
 import edu.seu.vcampus.common.course.CourseCatalogQuery;
 import edu.seu.vcampus.common.course.CourseSelectionQuery;
 import edu.seu.vcampus.common.course.CourseSelectionView;
+import edu.seu.vcampus.common.course.CourseTeacherQuery;
 import edu.seu.vcampus.common.course.CourseView;
 import edu.seu.vcampus.common.course.TermView;
 import edu.seu.vcampus.common.course.ImportCourseOutcomesCommand;
@@ -39,7 +40,6 @@ import edu.seu.vcampus.common.course.StudentSelectionContextView;
 import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.user.UserRole;
 import edu.seu.vcampus.common.user.AccountStatus;
-import edu.seu.vcampus.common.user.UserSearchQuery;
 import edu.seu.vcampus.common.user.UserSummary;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import org.junit.jupiter.api.Test;
@@ -47,6 +47,7 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.swing.JButton;
@@ -104,14 +105,14 @@ class CourseUiTest {
             socketCalledOnEdt.set(SwingUtilities.isEventDispatchThread());
             return CompletableFuture.completedFuture(ResponseBody.success(result));
         })
-                .when(connection).send(eq("USER_SEARCH"), any(UserSearchQuery.class), any(Duration.class));
+                .when(connection).send(eq("COURSE_TEACHER_OPTIONS"), any(CourseTeacherQuery.class), any(Duration.class));
         UserClientService users = new UserClientService(connection, "course-ui-test", Duration.ofSeconds(2));
         CourseClientGateway gateway = new CourseClientGateway(mock(CourseClientService.class), users);
 
         onEdt(() -> gateway.searchTeachers("TEA")).join();
 
-        verify(connection).send("USER_SEARCH", new UserSearchQuery(
-                "TEA", UserRole.TEACHER, AccountStatus.ACTIVE, 0, 100), Duration.ofSeconds(2));
+        verify(connection).send("COURSE_TEACHER_OPTIONS",
+                new CourseTeacherQuery("TEA", 0, 100), Duration.ofSeconds(2));
         assertThat(socketCalledOnEdt.get()).isFalse();
     }
 
@@ -143,17 +144,17 @@ class CourseUiTest {
                 .mapToObj(index -> teacher("teacher-" + index, "teacher.login." + index))
                 .toList();
         UserSummary target = teacher("teacher-target", "human.readable.login");
-        UserSearchQuery firstQuery = new UserSearchQuery(null, UserRole.TEACHER, AccountStatus.ACTIVE, 0, 100);
-        UserSearchQuery secondQuery = new UserSearchQuery(null, UserRole.TEACHER, AccountStatus.ACTIVE, 1, 100);
-        when(users.searchUsers(firstQuery)).thenReturn(
+        CourseTeacherQuery firstQuery = new CourseTeacherQuery(null, 0, 100);
+        CourseTeacherQuery secondQuery = new CourseTeacherQuery(null, 1, 100);
+        when(users.searchCourseTeachers(firstQuery)).thenReturn(
                 CompletableFuture.completedFuture(new PageResult<>(firstHundred, 0, 100, 101)));
-        when(users.searchUsers(secondQuery)).thenReturn(
+        when(users.searchCourseTeachers(secondQuery)).thenReturn(
                 CompletableFuture.completedFuture(new PageResult<>(List.of(target), 1, 100, 101)));
 
         assertThat(gateway.resolveTeacher("teacher-target").join())
                 .contains(target);
-        verify(users).searchUsers(firstQuery);
-        verify(users).searchUsers(secondQuery);
+        verify(users).searchCourseTeachers(firstQuery);
+        verify(users).searchCourseTeachers(secondQuery);
     }
 
     @Test
@@ -261,7 +262,23 @@ class CourseUiTest {
         return Stream.of(
                 Arguments.of(UserRole.STUDENT, List.of("选课", "我的选课", "我的课表")),
                 Arguments.of(UserRole.TEACHER, List.of("教学班查询", "教师课表")),
-                Arguments.of(UserRole.ADMIN, List.of("学期管理", "选课阶段", "课程目录", "教学班管理", "修读结果导入", "选退记录")));
+                Arguments.of(UserRole.ADMIN, List.of("学期管理", "选课阶段", "课程目录", "教学班管理", "修读结果导入", "选退记录")),
+                Arguments.of(UserRole.SUPER_ADMIN, List.of("学期管理", "选课阶段", "课程目录", "教学班管理", "修读结果导入", "选退记录")),
+                Arguments.of(UserRole.COURSE_ADMIN, List.of("学期管理", "选课阶段", "课程目录", "教学班管理", "修读结果导入", "选退记录")));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = UserRole.class, names = {
+            "STUDENT_ADMIN", "COLLEGE_ADMIN", "LIBRARY_ADMIN", "SHOP_ADMIN", "USER_ADMIN"
+    })
+    void workspaceShowsSafeUnavailableStateForRolesWithoutCourseAccess(UserRole role)
+            throws Exception {
+        CourseWorkspacePanel workspace = onEdt(
+                () -> new CourseWorkspacePanel(CourseUiGateway.preview(), role));
+
+        JLabel unavailable = component(workspace, "course.unavailable", JLabel.class);
+        assertThat(unavailable).isNotNull();
+        assertThat(unavailable.getText()).contains("无课程中心权限");
     }
 
     @Test

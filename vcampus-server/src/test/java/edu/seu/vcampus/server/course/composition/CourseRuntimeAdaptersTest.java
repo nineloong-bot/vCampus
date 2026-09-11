@@ -38,4 +38,20 @@ class CourseRuntimeAdaptersTest {
         assertThat(adapter.existsActiveStudent("student-for-user-1")).isTrue();
         assertThat(adapter.existsActiveStudent("missing")).isFalse();
     }
+
+    @Test
+    void bindsCurriculumContextFromStudentEligibility() {
+        record ExternalEligibility(String studentId, String status,
+                                   String majorCode, int cohortYear) { }
+        var adapter = CourseRuntimeAdapters.students(
+                userId -> new ExternalEligibility("student-1", "ACTIVE", "090", 2023),
+                ExternalEligibility::studentId, ExternalEligibility::status,
+                ExternalEligibility::majorCode, ExternalEligibility::cohortYear,
+                studentId -> true);
+
+        var eligibility = adapter.getEnrollmentEligibility("user-1");
+        assertThat(eligibility.majorCode()).isEqualTo("090");
+        assertThat(eligibility.cohortYear()).isEqualTo(2023);
+        assertThat(eligibility.hasCurriculumContext()).isTrue();
+    }
 }

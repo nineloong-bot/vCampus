@@ -113,19 +113,23 @@ class IntegratedDemoServerMainTest {
         ApplicationRuntime first = IntegratedDemoServerMain.prepare(
                 database, databaseRoot(), CLOCK);
 
-        LoginResult administrator = login(first, "DEMO_ADMIN", DEMO_PASSWORD);
-        assertThat(administrator.user().role()).isEqualTo(UserRole.ADMIN);
-        assertThat(administrator.mustChangePassword()).isTrue();
+        LoginResult administrator = login(first, "DEMO_ADMIN", "admin123456");
+        assertThat(administrator.user().role()).isEqualTo(UserRole.SUPER_ADMIN);
+        assertThat(administrator.mustChangePassword()).isFalse();
         assertThat(administrator.permissions()).contains(
-                "USER_READ_ALL", "USER_ROLE_WRITE", "USER_STATUS_WRITE", "USER_AUDIT_READ");
+                "PLATFORM_MODULE_ADMIN_READ", "PLATFORM_MODULE_ADMIN_WRITE",
+                "PLATFORM_GOVERNANCE_AUDIT_READ");
+        assertThat(route(first, "COURSE_SELECTION_PHASE_LIST",
+                administrator.sessionToken(), EmptyRequest.INSTANCE).success()).isTrue();
 
         LoginResult student = login(first, "DEMO_STUDENT", DEMO_PASSWORD);
         assertThat(student.user().userId()).isEqualTo("demo-student");
         assertThat(student.user().role()).isEqualTo(UserRole.STUDENT);
         assertThat(student.mustChangePassword()).isFalse();
 
-        LoginResult teacher = login(first, "DEMO_TEACHER", DEMO_PASSWORD);
-        assertThat(teacher.user().userId()).isEqualTo("demo-teacher");
+        LoginResult teacher = login(first, "DEMO_TEACHER", "Teacher123456");
+        assertThat(teacher.user().userId()).isEqualTo(
+                "00000000-0000-0000-0000-000000000402");
         assertThat(teacher.user().role()).isEqualTo(UserRole.TEACHER);
 
         List<TermView> terms = data(route(first, "COURSE_TERM_LIST",
@@ -151,7 +155,7 @@ class IntegratedDemoServerMainTest {
                     .contains("DEMO_STUDENT", "DEMO_TEACHER", "DEMO_ADMIN");
             assertThat(roleOf(connection, "DEMO_STUDENT")).isEqualTo("STUDENT");
             assertThat(roleOf(connection, "DEMO_TEACHER")).isEqualTo("TEACHER");
-            assertThat(roleOf(connection, "DEMO_ADMIN")).isEqualTo("ADMIN");
+            assertThat(roleOf(connection, "DEMO_ADMIN")).isEqualTo("SUPER_ADMIN");
             assertThat(activeEnrollmentCount(connection, "demo-student")).isZero();
             assertThat(openOfferingCount(connection)).isGreaterThan(1);
             assertThat(openUnselectedOfferingCount(connection, "demo-student")).isPositive();
@@ -168,29 +172,16 @@ class IntegratedDemoServerMainTest {
     }
 
     @Test
-    void demoAdministratorMustChoosePolicyCompliantPasswordAndRelogin() throws Exception {
+    void demoAdministratorUsesTheUnifiedUserManagementCredentials() throws Exception {
         Path database = temporaryDirectory.resolve("course-user-demo.accdb");
         ApplicationRuntime runtime = IntegratedDemoServerMain.prepare(
                 database, databaseRoot(), CLOCK);
-        LoginResult restricted = login(runtime, "DEMO_ADMIN", DEMO_PASSWORD);
-        assertThat(restricted.mustChangePassword()).isTrue();
-
-        ResponseBody<?> rejected = route(runtime, "USER_CHANGE_PASSWORD",
-                restricted.sessionToken(), new ChangePasswordCommand(
-                        DEMO_PASSWORD.toCharArray(), "short".toCharArray()));
-        assertThat(rejected.success()).isFalse();
-        assertThat(rejected.code()).isEqualTo("AUTH_PASSWORD_POLICY_VIOLATION");
-
-        ResponseBody<?> changed = route(runtime, "USER_CHANGE_PASSWORD",
-                restricted.sessionToken(), new ChangePasswordCommand(
-                        DEMO_PASSWORD.toCharArray(), "DemoChanged8".toCharArray()));
-        assertThat(changed.success()).isTrue();
         assertThat(route(runtime, "USER_LOGIN", null,
-                new LoginCommand("DEMO_ADMIN", DEMO_PASSWORD.toCharArray(), "old-password"))
+                new LoginCommand("DEMO_ADMIN", DEMO_PASSWORD.toCharArray(), "legacy-password"))
                 .success()).isFalse();
-        LoginResult relogged = login(runtime, "DEMO_ADMIN", "DemoChanged8");
-        assertThat(relogged.mustChangePassword()).isFalse();
-        assertThat(relogged.user().role()).isEqualTo(UserRole.ADMIN);
+        LoginResult administrator = login(runtime, "DEMO_ADMIN", "admin123456");
+        assertThat(administrator.mustChangePassword()).isFalse();
+        assertThat(administrator.user().role()).isEqualTo(UserRole.SUPER_ADMIN);
     }
 
     @Test

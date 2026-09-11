@@ -95,18 +95,18 @@ public final class IntegratedDemoServerMain {
                 databaseResourceRoot, clock, sessionTimeout,
                 users -> TemporaryUserStudentGateway.create(users,
                         CourseDemoDataset.MAJOR, CourseDemoDataset.COHORT));
-        seedUser(connections, "demo-student", "DEMO_STUDENT", DEMO_PASSWORD,
+        String studentId = seedUser(connections, "demo-student", "DEMO_STUDENT", DEMO_PASSWORD,
                 "STUDENT", false, clock.instant());
-        seedUser(connections, "demo-teacher", "DEMO_TEACHER", DEMO_PASSWORD,
+        String teacherId = seedUser(connections, "demo-teacher", "DEMO_TEACHER", DEMO_PASSWORD,
                 "TEACHER", false, clock.instant());
         seedUser(connections, "demo-admin", "DEMO_ADMIN", DEMO_PASSWORD,
                 "ADMIN", true, clock.instant());
-        seedDemoStudent(connections);
-        seedCourses(runtime.course().service(), connections, clock);
+        seedDemoStudent(connections, studentId);
+        seedCourses(runtime.course().service(), connections, clock, studentId, teacherId);
         return runtime;
     }
 
-    private static void seedDemoStudent(ConnectionProvider connections) throws Exception {
+    private static void seedDemoStudent(ConnectionProvider connections, String userId) throws Exception {
         try (var connection = connections.open(); var query = connection.prepareStatement(
                 "SELECT 1 FROM tblStudent WHERE studentId=?")) {
             query.setString(1, "demo-student");
@@ -122,7 +122,7 @@ public final class IntegratedDemoServerMain {
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """)) {
             insert.setString(1, "demo-student");
-            insert.setString(2, "demo-student");
+            insert.setString(2, userId);
             insert.setString(3, "09999999");
             insert.setString(4, "UNDERGRADUATE");
             insert.setString(5, "课程演示学生");
@@ -140,14 +140,14 @@ public final class IntegratedDemoServerMain {
         }
     }
 
-    private static void seedUser(ConnectionProvider connections, String userId, String loginId,
+    private static String seedUser(ConnectionProvider connections, String userId, String loginId,
             String password, String role, boolean mustChangePassword, Instant now) throws Exception {
         try (var connection = connections.open(); var query = connection.prepareStatement(
-                "SELECT 1 FROM tblUser WHERE userId = ? OR loginId = ?")) {
+                "SELECT userId FROM tblUser WHERE userId = ? OR loginId = ?")) {
             query.setString(1, userId);
             query.setString(2, loginId);
             try (var rows = query.executeQuery()) {
-                if (rows.next()) return;
+                if (rows.next()) return rows.getString("userId");
             }
         }
         char[] value = password.toCharArray();
@@ -190,10 +190,11 @@ public final class IntegratedDemoServerMain {
             insert.setTimestamp(14, Timestamp.valueOf(timestamp));
             insert.executeUpdate();
         }
+        return userId;
     }
 
     private static void seedCourses(CourseService courses, ConnectionProvider connections,
-                                    Clock clock) throws Exception {
+                                    Clock clock, String studentId, String teacherId) throws Exception {
         Instant now = clock.instant();
         LocalDate today = LocalDate.ofInstant(now, CAMPUS_ZONE);
         var terms = courses.listTerms();
@@ -225,7 +226,7 @@ public final class IntegratedDemoServerMain {
             courses.changeSelectionPhaseStatus(new ChangeSelectionPhaseStatusCommand(
                     draft.phaseId(), "OPEN", draft.rowVersion()));
         }
-        CourseDemoDataset.install(connections, courses, term, null, "demo-student", "demo-teacher");
+        CourseDemoDataset.install(connections, courses, term, null, studentId, teacherId);
     }
 
     private static void shutdown(SocketServer server) {

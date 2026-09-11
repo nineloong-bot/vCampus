@@ -55,5 +55,7 @@ class StudentQueryPortTest {
         assertThat(eligibility.eligible()).isEqualTo(status == StudentStatus.ACTIVE);
         assertThat(eligibility.reason()).isEqualTo(status == StudentStatus.ACTIVE
                 ? "ELIGIBLE" : "STATUS_" + status);
+        assertThat(eligibility.majorCode()).isEqualTo("090");
+        assertThat(eligibility.cohortYear()).isEqualTo(2024);
     }
 }

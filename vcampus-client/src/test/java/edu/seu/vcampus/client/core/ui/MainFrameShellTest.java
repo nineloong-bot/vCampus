@@ -85,7 +85,7 @@ class MainFrameShellTest {
                     AbstractButton.class);
             assertThat(item.getText()).isEqualTo(TITLES[index]);
             assertThat(item.getAccessibleContext().getAccessibleName()).isNotBlank();
-            assertThat(item.isSelected()).isEqualTo(index == 0);
+            assertThat(item.isSelected()).isEqualTo("account".equals(PAGE_IDS[index]));
         }
     }
 
@@ -133,9 +133,9 @@ class MainFrameShellTest {
             assertThat(item.isFocusPainted()).isFalse();
             assertThat(item.isOpaque()).isTrue();
             assertThat(item.isContentAreaFilled()).isTrue();
-            assertThat(item.getBackground()).isEqualTo(index == 0
+            assertThat(item.getBackground()).isEqualTo("account".equals(PAGE_IDS[index])
                     ? UiColors.PRIMARY : UiColors.BACKGROUND_NAV);
-            assertThat(item.getForeground()).isEqualTo(index == 0
+            assertThat(item.getForeground()).isEqualTo("account".equals(PAGE_IDS[index])
                     ? UiColors.TEXT_ON_PRIMARY : UiColors.TEXT_PRIMARY);
         }
     }
@@ -209,7 +209,7 @@ class MainFrameShellTest {
     }
 
     @Test
-    void dependencyAwareTeacherAndAdminShellsKeepStudentPlaceholder() throws Exception {
+    void dependencyAwareTeacherStartsOnStudentPlaceholderAndAdminStartsOnAccount() throws Exception {
         MainFrame[] teacher = new MainFrame[1];
         MainFrame[] admin = new MainFrame[1];
         SwingUtilities.invokeAndWait(() -> {
@@ -219,7 +219,9 @@ class MainFrameShellTest {
 
         assertThat(component(teacher[0].content(), "student.module", JPanel.class).isVisible())
                 .isTrue();
-        assertThat(component(admin[0].content(), "student.module", JPanel.class).isVisible())
+        assertThat(component(admin[0].content(), "page.account", JPanel.class).isVisible())
+                .isTrue();
+        assertThat(component(admin[0], "navigation.account", AbstractButton.class).isSelected())
                 .isTrue();
     }
 

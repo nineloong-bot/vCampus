@@ -67,8 +67,22 @@ class DemoDistributionAccountsTest {
                     assertThat(row.getInt(1)).as("student demo account profile").isEqualTo(1);
                 }
             }
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblUser u INNER JOIN "
+                    + "tblCourseOffering o ON u.userId=o.teacherUserId "
+                    + "WHERE u.loginId='DEMO_TEACHER'")).isGreaterThanOrEqualTo(1);
+            assertThat(count(connection, "SELECT COUNT(*) FROM (tblUser u INNER JOIN tblStudent s "
+                    + "ON u.userId=s.userId) INNER JOIN tblEnrollment e ON s.studentId=e.studentId "
+                    + "WHERE u.loginId='213242478' AND e.enrollmentStatus='ACTIVE'"))
+                    .isGreaterThanOrEqualTo(1);
         } finally {
             expected.values().forEach(value -> Arrays.fill(value.password(), '\0'));
+        }
+    }
+
+    private static long count(java.sql.Connection connection, String sql) throws Exception {
+        try (var statement = connection.createStatement(); var row = statement.executeQuery(sql)) {
+            row.next();
+            return row.getLong(1);
         }
     }
 

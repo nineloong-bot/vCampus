@@ -18,6 +18,8 @@ vcampus-distribution/scripts
 1. 双击 `start-server-with-data.bat`。
 2. 看到服务端监听 8888 端口后，双击 `start-client.bat`。
 
+需要恢复仓库随附的初始演示数据时，先停止服务端，再运行 `reset-data.bat`。
+
 仓库已随附 `vcampus-distribution/lib/vCampusServer.jar` 和
 `vcampus-distribution/lib/vCampusClient.jar`，仅运行演示不需要安装 Maven。
 

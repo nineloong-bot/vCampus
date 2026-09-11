@@ -26,11 +26,11 @@ VALUES ('demo-shop-owner-user', 'SHOPOWNER',
     NULL, NULL, 0, NOW(), NOW());
 
 INSERT INTO tblTerm
-    (termId, termCode, termName, startDate, endDate, enrollmentStartAt,
+    (termId, termCode, termName, startDate, endDate, academicYearStart, season, enrollmentStartAt,
      enrollmentEndAt, adjustmentStartAt, adjustmentEndAt, termStatus,
      rowVersion, createdAt, updatedAt)
 VALUES ('demo-term-2026', '2026-2027-1', '2026-2027学年第一学期', #2026-09-01#,
-    #2027-01-15#, #2026-08-20#, #2026-09-30#, #2026-10-01#, #2026-10-07#,
+    #2027-01-15#, 2026, 'AUTUMN', #2026-08-20#, #2026-09-30#, #2026-10-01#, #2026-10-07#,
     'ACTIVE', 0, NOW(), NOW());
 
 INSERT INTO tblCourse
@@ -45,18 +45,35 @@ INSERT INTO tblCourse
 VALUES ('demo-course-math', 'MATH101', '高等数学', 5.0, 80,
     '用于满员教学班测试', TRUE, 0, NOW(), NOW());
 
+INSERT INTO tblCurriculumPlan
+    (planId, majorCode, cohortYear, planName, planVersion, planStatus)
+VALUES ('demo-curriculum-090-2023', '090', 2023,
+    '计算机科学与技术 2023 级演示培养方案', 1, 'PUBLISHED');
+
+INSERT INTO tblCurriculumCourse
+    (planCourseId, planId, courseId, academicYearNo, season,
+     courseNature, courseCategory, offeringUnit)
+VALUES ('demo-curriculum-course-java', 'demo-curriculum-090-2023',
+    'demo-course-java', 4, 'AUTUMN', 'REQUIRED', '专业核心课', '计算机科学与工程学院');
+
+INSERT INTO tblCurriculumCourse
+    (planCourseId, planId, courseId, academicYearNo, season,
+     courseNature, courseCategory, offeringUnit)
+VALUES ('demo-curriculum-course-math', 'demo-curriculum-090-2023',
+    'demo-course-math', 4, 'AUTUMN', 'REQUIRED', '公共基础课', '数学学院');
+
 INSERT INTO tblCourseOffering
     (offeringId, termId, courseId, teacherUserId, className, capacity,
      enrolledCount, offeringStatus, rowVersion, createdAt, updatedAt)
 VALUES ('demo-offering-java-a', 'demo-term-2026', 'demo-course-java',
-    '00000000-0000-0000-0000-000000000002', 'Java程序设计-A', 40, 1,
+    '00000000-0000-0000-0000-000000000402', 'Java程序设计-A', 40, 1,
     'OPEN', 0, NOW(), NOW());
 
 INSERT INTO tblCourseOffering
     (offeringId, termId, courseId, teacherUserId, className, capacity,
      enrolledCount, offeringStatus, rowVersion, createdAt, updatedAt)
 VALUES ('demo-offering-math-full', 'demo-term-2026', 'demo-course-math',
-    '00000000-0000-0000-0000-000000000002', '高等数学-满员班', 1, 1,
+    '00000000-0000-0000-0000-000000000402', '高等数学-满员班', 1, 1,
     'OPEN', 0, NOW(), NOW());
 
 INSERT INTO tblCourseSchedule
@@ -71,7 +88,7 @@ INSERT INTO tblEnrollment
     (enrollmentId, offeringId, studentId, enrollmentType, enrollmentStatus,
      enrolledAt, droppedAt, rowVersion, createdAt, updatedAt)
 VALUES ('demo-enrollment-java', 'demo-offering-java-a',
-    '00000000-0000-0000-0000-000000000104', 'NORMAL', 'ACTIVE', NOW(), NULL,
+    '00000000-0000-0000-0000-000000000404', 'NORMAL', 'ACTIVE', NOW(), NULL,
     0, NOW(), NOW());
 
 INSERT INTO tblBook

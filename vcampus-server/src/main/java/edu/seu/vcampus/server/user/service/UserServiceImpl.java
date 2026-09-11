@@ -111,6 +111,11 @@ public final class UserServiceImpl implements UserService, UserQueryPort {
     /** Searches safe account summaries. */
     @Override public PageResult<UserSummary> searchUsers(UserSearchQuery query) { return administration.search(query); }
 
+    @Override public PageResult<UserSummary> searchCourseTeachers(
+            edu.seu.vcampus.common.course.CourseTeacherQuery query) {
+        return administration.searchCourseTeachers(query);
+    }
+
     /** Permanently rejects the retired role-change operation. */
     @Override public UserView updateRole(UpdateUserRoleCommand command) { return administration.updateRole(command); }
 

@@ -15,7 +15,9 @@ import edu.seu.vcampus.server.student.repository.TrainingPlanRepository;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -113,11 +115,13 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
             String operatorUserId) {
         validateCourse(command.planId(), command.courseCode(), command.courseName(),
                 command.credits(), command.courseType(), command.semester());
-        return transactions.inTransaction(connection -> {
+        return locks.withLocks(List.of(new ResourceKey("TRAINING_PLAN_COURSES", command.planId())),
+                () -> transactions.inTransaction(connection -> {
             plans.findById(connection, command.planId())
                     .orElseThrow(() -> new TrainingPlanException("TRAINING_PLAN_NOT_FOUND", "培养方案不存在"));
             Instant now = Instant.now();
             if (command.planCourseId() == null || command.planCourseId().isBlank()) {
+                rejectDuplicateCourse(connection, command.planId(), command.courseCode(), null);
                 String id = UUID.randomUUID().toString();
                 TrainingPlanCourse course = new TrainingPlanCourse(id, command.planId(),
                         command.courseCode(), command.courseName(), command.credits(),
@@ -127,6 +131,12 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
             } else {
                 TrainingPlanCourse existing = plans.findCourseById(connection, command.planCourseId())
                         .orElseThrow(() -> new TrainingPlanException("TRAINING_PLAN_COURSE_NOT_FOUND", "课程不存在"));
+                if (!existing.planId().equals(command.planId())) {
+                    throw new TrainingPlanException("TRAINING_PLAN_COURSE_PLAN_MISMATCH",
+                            "课程不属于指定的培养方案");
+                }
+                rejectDuplicateCourse(connection, command.planId(), command.courseCode(),
+                        existing.planCourseId());
                 TrainingPlanCourse updated = new TrainingPlanCourse(existing.planCourseId(),
                         existing.planId(), command.courseCode(), command.courseName(),
                         command.credits(), command.courseType(), command.semester(),
@@ -134,17 +144,22 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
                 plans.updateCourse(connection, updated, command.expectedVersion());
                 return courseView(updated);
             }
-        });
+        }));
     }
 
     @Override
     public void removeCourse(String planCourseId, String operatorUserId) {
-        transactions.inTransaction(connection -> {
+        locks.withLocks(List.of(new ResourceKey("TRAINING_PLAN_COURSE", planCourseId)),
+                () -> transactions.inTransaction(connection -> {
             plans.findCourseById(connection, planCourseId)
                     .orElseThrow(() -> new TrainingPlanException("TRAINING_PLAN_COURSE_NOT_FOUND", "课程不存在"));
+            if (plans.hasGradesForCourse(connection, planCourseId)) {
+                throw new TrainingPlanException("TRAINING_PLAN_COURSE_IN_USE",
+                        "课程已有成绩记录，不能删除");
+            }
             plans.deleteCourse(connection, planCourseId);
             return null;
-        });
+        }));
     }
 
     @Override
@@ -154,9 +169,18 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
         Objects.requireNonNull(command.courses());
         command.courses().forEach(entry -> validateCourse(command.planId(), entry.courseCode(),
                 entry.courseName(), entry.credits(), entry.courseType(), entry.semester()));
-        return transactions.inTransaction(connection -> {
+        return locks.withLocks(List.of(new ResourceKey("TRAINING_PLAN_COURSES", command.planId())),
+                () -> transactions.inTransaction(connection -> {
             plans.findById(connection, command.planId())
                     .orElseThrow(() -> new TrainingPlanException("TRAINING_PLAN_NOT_FOUND", "培养方案不存在"));
+            var incomingCodes = new HashSet<String>();
+            for (var entry : command.courses()) {
+                String normalizedCode = entry.courseCode().trim().toUpperCase(Locale.ROOT);
+                if (!incomingCodes.add(normalizedCode)) {
+                    throw duplicateCourse(entry.courseCode());
+                }
+                rejectDuplicateCourse(connection, command.planId(), entry.courseCode(), null);
+            }
             Instant now = Instant.now();
             return command.courses().stream().map(entry -> {
                 String id = UUID.randomUUID().toString();
@@ -166,7 +190,7 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
                 plans.insertCourse(connection, course);
                 return courseView(course);
             }).toList();
-        });
+        }));
     }
 
     @Override
@@ -201,6 +225,18 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
         return new TrainingPlanCourseView(course.planCourseId(), course.courseCode(),
                 course.courseName(), course.credits(), course.courseType(),
                 course.semester(), course.active(), course.rowVersion());
+    }
+
+    private void rejectDuplicateCourse(java.sql.Connection connection, String planId,
+            String courseCode, String allowedCourseId) {
+        plans.findCourseByPlanAndCode(connection, planId, courseCode).ifPresent(existing -> {
+            if (!existing.planCourseId().equals(allowedCourseId)) throw duplicateCourse(courseCode);
+        });
+    }
+
+    private TrainingPlanException duplicateCourse(String courseCode) {
+        return new TrainingPlanException("TRAINING_PLAN_COURSE_DUPLICATE",
+                "课程代码 " + courseCode + " 在该方案中已存在");
     }
 
     private void validateCourse(String planId, String courseCode, String courseName,

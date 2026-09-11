@@ -165,6 +165,8 @@ INSERT INTO tblPermission (permissionCode, permissionName)
 VALUES ('STUDENT_COLLEGE_ADMIN_READ', '查询学院管理员分配');
 INSERT INTO tblPermission (permissionCode, permissionName)
 VALUES ('STUDENT_COLLEGE_ADMIN_WRITE', '维护学院管理员分配');
+INSERT INTO tblPermission (permissionCode, permissionName)
+VALUES ('COURSE_TEACHER_OPTIONS_READ', '查询选课教师选项');
 
 INSERT INTO tblRolePermission (roleCode, permissionCode)
 VALUES ('SUPER_ADMIN', 'PLATFORM_MODULE_ADMIN_READ');
@@ -190,3 +192,9 @@ INSERT INTO tblRolePermission (roleCode, permissionCode)
 VALUES ('USER_ADMIN', 'USER_AUDIT_READ');
 INSERT INTO tblRolePermission (roleCode, permissionCode)
 VALUES ('USER_ADMIN', 'USER_PASSWORD_RESET');
+INSERT INTO tblRolePermission (roleCode, permissionCode)
+VALUES ('SUPER_ADMIN', 'COURSE_TEACHER_OPTIONS_READ');
+INSERT INTO tblRolePermission (roleCode, permissionCode)
+VALUES ('COURSE_ADMIN', 'COURSE_TEACHER_OPTIONS_READ');
+INSERT INTO tblRolePermission (roleCode, permissionCode)
+VALUES ('ADMIN', 'COURSE_TEACHER_OPTIONS_READ');

@@ -110,13 +110,17 @@ public final class StudentAccessTestDatabase {
 
     private static void executeSchema(Connection connection, Path schema, boolean tablesOnly) throws Exception {
         String sql = Files.readString(schema).replaceAll("YESNO", "BOOLEAN");
-        // Strip CONSTRAINT ... REFERENCES lines (UCanAccess FK bug)
+        // Strip only foreign-key clauses (UCanAccess FK bug), preserving primary
+        // and unique constraints just like the production database generator.
         StringBuilder cleaned = new StringBuilder();
         boolean skipNextRef = false;
         for (String line : sql.split("\n")) {
             String upper = line.trim().toUpperCase();
             if (upper.startsWith("--")) continue;
-            if (upper.startsWith("CONSTRAINT")) { skipNextRef = true; continue; }
+            if (upper.startsWith("CONSTRAINT") && upper.contains("FOREIGN KEY")) {
+                skipNextRef = !upper.contains("REFERENCES");
+                continue;
+            }
             if (skipNextRef && upper.startsWith("REFERENCES")) { skipNextRef = false; continue; }
             skipNextRef = false;
             cleaned.append(line).append("\n");

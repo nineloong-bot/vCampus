@@ -21,6 +21,7 @@ import edu.seu.vcampus.common.user.UserSearchQuery;
 import edu.seu.vcampus.common.user.UserSummary;
 import edu.seu.vcampus.common.user.UserView;
 import edu.seu.vcampus.common.paging.PageResult;
+import edu.seu.vcampus.common.course.CourseTeacherQuery;
 
 import java.time.Duration;
 import java.io.Serializable;
@@ -35,6 +36,7 @@ public class UserClientService {
     private static final String USER_LOGOUT = "USER_LOGOUT";
     private static final String USER_GET_CURRENT = "USER_GET_CURRENT";
     private static final String USER_SEARCH = "USER_SEARCH";
+    private static final String COURSE_TEACHER_OPTIONS = "COURSE_TEACHER_OPTIONS";
     private static final String USER_UPDATE_ROLE = "USER_UPDATE_ROLE";
     private static final String USER_CHANGE_STATUS = "USER_CHANGE_STATUS";
     private static final String USER_RESET_STUDENT_PASSWORD =
@@ -94,6 +96,12 @@ public class UserClientService {
     /** Searches safe user summaries using server-side paging and filters. */
     public CompletableFuture<PageResult<UserSummary>> searchUsers(UserSearchQuery query) {
         return this.<PageResult<UserSummary>>sendAsync(USER_SEARCH, query, () -> { })
+                .thenApply(UserClientService::requireSuccess);
+    }
+
+    /** Loads sanitized active-teacher choices without granting full user search. */
+    public CompletableFuture<PageResult<UserSummary>> searchCourseTeachers(CourseTeacherQuery query) {
+        return this.<PageResult<UserSummary>>sendAsync(COURSE_TEACHER_OPTIONS, query, () -> { })
                 .thenApply(UserClientService::requireSuccess);
     }
 

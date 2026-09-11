@@ -43,12 +43,29 @@ public final class ApplicationSchemaInitializer {
             Map.entry("tblclass", List.of("classId")),
             Map.entry("tblnumbersequence", List.of("sequenceKey")),
             Map.entry("tblstudent", List.of("studentId")),
+            Map.entry("tblstudentcollegeadministrator", List.of("departmentId", "userId")),
+            Map.entry("tblmajortransferbatch", List.of("batchId")),
+            Map.entry("tblmajortransferoption", List.of("optionId")),
+            Map.entry("tblmajortransferapplication", List.of("applicationId")),
+            Map.entry("tblmajortransferattachment", List.of("attachmentId")),
+            Map.entry("tblmajortransferreview", List.of("reviewId")),
+            Map.entry("tblmajortransferexecution", List.of("executionId")),
+            Map.entry("tbltrainingplan", List.of("planId")),
+            Map.entry("tbltrainingplancourse", List.of("planCourseId")),
+            Map.entry("tblstudentgrade", List.of("gradeId")),
             Map.entry("tbllibrarypolicy", List.of("policyId")),
             Map.entry("tblterm", List.of("termId")),
+            Map.entry("tblcourseselectionphase", List.of("phaseId")),
             Map.entry("tblcourse", List.of("courseId")),
             Map.entry("tblcourseoffering", List.of("offeringId")),
             Map.entry("tblcourseschedule", List.of("scheduleId")),
             Map.entry("tblenrollment", List.of("enrollmentId")),
+            Map.entry("tblenrollmentadjustment", List.of("adjustmentId")),
+            Map.entry("tblcourseattempt", List.of("attemptId")),
+            Map.entry("tblcurriculumplan", List.of("planId")),
+            Map.entry("tblcurriculumcourse", List.of("planCourseId")),
+            Map.entry("tblcurriculumprerequisite", List.of("prerequisiteId")),
+            Map.entry("tblcourseretakequota", List.of("offeringId")),
             Map.entry("tblbook", List.of("bookId")),
             Map.entry("tblbookcopy", List.of("copyId")),
             Map.entry("tblbookloan", List.of("loanId")),
@@ -61,7 +78,9 @@ public final class ApplicationSchemaInitializer {
             Map.entry("tblordergroup", List.of("orderGroupId")),
             Map.entry("tblorder", List.of("orderId")),
             Map.entry("tblorderitem", List.of("orderItemId")),
-            Map.entry("tblpayment", List.of("paymentId")));
+            Map.entry("tblpayment", List.of("paymentId")),
+            Map.entry("tblpaymentattempt", List.of("attemptId")),
+            Map.entry("tblinventoryreservation", List.of("reservationId")));
 
     private final Path resourceRoot;
 
@@ -76,12 +95,19 @@ public final class ApplicationSchemaInitializer {
         installSchema(connections, schema("001_common.sql"));
         installSchema(connections, schema("010_user.sql"));
         installSchema(connections, schema("020_student.sql"));
+        ensureColumn(connections, "tblMajor", "grades", "VARCHAR(16)");
+        installSchema(connections, schema("025_hierarchical_administration.sql"));
+        installSchema(connections, schema("025_major_transfer.sql"));
         new CourseSchemaInitializer(schema("030_course.sql")).initialize(connections);
+        installSchema(connections, schema("030_training_plan.sql"));
         installSchema(connections, schema("040_library.sql"));
         try (Connection connection = connections.open()) { LibraryPenaltySchema.initialize(connection); }
         installSchema(connections, schema("050_shop.sql"));
         installSeeds(connections, seed("010_roles_permissions.sql"));
         installSeeds(connections, seed("020_test_accounts.sql"));
+        installSeeds(connections, seed("021_more_students.sql"));
+        installSeeds(connections, seed("025_major_transfer_demo.sql"));
+        installSeeds(connections, seed("030_training_plan_demo.sql"));
         installSeeds(connections, seed("040_library_policy.sql"));
         installSeeds(connections, seed("060_unified_demo_data.sql"));
     }
@@ -111,7 +137,13 @@ public final class ApplicationSchemaInitializer {
                 Matcher table = CREATE_TABLE.matcher(sql);
                 if (table.find() && tables.contains(normalize(table.group(1)))) continue;
                 Matcher index = CREATE_INDEX.matcher(sql);
-                if (index.find() && indexes.contains(normalize(index.group(1)))) continue;
+                if (index.find()) {
+                    // UCanAccess 5.x cannot persist optional lookup indexes for these
+                    // freshly-created Access tables. Business UNIQUE constraints are
+                    // declared inline in CREATE TABLE and are therefore still enforced.
+                    if (script.getFileName().toString().equals("030_training_plan.sql")) continue;
+                    if (indexes.contains(normalize(index.group(1)))) continue;
+                }
                 Matcher alter = ALTER_TABLE.matcher(sql);
                 if (alter.find() && preexistingTables.contains(normalize(alter.group(1)))) continue;
                 Matcher insert = INSERT.matcher(sql);
@@ -129,13 +161,37 @@ public final class ApplicationSchemaInitializer {
     private static void installSeeds(ConnectionProvider connections, Path script)
             throws IOException, SQLException {
         try (Connection connection = connections.open()) {
+            List<String> postInsertStatements = new ArrayList<>();
+            boolean inserted = false;
             for (String sql : statements(script)) {
                 Matcher insert = INSERT.matcher(sql);
-                if (!insert.matches() || !seedExists(connection, sql)) {
+                if (!insert.matches()) {
+                    postInsertStatements.add(sql);
+                } else if (!seedExists(connection, sql)) {
+                    try (Statement statement = connection.createStatement()) {
+                        statement.execute(sql);
+                    }
+                    inserted = true;
+                }
+            }
+            // Seed UPDATE statements initialize rows created by this script. Replaying
+            // them on every server start would overwrite real user edits and sequences.
+            if (inserted) {
+                for (String sql : postInsertStatements) {
                     try (Statement statement = connection.createStatement()) {
                         statement.execute(sql);
                     }
                 }
+            }
+        }
+    }
+
+    private static void ensureColumn(ConnectionProvider connections, String table, String column,
+            String definition) throws SQLException {
+        try (Connection connection = connections.open()) {
+            if (columnNames(connection, table).contains(normalize(column))) return;
+            try (Statement statement = connection.createStatement()) {
+                statement.execute("ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition);
             }
         }
     }
@@ -186,10 +242,34 @@ public final class ApplicationSchemaInitializer {
 
     private static List<String> statements(Path script) throws IOException {
         List<String> statements = new ArrayList<>();
-        for (String sql : Files.readString(script).split(";")) {
+        String compatibleSql = compatibleSql(script);
+        for (String sql : compatibleSql.split(";")) {
             if (!sql.isBlank()) statements.add(sql.strip());
         }
         return statements;
+    }
+
+    private static String compatibleSql(Path script) throws IOException {
+        String sql = Files.readString(script).replaceAll("(?i)\\bYESNO\\b", "BOOLEAN");
+        boolean trainingPlan = script.getFileName().toString().equals("030_training_plan.sql");
+        StringBuilder cleaned = new StringBuilder();
+        boolean skipReference = false;
+        for (String line : sql.split("\\R")) {
+            String upper = line.strip().toUpperCase(Locale.ROOT);
+            if (upper.startsWith("--")) continue;
+            if (trainingPlan && upper.startsWith("CONSTRAINT")
+                    && upper.contains("FOREIGN KEY")) {
+                skipReference = !upper.contains("REFERENCES");
+                continue;
+            }
+            if (trainingPlan && skipReference && upper.startsWith("REFERENCES")) {
+                skipReference = false;
+                continue;
+            }
+            skipReference = false;
+            cleaned.append(line).append('\n');
+        }
+        return cleaned.toString().replaceAll(",\\s*\\)", "\n)");
     }
 
     private static List<String> splitValues(String values) {
@@ -234,6 +314,14 @@ public final class ApplicationSchemaInitializer {
             }
         } catch (IOException error) {
             throw new SQLException("Unable to inspect Access indexes", error);
+        }
+        return names;
+    }
+
+    private static Set<String> columnNames(Connection connection, String table) throws SQLException {
+        Set<String> names = new HashSet<>();
+        try (ResultSet columns = connection.getMetaData().getColumns(null, null, table, null)) {
+            while (columns.next()) names.add(normalize(columns.getString("COLUMN_NAME")));
         }
         return names;
     }
