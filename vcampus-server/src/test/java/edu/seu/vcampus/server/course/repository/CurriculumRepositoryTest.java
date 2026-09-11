@@ -1,6 +1,7 @@
 package edu.seu.vcampus.server.course.repository;
 
 import edu.seu.vcampus.common.course.AcademicSeason;
+import edu.seu.vcampus.server.bootstrap.ApplicationSchemaInitializer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,25 +26,28 @@ class CurriculumRepositoryTest {
     void createDatabase() throws Exception {
         Path data = Path.of("target", "test-data");
         Files.createDirectories(data);
-        connection = DriverManager.getConnection("jdbc:ucanaccess://"
-                + data.resolve(UUID.randomUUID() + ".accdb")
-                + ";newDatabaseVersion=V2010;immediatelyReleaseResources=true");
-        for (String statement : Files.readString(schema()).split(";")) {
-            if (!statement.isBlank()) connection.createStatement().execute(statement);
-        }
+        Path database = data.resolve(UUID.randomUUID() + ".accdb");
+        String url = "jdbc:ucanaccess://" + database
+                + ";newDatabaseVersion=V2010;immediatelyReleaseResources=true";
+        new ApplicationSchemaInitializer(databaseRoot()).initialize(
+                () -> DriverManager.getConnection(url));
+        connection = DriverManager.getConnection(url);
         repository = new AccessCurriculumRepository();
+        seedAcademicOrganization();
         seedCourses();
     }
 
     @AfterEach void closeDatabase() throws Exception { connection.close(); }
 
     @Test
-    void selectsPublishedPlanByMajorAndCohort() {
+    void selectsPublishedPlanByMajorAndCohort() throws Exception {
         repository.insertPlan(connection, new CurriculumPlan(
                 "plan-2024-cs", "080901", 2024, "2024级计算机科学与技术", 1, "PUBLISHED"));
         repository.insertPlan(connection, new CurriculumPlan(
                 "plan-draft", "080901", 2025, "2025草稿", 1, "DRAFT"));
 
+        assertThat(count("SELECT COUNT(*) FROM tblTrainingPlan WHERE planId IN ('plan-2024-cs','plan-draft')"))
+                .isEqualTo(2);
         assertThat(repository.findPublishedPlan(connection, "080901", 2024))
                 .get().extracting(CurriculumPlan::planId).isEqualTo("plan-2024-cs");
         assertThat(repository.findPublishedPlan(connection, "080901", 2025)).isEmpty();
@@ -96,6 +100,21 @@ class CurriculumRepositoryTest {
         insertCourse("course-software", "B09S0061", "软件工程", "3.0");
     }
 
+    private void seedAcademicOrganization() throws Exception {
+        connection.createStatement().execute("INSERT INTO tblDepartment "
+                + "(departmentId,departmentCode,departmentName,isActive,rowVersion) "
+                + "VALUES ('dept','TEST-CS','计算机科学与工程学院',TRUE,0)");
+        connection.createStatement().execute("INSERT INTO tblMajor "
+                + "(majorId,departmentId,majorCode,majorName,isActive,rowVersion) "
+                + "VALUES ('major','dept','080901','计算机科学与技术',TRUE,0)");
+    }
+
+    private long count(String sql) throws Exception {
+        try (var statement = connection.createStatement(); var rows = statement.executeQuery(sql)) {
+            rows.next(); return rows.getLong(1);
+        }
+    }
+
     private void insertCourse(String id, String code, String name, String credit) throws Exception {
         try (var statement = connection.prepareStatement("""
                 INSERT INTO tblCourse (courseId, courseCode, courseName, credit, totalHours,
@@ -107,8 +126,8 @@ class CurriculumRepositoryTest {
         }
     }
 
-    private static Path schema() {
-        Path direct = Path.of("vcampus-database", "schema", "030_course.sql");
-        return Files.exists(direct) ? direct : Path.of("..", "vcampus-database", "schema", "030_course.sql");
+    private static Path databaseRoot() {
+        Path direct = Path.of("vcampus-database");
+        return Files.exists(direct) ? direct : Path.of("..", "vcampus-database");
     }
 }

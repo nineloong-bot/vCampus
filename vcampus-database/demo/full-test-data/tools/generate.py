@@ -45,9 +45,9 @@ def main():
     # 同步号码分配器，后续新增学生不会与批量档案冲突。
     rows.append("UPDATE tblNumberSequence SET currentValue=1000 WHERE sequenceKey='CAMPUS_CARD_GLOBAL';")
     for major in range(801, 811):
-        for cls in (1, 2):
-            add('tblNumberSequence', sequenceKey=f'STUDENT_NUMBER:{major}:26:{cls}',
-                currentValue=50, maxValue=99, rowVersion=0, updatedAt=now)
+        for cohort in range(2023, 2027):
+            add('tblNumberSequence', sequenceKey=f'STUDENT_NUMBER:{major}:{cohort % 100:02}:1',
+                currentValue=25, maxValue=99, rowVersion=0, updatedAt=now)
     # 原始演示账户在独立库中也统一密码，避免账号清单再次出现歧义。
     credential = people.credentials('baseline-demo')
     rows.append('UPDATE tblUser SET '+','.join(f'{k}={literal(v)}' for k,v in credential.items())

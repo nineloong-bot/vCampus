@@ -12,14 +12,14 @@ INSERT INTO tblTrainingPlanCourse
      isActive, rowVersion, createdAt, updatedAt)
 VALUES
     ('00000000-0000-0000-0000-000000000311', '00000000-0000-0000-0000-000000000301',
-     'CS2301', '程序设计基础', 4.0, 'REQUIRED', 1, TRUE, 0, NOW(), NOW());
+     'CS201', 'Java程序设计', 4.0, 'REQUIRED', 11, TRUE, 0, NOW(), NOW());
 
 INSERT INTO tblTrainingPlanCourse
     (planCourseId, planId, courseCode, courseName, credits, courseType, semester,
      isActive, rowVersion, createdAt, updatedAt)
 VALUES
     ('00000000-0000-0000-0000-000000000312', '00000000-0000-0000-0000-000000000301',
-     'CS2302', '数据结构', 4.0, 'REQUIRED', 3, TRUE, 0, NOW(), NOW());
+     'MATH101', '高等数学', 5.0, 'REQUIRED', 11, TRUE, 0, NOW(), NOW());
 
 INSERT INTO tblTrainingPlanCourse
     (planCourseId, planId, courseCode, courseName, credits, courseType, semester,

@@ -136,53 +136,6 @@ CREATE TABLE tblCourseAttempt (
 
 CREATE INDEX idx_tblCourseAttempt_student_course ON tblCourseAttempt (studentId, courseId);
 
-CREATE TABLE tblCurriculumPlan (
-    planId VARCHAR(36) NOT NULL,
-    majorCode VARCHAR(16) NOT NULL,
-    cohortYear LONG NOT NULL,
-    planName VARCHAR(128) NOT NULL,
-    planVersion LONG NOT NULL,
-    planStatus VARCHAR(16) NOT NULL,
-    CONSTRAINT pk_tblCurriculumPlan PRIMARY KEY (planId)
-);
-
-CREATE UNIQUE INDEX uk_tblCurriculumPlan_major_cohort_version
-    ON tblCurriculumPlan (majorCode, cohortYear, planVersion);
-
-CREATE TABLE tblCurriculumCourse (
-    planCourseId VARCHAR(36) NOT NULL,
-    planId VARCHAR(36) NOT NULL,
-    courseId VARCHAR(36) NOT NULL,
-    academicYearNo LONG NOT NULL,
-    season VARCHAR(16) NOT NULL,
-    courseNature VARCHAR(16) NOT NULL,
-    courseCategory VARCHAR(64) NOT NULL,
-    offeringUnit VARCHAR(64) NOT NULL,
-    CONSTRAINT pk_tblCurriculumCourse PRIMARY KEY (planCourseId),
-    CONSTRAINT fk_tblCurriculumCourse_plan FOREIGN KEY (planId)
-        REFERENCES tblCurriculumPlan (planId),
-    CONSTRAINT fk_tblCurriculumCourse_course FOREIGN KEY (courseId)
-        REFERENCES tblCourse (courseId)
-);
-
-CREATE UNIQUE INDEX uk_tblCurriculumCourse_plan_course
-    ON tblCurriculumCourse (planId, courseId);
-CREATE INDEX idx_tblCurriculumCourse_plan_term
-    ON tblCurriculumCourse (planId, academicYearNo, season);
-
-CREATE TABLE tblCurriculumPrerequisite (
-    prerequisiteId VARCHAR(36) NOT NULL,
-    planId VARCHAR(36) NOT NULL,
-    courseId VARCHAR(36) NOT NULL,
-    prerequisiteCourseId VARCHAR(36) NOT NULL,
-    CONSTRAINT pk_tblCurriculumPrerequisite PRIMARY KEY (prerequisiteId),
-    CONSTRAINT fk_tblCurriculumPrerequisite_plan FOREIGN KEY (planId)
-        REFERENCES tblCurriculumPlan (planId)
-);
-
-CREATE UNIQUE INDEX uk_tblCurriculumPrerequisite_edge
-    ON tblCurriculumPrerequisite (planId, courseId, prerequisiteCourseId);
-
 CREATE TABLE tblCourseRetakeQuota (
     offeringId VARCHAR(36) NOT NULL,
     capacity LONG NOT NULL,

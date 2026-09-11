@@ -36,14 +36,16 @@ def generate(add, now):
     for i, name in enumerate(majors, 1):
         add('tblMajor', majorId=f'bulk-major-{i:02}', departmentId=f'bulk-dept-{(i+1)//2:02}',
             majorCode=str(800+i), majorName=f'{name}（测试）', isActive=True, rowVersion=0)
-        for j in (1, 2):
-            add('tblClass', classId=f'bulk-class-{i:02}-{j}', majorId=f'bulk-major-{i:02}',
-                classCode=f'{800+i}-2026-{j:02}', className=f'{800+i}26{j}班',
-                enrollmentYear=2026, classNumber=j, isActive=True, rowVersion=0)
+        for cohort in range(2023, 2027):
+            add('tblClass', classId=f'bulk-class-{i:02}-{cohort}',
+                majorId=f'bulk-major-{i:02}', classCode=f'{800+i}-{cohort}-01',
+                className=f'{800+i}{cohort % 100:02}1班', enrollmentYear=cohort,
+                classNumber=1, isActive=True, rowVersion=0)
     surnames = '赵钱孙李周吴郑王冯陈褚卫蒋沈韩杨'
     names = ['明轩', '雨桐', '子涵', '思远', '欣然', '浩宇', '若宁', '文博']
     for i in range(1, 1001):
-        major, class_no, serial = (i-1)//100+1, (i-1)%100//50+1, (i-1)%50+1
+        major, local = (i-1)//100+1, (i-1)%100
+        cohort, serial = 2023 + local//25, local%25+1
         login, uid = f'21326{i:04}', f'bulk-student-user-{i:04}'
         name = surnames[(i-1)%len(surnames)] + names[(i-1)//len(surnames)%len(names)]
         status = 'ACTIVE' if i <= 900 else ('SUSPENDED' if i <= 930 else
@@ -53,14 +55,14 @@ def generate(add, now):
         # 末尾十名专门覆盖首次改密，其他账号可直接进入业务页面。
         user(uid, login, 'STUDENT', name, scenario + '；学籍=' + status, i > 990)
         add('tblStudent', studentId=f'bulk-student-{i:04}', userId=uid,
-            studentNumber=f'{800+major}26{class_no}{serial:02}', studentType='UNDERGRADUATE',
+            studentNumber=f'{800+major}{cohort % 100:02}1{serial:02}', studentType='UNDERGRADUATE',
             studentName=name, gender='男' if i%2 else '女',
             email=f'student{i:04}@example.com', phone=f'139000{i:05}',
             idDocumentType='护照', idDocumentNumber=f'TEST{i:08}',
             birthDate=date(2007, (i-1)%12+1, (i-1)%28+1),
-            classId=f'bulk-class-{major:02}-{class_no}', enrollmentDate=date(2026,9,1),
+            classId=f'bulk-class-{major:02}-{cohort}', enrollmentDate=date(cohort,9,1),
             studentStatus=status, enrolled=status in ('ACTIVE','SUSPENDED'),
             onCampus=status=='ACTIVE', campus='九龙湖校区',
             educationLevel='本科', trainingMode='普通全日制', programLengthYears=4,
-            expectedGraduationDate=date(2030,6,30), rowVersion=0, createdAt=now, updatedAt=now)
+            expectedGraduationDate=date(cohort+4,6,30), rowVersion=0, createdAt=now, updatedAt=now)
     return accounts

@@ -155,6 +155,7 @@ class OrganizationManagementPanelTest {
         var fixture = new OrgFixture(client, ConnectionState.CONNECTED);
         SwingUtilities.invokeAndWait(fixture::showPanel);
         fixture.waitForTreeLoaded(2);
+        fixture.waitForFirstClassLoaded();
 
         JTree tree = fixture.component("student.org.tree", JTree.class);
         DefaultMutableTreeNode root = (DefaultMutableTreeNode) tree.getModel().getRoot();
@@ -176,6 +177,7 @@ class OrganizationManagementPanelTest {
         var fixture = new OrgFixture(client, ConnectionState.CONNECTED);
         SwingUtilities.invokeAndWait(fixture::showPanel);
         fixture.waitForTreeLoaded(2);
+        fixture.waitForFirstClassLoaded();
 
         JTree tree = fixture.component("student.org.tree", JTree.class);
         DefaultMutableTreeNode root = (DefaultMutableTreeNode) tree.getModel().getRoot();
@@ -200,6 +202,7 @@ class OrganizationManagementPanelTest {
         var fixture = new OrgFixture(client, ConnectionState.CONNECTED);
         SwingUtilities.invokeAndWait(fixture::showPanel);
         fixture.waitForTreeLoaded(2);
+        fixture.waitForFirstClassLoaded();
 
         JTree tree = fixture.component("student.org.tree", JTree.class);
         DefaultMutableTreeNode root = (DefaultMutableTreeNode) tree.getModel().getRoot();

@@ -35,8 +35,7 @@ class CourseSchemaInitializerTest {
             }
             assertThat(tables).contains("tblterm", "tblcourse", "tblcourseoffering", "tblcourseschedule",
                     "tblenrollment", "tblenrollmentadjustment", "tblcourseattempt",
-                    "tblcourseselectionphase", "tblcurriculumplan", "tblcurriculumcourse",
-                    "tblcurriculumprerequisite", "tblcourseretakequota");
+                    "tblcourseselectionphase", "tblcourseretakequota");
         }
     }
 
@@ -57,8 +56,7 @@ class CourseSchemaInitializerTest {
         try (Connection connection = database.open()) {
             assertThat(tableNames(connection)).contains("tblterm", "tblcourse", "tblcourseoffering",
                     "tblcourseschedule", "tblenrollment", "tblenrollmentadjustment", "tblcourseattempt",
-                    "tblcourseselectionphase", "tblcurriculumplan", "tblcurriculumcourse",
-                    "tblcurriculumprerequisite", "tblcourseretakequota");
+                    "tblcourseselectionphase", "tblcourseretakequota");
         }
     }
 

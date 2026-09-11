@@ -248,10 +248,7 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
         Objects.requireNonNull(courseType);
         if (credits.compareTo(BigDecimal.ZERO) <= 0)
             throw new IllegalArgumentException("credits must be positive");
-        if (semester < 1 || semester > 8)
-            throw new IllegalArgumentException("semester must be 1-8");
-        if (courseType == CourseType.ELECTIVE && (semester < 3 || semester > 6))
-            throw new TrainingPlanException("TRAINING_PLAN_ELECTIVE_SEMESTER_INVALID",
-                    "选修课只能安排在第3-6学期");
+        if (semester < 1 || semester > 12)
+            throw new IllegalArgumentException("semester must be 1-12");
     }
 }

@@ -135,13 +135,13 @@ class LoginDemoUiTest {
         assertThat(component(login[0], "login.demoTitle", JLabel.class).getText())
                 .isEqualTo("演示账号");
         assertThat(component(login[0], "login.demoAdmin", JLabel.class).getText())
-                .isEqualTo("管理员：DEMO_ADMIN / admin123456");
+                .isEqualTo("管理员：TESTADMIN / Test12345");
         assertThat(component(login[0], "login.demoTeacher", JLabel.class).getText())
-                .isEqualTo("教师：DEMO_TEACHER / Teacher123456");
+                .isEqualTo("教师：TESTTEACHER001 / Test12345");
         assertThat(component(login[0], "login.demoStudent", JLabel.class).getText())
-                .isEqualTo("学生：213242478 / 12345678");
+                .isEqualTo("学生：213260001 / Test12345");
         assertThat(component(login[0], "login.demoManagementPassword", JLabel.class).getText())
-                .isEqualTo("管理类账号统一密码：admin123456");
+                .isEqualTo("完整测试库账号统一密码：Test12345");
         assertThat(component(login[0], "login.demoModuleAdmins1", JLabel.class).getText())
                 .isEqualTo("模块：学籍 STUDENT_ADMIN ｜ 课程 COURSE_ADMIN");
         assertThat(component(login[0], "login.demoModuleAdmins2", JLabel.class).getText())

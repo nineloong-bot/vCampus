@@ -26,6 +26,9 @@ CREATE TABLE tblTrainingPlanCourse (
     credits DECIMAL(4,1) NOT NULL,
     courseType VARCHAR(16) NOT NULL,
     semester LONG NOT NULL,
+    courseNature VARCHAR(16),
+    courseCategory VARCHAR(64),
+    offeringUnit VARCHAR(64),
     isActive YESNO NOT NULL,
     rowVersion LONG NOT NULL,
     createdAt DATETIME NOT NULL,
@@ -37,6 +40,17 @@ CREATE TABLE tblTrainingPlanCourse (
 
 CREATE INDEX idx_tblTrainingPlanCourse_plan
     ON tblTrainingPlanCourse (planId);
+
+CREATE TABLE tblTrainingPlanPrerequisite (
+    prerequisiteId VARCHAR(36) PRIMARY KEY,
+    planId VARCHAR(36) NOT NULL,
+    courseId VARCHAR(36) NOT NULL,
+    prerequisiteCourseId VARCHAR(36) NOT NULL,
+    CONSTRAINT uk_tblTrainingPlanPrerequisite_edge
+        UNIQUE (planId, courseId, prerequisiteCourseId),
+    CONSTRAINT fk_tblTrainingPlanPrerequisite_plan FOREIGN KEY (planId)
+        REFERENCES tblTrainingPlan (planId)
+);
 
 CREATE TABLE tblStudentGrade (
     gradeId VARCHAR(36) PRIMARY KEY,

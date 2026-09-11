@@ -33,7 +33,7 @@ mvn -pl vcampus-server,vcampus-client -am package
 
 打包成功后，Maven 会更新 `vcampus-distribution/lib` 中的两个 JAR。
 
-主要演示账号（管理类账号统一密码 `admin123456`）：
+主要演示账号（当前完整发行库的账号统一密码 `Test12345`）：
 
 - 超级管理员：`DEMO_ADMIN`
 - 学籍管理员：`STUDENT_ADMIN`
@@ -46,7 +46,9 @@ mvn -pl vcampus-server,vcampus-client -am package
 - 信息科学与工程学院管理员：`EE_COLLEGE_ADMIN`
 - 外国语学院管理员：`FL_COLLEGE_ADMIN`
 
-该密码仅用于课程 demo，不得用于真实环境或真实账户。
+批量测试管理员为 `TESTADMIN`，教师为 `TESTTEACHER001`～`TESTTEACHER050`，学生为
+`213260001`～`213261000`。该密码仅用于演示，不得用于真实环境或真实账户。完整说明见
+`../docs/testing/2026-09-12-main运行状态与待讨论问题.md`。
 
 ## 数据与日志
 

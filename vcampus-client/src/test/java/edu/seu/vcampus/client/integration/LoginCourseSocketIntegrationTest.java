@@ -375,10 +375,13 @@ class LoginCourseSocketIntegrationTest {
 
     private void addCourseToStudentCurriculum(String courseId) {
         try (var database = connections.open(); var statement = database.prepareStatement("""
-                INSERT INTO tblCurriculumCourse (planCourseId, planId, courseId, academicYearNo,
-                    season, courseNature, courseCategory, offeringUnit)
-                VALUES (?, 'demo-curriculum-090-2023', ?, 4, 'AUTUMN', 'REQUIRED',
-                    '专业核心课', '计算机科学与工程学院')
+                INSERT INTO tblTrainingPlanCourse (planCourseId, planId, courseCode, courseName,
+                    credits, courseType, semester, courseNature, courseCategory, offeringUnit,
+                    isActive, rowVersion, createdAt, updatedAt)
+                SELECT ?, '00000000-0000-0000-0000-000000000301', courseCode, courseName,
+                    credit, 'REQUIRED', 11, 'REQUIRED', '专业核心课',
+                    '计算机科学与工程学院', TRUE, 0, NOW(), NOW()
+                FROM tblCourse WHERE courseId=?
                 """)) {
             statement.setString(1, UUID.randomUUID().toString());
             statement.setString(2, courseId);

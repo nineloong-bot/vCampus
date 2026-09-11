@@ -55,7 +55,7 @@ class SmokeDataset {
                             require(result(shop.getOwnedShop()).shopId().equals("bulk-shop-001"),"seller owns shop");
                             require(result(courses.getCurrentEnrollments()).stream().filter(e->"ACTIVE".equals(e.enrollmentStatus())).count()==3,"student active enrollment records");
                             require(result(courses.getCurrentEnrollments()).stream().filter(e->"DROPPED".equals(e.enrollmentStatus())).count()==1,"student dropped history");
-                            result(courses.enroll(new EnrollCommand("bulk-offering-156")));
+                            result(courses.enroll(new EnrollCommand("bulk-offering-207")));
                             require(result(courses.getCurrentEnrollments()).stream().filter(e->"ACTIVE".equals(e.enrollmentStatus())).count()==4,"new course enrollment");
                             var loan=result(library.borrow(new BorrowBookCommand("bulk-copy-0001-2")));
                             result(library.returnBook(new ReturnBookCommand(loan.loanId(),loan.rowVersion())));

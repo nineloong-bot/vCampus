@@ -1,13 +1,16 @@
 tblUser	1051
 tblDepartment	5
 tblMajor	10
-tblClass	20
+tblClass	40
 tblStudent	1000
-tblTerm	2
+tblTerm	4
 tblCourseSelectionPhase	2
 tblCourse	120
-tblCourseOffering	240
-tblCourseSchedule	240
+tblTrainingPlan	40
+tblTrainingPlanCourse	4800
+tblTrainingPlanPrerequisite	320
+tblCourseOffering	290
+tblCourseSchedule	290
 tblEnrollment	2720
 tblCourseAttempt	100
 tblEnrollmentAdjustment	20
@@ -26,4 +29,4 @@ tblOrderItem	600
 tblPayment	600
 tblPaymentAttempt	550
 tblInventoryReservation	600
-tblNumberSequence	20
+tblNumberSequence	40

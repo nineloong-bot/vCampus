@@ -18,11 +18,11 @@ class DemoDistributionAccountsTest {
         assertThat(database).isRegularFile().isNotEmptyFile();
         Map<String, Expected> expected = new LinkedHashMap<>();
         expected.put("DEMO_ADMIN", new Expected("SUPER_ADMIN", false,
-                "admin123456".toCharArray()));
+                "Test12345".toCharArray()));
         expected.put("DEMO_TEACHER", new Expected("TEACHER", false,
-                "Teacher123456".toCharArray()));
-        expected.put("213242478", new Expected("STUDENT", true,
-                "12345678".toCharArray()));
+                "Test12345".toCharArray()));
+        expected.put("213242478", new Expected("STUDENT", false,
+                "Test12345".toCharArray()));
         expected.put("STUDENT_ADMIN", manager("STUDENT_ADMIN"));
         expected.put("COURSE_ADMIN", manager("COURSE_ADMIN"));
         expected.put("LIBRARY_ADMIN", manager("LIBRARY_ADMIN"));
@@ -95,7 +95,7 @@ class DemoDistributionAccountsTest {
     }
 
     private static Expected manager(String role) {
-        return new Expected(role, false, "admin123456".toCharArray());
+        return new Expected(role, false, "Test12345".toCharArray());
     }
 
     private record Expected(String role, boolean mustChangePassword, char[] password) { }

@@ -1,16 +1,19 @@
 ﻿全模块批量测试数据验证
-SQL 导入：14797 条语句提交成功。
+SQL 导入：20099 条语句提交成功。
 数据库与密码校验：
 tblUser=1051
 tblDepartment=5
 tblMajor=10
-tblClass=20
+tblClass=40
 tblStudent=1000
-tblTerm=2
+tblTerm=4
 tblCourseSelectionPhase=2
 tblCourse=120
-tblCourseOffering=240
-tblCourseSchedule=240
+tblTrainingPlan=40
+tblTrainingPlanCourse=4800
+tblTrainingPlanPrerequisite=320
+tblCourseOffering=290
+tblCourseSchedule=290
 tblEnrollment=2720
 tblCourseAttempt=100
 tblEnrollmentAdjustment=20
@@ -29,8 +32,8 @@ tblOrderItem=600
 tblPayment=600
 tblPaymentAttempt=550
 tblInventoryReservation=600
-Password verified accounts=1057
-PASS checks=5178
+Password verified accounts=1172
+PASS checks=8110
 真实服务验证（使用独立副本）：
 PASS startup preserves sequence 1000
 PASS login TESTADMIN

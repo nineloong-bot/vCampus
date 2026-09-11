@@ -121,6 +121,16 @@ class TrainingPlanServiceImplTest {
         assertThat(service.getPlan(plan.planId()).courses()).hasSize(1);
     }
 
+    @Test
+    void acceptsFourthYearSummerAsTwelfthPositionModel() {
+        var plan = service.savePlan(new SaveTrainingPlanCommand(null, "major-1", 2024,
+                "2024级培养方案", 2, new BigDecimal("10.0"), true, 0), "admin");
+        var command = new SaveTrainingPlanCourseCommand(plan.planId(), null, "CS-SUMMER",
+                "暑期专业实践", new BigDecimal("2.0"), CourseType.ELECTIVE, 10, true, 0);
+
+        assertThat(service.saveCourse(command, "admin").semester()).isEqualTo(10);
+    }
+
     private static SaveTrainingPlanCourseCommand courseCommand(String planId, String code) {
         return new SaveTrainingPlanCourseCommand(planId, null, code, "数据结构",
                 new BigDecimal("3.0"), CourseType.REQUIRED, 2, true, 0);

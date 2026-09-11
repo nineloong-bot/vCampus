@@ -7,16 +7,19 @@ from decimal import Decimal
 def generate(add, now):
     stamp = dict(rowVersion=0, createdAt=now, updatedAt=now)
     current, previous = "bulk-term-current", "bulk-term-previous"
-    # termCode 降序决定当前学期；BULK 前缀排在原有数字学期之后。
-    for term, delta, status, title in (
-        (current, 0, "ACTIVE", "批量测试当前学期"),
-        (previous, -365, "CLOSED", "批量测试历史学期"),
+    spring, summer = "bulk-term-spring", "bulk-term-summer"
+    for term, delta, year, season, status, title in (
+        (current, 0, 2026, "AUTUMN", "ACTIVE", "2026-2027学年秋季学期"),
+        (spring, 165, 2026, "SPRING", "PLANNED", "2026-2027学年春季学期"),
+        (summer, -68, 2026, "SUMMER", "CLOSED", "2026-2027学年暑期学期"),
+        (previous, -365, 2025, "AUTUMN", "CLOSED", "2025-2026学年秋季学期"),
     ):
         base = now + timedelta(days=delta)
         add("tblTerm", termId=term,
-            termCode=("BULK-CURRENT-" if delta == 0 else "BULK-HISTORY-") + now.strftime("%Y%m%d"),
+            termCode=f"{year}-{year+1}-{season}",
             termName=title, startDate=(base - timedelta(days=7)).date(),
             endDate=(base + timedelta(days=140)).date(),
+            academicYearStart=year, season=season,
             enrollmentStartAt=base - timedelta(days=14),
             enrollmentEndAt=base + timedelta(days=30),
             adjustmentStartAt=base + timedelta(days=31),
@@ -38,32 +41,43 @@ def generate(add, now):
             totalHours=(2 + course % 4) * 16,
             description="批量合成课程，用于分页、搜索、选课及教学班管理。",
             isActive=True, **stamp)
+    generate_plans(add, now)
 
-    # 三个课程组分配到周一、二、三；每名学生各选一门，避免课表冲突。
+    # 正常选课来自学生年级对应的秋季培养方案；前 50 人另保留一门已失败课程作为重修。
     selections = []
     for student in range(1, 901):
-        group, section = (student - 1) % 40, ((student - 1) // 40) % 2
-        for day in range(3):
-            course = day * 40 + group + 1
-            offering = (course - 1) * 2 + section + 1
-            if offering == 240:
-                offering = 239  # 最后一个教学班关闭，学生归入同课程 A 班。
-            selections.append((student, course, offering, day == 0 and student <= 50))
+        cohort = 2023 + ((student - 1) % 100) // 25
+        year = 2026 - cohort + 1
+        current_courses = list(range((year - 1) * 30 + 11, (year - 1) * 30 + 21))
+        current_courses = [course for course in current_courses if course not in range(2, 121, 15)]
+        retake = (student - 1) % 40 + 1 if student <= 50 else None
+        if retake is not None:
+            selections.append((student, retake, (retake - 1) * 2 + 1, True))
+            current_courses = [course for course in current_courses
+                               if (course - 1) % 20 != (retake - 1) % 20]
+        offset = (student - 1) % len(current_courses)
+        rotated = current_courses[offset:] + current_courses[:offset]
+        for course in rotated[:2 if retake is not None else 3]:
+            section = (student - 1) % 2
+            selections.append((student, course, (course - 1) * 2 + section + 1, False))
     counts = Counter(o for _, _, o, _ in selections)
     for offering in range(1, 241):
-        course, local = (offering + 1) // 2, (offering - 1) % 80
+        course, section = (offering + 1) // 2, (offering - 1) % 2
+        slot = (course - 1) % 20
         add("tblCourseOffering", offeringId=f"bulk-offering-{offering:03d}",
             termId=current, courseId=f"bulk-course-{course:03d}",
-            teacherUserId=f"bulk-teacher-{local % 50 + 1:03d}",
+            teacherUserId=f"bulk-teacher-{((course - 1) // 20) * 2 + section + 1:03d}",
             className=f"测试课程{course:03d}-{('A' if offering % 2 else 'B')}班",
             capacity=counts[offering] if offering == 80 else 40,
             enrolledCount=counts[offering],
             offeringStatus="CLOSED" if offering == 240 else "OPEN", **stamp)
         add("tblCourseSchedule", scheduleId=f"bulk-schedule-{offering:03d}",
             offeringId=f"bulk-offering-{offering:03d}",
-            dayOfWeek=(offering - 1) // 80 + 1,
-            startPeriod=1 + (local // 50) * 2, endPeriod=2 + (local // 50) * 2,
+            dayOfWeek=slot % 5 + 1,
+            startPeriod=1 + (slot // 5) * 2, endPeriod=2 + (slot // 5) * 2,
             startWeek=1, endWeek=18, classroom=f"测试教学楼-{offering:03d}")
+    generate_season_offerings(add, spring, "spring", range(1, 31), stamp)
+    generate_season_offerings(add, summer, "summer", range(31, 51), stamp)
     for index, (student, course, offering, retake) in enumerate(selections, 1):
         add("tblEnrollment", enrollmentId=f"bulk-enrollment-{index:04d}",
             offeringId=f"bulk-offering-{offering:03d}", studentId=f"bulk-student-{student:04d}",
@@ -114,7 +128,7 @@ def self_check():
     for o in offers.values():
         assert counts[o["offeringId"]] == o["enrolledCount"] <= o["capacity"]
         s = schedules[o["offeringId"]]
-        slot = (o["teacherUserId"], s["dayOfWeek"], s["startPeriod"])
+        slot = (o["termId"], o["teacherUserId"], s["dayOfWeek"], s["startPeriod"])
         assert slot not in teacher_slots
         teacher_slots.add(slot)
     pairs = {(e["studentId"], e["offeringId"]) for e in rows["tblEnrollment"]}
@@ -124,9 +138,53 @@ def self_check():
         pair = (e["studentId"], offers[e["offeringId"]]["courseId"])
         assert (*pair, "PASSED") not in outcomes
         assert (e["enrollmentType"] == "RETAKE") == ((*pair, "FAILED") in outcomes)
-    assert len(active) == 2700 and len(offers) == 240
+    assert len(active) == 2700 and len(offers) == 290
     assert sum(p["phaseStatus"] in ("OPEN", "PREVIEW") for p in rows["tblCourseSelectionPhase"]) == 1
     return {table: len(values) for table, values in rows.items()}
+
+
+def generate_plans(add, now):
+    """Emit one canonical four-year, three-season plan per major and cohort."""
+    for major in range(1, 11):
+        for cohort in range(2023, 2027):
+            plan = f"bulk-plan-{major:02}-{cohort}"
+            add("tblTrainingPlan", planId=plan, majorId=f"bulk-major-{major:02}",
+                enrollmentYear=cohort, planName=f"{800+major}专业{cohort}级培养方案",
+                minElectiveCount=8, minElectiveCredits=16, isActive=True,
+                rowVersion=1, createdAt=now, updatedAt=now)
+            for course in range(1, 121):
+                year, local = (course - 1) // 30 + 1, (course - 1) % 30
+                season_ordinal = local // 10 + 1
+                add("tblTrainingPlanCourse", planCourseId=f"{plan}-c{course:03d}",
+                    planId=plan, courseCode=f"BULK-C{course:03d}",
+                    courseName=f"培养方案课程{course:03d}", credits=2 + course % 4,
+                    courseType="ELECTIVE" if course % 4 == 0 else "REQUIRED",
+                    semester=(year - 1) * 3 + season_ordinal,
+                    courseNature="ELECTIVE" if course % 4 == 0 else "REQUIRED",
+                    courseCategory="专业方向课" if course % 4 == 0 else "专业基础课",
+                    offeringUnit=f"{800+major}专业所在学院", isActive=True,
+                    rowVersion=0, createdAt=now, updatedAt=now)
+            for course in range(2, 121, 15):
+                add("tblTrainingPlanPrerequisite",
+                    prerequisiteId=f"{plan}-pre-{course:03d}", planId=plan,
+                    courseId=f"bulk-course-{course:03d}",
+                    prerequisiteCourseId=f"bulk-course-{course-1:03d}")
+
+
+def generate_season_offerings(add, term, label, courses, stamp):
+    for course in courses:
+        offering = f"bulk-{label}-offering-{course:03d}"
+        add("tblCourseOffering", offeringId=offering, termId=term,
+            courseId=f"bulk-course-{course:03d}",
+            teacherUserId=f"bulk-teacher-{course % 50 + 1:03d}",
+            className=f"{label}课程{course:03d}-A班", capacity=40,
+            enrolledCount=0, offeringStatus="OPEN", **stamp)
+        add("tblCourseSchedule", scheduleId=f"bulk-{label}-schedule-{course:03d}",
+            offeringId=offering, dayOfWeek=(course - 1) % 5 + 1,
+            startPeriod=1 + ((course - 1) // 5 % 4) * 2,
+            endPeriod=2 + ((course - 1) // 5 % 4) * 2,
+            startWeek=1, endWeek=6 if label == "summer" else 18,
+            classroom=f"{label}教学楼-{course:03d}")
 
 
 if __name__ == "__main__":

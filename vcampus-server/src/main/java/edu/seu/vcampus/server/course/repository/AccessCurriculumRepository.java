@@ -12,35 +12,51 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-/** Microsoft Access implementation of the temporary curriculum read model. */
+/** Curriculum port backed by the student module's canonical training-plan tables. */
 public final class AccessCurriculumRepository implements CurriculumRepository {
+    private final CurriculumRepository legacy = new LegacyCurriculumRepository();
+
     @Override
     public CurriculumPlan insertPlan(Connection c, CurriculumPlan plan) {
-        String sql = "INSERT INTO tblCurriculumPlan (planId,majorCode,cohortYear,planName,planVersion,planStatus) VALUES (?,?,?,?,?,?)";
+        if (!hasCanonicalTables(c)) return legacy.insertPlan(c, plan);
+        String sql = "INSERT INTO tblTrainingPlan (planId,majorId,enrollmentYear,planName,"
+                + "minElectiveCount,minElectiveCredits,isActive,rowVersion,createdAt,updatedAt) "
+                + "SELECT ?,majorId,?,?,0,0,?,?,NOW(),NOW() FROM tblMajor WHERE majorCode=?";
         try (PreparedStatement s = c.prepareStatement(sql)) {
-            s.setString(1, plan.planId()); s.setString(2, plan.majorCode());
-            s.setInt(3, plan.cohortYear()); s.setString(4, plan.planName());
-            s.setInt(5, plan.planVersion()); s.setString(6, plan.planStatus());
-            s.executeUpdate(); return plan;
+            s.setString(1, plan.planId()); s.setInt(2, plan.cohortYear());
+            s.setString(3, plan.planName()); s.setBoolean(4, "PUBLISHED".equals(plan.planStatus()));
+            s.setInt(5, plan.planVersion()); s.setString(6, plan.majorCode());
+            if (s.executeUpdate() != 1) throw new SQLException("major code not found: " + plan.majorCode());
+            return plan;
         } catch (SQLException e) { throw CourseJdbc.failure("insert curriculum plan", e); }
     }
 
     @Override
     public CurriculumCourse insertCourse(Connection c, CurriculumCourse course) {
-        String sql = "INSERT INTO tblCurriculumCourse (planCourseId,planId,courseId,academicYearNo,season,courseNature,courseCategory,offeringUnit) VALUES (?,?,?,?,?,?,?,?)";
+        if (!hasCanonicalTables(c)) return legacy.insertCourse(c, course);
+        String sql = "INSERT INTO tblTrainingPlanCourse (planCourseId,planId,courseCode,courseName,"
+                + "credits,courseType,semester,courseNature,courseCategory,offeringUnit,isActive,"
+                + "rowVersion,createdAt,updatedAt) SELECT ?,?,courseCode,courseName,credit,?,?,?,?,?,"
+                + "TRUE,0,NOW(),NOW() FROM tblCourse WHERE courseId=?";
         try (PreparedStatement s = c.prepareStatement(sql)) {
             s.setString(1, course.planCourseId()); s.setString(2, course.planId());
-            s.setString(3, course.courseId()); s.setInt(4, course.academicYearNo());
-            s.setString(5, course.season().name()); s.setString(6, course.courseNature());
-            s.setString(7, course.courseCategory()); s.setString(8, course.offeringUnit());
-            s.executeUpdate(); return course;
+            s.setString(3, "ELECTIVE".equals(course.courseNature()) ? "ELECTIVE" : "REQUIRED");
+            s.setInt(4, ordinal(course.academicYearNo(), course.season()));
+            s.setString(5, course.courseNature()); s.setString(6, course.courseCategory());
+            s.setString(7, course.offeringUnit()); s.setString(8, course.courseId());
+            if (s.executeUpdate() != 1) throw new SQLException("course not found: " + course.courseId());
+            return course;
         } catch (SQLException e) { throw CourseJdbc.failure("insert curriculum course", e); }
     }
 
     @Override
     public void insertPrerequisite(Connection c, String id, String planId,
                                    String courseId, String prerequisiteCourseId) {
-        String sql = "INSERT INTO tblCurriculumPrerequisite (prerequisiteId,planId,courseId,prerequisiteCourseId) VALUES (?,?,?,?)";
+        if (!hasCanonicalTables(c)) {
+            legacy.insertPrerequisite(c, id, planId, courseId, prerequisiteCourseId); return;
+        }
+        String sql = "INSERT INTO tblTrainingPlanPrerequisite "
+                + "(prerequisiteId,planId,courseId,prerequisiteCourseId) VALUES (?,?,?,?)";
         try (PreparedStatement s = c.prepareStatement(sql)) {
             s.setString(1, id); s.setString(2, planId); s.setString(3, courseId);
             s.setString(4, prerequisiteCourseId); s.executeUpdate();
@@ -49,7 +65,10 @@ public final class AccessCurriculumRepository implements CurriculumRepository {
 
     @Override
     public Optional<CurriculumPlan> findPublishedPlan(Connection c, String majorCode, int cohortYear) {
-        String sql = "SELECT * FROM tblCurriculumPlan WHERE majorCode=? AND cohortYear=? AND planStatus='PUBLISHED' ORDER BY planVersion DESC";
+        if (!hasCanonicalTables(c)) return legacy.findPublishedPlan(c, majorCode, cohortYear);
+        String sql = "SELECT p.planId,m.majorCode,p.enrollmentYear,p.planName,p.rowVersion "
+                + "FROM tblTrainingPlan p INNER JOIN tblMajor m ON p.majorId=m.majorId "
+                + "WHERE m.majorCode=? AND p.enrollmentYear=? AND p.isActive=TRUE ORDER BY p.rowVersion DESC";
         try (PreparedStatement s = c.prepareStatement(sql)) {
             s.setString(1, majorCode); s.setInt(2, cohortYear);
             try (ResultSet r = s.executeQuery()) { return r.next() ? Optional.of(plan(r)) : Optional.empty(); }
@@ -59,22 +78,26 @@ public final class AccessCurriculumRepository implements CurriculumRepository {
     @Override
     public List<CurriculumCourse> findScheduledCourses(Connection c, String planId,
                                                        int academicYearNo, AcademicSeason season) {
-        return findCourses(c, "cc.planId=? AND cc.academicYearNo=? AND cc.season=?",
-                s -> { s.setString(1, planId); s.setInt(2, academicYearNo); s.setString(3, season.name()); });
+        if (!hasCanonicalTables(c)) return legacy.findScheduledCourses(c, planId, academicYearNo, season);
+        return findCourses(c, planId).stream().filter(course -> course.academicYearNo() == academicYearNo
+                && course.season() == season).toList();
     }
 
     @Override
     public List<CurriculumCourse> findEarlierCourses(Connection c, String planId,
                                                      int academicYearNo, AcademicSeason season) {
-        return findCourses(c, "cc.planId=? AND (cc.academicYearNo<? OR (cc.academicYearNo=? AND cc.seasonOrder<?))",
-                s -> { s.setString(1, planId); s.setInt(2, academicYearNo); s.setInt(3, academicYearNo);
-                    s.setInt(4, season.curriculumTermOrdinal()); });
+        if (!hasCanonicalTables(c)) return legacy.findEarlierCourses(c, planId, academicYearNo, season);
+        int current = ordinal(academicYearNo, season);
+        return findCourses(c, planId).stream()
+                .filter(course -> ordinal(course.academicYearNo(), course.season()) < current).toList();
     }
 
     @Override
     public Set<String> findPrerequisiteCourseIds(Connection c, String planId, String courseId) {
+        if (!hasCanonicalTables(c)) return legacy.findPrerequisiteCourseIds(c, planId, courseId);
         Set<String> ids = new LinkedHashSet<>();
-        String sql = "SELECT prerequisiteCourseId FROM tblCurriculumPrerequisite WHERE planId=? AND courseId=? ORDER BY prerequisiteCourseId";
+        String sql = "SELECT prerequisiteCourseId FROM tblTrainingPlanPrerequisite "
+                + "WHERE planId=? AND courseId=? ORDER BY prerequisiteCourseId";
         try (PreparedStatement s = c.prepareStatement(sql)) {
             s.setString(1, planId); s.setString(2, courseId);
             try (ResultSet r = s.executeQuery()) { while (r.next()) ids.add(r.getString(1)); }
@@ -82,30 +105,55 @@ public final class AccessCurriculumRepository implements CurriculumRepository {
         } catch (SQLException e) { throw CourseJdbc.failure("find curriculum prerequisites", e); }
     }
 
-    private List<CurriculumCourse> findCourses(Connection c, String predicate, Binder binder) {
+    private List<CurriculumCourse> findCourses(Connection c, String planId) {
         List<CurriculumCourse> values = new ArrayList<>();
-        String seasonOrder = "SWITCH(cc.season='SUMMER',1,cc.season='AUTUMN',2,cc.season='SPRING',3)";
-        String effectivePredicate = predicate.replace("cc.seasonOrder", seasonOrder);
-        String sql = "SELECT cc.* FROM tblCurriculumCourse cc INNER JOIN tblCourse c ON cc.courseId=c.courseId WHERE "
-                + effectivePredicate + " ORDER BY cc.academicYearNo," + seasonOrder + ",c.courseCode";
+        String sql = "SELECT pc.planCourseId,pc.planId,c.courseId,pc.semester,pc.courseType,"
+                + "pc.courseNature,pc.courseCategory,pc.offeringUnit FROM tblTrainingPlanCourse pc "
+                + "INNER JOIN tblCourse c ON pc.courseCode=c.courseCode "
+                + "WHERE pc.planId=? AND pc.isActive=TRUE ORDER BY pc.semester,c.courseCode";
         try (PreparedStatement s = c.prepareStatement(sql)) {
-            binder.bind(s); try (ResultSet r = s.executeQuery()) { while (r.next()) values.add(course(r)); }
+            s.setString(1, planId);
+            try (ResultSet r = s.executeQuery()) { while (r.next()) values.add(course(r)); }
             return List.copyOf(values);
         } catch (SQLException e) { throw CourseJdbc.failure("find curriculum courses", e); }
     }
 
     private static CurriculumPlan plan(ResultSet r) throws SQLException {
         return new CurriculumPlan(r.getString("planId"), r.getString("majorCode"),
-                r.getInt("cohortYear"), r.getString("planName"), r.getInt("planVersion"),
-                r.getString("planStatus"));
+                r.getInt("enrollmentYear"), r.getString("planName"), r.getInt("rowVersion"),
+                "PUBLISHED");
     }
 
     private static CurriculumCourse course(ResultSet r) throws SQLException {
+        int semester = r.getInt("semester");
+        String nature = r.getString("courseNature");
+        if (nature == null) nature = r.getString("courseType");
+        String category = r.getString("courseCategory");
+        String unit = r.getString("offeringUnit");
         return new CurriculumCourse(r.getString("planCourseId"), r.getString("planId"),
-                r.getString("courseId"), r.getInt("academicYearNo"),
-                AcademicSeason.valueOf(r.getString("season")), r.getString("courseNature"),
-                r.getString("courseCategory"), r.getString("offeringUnit"));
+                r.getString("courseId"), (semester - 1) / 3 + 1, season(semester), nature,
+                category == null ? "培养方案课程" : category,
+                unit == null ? "专业所在院系" : unit);
     }
 
-    @FunctionalInterface private interface Binder { void bind(PreparedStatement statement) throws SQLException; }
+    private static int ordinal(int academicYearNo, AcademicSeason season) {
+        return (academicYearNo - 1) * 3 + season.curriculumTermOrdinal();
+    }
+
+    private static AcademicSeason season(int semester) {
+        return switch ((semester - 1) % 3 + 1) {
+            case 1 -> AcademicSeason.SUMMER;
+            case 2 -> AcademicSeason.AUTUMN;
+            default -> AcademicSeason.SPRING;
+        };
+    }
+
+    private static boolean hasCanonicalTables(Connection connection) {
+        try (ResultSet tables = connection.getMetaData().getTables(
+                null, null, "tblTrainingPlan", new String[]{"TABLE"})) {
+            return tables.next();
+        } catch (SQLException error) {
+            throw CourseJdbc.failure("inspect training-plan schema", error);
+        }
+    }
 }

@@ -7,13 +7,12 @@ import edu.seu.vcampus.server.persistence.TransactionManager;
 import edu.seu.vcampus.server.course.service.CourseService;
 
 import java.math.BigDecimal;
-import java.sql.Connection;
 import java.time.Instant;
 import java.util.*;
 
 /** Realistic demo fixture transcribed from the supplied 2024 Computer Science curriculum. */
 public final class CourseDemoDataset {
-    public static final String MAJOR = "080901";
+    public static final String MAJOR = "090";
     public static final int COHORT = 2024;
     private static final String UNIT = "计算机科学与工程学院";
 
@@ -59,7 +58,7 @@ public final class CourseDemoDataset {
     /** Installs the shared fixture for a runtime's own passed-course and retake students. */
     public static void install(ConnectionProvider connections, CourseService service, TermView term,
                                String passedStudentId, String retakeStudentId, String teacherId) {
-        removeLegacySyntheticFixtures(connections);
+        CourseDemoCleanup.removeLegacySyntheticFixtures(connections);
         Map<String, CourseView> catalog = new HashMap<>();
         for (CourseView course : service.searchCatalog(new CourseCatalogQuery("", null, 0, 100)).items()) {
             catalog.put(course.courseCode(), course);
@@ -163,38 +162,6 @@ public final class CourseDemoDataset {
                 throw duplicateImport;
             }
         }
-    }
-
-    private static void removeLegacySyntheticFixtures(ConnectionProvider connections) {
-        new TransactionManager(connections).inTransaction(connection -> {
-            for (String code : List.of("MATH101", "CS201", "DEMO-RACE",
-                    "DEMO-MATH101", "DEMO-CS201")) deleteCourse(connection, code);
-            return null;
-        });
-    }
-
-    private static void deleteCourse(Connection c, String code) {
-        try {
-            List<String> offeringIds = new ArrayList<>();
-            String courseId = null;
-            try (var s = c.prepareStatement("SELECT courseId FROM tblCourse WHERE courseCode=?")) {
-                s.setString(1, code); try (var r = s.executeQuery()) { if (r.next()) courseId = r.getString(1); }
-            }
-            if (courseId == null) return;
-            try (var s = c.prepareStatement("SELECT o.offeringId FROM tblCourseOffering o INNER JOIN tblCourse c ON o.courseId=c.courseId WHERE c.courseCode=?")) {
-                s.setString(1, code); try (var r = s.executeQuery()) { while (r.next()) offeringIds.add(r.getString(1)); }
-            }
-            for (String id : offeringIds) {
-                try (var s = c.prepareStatement("DELETE FROM tblEnrollmentAdjustment WHERE sourceOfferingId=? OR targetOfferingId=?")) { s.setString(1, id); s.setString(2, id); s.executeUpdate(); }
-                for (String table : List.of("tblEnrollment", "tblCourseSchedule", "tblCourseRetakeQuota"))
-                    try (var s = c.prepareStatement("DELETE FROM " + table + " WHERE offeringId=?")) { s.setString(1, id); s.executeUpdate(); }
-                try (var s = c.prepareStatement("DELETE FROM tblCourseOffering WHERE offeringId=?")) { s.setString(1, id); s.executeUpdate(); }
-            }
-            try (var s = c.prepareStatement("DELETE FROM tblCurriculumPrerequisite WHERE courseId=? OR prerequisiteCourseId=?")) { s.setString(1, courseId); s.setString(2, courseId); s.executeUpdate(); }
-            for (String table : List.of("tblCurriculumCourse", "tblCourseAttempt"))
-                try (var s = c.prepareStatement("DELETE FROM " + table + " WHERE courseId=?")) { s.setString(1, courseId); s.executeUpdate(); }
-            try (var s = c.prepareStatement("DELETE FROM tblCourse WHERE courseCode=?")) { s.setString(1, code); s.executeUpdate(); }
-        } catch (Exception error) { throw new IllegalStateException("Unable to replace legacy demo fixtures", error); }
     }
 
     private static Item item(String code, String name, String credit, int year,

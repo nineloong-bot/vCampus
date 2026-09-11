@@ -30,8 +30,11 @@ class UnifiedDemoDatasetTest {
         initializer.initialize(connections);
 
         try (Connection connection = connections.open()) {
-            assertThat(tables(connection)).contains("TBLUSER", "TBLSTUDENT", "TBLCOURSE",
-                    "TBLBOOK", "TBLSHOP", "TBLORDER");
+            assertThat(tables(connection))
+                    .contains("TBLUSER", "TBLSTUDENT", "TBLCOURSE", "TBLTRAININGPLAN",
+                            "TBLTRAININGPLANCOURSE", "TBLBOOK", "TBLSHOP", "TBLORDER")
+                    .doesNotContain("TBLCURRICULUMPLAN", "TBLCURRICULUMCOURSE",
+                            "TBLCURRICULUMPREREQUISITE");
             assertThat(count(connection, "SELECT COUNT(*) FROM tblUser WHERE roleCode='SUPER_ADMIN'"))
                     .isPositive();
             assertThat(count(connection, "SELECT COUNT(*) FROM tblUser WHERE roleCode='TEACHER'"))
@@ -42,9 +45,9 @@ class UnifiedDemoDatasetTest {
                     .isGreaterThanOrEqualTo(3);
             assertThat(count(connection, "SELECT COUNT(*) FROM tblCourseOffering WHERE enrolledCount=capacity"))
                     .isPositive();
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblCurriculumPlan WHERE planStatus='PUBLISHED'"))
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblTrainingPlan WHERE isActive=TRUE"))
                     .isPositive();
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblCurriculumCourse"))
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblTrainingPlanCourse"))
                     .isGreaterThanOrEqualTo(2);
             assertThat(count(connection, "SELECT COUNT(*) FROM tblUser u INNER JOIN "
                     + "tblCourseOffering o ON u.userId=o.teacherUserId "

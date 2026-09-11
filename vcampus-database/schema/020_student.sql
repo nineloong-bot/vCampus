@@ -12,7 +12,7 @@ CREATE UNIQUE INDEX uk_tblDepartment_departmentCode
 CREATE TABLE tblMajor (
     majorId VARCHAR(36) PRIMARY KEY,
     departmentId VARCHAR(36) NOT NULL,
-    majorCode VARCHAR(3) NOT NULL,
+    majorCode VARCHAR(16) NOT NULL,
     majorName VARCHAR(64) NOT NULL,
     grades VARCHAR(16),
     isActive YESNO NOT NULL,
