@@ -150,6 +150,8 @@ class LoginDemoUiTest {
                 .isEqualTo("模块：用户 USER_ADMIN");
         assertThat(component(login[0], "login.demoCollegeAdmins", JLabel.class).getText())
                 .isEqualTo("学院：计算机 CS_COLLEGE_ADMIN ｜ 数学 MATH_COLLEGE_ADMIN");
+        assertThat(component(login[0], "login.demoCollegeAdmins2", JLabel.class).getText())
+                .isEqualTo("学院：信息工程 EE_COLLEGE_ADMIN ｜ 外国语 FL_COLLEGE_ADMIN");
         assertThat(component(login[0], "login.loginId", JTextField.class).getText())
                 .isEmpty();
         assertThat(component(login[0], "login.password", JPasswordField.class).getPassword())

@@ -51,6 +51,18 @@ VALUES
      'student@seu.edu.cn', '13800000000', '00000000-0000-0000-0000-000000000103',
      NOW(), 'ACTIVE', 0, NOW(), NOW());
 
+INSERT INTO tblStudent
+    (studentId, userId, studentNumber, studentType, studentName, gender,
+     email, phone, classId, enrollmentDate, studentStatus, rowVersion,
+     createdAt, updatedAt)
+VALUES
+    ('00000000-0000-0000-0000-000000000404',
+     '00000000-0000-0000-0000-000000000403',
+     '09023999', 'UNDERGRADUATE', '演示学生', '男',
+     'demo.student@seu.edu.cn', '13800002478',
+     '00000000-0000-0000-0000-000000000103',
+     #2024-09-01#, 'ACTIVE', 0, NOW(), NOW());
+
 UPDATE tblNumberSequence SET currentValue = 1
     WHERE sequenceKey = 'CAMPUS_CARD_GLOBAL';
 

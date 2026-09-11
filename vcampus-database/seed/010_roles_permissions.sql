@@ -109,6 +109,36 @@ VALUES
      'W5S+FoQFDWUsViHY96GM6A==', 120000, 'COLLEGE_ADMIN', 'ACTIVE', FALSE, 0,
      NULL, NULL, 0, NOW(), NOW());
 
+INSERT INTO tblUser
+    (userId, loginId, passwordHash, passwordSalt, passwordIterations,
+     roleCode, accountStatus, mustChangePassword, failedLoginCount,
+     lockedUntil, lastLoginAt, rowVersion, createdAt, updatedAt)
+VALUES
+    ('00000000-0000-0000-0000-000000000401', 'DEMO_ADMIN',
+     'J2gQAOuLOjlxEXcl2dqRTVuLVF3iL8rjCgmmJvJtJ9g=',
+     'YjJJEx6Z0ak5t9I9M+AZvw==', 120000, 'SUPER_ADMIN', 'ACTIVE', FALSE, 0,
+     NULL, NULL, 0, NOW(), NOW());
+
+INSERT INTO tblUser
+    (userId, loginId, passwordHash, passwordSalt, passwordIterations,
+     roleCode, accountStatus, mustChangePassword, failedLoginCount,
+     lockedUntil, lastLoginAt, rowVersion, createdAt, updatedAt)
+VALUES
+    ('00000000-0000-0000-0000-000000000402', 'DEMO_TEACHER',
+     '8vSrfuVP5AQ/93ycqeykqLSXA49/93J1NpiUiO1/Fdk=',
+     'SyrLVrWznBst+9uXhUAkFA==', 120000, 'TEACHER', 'ACTIVE', FALSE, 0,
+     NULL, NULL, 0, NOW(), NOW());
+
+INSERT INTO tblUser
+    (userId, loginId, passwordHash, passwordSalt, passwordIterations,
+     roleCode, accountStatus, mustChangePassword, failedLoginCount,
+     lockedUntil, lastLoginAt, rowVersion, createdAt, updatedAt)
+VALUES
+    ('00000000-0000-0000-0000-000000000403', '213242478',
+     'w1z3hWWkFyQHs8ZdiZEqMAs684yPdGHFtNahPD80BqE=',
+     'I3QPbcs0XeUBuZxnmoVqWw==', 120000, 'STUDENT', 'ACTIVE', TRUE, 0,
+     NULL, NULL, 0, NOW(), NOW());
+
 INSERT INTO tblPermission (permissionCode, permissionName)
 VALUES ('USER_READ_ALL', '查询全部账户');
 INSERT INTO tblPermission (permissionCode, permissionName)

@@ -31,6 +31,8 @@ public record MajorTransferApplicationView(
         Double finalScore,
         List<MajorTransferReviewView> reviews,
         List<AttachmentInfo> attachments,
+        boolean sourceApprovalAllowed,
+        boolean targetApprovalAllowed,
         long applicationVersion,
         Instant submittedAt,
         Instant createdAt,

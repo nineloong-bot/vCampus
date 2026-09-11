@@ -195,7 +195,8 @@ public final class StudentHandlers {
             UpdateStudentContactCommand body) {
         StudentPrincipal principal = principal(message);
         var student = students.getStudent(body.studentId());
-        return principal.hasRole("ADMIN") || principal.userId().equals(student.userId())
+        return principal.hasRole("ADMIN") || principal.hasRole("STUDENT_ADMIN")
+                || principal.userId().equals(student.userId())
                 ? success(students.updateContact(body)) : forbidden();
     }
 
@@ -220,7 +221,8 @@ public final class StudentHandlers {
     private ResponseBody<? extends Serializable> strictAdmin(Message message,
             java.util.function.Supplier<? extends Serializable> action) {
         StudentPrincipal principal = principal(message);
-        return principal.hasRole("ADMIN") ? success(action.get()) : forbidden();
+        return principal.hasRole("ADMIN") || principal.hasRole("STUDENT_ADMIN")
+                ? success(action.get()) : forbidden();
     }
 
     private ResponseBody<? extends Serializable> authenticated(Message message,
@@ -236,7 +238,8 @@ public final class StudentHandlers {
     }
 
     private static boolean isStaff(StudentPrincipal principal) {
-        return principal.hasRole("TEACHER") || principal.hasRole("ADMIN");
+        return principal.hasRole("TEACHER") || principal.hasRole("ADMIN")
+                || principal.hasRole("STUDENT_ADMIN");
     }
 
     private static StudentView withoutContact(StudentView value) {

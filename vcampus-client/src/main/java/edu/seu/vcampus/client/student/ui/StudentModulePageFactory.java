@@ -3,6 +3,7 @@ package edu.seu.vcampus.client.student.ui;
 import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.core.ui.shell.ModulePlaceholderPage;
 import edu.seu.vcampus.client.student.majortransfer.ui.MajorTransferAdminPanel;
+import edu.seu.vcampus.client.student.majortransfer.ui.MajorTransferAdminPanel.TransferAdminMode;
 import edu.seu.vcampus.client.student.majortransfer.ui.MyMajorTransferPanel;
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.common.user.UserRole;
@@ -27,8 +28,9 @@ public final class StudentModulePageFactory {
         return switch (user.role()) {
             case STUDENT -> createStudentPage(user, students, connection);
             case TEACHER -> createTeacherPage(students, connection);
-            case ADMIN -> createAdminPage(students, connection);
-            case SUPER_ADMIN, STUDENT_ADMIN, COLLEGE_ADMIN, COURSE_ADMIN,
+            case STUDENT_ADMIN -> createAdminPage(students, connection);
+            case COLLEGE_ADMIN -> createCollegePage(students, connection);
+            case ADMIN, SUPER_ADMIN, COURSE_ADMIN,
                     LIBRARY_ADMIN, SHOP_ADMIN, USER_ADMIN ->
                     new ModulePlaceholderPage(TITLE, DESCRIPTION);
         };
@@ -69,10 +71,23 @@ public final class StudentModulePageFactory {
         if (admin) {
             tabs.addTab("组织管理", new OrganizationManagementPanel(students, connection));
             tabs.addTab("资料审核", new StudentProfileReviewPanel(students, connection));
-            tabs.addTab("转专业管理", new MajorTransferAdminPanel(students, connection));
+            tabs.addTab("转专业管理", new MajorTransferAdminPanel(students, connection,
+                    TransferAdminMode.CENTRAL_MANAGEMENT));
             tabs.addTab("培养方案管理", new TrainingPlanManagementPanel(students));
             tabs.addTab("成绩管理", new GradeManagementPanel(students));
         }
+        JPanel wrapper = new JPanel(new BorderLayout());
+        wrapper.setName("student.module");
+        wrapper.add(tabs);
+        return wrapper;
+    }
+
+    private static JPanel createCollegePage(StudentClientService students,
+                                            ClientConnection connection) {
+        JTabbedPane tabs = new JTabbedPane();
+        tabs.setName("student.tabs");
+        tabs.addTab("转专业审批", new MajorTransferAdminPanel(students, connection,
+                TransferAdminMode.COLLEGE_APPROVAL));
         JPanel wrapper = new JPanel(new BorderLayout());
         wrapper.setName("student.module");
         wrapper.add(tabs);

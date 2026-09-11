@@ -3,6 +3,7 @@ package edu.seu.vcampus.client.student.majortransfer.ui;
 import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.core.ui.theme.*;
 import edu.seu.vcampus.client.student.service.StudentClientService;
+import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.student.majortransfer.*;
 
 import javax.swing.*;
@@ -17,11 +18,14 @@ import java.util.Objects;
 
 /** Admin major-transfer management panel with left-right split layout. */
 public final class MajorTransferAdminPanel extends JPanel {
+    public enum TransferAdminMode { CENTRAL_MANAGEMENT, COLLEGE_APPROVAL }
+
     private static final Color ACTION_GREEN = new Color(139, 195, 74);
     private static final Color ACTION_RED = new Color(244, 67, 54);
 
     private final StudentClientService students;
     private final ClientConnection connection;
+    private final TransferAdminMode mode;
     private final JLabel errorLabel = new JLabel(" ");
 
     // Left panel
@@ -39,9 +43,15 @@ public final class MajorTransferAdminPanel extends JPanel {
     private JTextArea reviewArea;
 
     public MajorTransferAdminPanel(StudentClientService students, ClientConnection connection) {
+        this(students, connection, TransferAdminMode.CENTRAL_MANAGEMENT);
+    }
+
+    public MajorTransferAdminPanel(StudentClientService students, ClientConnection connection,
+                                   TransferAdminMode mode) {
         super(new BorderLayout(0, UiSpacing.SPACE_2));
         this.students = Objects.requireNonNull(students);
         this.connection = Objects.requireNonNull(connection);
+        this.mode = Objects.requireNonNull(mode);
         setName("major-transfer.admin");
         setBackground(UiColors.BACKGROUND_PAGE);
         setBorder(new EmptyBorder(UiSpacing.SPACE_2, UiSpacing.SPACE_3, UiSpacing.SPACE_2, UiSpacing.SPACE_3));
@@ -70,6 +80,7 @@ public final class MajorTransferAdminPanel extends JPanel {
         JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 2));
         toolbar.setOpaque(false);
         JButton createBatch = new JButton("新建批次");
+        createBatch.setName("saveBatchButton");
         createBatch.addActionListener(e -> showBatchDialog(null));
         JButton editBatch = new JButton("编辑批次");
         editBatch.addActionListener(e -> { if (batchList.getSelectedValue() != null) showBatchDialog(batchList.getSelectedValue()); });
@@ -77,7 +88,10 @@ public final class MajorTransferAdminPanel extends JPanel {
         addOption.addActionListener(e -> showOptionDialog());
         JButton refresh = new JButton("刷新");
         refresh.addActionListener(e -> loadBatches());
-        toolbar.add(createBatch); toolbar.add(editBatch); toolbar.add(addOption); toolbar.add(refresh);
+        if (mode == TransferAdminMode.CENTRAL_MANAGEMENT) {
+            toolbar.add(createBatch); toolbar.add(editBatch); toolbar.add(addOption);
+        }
+        toolbar.add(refresh);
 
         // Batch list
         batchListModel = new DefaultListModel<>();
@@ -164,7 +178,7 @@ public final class MajorTransferAdminPanel extends JPanel {
                         batchListModel.clear();
                         for (var batch : response.data()) batchListModel.addElement(batch);
                     } else {
-                        errorLabel.setText(response != null ? response.message() : "加载失败");
+                        errorLabel.setText(responseMessage(response, "加载失败"));
                     }
                 }));
     }
@@ -178,7 +192,7 @@ public final class MajorTransferAdminPanel extends JPanel {
                     if (response != null && response.success()) {
                         for (var app : response.data()) appListModel.addElement(app);
                     } else {
-                        errorLabel.setText(response != null ? response.message() : "加载失败");
+                        errorLabel.setText(responseMessage(response, "加载失败"));
                     }
                 }));
     }
@@ -195,7 +209,7 @@ public final class MajorTransferAdminPanel extends JPanel {
         students.getTransferApplication(app.applicationId()).whenComplete((response, error) ->
                 SwingUtilities.invokeLater(() -> {
                     if (response != null && response.success()) renderDetail(response.data());
-                    else errorLabel.setText(response == null ? "加载失败" : response.message());
+                    else errorLabel.setText(responseMessage(response, "加载失败"));
                 }));
     }
 
@@ -262,50 +276,66 @@ public final class MajorTransferAdminPanel extends JPanel {
         switch (app.status()) {
             case SUBMITTED -> {
                 detailHint.setText("等待原学院审核");
-                JButton approve = new JButton("原学院审核通过");
-                approve.addActionListener(e -> reviewSource(app, MajorTransferDecision.APPROVE, null));
-                JButton reject = new JButton("驳回");
-                reject.addActionListener(e -> { String c = promptComment(); if (c != null) reviewSource(app, MajorTransferDecision.REJECT, c); });
-                actionsPanel.add(approve); actionsPanel.add(reject);
+                if (mode == TransferAdminMode.COLLEGE_APPROVAL && app.sourceApprovalAllowed()) {
+                    JButton approve = new JButton("转出审批通过");
+                    approve.setName("sourceReviewButton");
+                    approve.addActionListener(e -> reviewSource(app, MajorTransferDecision.APPROVE, null));
+                    JButton reject = new JButton("转出审批驳回");
+                    reject.addActionListener(e -> { String c = promptComment(); if (c != null) reviewSource(app, MajorTransferDecision.REJECT, c); });
+                    actionsPanel.add(approve); actionsPanel.add(reject);
+                }
             }
             case SOURCE_APPROVED -> {
                 detailHint.setText("等待转入学院资格审核");
-                JButton approve = new JButton("资格审核通过");
-                approve.addActionListener(e -> reviewQualification(app, MajorTransferDecision.APPROVE, null));
-                JButton reject = new JButton("驳回");
-                reject.addActionListener(e -> { String c = promptComment(); if (c != null) reviewQualification(app, MajorTransferDecision.REJECT, c); });
-                actionsPanel.add(approve); actionsPanel.add(reject);
+                if (mode == TransferAdminMode.COLLEGE_APPROVAL && app.targetApprovalAllowed()) {
+                    JButton approve = new JButton("转入审批通过");
+                    approve.setName("targetReviewButton");
+                    approve.addActionListener(e -> reviewQualification(app, MajorTransferDecision.APPROVE, null));
+                    JButton reject = new JButton("转入审批驳回");
+                    reject.addActionListener(e -> { String c = promptComment(); if (c != null) reviewQualification(app, MajorTransferDecision.REJECT, c); });
+                    actionsPanel.add(approve); actionsPanel.add(reject);
+                }
             }
             case QUALIFIED -> {
                 detailHint.setText("可录入笔试和面试成绩");
-                JButton score = new JButton("录入成绩");
-                score.addActionListener(e -> showScoreDialog(app));
-                actionsPanel.add(score);
+                if (mode == TransferAdminMode.CENTRAL_MANAGEMENT) {
+                    JButton score = new JButton("录入成绩");
+                    score.setName("recordScoreButton");
+                    score.addActionListener(e -> showScoreDialog(app));
+                    actionsPanel.add(score);
+                }
             }
             case ASSESSED -> {
                 detailHint.setText("可生成拟录取名单");
-                JButton proposal = new JButton("生成拟录取名单");
-                proposal.addActionListener(e -> generateProposal(app));
-                actionsPanel.add(proposal);
+                if (mode == TransferAdminMode.CENTRAL_MANAGEMENT) {
+                    JButton proposal = new JButton("生成拟录取名单");
+                    proposal.addActionListener(e -> generateProposal(app));
+                    actionsPanel.add(proposal);
+                }
             }
             case PROPOSED -> {
                 detailHint.setText("可进行终审");
-                JButton fin = new JButton("终审通过");
-                fin.addActionListener(e -> finalizeApp(app));
-                actionsPanel.add(fin);
+                if (mode == TransferAdminMode.CENTRAL_MANAGEMENT) {
+                    JButton fin = new JButton("终审通过");
+                    fin.addActionListener(e -> finalizeApp(app));
+                    actionsPanel.add(fin);
+                }
             }
             case PENDING_EFFECTIVE, EXECUTION_FAILED -> {
                 detailHint.setText("请选择目标班级并执行转专业");
-                JButton exec = new JButton("执行转专业");
-                exec.addActionListener(e -> showExecuteDialog(app));
-                actionsPanel.add(exec);
+                if (mode == TransferAdminMode.CENTRAL_MANAGEMENT) {
+                    JButton exec = new JButton("执行转专业");
+                    exec.addActionListener(e -> showExecuteDialog(app));
+                    actionsPanel.add(exec);
+                }
             }
             case DRAFT -> detailHint.setText("草稿状态 — 学生尚未提交");
             case EFFECTIVE -> detailHint.setText("已生效 — 转专业已完成");
             case REJECTED -> { detailHint.setText("已驳回"); detailHint.setForeground(ACTION_RED); }
             case CANCELLED -> detailHint.setText("已取消");
         }
-        if (MajorTransferStateMachine.adminMayCancel(app.status())) {
+        if (mode == TransferAdminMode.CENTRAL_MANAGEMENT
+                && MajorTransferStateMachine.adminMayCancel(app.status())) {
             JButton cancel = new JButton("取消申请");
             cancel.addActionListener(e -> { String r = promptReason(); if (r != null) cancel(app, r); });
             actionsPanel.add(cancel);
@@ -350,7 +380,7 @@ public final class MajorTransferAdminPanel extends JPanel {
                 students.saveTransferBatch(cmd).whenComplete((response, error) ->
                         SwingUtilities.invokeLater(() -> {
                             if (response != null && response.success()) loadBatches();
-                            else errorLabel.setText(response == null ? "保存失败" : response.message());
+                            else errorLabel.setText(responseMessage(response, "保存失败"));
                         }));
                 return;
             } catch (RuntimeException error) {
@@ -407,7 +437,7 @@ public final class MajorTransferAdminPanel extends JPanel {
                             w, 100 - w, exempt.isSelected(), requirements.getText(), true, 0);
                     students.saveTransferOption(cmd).whenComplete((response, err) -> SwingUtilities.invokeLater(() ->
                             errorLabel.setText(response != null && response.success() ? "开放专业已保存" :
-                                    response == null ? "保存失败" : response.message())));
+                                    responseMessage(response, "保存失败"))));
                     return;
                 } catch (RuntimeException error) { JOptionPane.showMessageDialog(this, error.getMessage()); }
             }
@@ -427,7 +457,7 @@ public final class MajorTransferAdminPanel extends JPanel {
                 var cmd = new RecordMajorTransferScoreCommand(app.applicationId(), w, i, app.applicationVersion());
                 students.recordTransferScore(cmd).whenComplete((r, e) -> SwingUtilities.invokeLater(() -> {
                     if (r != null && r.success()) loadApplicationDetail();
-                    else errorLabel.setText(r != null ? r.message() : "录入失败");
+                    else errorLabel.setText(responseMessage(r, "录入失败"));
                 }));
             } catch (NumberFormatException e) { JOptionPane.showMessageDialog(this, "成绩请输入数字"); }
         }
@@ -447,7 +477,7 @@ public final class MajorTransferAdminPanel extends JPanel {
                         var cmd = new ExecuteMajorTransferCommand(app.applicationId(), sel.split(" - ")[0], app.applicationVersion());
                         students.executeTransfer(cmd).whenComplete((r, e) -> SwingUtilities.invokeLater(() -> {
                             if (r != null && r.success()) loadApplicationDetail();
-                            else errorLabel.setText(r != null ? r.message() : "执行失败");
+                            else errorLabel.setText(responseMessage(r, "执行失败"));
                         }));
                     }
                 }));
@@ -484,7 +514,7 @@ public final class MajorTransferAdminPanel extends JPanel {
                 academic.isSelected(), conduct.isSelected(), admission.isSelected(), comment, app.applicationVersion());
         students.reviewTransferSource(cmd).whenComplete((r, e) -> SwingUtilities.invokeLater(() -> {
             if (r != null && r.success()) { loadApplicationDetail(); actionStatus.setText("审核完成"); }
-            else errorLabel.setText(r != null ? r.message() : "审核失败");
+            else errorLabel.setText(responseMessage(r, "审核失败"));
         }));
     }
 
@@ -492,7 +522,7 @@ public final class MajorTransferAdminPanel extends JPanel {
         var cmd = new ReviewMajorTransferQualificationCommand(app.applicationId(), decision, comment, app.applicationVersion());
         students.reviewTransferQualification(cmd).whenComplete((r, e) -> SwingUtilities.invokeLater(() -> {
             if (r != null && r.success()) { loadApplicationDetail(); actionStatus.setText("审核完成"); }
-            else errorLabel.setText(r != null ? r.message() : "审核失败");
+            else errorLabel.setText(responseMessage(r, "审核失败"));
         }));
     }
 
@@ -503,7 +533,7 @@ public final class MajorTransferAdminPanel extends JPanel {
             if (JOptionPane.showConfirmDialog(this, "确认生成拟录取名单？", "生成拟录取", JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) return;
             students.generateTransferProposal(new GenerateMajorTransferProposalCommand(option.optionId(), option.rowVersion()))
                     .whenComplete((result, fail) -> SwingUtilities.invokeLater(() -> {
-                        if (result == null || !result.success()) { errorLabel.setText(result == null ? "生成失败" : result.message()); return; }
+                        if (result == null || !result.success()) { errorLabel.setText(responseMessage(result, "生成失败")); return; }
                         StringBuilder text = new StringBuilder();
                         result.data().applicants().forEach(a -> text.append(a.studentName()).append(" ")
                                 .append(a.finalScore()).append(a.proposed() ? "  拟录取" : "  未录取").append("\n"));
@@ -517,7 +547,7 @@ public final class MajorTransferAdminPanel extends JPanel {
         var cmd = new FinalizeMajorTransferCommand(app.applicationId(), app.applicationVersion());
         students.finalizeTransfer(cmd).whenComplete((r, e) -> SwingUtilities.invokeLater(() -> {
             if (r != null && r.success()) { loadApplicationDetail(); actionStatus.setText("终审通过"); }
-            else errorLabel.setText(r != null ? r.message() : "终审失败");
+            else errorLabel.setText(responseMessage(r, "终审失败"));
         }));
     }
 
@@ -525,8 +555,14 @@ public final class MajorTransferAdminPanel extends JPanel {
         var cmd = new CancelMajorTransferCommand(app.applicationId(), reason, app.applicationVersion());
         students.cancelTransfer(cmd).whenComplete((r, e) -> SwingUtilities.invokeLater(() -> {
             if (r != null && r.success()) loadApplicationDetail();
-            else errorLabel.setText(r != null ? r.message() : "取消失败");
+            else errorLabel.setText(responseMessage(r, "取消失败"));
         }));
+    }
+
+    private static String responseMessage(ResponseBody<?> response, String fallback) {
+        if (response == null) return fallback;
+        return "COMMON_FORBIDDEN".equals(response.code())
+                ? "无权处理该学院的转专业申请" : response.message();
     }
 
     private String promptComment() {

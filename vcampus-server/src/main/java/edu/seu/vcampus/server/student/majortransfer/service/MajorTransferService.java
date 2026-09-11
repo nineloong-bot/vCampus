@@ -36,6 +36,9 @@ public interface MajorTransferService {
 
     List<MajorTransferApplicationView> listApplications(MajorTransferApplicationQuery query);
 
+    List<MajorTransferApplicationView> listApplicationsForCollege(
+            MajorTransferApplicationQuery query, String departmentId);
+
     MajorTransferApplicationView getApplicationDetail(String applicationId);
 
     MajorTransferAttachmentDocument getAttachment(String attachmentId);

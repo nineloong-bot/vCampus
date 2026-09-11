@@ -30,6 +30,8 @@ class DemoDistributionAccountsTest {
         expected.put("USER_ADMIN", manager("USER_ADMIN"));
         expected.put("CS_COLLEGE_ADMIN", manager("COLLEGE_ADMIN"));
         expected.put("MATH_COLLEGE_ADMIN", manager("COLLEGE_ADMIN"));
+        expected.put("EE_COLLEGE_ADMIN", manager("COLLEGE_ADMIN"));
+        expected.put("FL_COLLEGE_ADMIN", manager("COLLEGE_ADMIN"));
         PasswordHasher hasher = new PasswordHasher();
         try (var connection = DriverManager.getConnection("jdbc:ucanaccess://" + database
                 + ";immediatelyReleaseResources=true")) {
@@ -52,6 +54,17 @@ class DemoDistributionAccountsTest {
                                 row.getInt("passwordIterations")))
                                 .as("demo password baseline %s", entry.getKey()).isTrue();
                     }
+                }
+            }
+            try (var statement = connection.prepareStatement("""
+                    SELECT COUNT(*)
+                    FROM tblUser u INNER JOIN tblStudent s ON u.userId=s.userId
+                    WHERE u.loginId=?
+                    """)) {
+                statement.setString(1, "213242478");
+                try (var row = statement.executeQuery()) {
+                    assertThat(row.next()).isTrue();
+                    assertThat(row.getInt(1)).as("student demo account profile").isEqualTo(1);
                 }
             }
         } finally {

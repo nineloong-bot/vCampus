@@ -25,6 +25,7 @@ import edu.seu.vcampus.server.student.handler.StudentPrincipal;
 import edu.seu.vcampus.server.student.handler.TrainingPlanHandlers;
 import edu.seu.vcampus.server.student.majortransfer.handler.MajorTransferHandlers;
 import edu.seu.vcampus.server.student.majortransfer.repository.MajorTransferRepository;
+import edu.seu.vcampus.server.student.majortransfer.security.MajorTransferCollegeAuthorizationService;
 import edu.seu.vcampus.server.student.majortransfer.service.MajorTransferServiceImpl;
 import edu.seu.vcampus.server.student.numbering.AccessCampusCardNumberGenerator;
 import edu.seu.vcampus.server.student.numbering.AccessStudentNumberGenerator;
@@ -214,7 +215,8 @@ public final class ServerMain {
                     snapshot.permissions());
         };
         return new MajorTransferHandlers(transferService, authorization,
-                new DeduplicatingStudentWriteExecutor(deduplicator));
+                new DeduplicatingStudentWriteExecutor(deduplicator),
+                new MajorTransferCollegeAuthorizationService(transactions));
     }
 
     private static TrainingPlanHandlers createPlanHandlers(TransactionManager transactions,

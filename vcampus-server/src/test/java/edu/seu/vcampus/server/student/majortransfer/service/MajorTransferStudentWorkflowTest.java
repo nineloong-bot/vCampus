@@ -56,7 +56,7 @@ class MajorTransferStudentWorkflowTest {
             return null;
         });
         sql("UPDATE tblStudent SET enrolled=1, onCampus=1");
-        assertThat(database.stringValue("SELECT enrolled FROM tblStudent WHERE studentId='student-1'")).isEqualTo("1");
+        assertThat(database.stringValue("SELECT enrolled FROM tblStudent WHERE studentId='student-1'")).isEqualTo("TRUE");
         UserQueryPort users = new UserQueryPort() {
             @Override public Optional<UserIdentity> findActiveUser(String userId) {
                 return findByUserId(userId);

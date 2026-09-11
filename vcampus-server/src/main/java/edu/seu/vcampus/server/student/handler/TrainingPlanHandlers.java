@@ -102,7 +102,7 @@ public final class TrainingPlanHandlers {
     private ResponseBody<? extends Serializable> admin(Message message,
             java.util.function.Supplier<? extends Serializable> action) {
         StudentPrincipal p = principal(message);
-        return p.hasRole("ADMIN") ? success(action.get()) : forbidden();
+        return p.hasRole("STUDENT_ADMIN") ? success(action.get()) : forbidden();
     }
 
     private ResponseBody<? extends Serializable> student(Message message,

@@ -72,7 +72,8 @@ class MajorTransferUiRegressionTest {
         var second = new MajorTransferOptionView("two", "batch", "m2", "d", "专业二", "学院", "2024", 10, 20, 60.0, 60.0, 60, 40, true, "", true, 0);
         var app = new MajorTransferApplicationView("app", "batch", "student", "测试学生", MajorTransferApplicationType.DIFFICULTY,
                 MajorTransferStatus.DRAFT, "two", "m2", "专业二", "d", "学院", "old-d", "原学院", "old-m", "原专业", "class", "班级",
-                "09024101", "2024", "已暂存理由", null, null, null, List.of(), List.of(), 0, null, now, now);
+                "09024101", "2024", "已暂存理由", null, null, null, List.of(), List.of(),
+                false, false, 0, null, now, now);
         return new MajorTransferWorkspace(batch, List.of(first, second), List.of(new MajorTransferEligibilityItem("资格", true, "通过")),
                 "old-d", "原学院", "old-m", "原专业", "class", "班级", "09024101", "2024", app);
     }

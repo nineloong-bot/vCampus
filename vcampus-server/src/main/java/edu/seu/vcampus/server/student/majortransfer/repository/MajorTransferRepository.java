@@ -488,6 +488,31 @@ public final class MajorTransferRepository {
         }
     }
 
+    public List<ApplicationRow> listApplicationsByBatchAndCollege(Connection connection,
+            String batchId, String departmentId) {
+        String sql = """
+                SELECT a.*
+                FROM tblMajorTransferApplication a
+                INNER JOIN tblMajorTransferOption o ON a.optionId=o.optionId
+                WHERE a.batchId=?
+                  AND (a.fromDepartmentId=? OR o.targetDepartmentId=?)
+                ORDER BY a.createdAt
+                """;
+        try (var statement = connection.prepareStatement(sql)) {
+            statement.setString(1, batchId);
+            statement.setString(2, departmentId);
+            statement.setString(3, departmentId);
+            try (var result = statement.executeQuery()) {
+                List<ApplicationRow> rows = new ArrayList<>();
+                while (result.next()) rows.add(mapApplication(result));
+                return List.copyOf(rows);
+            }
+        } catch (SQLException error) {
+            throw new OrganizationPersistenceException(
+                    "Cannot list applications by batch and college", error);
+        }
+    }
+
     public boolean hasSuccessfulTransfer(Connection connection, String studentId) {
         String sql = "SELECT COUNT(*) FROM tblMajorTransferApplication "
                 + "WHERE studentId = ? AND applicationStatus IN ('PENDING_EFFECTIVE', 'EFFECTIVE')";

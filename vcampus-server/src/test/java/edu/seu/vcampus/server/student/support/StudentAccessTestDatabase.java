@@ -16,17 +16,37 @@ public final class StudentAccessTestDatabase {
     public StudentAccessTestDatabase() throws Exception {
         Path testData = Path.of("target", "test-data");
         Files.createDirectories(testData);
+        // Do not enable immediatelyReleaseResources here: concurrent student tests
+        // otherwise race UCanAccess connection startup against mirror shutdown.
         String url = "jdbc:ucanaccess://" + testData.resolve(UUID.randomUUID() + ".accdb")
-                + ";newDatabaseVersion=V2010;immediatelyReleaseResources=true";
+                + ";newDatabaseVersion=V2010";
         provider = () -> DriverManager.getConnection(url);
-        try (Connection connection = provider.open()) {
-            executeSchema(connection, Path.of("..", "vcampus-database", "schema", "001_common.sql"));
-            executeSchema(connection, Path.of("..", "vcampus-database", "schema", "020_student.sql"));
-            executeSchema(connection, Path.of("..", "vcampus-database", "schema", "025_major_transfer.sql"));
-            try (var statement = connection.createStatement()) {
-                statement.execute("CREATE TABLE tblUser (userId VARCHAR(36) PRIMARY KEY, loginId VARCHAR(16) NOT NULL)");
-                statement.execute("CREATE UNIQUE INDEX uk_tblUser_loginId ON tblUser (loginId)");
+        Path[] schemas = {
+                Path.of("..", "vcampus-database", "schema", "001_common.sql"),
+                Path.of("..", "vcampus-database", "schema", "020_student.sql"),
+                Path.of("..", "vcampus-database", "schema", "025_major_transfer.sql")
+        };
+        // Two-pass DDL: tables first, then indexes — matches DatabaseInitializer.
+        // UCanAccess can keep later DDL only in its in-memory catalog when many
+        // tables are created in a single session, which makes tables disappear
+        // after the connection closes.
+        for (Path schema : schemas) {
+            try (Connection connection = provider.open()) {
+                executeSchema(connection, schema, true);
             }
+        }
+        try (Connection connection = provider.open()) {
+            connection.createStatement().execute(
+                    "CREATE TABLE tblUser (userId VARCHAR(36) PRIMARY KEY, loginId VARCHAR(16) NOT NULL)");
+        }
+        for (Path schema : schemas) {
+            try (Connection connection = provider.open()) {
+                executeSchema(connection, schema, false);
+            }
+        }
+        try (Connection connection = provider.open()) {
+            connection.createStatement().execute(
+                    "CREATE UNIQUE INDEX uk_tblUser_loginId ON tblUser (loginId)");
         }
     }
 
@@ -88,8 +108,8 @@ public final class StudentAccessTestDatabase {
         }
     }
 
-    private static void executeSchema(Connection connection, Path schema) throws Exception {
-        String sql = Files.readString(schema).replaceAll("YESNO", "BIT");
+    private static void executeSchema(Connection connection, Path schema, boolean tablesOnly) throws Exception {
+        String sql = Files.readString(schema).replaceAll("YESNO", "BOOLEAN");
         // Strip CONSTRAINT ... REFERENCES lines (UCanAccess FK bug)
         StringBuilder cleaned = new StringBuilder();
         boolean skipNextRef = false;
@@ -103,11 +123,15 @@ public final class StudentAccessTestDatabase {
         }
         String normalized = cleaned.toString().replaceAll(",\\s*\\)", "\n)");
         for (String statementString : normalized.split(";")) {
-            String statementText = statementString.trim();
-            if (!statementText.isEmpty()) {
-                try (var statement = connection.createStatement()) {
-                    statement.execute(statementText);
-                }
+            String trimmed = statementString.trim();
+            if (trimmed.isEmpty()) continue;
+            boolean isIndex = trimmed.toUpperCase().startsWith("CREATE INDEX")
+                    || trimmed.toUpperCase().startsWith("CREATE UNIQUE INDEX");
+            if (tablesOnly == isIndex) continue;
+            // UCanAccess 5.x / Jackcess defect on secondary indexes for training-plan tables
+            if (isIndex && schema.getFileName().toString().equals("030_training_plan.sql")) continue;
+            try (var statement = connection.createStatement()) {
+                statement.execute(trimmed);
             }
         }
     }

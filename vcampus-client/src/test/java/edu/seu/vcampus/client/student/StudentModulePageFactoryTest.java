@@ -8,6 +8,7 @@ import edu.seu.vcampus.client.student.ui.OrganizationManagementPanel;
 import edu.seu.vcampus.client.student.ui.StudentModulePageFactory;
 import edu.seu.vcampus.client.student.ui.StudentSearchPanel;
 import edu.seu.vcampus.client.student.ui.StudentProfileReviewPanel;
+import edu.seu.vcampus.client.student.majortransfer.ui.MajorTransferAdminPanel;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.user.UserRole;
 import edu.seu.vcampus.common.user.UserView;
@@ -70,13 +71,13 @@ class StudentModulePageFactoryTest {
     }
 
     @Test
-    void adminReceivesSearchOrganizationAndProfileReviewTabs() throws Exception {
+    void studentAdminReceivesSearchOrganizationAndProfileReviewTabs() throws Exception {
         AtomicInteger requests = new AtomicInteger();
         CountDownLatch requestStarted = new CountDownLatch(1);
         StudentClientService students = students(requests, requestStarted);
 
         JPanel page = onEdt(() -> StudentModulePageFactory.create(
-                user(UserRole.ADMIN), students, connection()));
+                user(UserRole.STUDENT_ADMIN), students, connection()));
 
         assertThat(page.getName()).isEqualTo("student.module");
         JTabbedPane tabs = findTabbedPane(page);
@@ -91,6 +92,18 @@ class StudentModulePageFactoryTest {
         assertThat(tabs.getTitleAt(3)).isEqualTo("转专业管理");
         assertThat(tabs.getTitleAt(4)).isEqualTo("培养方案管理");
         assertThat(tabs.getTitleAt(5)).isEqualTo("成绩管理");
+    }
+
+    @Test
+    void collegeAdminReceivesOnlyTheTransferApprovalWorkspace() throws Exception {
+        JPanel page = onEdt(() -> StudentModulePageFactory.create(
+                user(UserRole.COLLEGE_ADMIN),
+                students(new AtomicInteger(), new CountDownLatch(1)), connection()));
+
+        JTabbedPane tabs = findTabbedPane(page);
+        assertThat(tabs.getTabCount()).isEqualTo(1);
+        assertThat(tabs.getTitleAt(0)).isEqualTo("转专业审批");
+        assertThat(tabs.getComponentAt(0)).isInstanceOf(MajorTransferAdminPanel.class);
     }
 
     @Test

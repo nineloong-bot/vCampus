@@ -62,8 +62,7 @@ class PasswordChangeTest {
         transactions = new TransactionManager(connections);
         try (var connection = connections.open()) {
             for (Path script : new Path[] {projectFile("schema", "001_common.sql"),
-                    projectFile("schema", "010_user.sql"),
-                    projectFile("seed", "010_roles_permissions.sql")}) {
+                    projectFile("schema", "010_user.sql")}) {
                 executeScript(connection, script);
             }
         }
@@ -72,6 +71,9 @@ class PasswordChangeTest {
         PasswordHash hash = hasher.hash("12345678".toCharArray());
         LocalDateTime now = LocalDateTime.now();
         transactions.inTransaction(connection -> {
+            try (var stmt = connection.createStatement()) {
+                stmt.execute("INSERT INTO tblRole (roleCode, roleName) VALUES ('STUDENT', '学生')");
+            }
             users.insert(connection, new UserAccount("student-id", "213242478", hash.hash(),
                     hash.salt(), hash.iterations(), STUDENT, ACTIVE, true, 0, null, null,
                     0, now, now));

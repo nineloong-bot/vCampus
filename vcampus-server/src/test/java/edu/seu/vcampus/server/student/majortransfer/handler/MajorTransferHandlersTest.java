@@ -6,6 +6,7 @@ import edu.seu.vcampus.common.student.majortransfer.*;
 import edu.seu.vcampus.server.routing.*;
 import edu.seu.vcampus.server.student.handler.*;
 import edu.seu.vcampus.server.student.majortransfer.service.*;
+import edu.seu.vcampus.server.student.majortransfer.security.MajorTransferCollegeAuthorizationService;
 import org.junit.jupiter.api.Test;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
@@ -18,7 +19,8 @@ class MajorTransferHandlersTest {
         for (String role : List.of("STUDENT", "TEACHER")) {
             var router = new MessageRouter(Map.of());
             new MajorTransferHandlers(service, token -> new StudentPrincipal("user", Set.of(role), Set.of("STUDENT_WRITE")),
-                    (request, principal, action) -> { throw new AssertionError("Unauthorized request reached deduplicator"); }).register(router);
+                    (request, principal, action) -> { throw new AssertionError("Unauthorized request reached deduplicator"); },
+                    mock(MajorTransferCollegeAuthorizationService.class)).register(router);
             assertThat(router.route(request("MAJOR_TRANSFER_GET_ATTACHMENT", new EntityIdRequest("attachment")), client()).code())
                     .isEqualTo("COMMON_FORBIDDEN");
             assertThat(router.route(request("MAJOR_TRANSFER_EXECUTE", new ExecuteMajorTransferCommand("app", "class", 0)), client()).code())
@@ -33,7 +35,8 @@ class MajorTransferHandlersTest {
         var router = new MessageRouter(Map.of());
         AtomicReference<ResponseBody<?>> persisted = new AtomicReference<>();
         new MajorTransferHandlers(service, token -> new StudentPrincipal("student", Set.of("STUDENT"), Set.of()),
-                (request, principal, action) -> { var result = action.get(); persisted.set(result); return result; }).register(router);
+                (request, principal, action) -> { var result = action.get(); persisted.set(result); return result; },
+                mock(MajorTransferCollegeAuthorizationService.class)).register(router);
         var result = router.route(request("MAJOR_TRANSFER_SUBMIT", new SubmitMajorTransferCommand("app", 0)), client());
         assertThat(result.code()).isEqualTo("TRANSFER_BATCH_CLOSED");
         assertThat(persisted.get().code()).isEqualTo("TRANSFER_BATCH_CLOSED");

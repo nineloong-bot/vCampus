@@ -44,8 +44,8 @@ class LoginDemoTest {
         transactions = new TransactionManager(provider);
         try (Connection connection = provider.open()) {
             executeScript(connection, projectFile("schema", "010_user.sql"));
-            executeScript(connection, projectFile("seed", "010_roles_permissions.sql"));
             try (var statement = connection.createStatement()) {
+                statement.execute("INSERT INTO tblRole (roleCode, roleName) VALUES ('ADMIN', '遗留管理员（已停用）')");
                 statement.execute("INSERT INTO tblPermission (permissionCode, permissionName) "
                         + "VALUES ('TEST_DATABASE_PERMISSION', '测试数据库权限')");
                 statement.execute("INSERT INTO tblRolePermission (roleCode, permissionCode) "

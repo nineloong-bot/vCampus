@@ -207,6 +207,8 @@ public final class LoginFrame extends JFrame {
         panel.add(demoLabel("模块：用户 USER_ADMIN", "login.demoModuleAdmins3"));
         panel.add(demoLabel("学院：计算机 CS_COLLEGE_ADMIN ｜ 数学 MATH_COLLEGE_ADMIN",
                 "login.demoCollegeAdmins"));
+        panel.add(demoLabel("学院：信息工程 EE_COLLEGE_ADMIN ｜ 外国语 FL_COLLEGE_ADMIN",
+                "login.demoCollegeAdmins2"));
         return panel;
     }
 

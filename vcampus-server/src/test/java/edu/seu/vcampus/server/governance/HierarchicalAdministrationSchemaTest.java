@@ -38,7 +38,7 @@ class HierarchicalAdministrationSchemaTest {
                     .isZero();
             assertThat(count(connection,
                     "SELECT COUNT(*) FROM tblUser WHERE roleCode='SUPER_ADMIN'"))
-                    .isEqualTo(1);
+                    .isEqualTo(2);
             assertThat(count(connection, """
                     SELECT COUNT(*) FROM tblUser u
                     WHERE u.roleCode IN ('STUDENT_ADMIN','COURSE_ADMIN','LIBRARY_ADMIN',

@@ -410,10 +410,25 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
 
     @Override
     public List<MajorTransferApplicationView> listApplications(MajorTransferApplicationQuery query) {
+        return listApplications(query, null);
+    }
+
+    @Override
+    public List<MajorTransferApplicationView> listApplicationsForCollege(
+            MajorTransferApplicationQuery query, String departmentId) {
+        Objects.requireNonNull(departmentId, "departmentId");
+        return listApplications(query, departmentId);
+    }
+
+    private List<MajorTransferApplicationView> listApplications(
+            MajorTransferApplicationQuery query, String departmentId) {
         return transactions.inTransaction(connection -> {
             List<MajorTransferRepository.ApplicationRow> rows;
             if (query.batchId() != null) {
-                rows = repository.listApplicationsByBatch(connection, query.batchId());
+                rows = departmentId == null
+                        ? repository.listApplicationsByBatch(connection, query.batchId())
+                        : repository.listApplicationsByBatchAndCollege(
+                                connection, query.batchId(), departmentId);
             } else {
                 rows = List.of();
             }
@@ -421,7 +436,7 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
                 rows = rows.stream().filter(r -> r.status() == query.status()).toList();
             }
             if (query.optionId() != null) rows = rows.stream().filter(r -> r.optionId().equals(query.optionId())).toList();
-            return rows.stream().map(row -> toApplicationView(connection, row)).toList();
+            return rows.stream().map(row -> toApplicationView(connection, row, departmentId)).toList();
         });
     }
 
@@ -867,6 +882,11 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
 
     private MajorTransferApplicationView toApplicationView(Connection connection,
                                                              MajorTransferRepository.ApplicationRow row) {
+        return toApplicationView(connection, row, null);
+    }
+
+    private MajorTransferApplicationView toApplicationView(Connection connection,
+            MajorTransferRepository.ApplicationRow row, String managedDepartmentId) {
         List<MajorTransferReviewView> reviews = repository.listReviews(connection, row.applicationId())
                 .stream().map(this::toReviewView).toList();
         List<MajorTransferApplicationView.AttachmentInfo> attachments =
@@ -892,7 +912,10 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
                 row.fromClassId(), row.fromClassName(),
                 row.fromStudentNumber(), row.fromGrade(),
                 row.reason(), row.writtenScore(), row.interviewScore(), row.finalScore(),
-                reviews, attachments, row.applicationVersion(),
+                reviews, attachments,
+                managedDepartmentId != null && managedDepartmentId.equals(row.fromDepartmentId()),
+                managedDepartmentId != null && managedDepartmentId.equals(targetDeptId),
+                row.applicationVersion(),
                 row.submittedAt(), row.createdAt(), row.updatedAt());
     }
 
