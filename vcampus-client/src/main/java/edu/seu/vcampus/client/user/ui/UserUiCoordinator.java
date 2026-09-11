@@ -7,14 +7,24 @@ import edu.seu.vcampus.client.user.service.UserClientService;
 import edu.seu.vcampus.common.user.LoginResult;
 
 import javax.swing.SwingUtilities;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.util.Objects;
 
 /** Coordinates authentication windows so restricted sessions never see the application shell. */
 public final class UserUiCoordinator {
     private static final String PASSWORD_CHANGED = "密码修改成功，请使用新密码重新登录";
+    private static final String LOGGED_OUT = "已退出登录";
+    private static final String SESSION_REPLACED = "登录已在其他位置失效，请重新登录";
+    private static final String PASSWORD_RESET = "密码已被管理员初始化，请重新登录并修改密码";
+    private static final String SESSION_INVALID = "登录状态已失效，请重新登录";
     private final UserClientService users;
     private final StudentClientService students;
     private final ClientConnection connection;
+    private LoginFrame activeLogin;
+    private MainFrame activeMain;
+    private SessionMonitor sessionMonitor;
+    private boolean sessionEnding;
 
     /** Creates the client-side authentication and shell coordinator. */
     public UserUiCoordinator(UserClientService users, ClientConnection connection) {
@@ -35,12 +45,19 @@ public final class UserUiCoordinator {
     }
 
     private void showLogin(String notice) {
+        if (activeLogin != null && activeLogin.isShowing()) {
+            if (notice != null) activeLogin.showNotice(notice);
+            activeLogin.toFront();
+            return;
+        }
         LoginFrame login = new LoginFrame(users, connection, this::acceptLogin);
+        activeLogin = login;
         if (notice != null) login.showNotice(notice);
         login.setVisible(true);
     }
 
     private void acceptLogin(LoginResult result) {
+        activeLogin = null;
         if (result.mustChangePassword()) {
             InitialPasswordChangeDialog dialog = new InitialPasswordChangeDialog(
                     null, users,
@@ -50,7 +67,93 @@ public final class UserUiCoordinator {
             return;
         }
         MainFrame main = new MainFrame(result.user(), connection, students);
+        activeMain = main;
+        sessionEnding = false;
+        replaceAccountPage(main, result);
+        main.addWindowListener(new WindowAdapter() {
+            @Override public void windowClosed(WindowEvent event) {
+                if (activeMain == main && !sessionEnding) {
+                    stopSessionMonitor();
+                    activeMain = null;
+                }
+            }
+        });
         main.setVisible(true);
+        startSessionMonitor(main);
+    }
+
+    private void replaceAccountPage(MainFrame main, LoginResult result) {
+        for (java.awt.Component component : main.content().getComponents()) {
+            if ("page.account".equals(component.getName())) {
+                main.content().remove(component);
+                break;
+            }
+        }
+        AccountPanel account = new AccountPanel(
+                users, result.user(), result.permissions(),
+                () -> returnToLogin(main, PASSWORD_CHANGED),
+                () -> returnToLogin(main, LOGGED_OUT),
+                () -> beginSessionEnd(main),
+                () -> resumeSession(main),
+                () -> returnToLogin(main, SESSION_INVALID));
+        main.content().add(account, "account");
+        main.content().revalidate();
+        main.content().repaint();
+    }
+
+    private void returnToLogin(MainFrame main, String notice) {
+        beginSessionEnd(main);
+        users.clearSession();
+        activeMain = null;
+        main.dispose();
+        sessionEnding = false;
+        showLogin(notice);
+    }
+
+    private void beginSessionEnd(MainFrame main) {
+        if (activeMain != main || sessionEnding) return;
+        sessionEnding = true;
+        stopSessionMonitor();
+    }
+
+    private void resumeSession(MainFrame main) {
+        if (activeMain != main || !main.isShowing()) return;
+        sessionEnding = false;
+        startSessionMonitor(main);
+    }
+
+    private void startSessionMonitor(MainFrame main) {
+        if (sessionMonitor != null) return;
+        sessionMonitor = new SessionMonitor(users, reason -> sessionExpired(main, reason));
+        sessionMonitor.start();
+    }
+
+    private void sessionExpired(MainFrame main, SessionMonitor.InvalidationReason reason) {
+        if (activeMain != main || sessionEnding || !main.isShowing()) return;
+        sessionEnding = true;
+        stopSessionMonitor();
+        main.setEnabled(false);
+        SessionReplacementWarningDialog warning = new SessionReplacementWarningDialog(
+                main, reason, () -> finishSessionReplacement(main, reason));
+        warning.showWarning();
+    }
+
+    private void finishSessionReplacement(
+            MainFrame main, SessionMonitor.InvalidationReason reason) {
+        if (activeMain != main || !sessionEnding) return;
+        users.clearSession();
+        activeMain = null;
+        main.dispose();
+        sessionEnding = false;
+        showLogin(reason == SessionMonitor.InvalidationReason.PASSWORD_RESET
+                ? PASSWORD_RESET : SESSION_REPLACED);
+    }
+
+    private void stopSessionMonitor() {
+        if (sessionMonitor != null) {
+            sessionMonitor.stop();
+            sessionMonitor = null;
+        }
     }
 
     private static void onEdt(Runnable action) {

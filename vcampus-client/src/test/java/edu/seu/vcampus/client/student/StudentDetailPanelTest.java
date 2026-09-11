@@ -63,12 +63,10 @@ class StudentDetailPanelTest {
         SwingUtilities.invokeAndWait(panel::addNotify);
         awaitText(panel, "student.detail.profile.name", "张三");
         JButton edit = find(panel, "student.detail.academic.edit", JButton.class);
-        assertThat(edit.isEnabled()).isTrue();
+        awaitButtonEnabled(edit, true);
 
         connection.close();
-        SwingUtilities.invokeAndWait(() -> { });
-
-        assertThat(edit.isEnabled()).isFalse();
+        awaitButtonEnabled(edit, false);
         assertThat(find(panel, "student.detail.profile.idDocumentNumber", JLabel.class).getText())
                 .isEqualTo("320101200501010011");
         assertThat(find(panel, "student.detail.status", JLabel.class).getText()).contains("断开");
@@ -142,6 +140,19 @@ class StudentDetailPanelTest {
             Thread.sleep(10);
         }
         assertThat(find(root, "student.detail.changes", JTable.class).getRowCount()).isEqualTo(expected);
+    }
+
+    private static void awaitButtonEnabled(JButton button, boolean expected) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+        while (System.nanoTime() < deadline) {
+            final boolean[] enabled = new boolean[1];
+            SwingUtilities.invokeAndWait(() -> enabled[0] = button.isEnabled());
+            if (enabled[0] == expected) return;
+            Thread.sleep(10);
+        }
+        final boolean[] enabled = new boolean[1];
+        SwingUtilities.invokeAndWait(() -> enabled[0] = button.isEnabled());
+        assertThat(enabled[0]).isEqualTo(expected);
     }
 
     private static void setConnected(ClientConnection value) {

@@ -40,6 +40,7 @@ final class AuthenticationService {
     private final Clock clock;
     private final UserAuditWriter auditWriter;
     private final CredentialAuthenticator authenticator;
+    private final UnknownLoginAttemptTracker unknownAttempts;
 
     AuthenticationService(TransactionManager transactions, ResourceLockManager locks,
             UserRepository users, PermissionRepository permissions, AuditRepository audits,
@@ -54,6 +55,8 @@ final class AuthenticationService {
         auditWriter = new UserAuditWriter(transactions, audits);
         authenticator = new CredentialAuthenticator(transactions, users, permissions,
                 audits, hasher, clock);
+        unknownAttempts = new UnknownLoginAttemptTracker(
+                clock, CredentialAuthenticator.LOCKOUT_DURATION);
     }
 
     LoginResult login(LoginCommand command, ClientContext context) {
@@ -65,14 +68,15 @@ final class AuthenticationService {
             UserAccount known = transactions.inTransaction(connection ->
                     users.findByNormalizedLoginId(connection, loginId).orElse(null));
             if (known == null) {
-                InvalidCredentialsException error = new InvalidCredentialsException();
+                RuntimeException error = loginFailure(unknownAttempts.recordFailure(loginId));
                 auditWriter.failure(null, "USER_LOGIN", null, error, context.clientAddress());
                 throw error;
             }
             try {
                 return locks.withLocks(List.of(new ResourceKey("USER", known.userId())),
                         () -> toLoginResult(authenticator.authenticate(known.userId(), password,
-                                context.clientAddress()), command.clientInstanceId()));
+                                context.clientAddress()), command.clientInstanceId(),
+                                context.clientAddress()));
             } catch (RuntimeException error) {
                 auditWriter.failure(null, "USER_LOGIN", known.userId(), error,
                         context.clientAddress());
@@ -107,7 +111,11 @@ final class AuthenticationService {
             PasswordPolicy.validate(newPassword);
             String userId = identity.userId();
             boolean changed = locks.withLocks(List.of(new ResourceKey("USER", userId)),
-                    () -> updatePassword(userId, oldPassword, newPassword, address(context)));
+                    () -> {
+                        UserIdentity current = sessions.requireSession(token);
+                        if (!userId.equals(current.userId())) throw new SessionExpiredException();
+                        return updatePassword(userId, oldPassword, newPassword, address(context));
+                    });
             if (!changed) throw new InvalidCredentialsException();
             sessions.revokeAllForUser(userId);
         } catch (RuntimeException error) {
@@ -148,11 +156,17 @@ final class AuthenticationService {
     }
 
     private LoginResult toLoginResult(
-            CredentialAuthenticator.Attempt attempt, String clientInstanceId) {
+            CredentialAuthenticator.Attempt attempt, String clientInstanceId,
+            String clientAddress) {
         if (attempt.errorCode() != null) throw loginFailure(attempt.errorCode());
         UserIdentity identity = UserViews.identity(attempt.account());
+        int replaced = sessions.revokeAllForUserAndCount(identity.userId());
         String token = sessions.create(identity, attempt.permissions(),
                 attempt.account().mustChangePassword(), clientInstanceId);
+        if (replaced > 0) {
+            auditWriter.bestEffort(identity.userId(), "USER_SESSION_REPLACED",
+                    identity.userId(), "SUCCESS", clientAddress);
+        }
         return new LoginResult(token, UserViews.from(attempt.account()), attempt.permissions(),
                 attempt.account().mustChangePassword());
     }

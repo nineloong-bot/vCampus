@@ -19,7 +19,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -133,7 +132,7 @@ class OrganizationManagementPanelTest {
 
         var fixture = new OrgFixture(client, ConnectionState.CONNECTED);
         SwingUtilities.invokeAndWait(fixture::showPanel);
-        flushEdt();
+        fixture.waitForButtonEnabled("student.org.add-dept");
 
         SwingUtilities.invokeAndWait(() -> fixture.button("student.org.add-dept").doClick());
         flushEdt();
@@ -326,6 +325,18 @@ class OrganizationManagementPanelTest {
                 Thread.sleep(10);
             }
             throw new AssertionError("Label did not contain expected text within timeout: " + expected);
+        }
+
+        void waitForButtonEnabled(String name) throws Exception {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            while (System.nanoTime() < deadline) {
+                flushEdt();
+                boolean[] enabled = new boolean[1];
+                SwingUtilities.invokeAndWait(() -> enabled[0] = button(name).isEnabled());
+                if (enabled[0]) return;
+                TimeUnit.MILLISECONDS.sleep(10);
+            }
+            throw new AssertionError("Button did not become enabled within timeout: " + name);
         }
 
         <T extends Component> T component(String name, Class<T> type) {

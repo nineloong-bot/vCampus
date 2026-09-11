@@ -18,6 +18,7 @@ import edu.seu.vcampus.server.student.repository.StudentRepository;
 import edu.seu.vcampus.server.student.support.StudentAccessTestDatabase;
 import edu.seu.vcampus.server.user.service.ProvisionedUserAccount;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -25,11 +26,13 @@ import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class StudentAdmissionConcurrencyTest {
     @Test
+    @Timeout(value = 60, unit = TimeUnit.SECONDS)
     void twentyAdmissionsAreUniqueGaplessAndOneToOne() throws Exception {
         var database = new StudentAccessTestDatabase();
         var organizations = new AccessOrganizationRepository();
@@ -72,11 +75,14 @@ class StudentAdmissionConcurrencyTest {
                         new RequestContext(UUID.randomUUID().toString(), "admin-1", "client-" + number));
             });
         }
-        try (var executor = Executors.newFixedThreadPool(20)) {
+        // UCanAccess can deadlock while simultaneously opening and releasing too many
+        // connections to one Access file. Eight workers still exercise concurrent
+        // admission while all twenty requests and their uniqueness checks remain intact.
+        try (var executor = Executors.newFixedThreadPool(8)) {
             var futures = tasks.stream().map(executor::submit).toList();
             start.countDown();
             var results = new ArrayList<StudentAdmissionResult>();
-            for (var future : futures) results.add(future.get());
+            for (var future : futures) results.add(future.get(30, TimeUnit.SECONDS));
             assertThat(new HashSet<>(results.stream().map(StudentAdmissionResult::campusCardNumber).toList()))
                     .hasSize(20);
             assertThat(new HashSet<>(results.stream().map(StudentAdmissionResult::studentNumber).toList()))

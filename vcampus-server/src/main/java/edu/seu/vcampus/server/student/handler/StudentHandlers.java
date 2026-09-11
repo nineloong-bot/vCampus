@@ -102,7 +102,8 @@ public final class StudentHandlers {
         router.register("STUDENT_GET", typed(EntityIdRequest.class, (message, body) -> {
             StudentPrincipal principal = principal(message);
             if (!isStaff(principal)) return forbidden();
-            return success(students.getStudent(body.entityId()));
+            StudentView value = students.getStudent(body.entityId());
+            return success(principal.hasRole("TEACHER") ? withoutContact(value) : value);
         }));
         router.register("STUDENT_SEARCH", typed(StudentSearchQuery.class, (message, body) -> {
             StudentPrincipal principal = principal(message);
@@ -236,6 +237,14 @@ public final class StudentHandlers {
 
     private static boolean isStaff(StudentPrincipal principal) {
         return principal.hasRole("TEACHER") || principal.hasRole("ADMIN");
+    }
+
+    private static StudentView withoutContact(StudentView value) {
+        return new StudentView(value.studentId(), value.userId(), value.campusCardNumber(),
+                value.studentNumber(), value.studentType(), value.studentName(), value.gender(),
+                null, null, value.majorId(), value.classId(), value.enrollmentDate(),
+                value.status(), value.rowVersion(), value.departmentName(), value.majorName(),
+                value.className());
     }
 
     private static RequestContext context(Message message, StudentPrincipal principal) {

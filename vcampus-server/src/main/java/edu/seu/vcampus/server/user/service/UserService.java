@@ -4,6 +4,8 @@ import edu.seu.vcampus.common.user.ChangePasswordCommand;
 import edu.seu.vcampus.common.user.ChangeUserStatusCommand;
 import edu.seu.vcampus.common.user.LoginCommand;
 import edu.seu.vcampus.common.user.LoginResult;
+import edu.seu.vcampus.common.user.ResetStudentPasswordCommand;
+import edu.seu.vcampus.common.user.ResetTeacherPasswordCommand;
 import edu.seu.vcampus.common.user.TeacherAccountApplicationCommand;
 import edu.seu.vcampus.common.user.UpdateUserRoleCommand;
 import edu.seu.vcampus.common.user.UserSearchQuery;
@@ -14,10 +16,12 @@ import edu.seu.vcampus.common.paging.PageResult;
 
 /** Application boundary for user-management use cases implemented so far. */
 public interface UserService {
-    /** Applies for a pending teacher account using a public registration command. */
+    /** Retained compatibility entry point; teacher account applications are retired. */
+    @Deprecated(forRemoval = false)
     UserView applyForTeacherAccount(TeacherAccountApplicationCommand command);
 
-    /** Applies for a teacher account with request metadata used only by audit. */
+    /** Retained compatibility entry point; teacher account applications are retired. */
+    @Deprecated(forRemoval = false)
     default UserView applyForTeacherAccount(
             TeacherAccountApplicationCommand command, ClientContext context) {
         return applyForTeacherAccount(command);
@@ -49,13 +53,25 @@ public interface UserService {
     /** Searches safe account summaries using administrator-controlled filters and paging. */
     PageResult<UserSummary> searchUsers(UserSearchQuery query);
 
-    /** Changes a base role while applying optimistic-version and last-admin protection. */
+    /** Retained compatibility entry point that permanently rejects role changes. */
     UserView updateRole(UpdateUserRoleCommand command);
 
-    /** Changes a role while retaining the authenticated actor for audit. */
+    /** Retained audited compatibility entry point that permanently rejects role changes. */
     default UserView updateRole(String actorUserId, UpdateUserRoleCommand command,
                                 ClientContext context) {
         return updateRole(command);
+    }
+
+    /** Initializes a student's password through an authenticated administrator action. */
+    default UserView resetStudentPassword(String actorUserId,
+            ResetStudentPasswordCommand command, ClientContext context) {
+        throw new UnsupportedOperationException("Student password reset is unavailable");
+    }
+
+    /** Initializes a teacher's password through an authenticated administrator action. */
+    default UserView resetTeacherPassword(String actorUserId,
+            ResetTeacherPasswordCommand command, ClientContext context) {
+        throw new UnsupportedOperationException("Teacher password reset is unavailable");
     }
 
     /** Changes account lifecycle state while applying optimistic-version and last-admin protection. */

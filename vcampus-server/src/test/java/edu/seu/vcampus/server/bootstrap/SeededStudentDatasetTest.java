@@ -1,18 +1,18 @@
 package edu.seu.vcampus.server.bootstrap;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.DriverManager;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class SeededStudentDatasetTest {
-    @TempDir Path temporaryDirectory;
-
     @Test void releaseSeedContainsSearchableStudentsAcrossClassesAndStatuses() throws Exception {
-        Path database = temporaryDirectory.resolve("vCampus.accdb");
+        Path database = Path.of("target", "test-data", UUID.randomUUID() + ".accdb");
+        Files.createDirectories(database.getParent());
         DatabaseInitializer.main(new String[] {
                 projectDirectory("schema").toString(), projectDirectory("seed").toString(), database.toString()
         });

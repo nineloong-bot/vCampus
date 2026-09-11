@@ -1,5 +1,9 @@
 package edu.seu.vcampus.server.user.repository;
 
+import edu.seu.vcampus.common.paging.PageResult;
+import edu.seu.vcampus.common.user.SecurityAuditQuery;
+import edu.seu.vcampus.common.user.SecurityAuditView;
+
 import java.sql.Connection;
 
 /** Persistence boundary for appending security audit events. */
@@ -22,4 +26,10 @@ public interface AuditRepository {
     void record(Connection connection, String actorUserId, String actionCode,
                 String targetType, String targetId, String resultCode,
                 String clientAddress);
+
+    /** Searches sanitized audit rows in fixed newest-first order. */
+    default PageResult<SecurityAuditView> search(
+            Connection connection, SecurityAuditQuery query) {
+        throw new UnsupportedOperationException("Audit search is not available");
+    }
 }

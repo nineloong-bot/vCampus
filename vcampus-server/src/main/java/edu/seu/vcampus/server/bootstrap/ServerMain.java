@@ -6,10 +6,13 @@ import edu.seu.vcampus.server.concurrency.ResourceLockManager;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.config.ConfigurationException;
 import edu.seu.vcampus.server.config.ServerConfig;
+import edu.seu.vcampus.server.governance.AccessModuleAdministrationRepository;
+import edu.seu.vcampus.server.governance.ModuleAdministrationService;
 import edu.seu.vcampus.server.network.SocketServer;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import edu.seu.vcampus.server.persistence.TransactionManager;
 import edu.seu.vcampus.server.routing.MessageRouter;
+import edu.seu.vcampus.server.routing.MessageHandler;
 import edu.seu.vcampus.server.routing.RequestDeduplicator;
 import edu.seu.vcampus.server.security.AuthorizationService;
 import edu.seu.vcampus.server.security.SessionExpiredException;
@@ -41,10 +44,13 @@ import edu.seu.vcampus.server.student.service.TrainingPlanServiceImpl;
 import edu.seu.vcampus.server.student.service.StudentGradeServiceImpl;
 import edu.seu.vcampus.server.student.pdf.StudentProfilePdfService;
 import edu.seu.vcampus.server.user.handler.UserHandlers;
+import edu.seu.vcampus.server.user.handler.ModuleAdministrationHandlers;
+import edu.seu.vcampus.server.user.handler.SecurityAuditHandler;
 import edu.seu.vcampus.server.user.repository.AccessAuditRepository;
 import edu.seu.vcampus.server.user.repository.AccessPermissionRepository;
 import edu.seu.vcampus.server.user.repository.AccessUserRepository;
 import edu.seu.vcampus.server.user.service.PasswordHasher;
+import edu.seu.vcampus.server.user.service.SecurityAuditService;
 import edu.seu.vcampus.server.user.service.UserAccountProvisioningPort;
 import edu.seu.vcampus.server.user.service.UserAccountProvisioningService;
 import edu.seu.vcampus.server.user.service.UserQueryPort;
@@ -97,6 +103,9 @@ public final class ServerMain {
                 "PING", (request, context) -> ResponseBody.success(EmptyResponse.INSTANCE)));
         ServerRuntime runtime = createRuntime(config);
         new UserHandlers(router, runtime.users(), runtime.authorization(), runtime.deduplicator());
+        new ModuleAdministrationHandlers(router, runtime.governance(),
+                runtime.authorization(), runtime.deduplicator());
+        registerSecurityAudit(router, runtime.auditHandler());
         runtime.students().register(router);
         runtime.transfers().register(router);
         runtime.plans().register(router);
@@ -116,29 +125,44 @@ public final class ServerMain {
         StripedResourceLockManager locks = new StripedResourceLockManager();
         SessionRegistry sessions = new SessionRegistry(clock,
                 Duration.ofMinutes(config.sessionTimeoutMinutes()));
+        AccessUserRepository userRepository = new AccessUserRepository();
+        AccessAuditRepository audits = new AccessAuditRepository();
+        PasswordHasher passwords = new PasswordHasher();
         UserService users = new UserServiceImpl(transactions, locks,
-                new AccessUserRepository(), new AccessPermissionRepository(),
-                new AccessAuditRepository(), new PasswordHasher(), sessions, clock);
+                userRepository, new AccessPermissionRepository(),
+                audits, passwords, sessions, clock);
         AuthorizationService authorization = new AuthorizationService(sessions);
         RequestDeduplicator deduplicator = new RequestDeduplicator(transactions, locks);
+        ModuleAdministrationService governance = new ModuleAdministrationService(
+                transactions, locks, new AccessModuleAdministrationRepository(), audits, sessions);
+        SecurityAuditHandler auditHandler = new SecurityAuditHandler(authorization,
+                new SecurityAuditService(transactions, audits));
         StudentHandlers students = createStudentHandlers(transactions, locks, sessions,
-                deduplicator, (UserQueryPort) users);
+                deduplicator, (UserQueryPort) users, userRepository, audits, passwords);
         MajorTransferHandlers transfers = createTransferHandlers(transactions, locks,
                 deduplicator, sessions, (UserQueryPort) users);
         TrainingPlanHandlers planHandlers = createPlanHandlers(transactions, locks,
                 deduplicator, sessions);
-        return new ServerRuntime(users, authorization, deduplicator, students, transfers, planHandlers);
+        return new ServerRuntime(users, authorization, deduplicator, auditHandler,
+                governance, students, transfers, planHandlers);
+    }
+
+    private static void registerSecurityAudit(
+            MessageRouter router, MessageHandler handler) {
+        router.register("SECURITY_AUDIT_SEARCH", handler);
     }
 
     private static StudentHandlers createStudentHandlers(TransactionManager transactions,
             ResourceLockManager locks, SessionRegistry sessions,
-            RequestDeduplicator deduplicator, UserQueryPort users) {
+            RequestDeduplicator deduplicator, UserQueryPort users,
+            AccessUserRepository userRepository, AccessAuditRepository audits,
+            PasswordHasher passwords) {
         StudentRepository students = new StudentRepository();
         StudentChangeRepository changes = new StudentChangeRepository();
         OrganizationRepository organizations = new AccessOrganizationRepository();
         NumberSequenceRepository sequences = new NumberSequenceRepository();
         UserAccountProvisioningPort accounts = new UserAccountProvisioningService(locks,
-                new AccessUserRepository(), new AccessAuditRepository(), new PasswordHasher());
+                userRepository, audits, passwords);
         StudentAdmissionCoordinator admissions = new StudentAdmissionCoordinator(
                 transactions, locks, deduplicator, organizations,
                 new AccessCampusCardNumberGenerator(sequences),
@@ -233,7 +257,11 @@ public final class ServerMain {
     }
 
     private record ServerRuntime(UserService users, AuthorizationService authorization,
-                                 RequestDeduplicator deduplicator, StudentHandlers students,
-                                 MajorTransferHandlers transfers, TrainingPlanHandlers plans) {
+                                 RequestDeduplicator deduplicator,
+                                 SecurityAuditHandler auditHandler,
+                                 ModuleAdministrationService governance,
+                                 StudentHandlers students,
+                                 MajorTransferHandlers transfers,
+                                 TrainingPlanHandlers plans) {
     }
 }

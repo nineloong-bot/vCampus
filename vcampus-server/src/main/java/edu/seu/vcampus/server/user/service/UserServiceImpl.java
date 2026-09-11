@@ -4,6 +4,8 @@ import edu.seu.vcampus.common.user.ChangePasswordCommand;
 import edu.seu.vcampus.common.user.ChangeUserStatusCommand;
 import edu.seu.vcampus.common.user.LoginCommand;
 import edu.seu.vcampus.common.user.LoginResult;
+import edu.seu.vcampus.common.user.ResetStudentPasswordCommand;
+import edu.seu.vcampus.common.user.ResetTeacherPasswordCommand;
 import edu.seu.vcampus.common.user.TeacherAccountApplicationCommand;
 import edu.seu.vcampus.common.user.UpdateUserRoleCommand;
 import edu.seu.vcampus.common.user.UserSearchQuery;
@@ -34,7 +36,6 @@ import static edu.seu.vcampus.common.user.AccountStatus.ACTIVE;
 public final class UserServiceImpl implements UserService, UserQueryPort {
     private final TransactionManager transactions;
     private final UserRepository users;
-    private final TeacherAccountApplicationService applications;
     private final AuthenticationService authentication;
     private final AdminUserService administration;
     private final UserAuditWriter auditWriter;
@@ -61,22 +62,23 @@ public final class UserServiceImpl implements UserService, UserQueryPort {
         this.transactions = Objects.requireNonNull(transactions, "transactions");
         this.users = Objects.requireNonNull(users, "users");
         auditWriter = new UserAuditWriter(transactions, audits);
-        applications = new TeacherAccountApplicationService(transactions, locks, users, audits, hasher);
         authentication = new AuthenticationService(transactions, locks, users, permissions,
                 audits, hasher, sessions, clock);
-        administration = new AdminUserService(transactions, locks, users, audits,
-                authentication::revokeSessionsForUser);
+        administration = new AdminUserService(transactions, locks, users, audits, hasher,
+                sessions::revokeAllForUser, sessions::revokeAllForUserAfterPasswordReset);
     }
 
-    /** Creates a pending teacher account application. */
+    /** Retained compatibility entry point; public teacher applications are retired. */
+    @Deprecated(forRemoval = false)
     @Override public UserView applyForTeacherAccount(TeacherAccountApplicationCommand command) {
-        return applications.apply(command);
+        return rejectTeacherApplication(command, null);
     }
 
-    /** Creates a pending teacher account and retains safe request audit metadata. */
+    /** Retained compatibility entry point; public teacher applications are retired. */
+    @Deprecated(forRemoval = false)
     @Override public UserView applyForTeacherAccount(
             TeacherAccountApplicationCommand command, ClientContext context) {
-        return applications.apply(command, context);
+        return rejectTeacherApplication(command, context);
     }
 
     /** Authenticates credentials and creates a normal or restricted session. */
@@ -109,13 +111,25 @@ public final class UserServiceImpl implements UserService, UserQueryPort {
     /** Searches safe account summaries. */
     @Override public PageResult<UserSummary> searchUsers(UserSearchQuery query) { return administration.search(query); }
 
-    /** Changes an account role. */
+    /** Permanently rejects the retired role-change operation. */
     @Override public UserView updateRole(UpdateUserRoleCommand command) { return administration.updateRole(command); }
 
-    /** Changes a role with the authenticated actor retained for audit. */
+    /** Permanently rejects the retired role-change operation and audits the actor. */
     @Override public UserView updateRole(String actorUserId, UpdateUserRoleCommand command,
                                          ClientContext context) {
         return administration.updateRole(actorUserId, command, context);
+    }
+
+    /** Initializes a student's password and revokes that student's sessions. */
+    @Override public UserView resetStudentPassword(String actorUserId,
+            ResetStudentPasswordCommand command, ClientContext context) {
+        return administration.resetStudentPassword(actorUserId, command, context);
+    }
+
+    /** Initializes a teacher's password and revokes that teacher's sessions. */
+    @Override public UserView resetTeacherPassword(String actorUserId,
+            ResetTeacherPasswordCommand command, ClientContext context) {
+        return administration.resetTeacherPassword(actorUserId, command, context);
     }
 
     /** Changes an account lifecycle status. */
@@ -163,5 +177,19 @@ public final class UserServiceImpl implements UserService, UserQueryPort {
 
     private Optional<UserIdentity> find(Function<java.sql.Connection, Optional<UserAccount>> lookup) {
         return transactions.inTransaction(connection -> lookup.apply(connection).map(UserViews::identity));
+    }
+
+    private UserView rejectTeacherApplication(
+            TeacherAccountApplicationCommand command, ClientContext context) {
+        Objects.requireNonNull(command, "command");
+        try {
+            IllegalArgumentException rejection =
+                    new IllegalArgumentException("COMMON_VALIDATION_FAILED");
+            auditWriter.failure(null, "USER_REGISTER", command.loginId(), rejection,
+                    context == null ? null : context.clientAddress());
+            throw rejection;
+        } finally {
+            command.clearPassword();
+        }
     }
 }

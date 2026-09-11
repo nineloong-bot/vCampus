@@ -3,6 +3,8 @@ package edu.seu.vcampus.server.user.service;
 import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.user.AccountStatus;
 import edu.seu.vcampus.common.user.ChangeUserStatusCommand;
+import edu.seu.vcampus.common.user.ResetStudentPasswordCommand;
+import edu.seu.vcampus.common.user.ResetTeacherPasswordCommand;
 import edu.seu.vcampus.common.user.UpdateUserRoleCommand;
 import edu.seu.vcampus.common.user.UserRole;
 import edu.seu.vcampus.common.user.UserSearchQuery;
@@ -18,6 +20,9 @@ import edu.seu.vcampus.server.user.repository.UserRepository;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Arrays;
+import java.util.ConcurrentModificationException;
+import java.time.LocalDateTime;
 import java.util.function.Consumer;
 
 /** Implements administrator account searching and guarded account modifications. */
@@ -26,16 +31,22 @@ final class AdminUserService {
     private final ResourceLockManager locks;
     private final UserRepository users;
     private final AuditRepository audits;
+    private final PasswordHasher hasher;
     private final Consumer<String> sessionRevoker;
+    private final Consumer<String> passwordResetSessionRevoker;
     private final UserAuditWriter auditWriter;
 
     AdminUserService(TransactionManager transactions, ResourceLockManager locks, UserRepository users,
-            AuditRepository audits, Consumer<String> sessionRevoker) {
+            AuditRepository audits, PasswordHasher hasher,
+            Consumer<String> sessionRevoker, Consumer<String> passwordResetSessionRevoker) {
         this.transactions = Objects.requireNonNull(transactions, "transactions");
         this.locks = Objects.requireNonNull(locks, "locks");
         this.users = Objects.requireNonNull(users, "users");
         this.audits = Objects.requireNonNull(audits, "audits");
+        this.hasher = Objects.requireNonNull(hasher, "hasher");
         this.sessionRevoker = Objects.requireNonNull(sessionRevoker, "sessionRevoker");
+        this.passwordResetSessionRevoker = Objects.requireNonNull(
+                passwordResetSessionRevoker, "passwordResetSessionRevoker");
         auditWriter = new UserAuditWriter(transactions, audits);
     }
 
@@ -55,28 +66,63 @@ final class AdminUserService {
     UserView updateRole(String actorUserId, UpdateUserRoleCommand command,
                         ClientContext context) {
         Objects.requireNonNull(command, "command");
+        IllegalArgumentException retired =
+                new IllegalArgumentException("COMMON_VALIDATION_FAILED");
+        auditWriter.failure(actorUserId, "USER_UPDATE_ROLE", command.userId(),
+                retired, address(context));
+        throw retired;
+    }
+
+    UserView resetStudentPassword(String actorUserId,
+            ResetStudentPasswordCommand command, ClientContext context) {
+        Objects.requireNonNull(command, "command");
+        return resetPassword(actorUserId, command.targetUserId(),
+                command.expectedRowVersion(), UserRole.STUDENT, context);
+    }
+
+    UserView resetTeacherPassword(String actorUserId,
+            ResetTeacherPasswordCommand command, ClientContext context) {
+        Objects.requireNonNull(command, "command");
+        return resetPassword(actorUserId, command.targetUserId(),
+                command.expectedRowVersion(), UserRole.TEACHER, context);
+    }
+
+    private UserView resetPassword(String actorUserId, String targetUserId,
+            long expectedRowVersion, UserRole requiredRole, ClientContext context) {
         try {
-            return withAccountLocks(command.userId(), () -> {
-                UserView result = transactions.inTransaction(connection -> {
-                    UserAccount account = account(connection, command.userId());
-                    if (command.newRole() == UserRole.STUDENT
-                            && account.role() != UserRole.STUDENT) {
-                        throw new IllegalStateException("USER_ROLE_CONFLICT");
-                    }
-                    protectOnlyAdministrator(connection, account,
-                            command.newRole() != UserRole.ADMIN);
-                    UserAccount updated = account.withRole(command.newRole());
-                    users.updateWithVersion(connection, updated, command.expectedVersion());
-                    audits.record(connection, actorUserId, "USER_UPDATE_ROLE", "USER",
-                            account.userId(), "SUCCESS", address(context));
-                    return view(updated, command.expectedVersion() + 1);
-                });
-                sessionRevoker.accept(command.userId());
-                return result;
-            });
+            return locks.withLocks(
+                    List.of(new ResourceKey("USER", targetUserId)), () ->
+                    {
+                        UserView result = transactions.inTransaction(connection -> {
+                                UserAccount account = account(connection, targetUserId);
+                                if (account.role() != requiredRole) {
+                                    throw new IllegalArgumentException(
+                                            "COMMON_VALIDATION_FAILED");
+                                }
+                                if (account.rowVersion() != expectedRowVersion) {
+                                    throw new ConcurrentModificationException(
+                                            "User account version is stale");
+                                }
+                                char[] initialPassword = {'1', '2', '3', '4', '5', '6', '7', '8'};
+                                try {
+                                    PasswordHash password = hasher.hash(initialPassword);
+                                    UserAccount updated = reset(account, password);
+                                    users.updateWithVersion(connection, updated,
+                                            expectedRowVersion);
+                                    audits.record(connection, actorUserId,
+                                            "USER_PASSWORD_RESET", "USER",
+                                            account.userId(), "SUCCESS", address(context));
+                                    return view(updated, expectedRowVersion + 1);
+                                } finally {
+                                    Arrays.fill(initialPassword, '\0');
+                                }
+                            });
+                        passwordResetSessionRevoker.accept(targetUserId);
+                        return result;
+                    });
         } catch (RuntimeException error) {
-            auditWriter.failure(actorUserId, "USER_UPDATE_ROLE", command.userId(),
-                    error, address(context));
+            auditWriter.failure(actorUserId, "USER_PASSWORD_RESET",
+                    targetUserId, error, address(context));
             throw error;
         }
     }
@@ -92,6 +138,10 @@ final class AdminUserService {
             return withAccountLocks(command.userId(), () -> {
                 UserView result = transactions.inTransaction(connection -> {
                     UserAccount account = account(connection, command.userId());
+                    if (account.role() != UserRole.STUDENT
+                            && account.role() != UserRole.TEACHER) {
+                        throw new IllegalArgumentException("COMMON_VALIDATION_FAILED");
+                    }
                     if (!canChangeStatus(account.accountStatus(), command.newStatus())) {
                         throw new IllegalStateException("USER_STATUS_CONFLICT");
                     }
@@ -134,8 +184,7 @@ final class AdminUserService {
     }
 
     private static boolean canChangeStatus(AccountStatus from, AccountStatus to) {
-        return (from == AccountStatus.PENDING && (to == AccountStatus.ACTIVE || to == AccountStatus.CANCELLED))
-                || (from == AccountStatus.ACTIVE && (to == AccountStatus.DISABLED || to == AccountStatus.CANCELLED))
+        return (from == AccountStatus.ACTIVE && (to == AccountStatus.DISABLED || to == AccountStatus.CANCELLED))
                 || (from == AccountStatus.DISABLED && to == AccountStatus.ACTIVE);
     }
 
@@ -147,6 +196,13 @@ final class AdminUserService {
     private static UserView view(UserAccount account, long version) {
         return new UserView(account.userId(), account.loginId(), account.role(), account.accountStatus(),
                 account.mustChangePassword(), account.lastLoginAt(), version, account.createdAt(), account.updatedAt());
+    }
+
+    private static UserAccount reset(UserAccount account, PasswordHash password) {
+        return new UserAccount(account.userId(), account.loginId(), password.hash(),
+                password.salt(), password.iterations(), account.role(),
+                account.accountStatus(), true, 0, null, account.lastLoginAt(),
+                account.rowVersion(), account.createdAt(), LocalDateTime.now());
     }
 
     private static String address(ClientContext context) {

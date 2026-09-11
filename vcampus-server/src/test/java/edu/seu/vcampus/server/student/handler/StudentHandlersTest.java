@@ -129,7 +129,7 @@ class StudentHandlersTest {
     }
 
     @Test
-    void teacherDetailResponseKeepsContactFields() {
+    void teacherDetailResponseOmitsContactFields() {
         var router = new MessageRouter(Map.of());
         StudentService profiles = studentServiceWithProfile();
         new StudentHandlers((command, context) -> null, profiles, organizationQuery(),
@@ -139,9 +139,12 @@ class StudentHandlersTest {
                 new edu.seu.vcampus.common.student.EntityIdRequest("student-1")), client());
         var view = (edu.seu.vcampus.common.student.StudentView) response.data();
 
-        assertThat(view.email()).isEqualTo("private@seu.edu.cn");
-        assertThat(view.phone()).isEqualTo("13800000000");
+        assertThat(view.email()).isNull();
+        assertThat(view.phone()).isNull();
         assertThat(view.studentNumber()).isEqualTo("09024101");
+        assertThat(view.departmentName()).isEqualTo("计算机学院");
+        assertThat(view.majorName()).isEqualTo("软件工程");
+        assertThat(view.className()).isEqualTo("软工2401");
     }
 
     @Test

@@ -28,6 +28,9 @@ public final class StudentModulePageFactory {
             case STUDENT -> createStudentPage(user, students, connection);
             case TEACHER -> createTeacherPage(students, connection);
             case ADMIN -> createAdminPage(students, connection);
+            case SUPER_ADMIN, STUDENT_ADMIN, COLLEGE_ADMIN, COURSE_ADMIN,
+                    LIBRARY_ADMIN, SHOP_ADMIN, USER_ADMIN ->
+                    new ModulePlaceholderPage(TITLE, DESCRIPTION);
         };
     }
 

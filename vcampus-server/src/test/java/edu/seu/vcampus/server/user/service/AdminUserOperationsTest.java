@@ -71,12 +71,12 @@ class AdminUserOperationsTest {
     }
 
     @Test
-    void preventsDemotingTheOnlyActiveAdministrator() {
+    void permanentlyRejectsAdministratorDemotion() {
         assertThatThrownBy(() -> service.updateRole(ADMIN_ID, new UpdateUserRoleCommand(
                 ADMIN_ID, UserRole.TEACHER, 0), ADMIN_CONTEXT))
-                .hasMessage("USER_LAST_ADMIN_PROTECTED");
+                .hasMessage("COMMON_VALIDATION_FAILED");
 
-        assertAudit("USER_UPDATE_ROLE", "USER_LAST_ADMIN_PROTECTED", ADMIN_ID, ADMIN_ID);
+        assertAudit("USER_UPDATE_ROLE", "COMMON_VALIDATION_FAILED", ADMIN_ID, ADMIN_ID);
     }
 
     @Test
@@ -103,20 +103,20 @@ class AdminUserOperationsTest {
     }
 
     @Test
-    void demotingAdministratorRevokesTheTargetsExistingSession() {
+    void retiredRoleChangeLeavesTargetSessionAndRoleUntouched() {
         UserAccount target = account("SECOND_ADMIN", UserRole.ADMIN);
         insert(target);
         String token = service.login(new LoginCommand(target.loginId(), "Pass1234".toCharArray(),
                 "client"), new ClientContext("connection", "127.0.0.1")).sessionToken();
 
-        service.updateRole(ADMIN_ID,
-                new UpdateUserRoleCommand(target.userId(), UserRole.TEACHER, 1), ADMIN_CONTEXT);
+        assertThatThrownBy(() -> service.updateRole(ADMIN_ID,
+                new UpdateUserRoleCommand(target.userId(), UserRole.TEACHER, 1), ADMIN_CONTEXT))
+                .hasMessage("COMMON_VALIDATION_FAILED");
 
-        assertThatThrownBy(() -> sessions.requireSession(token))
-                .isInstanceOf(SessionExpiredException.class);
-        assertThat(service.login(new LoginCommand(target.loginId(), "Pass1234".toCharArray(),
-                "client"), new ClientContext("connection", "127.0.0.1")).permissions())
-                .isEmpty();
+        assertThat(sessions.requireSession(token).role()).isEqualTo(UserRole.ADMIN);
+        UserRole storedRole = transactions.inTransaction(connection -> repository.findById(
+                connection, target.userId()).orElseThrow().role());
+        assertThat(storedRole).isEqualTo(UserRole.ADMIN);
     }
 
     @Test
@@ -145,6 +145,46 @@ class AdminUserOperationsTest {
 
         assertAudit("USER_CHANGE_STATUS", "USER_STATUS_CONFLICT",
                 ADMIN_ID, target.userId());
+    }
+
+    @Test
+    void accountAdministrationCannotChangeManagementAccountStatus() {
+        UserAccount target = account("COURSE_MANAGER", UserRole.COURSE_ADMIN);
+        insert(target);
+
+        assertThatThrownBy(() -> service.changeStatus(ADMIN_ID,
+                new ChangeUserStatusCommand(target.userId(), AccountStatus.DISABLED,
+                        "not an ordinary account", 0), ADMIN_CONTEXT))
+                .hasMessage("COMMON_VALIDATION_FAILED");
+
+        UserAccount unchanged = transactions.inTransaction(connection ->
+                repository.findById(connection, target.userId()).orElseThrow());
+        assertThat(unchanged.accountStatus()).isEqualTo(AccountStatus.ACTIVE);
+        assertThat(unchanged.rowVersion()).isZero();
+    }
+
+    @Test
+    void pendingTeacherCannotBeApprovedOrCancelled() {
+        PasswordHash password = new PasswordHasher().hash("Pass1234".toCharArray());
+        UserAccount pending = new UserAccount(UUID.randomUUID().toString(), "PENDING_TEACHER",
+                password.hash(), password.salt(), password.iterations(), UserRole.TEACHER,
+                AccountStatus.PENDING, false, 0, null, null, 0,
+                LocalDateTime.now(), LocalDateTime.now());
+        insert(pending);
+
+        assertThatThrownBy(() -> service.changeStatus(ADMIN_ID,
+                new ChangeUserStatusCommand(pending.userId(), AccountStatus.ACTIVE,
+                        "approve", 0), ADMIN_CONTEXT))
+                .hasMessage("USER_STATUS_CONFLICT");
+        assertThatThrownBy(() -> service.changeStatus(ADMIN_ID,
+                new ChangeUserStatusCommand(pending.userId(), AccountStatus.CANCELLED,
+                        "reject", 0), ADMIN_CONTEXT))
+                .hasMessage("USER_STATUS_CONFLICT");
+
+        UserAccount unchanged = transactions.inTransaction(connection ->
+                repository.findById(connection, pending.userId()).orElseThrow());
+        assertThat(unchanged.accountStatus()).isEqualTo(AccountStatus.PENDING);
+        assertThat(unchanged.rowVersion()).isZero();
     }
 
     private void assertAudit(String action, String resultCode, String actor, String target) {

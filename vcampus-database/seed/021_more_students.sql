@@ -8,11 +8,29 @@
 INSERT INTO tblDepartment (departmentId, departmentCode, departmentName, isActive, rowVersion)
 VALUES ('00000000-0000-0000-0000-000000000111', 'MATH', '数学学院', TRUE, 0);
 
+INSERT INTO tblStudentCollegeAdministrator
+    (departmentId, userId, isActive, rowVersion, createdAt, updatedAt)
+VALUES
+    ('00000000-0000-0000-0000-000000000111',
+     '00000000-0000-0000-0000-000000000203', TRUE, 0, NOW(), NOW());
+
 INSERT INTO tblDepartment (departmentId, departmentCode, departmentName, isActive, rowVersion)
 VALUES ('00000000-0000-0000-0000-000000000131', 'EE', '信息科学与工程学院', TRUE, 0);
 
+INSERT INTO tblStudentCollegeAdministrator
+    (departmentId, userId, isActive, rowVersion, createdAt, updatedAt)
+VALUES
+    ('00000000-0000-0000-0000-000000000131',
+     '00000000-0000-0000-0000-000000000208', TRUE, 0, NOW(), NOW());
+
 INSERT INTO tblDepartment (departmentId, departmentCode, departmentName, isActive, rowVersion)
 VALUES ('00000000-0000-0000-0000-000000000141', 'FL', '外国语学院', TRUE, 0);
+
+INSERT INTO tblStudentCollegeAdministrator
+    (departmentId, userId, isActive, rowVersion, createdAt, updatedAt)
+VALUES
+    ('00000000-0000-0000-0000-000000000141',
+     '00000000-0000-0000-0000-000000000209', TRUE, 0, NOW(), NOW());
 
 -- ── Majors ──
 INSERT INTO tblMajor (majorId, departmentId, majorCode, majorName, grades, isActive, rowVersion)

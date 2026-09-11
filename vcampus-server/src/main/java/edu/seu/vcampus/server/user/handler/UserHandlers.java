@@ -6,6 +6,8 @@ import edu.seu.vcampus.common.protocol.Message;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.user.ChangePasswordCommand;
 import edu.seu.vcampus.common.user.ChangeUserStatusCommand;
+import edu.seu.vcampus.common.user.ResetStudentPasswordCommand;
+import edu.seu.vcampus.common.user.ResetTeacherPasswordCommand;
 import edu.seu.vcampus.common.user.TeacherAccountApplicationCommand;
 import edu.seu.vcampus.common.user.UpdateUserRoleCommand;
 import edu.seu.vcampus.common.user.UserSearchQuery;
@@ -14,6 +16,7 @@ import edu.seu.vcampus.server.routing.MessageHandler;
 import edu.seu.vcampus.server.routing.MessageRouter;
 import edu.seu.vcampus.server.routing.RequestDeduplicator;
 import edu.seu.vcampus.server.security.AuthorizationPort;
+import edu.seu.vcampus.server.security.ForbiddenException;
 import edu.seu.vcampus.server.security.UserIdentity;
 import edu.seu.vcampus.server.user.service.UserService;
 
@@ -21,7 +24,7 @@ import java.io.Serializable;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-/** Registers the eight public user-module socket commands and their safe response mapping. */
+/** Registers the compatible user-module socket commands and their safe response mapping. */
 public final class UserHandlers {
     private final UserService users;
     private final AuthorizationPort authorization;
@@ -34,7 +37,7 @@ public final class UserHandlers {
         this(router, users, authorization, null);
     }
 
-    /** Registers all eight commands and routes five writes through persistent deduplication. */
+    /** Registers user commands and routes security-sensitive writes through deduplication. */
     public UserHandlers(MessageRouter router, UserService users,
             AuthorizationPort authorization, RequestDeduplicator deduplicator) {
         this.users = Objects.requireNonNull(users, "users");
@@ -50,6 +53,8 @@ public final class UserHandlers {
         router.register("USER_SEARCH", searchHandler());
         router.register("USER_UPDATE_ROLE", roleUpdateHandler());
         router.register("USER_CHANGE_STATUS", statusChangeHandler());
+        router.register("USER_RESET_STUDENT_PASSWORD", studentPasswordResetHandler());
+        router.register("USER_RESET_TEACHER_PASSWORD", teacherPasswordResetHandler());
     }
 
     private MessageHandler registrationHandler() {
@@ -57,10 +62,8 @@ public final class UserHandlers {
             TeacherAccountApplicationCommand command = null;
             try {
                 command = requireBody(TeacherAccountApplicationCommand.class, message.body());
-                TeacherAccountApplicationCommand request = command;
-                return safely(() -> deduplicate(message, context, null,
-                        () -> ResponseBody.success(
-                                users.applyForTeacherAccount(request, context))));
+                return rejected(null, "USER_REGISTER", command.loginId(),
+                        new IllegalArgumentException("COMMON_VALIDATION_FAILED"), context);
             } catch (RuntimeException error) {
                 String target = command == null ? null : command.loginId();
                 return rejected(null, "USER_REGISTER", target, error, context);
@@ -123,11 +126,15 @@ public final class UserHandlers {
     private MessageHandler searchHandler() {
         return (message, context) -> {
             UserSearchQuery query;
+            String actorUserId = null;
             try {
                 query = requireBody(UserSearchQuery.class, message.body());
                 authorization.requirePermission(message.sessionToken(), "USER_READ_ALL");
+                UserIdentity actor = authorization.requireSession(message.sessionToken());
+                actorUserId = actor.userId();
+                requireUserAdministrator(actor);
             } catch (RuntimeException error) {
-                return rejected(null, "USER_SEARCH", null, error, context);
+                return rejected(actorUserId, "USER_SEARCH", null, error, context);
             }
             return safely(() -> ResponseBody.success(users.searchUsers(query)));
         };
@@ -137,12 +144,10 @@ public final class UserHandlers {
             UpdateUserRoleCommand command = null;
             try {
                 command = requireBody(UpdateUserRoleCommand.class, message.body());
-                authorization.requirePermission(message.sessionToken(), "USER_ROLE_WRITE");
-                UserIdentity actor = authorization.requireSession(message.sessionToken());
-                UpdateUserRoleCommand request = command;
-                return protectedWrite(message, context, actor.userId(), "USER_UPDATE_ROLE",
-                        request.userId(), () -> ResponseBody.success(users.updateRole(
-                                actor.userId(), request, context)));
+                // Compatibility route only: runtime role changes are permanently retired.
+                // Do not authenticate, deduplicate, mutate data, or revoke sessions.
+                return rejected(null, "USER_UPDATE_ROLE", command.userId(),
+                        new IllegalArgumentException("COMMON_VALIDATION_FAILED"), context);
             } catch (RuntimeException error) {
                 String target = command == null ? null : command.userId();
                 return rejected(null, "USER_UPDATE_ROLE", target, error, context);
@@ -150,22 +155,75 @@ public final class UserHandlers {
         };
     }
 
+    private MessageHandler studentPasswordResetHandler() {
+        return (message, context) -> {
+            ResetStudentPasswordCommand command = null;
+            String actorUserId = null;
+            try {
+                command = requireBody(ResetStudentPasswordCommand.class, message.body());
+                authorization.requirePermission(message.sessionToken(), "USER_PASSWORD_RESET");
+                UserIdentity actor = authorization.requireSession(message.sessionToken());
+                actorUserId = actor.userId();
+                requireUserAdministrator(actor);
+                ResetStudentPasswordCommand request = command;
+                return protectedWrite(message, context, actorUserId,
+                        "USER_PASSWORD_RESET", request.targetUserId(),
+                        () -> ResponseBody.success(users.resetStudentPassword(
+                                actor.userId(), request, context)));
+            } catch (RuntimeException error) {
+                String target = command == null ? null : command.targetUserId();
+                return rejected(actorUserId, "USER_PASSWORD_RESET", target, error, context);
+            }
+        };
+    }
+
+    private MessageHandler teacherPasswordResetHandler() {
+        return (message, context) -> {
+            ResetTeacherPasswordCommand command = null;
+            String actorUserId = null;
+            try {
+                command = requireBody(ResetTeacherPasswordCommand.class, message.body());
+                authorization.requirePermission(message.sessionToken(), "USER_PASSWORD_RESET");
+                UserIdentity actor = authorization.requireSession(message.sessionToken());
+                actorUserId = actor.userId();
+                requireUserAdministrator(actor);
+                ResetTeacherPasswordCommand request = command;
+                return protectedWrite(message, context, actorUserId,
+                        "USER_PASSWORD_RESET", request.targetUserId(),
+                        () -> ResponseBody.success(users.resetTeacherPassword(
+                                actor.userId(), request, context)));
+            } catch (RuntimeException error) {
+                String target = command == null ? null : command.targetUserId();
+                return rejected(actorUserId, "USER_PASSWORD_RESET", target, error, context);
+            }
+        };
+    }
+
     private MessageHandler statusChangeHandler() {
         return (message, context) -> {
             ChangeUserStatusCommand command = null;
+            String actorUserId = null;
             try {
                 command = requireBody(ChangeUserStatusCommand.class, message.body());
                 authorization.requirePermission(message.sessionToken(), "USER_STATUS_WRITE");
                 UserIdentity actor = authorization.requireSession(message.sessionToken());
+                actorUserId = actor.userId();
+                requireUserAdministrator(actor);
                 ChangeUserStatusCommand request = command;
                 return protectedWrite(message, context, actor.userId(), "USER_CHANGE_STATUS",
                         request.userId(), () -> ResponseBody.success(users.changeStatus(
                                 actor.userId(), request, context)));
             } catch (RuntimeException error) {
                 String target = command == null ? null : command.userId();
-                return rejected(null, "USER_CHANGE_STATUS", target, error, context);
+                return rejected(actorUserId, "USER_CHANGE_STATUS", target, error, context);
             }
         };
+    }
+
+    private static void requireUserAdministrator(UserIdentity identity) {
+        if (identity.role() != edu.seu.vcampus.common.user.UserRole.USER_ADMIN) {
+            throw new ForbiddenException();
+        }
     }
 
     private <T extends Serializable> ResponseBody<T> deduplicate(

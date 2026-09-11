@@ -95,13 +95,15 @@ public final class StudentAccessTestDatabase {
         boolean skipNextRef = false;
         for (String line : sql.split("\n")) {
             String upper = line.trim().toUpperCase();
+            if (upper.startsWith("--")) continue;
             if (upper.startsWith("CONSTRAINT")) { skipNextRef = true; continue; }
             if (skipNextRef && upper.startsWith("REFERENCES")) { skipNextRef = false; continue; }
             skipNextRef = false;
             cleaned.append(line).append("\n");
         }
-        for (String statementSql : cleaned.toString().split(";")) {
-            String statementText = statementSql.trim();
+        String normalized = cleaned.toString().replaceAll(",\\s*\\)", "\n)");
+        for (String statementString : normalized.split(";")) {
+            String statementText = statementString.trim();
             if (!statementText.isEmpty()) {
                 try (var statement = connection.createStatement()) {
                     statement.execute(statementText);
