@@ -296,11 +296,11 @@ class ShopUiKitTest {
         CompletableFuture<ProductDetail> normalDetail = new CompletableFuture<>();
         CompletableFuture<ProductDetail> expiredDetail = new CompletableFuture<>();
         CompletableFuture<edu.seu.vcampus.common.shop.CartView> failedAdd = new CompletableFuture<>();
+        CompletableFuture<ShopDetail> normalStore = new CompletableFuture<>();
         when(client.getProduct("normal-detail")).thenReturn(normalDetail);
         when(client.getProduct("expired-detail")).thenReturn(expiredDetail);
         when(client.addToCart(any())).thenReturn(failedAdd);
-        when(client.getShop("normal-store")).thenReturn(CompletableFuture.completedFuture(new ShopDetail(
-                "normal-store", "正常店", "", "文具", "", ShopStatus.ACTIVE)));
+        when(client.getShop("normal-store")).thenReturn(normalStore);
         when(client.getShop("empty-store")).thenReturn(CompletableFuture.completedFuture(new ShopDetail(
                 "empty-store", "空店", "", "文具", "", ShopStatus.ACTIVE)));
         when(client.getShop("error-store")).thenReturn(CompletableFuture.completedFuture(new ShopDetail(
@@ -340,6 +340,8 @@ class ShopUiKitTest {
         assertMounted(storePanel, kit, "storefront.state", ShopPageState.INITIAL);
         onEdt(() -> storePanel.load("normal-store"));
         assertMounted(storePanel, kit, "storefront.state", ShopPageState.LOADING);
+        normalStore.complete(new ShopDetail(
+                "normal-store", "正常店", "", "文具", "", ShopStatus.ACTIVE));
         flushEdt(); flushEdt();
         assertMounted(storePanel, kit, "storefront.state", ShopPageState.NORMAL);
         onEdt(() -> storePanel.load("empty-store"));
@@ -354,12 +356,12 @@ class ShopUiKitTest {
     }
 
     private static void assertMounted(Container page, RecordingKit kit, String name,
-            ShopPageState state) {
-        StateViewCall call = kit.stateViews.stream()
+            ShopPageState state) throws Exception {
+        StateViewCall call = onEdt(() -> kit.stateViews.stream()
                 .filter(candidate -> candidate.name().equals(name) && candidate.state() == state)
-                .reduce((first, second) -> second).orElseThrow();
+                .reduce((first, second) -> second).orElseThrow());
         assertThat(call.onEdt()).isTrue();
-        assertThat(isDescendant(page, call.component())).isTrue();
+        assertThat(onEdt(() -> isDescendant(page, call.component()))).isTrue();
     }
 
     private static boolean isDescendant(Container root, Component child) {

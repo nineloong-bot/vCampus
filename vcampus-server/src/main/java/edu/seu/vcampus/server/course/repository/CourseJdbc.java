@@ -7,6 +7,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 /** Small JDBC conversion helpers shared only by the Access course repositories. */
@@ -24,6 +25,10 @@ final class CourseJdbc {
 
     static Timestamp timestamp(Instant value) {
         return Timestamp.from(value == null ? Instant.now() : value);
+    }
+
+    static Instant persistencePrecision(Instant value) {
+        return value.truncatedTo(ChronoUnit.MICROS);
     }
 
     static Instant instant(ResultSet result, String column) throws SQLException {

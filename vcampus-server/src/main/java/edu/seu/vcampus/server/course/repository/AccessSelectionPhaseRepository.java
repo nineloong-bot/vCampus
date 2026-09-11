@@ -12,7 +12,7 @@ import java.util.Optional;
 /** JDBC persistence dedicated to manual selection phases. */
 final class AccessSelectionPhaseRepository {
     SelectionPhase insert(Connection connection, SelectionPhase phase) {
-        Instant now = Instant.now();
+        Instant now = CourseJdbc.persistencePrecision(Instant.now());
         SelectionPhase saved = new SelectionPhase(CourseJdbc.id(phase.phaseId()), phase.termId(),
                 phase.phaseType(), phase.displayTitle(), phase.phaseStatus(), 0, now, now);
         String sql = "INSERT INTO tblCourseSelectionPhase (phaseId, termId, phaseType, displayTitle, "
@@ -69,7 +69,7 @@ final class AccessSelectionPhaseRepository {
     }
 
     SelectionPhase update(Connection connection, SelectionPhase phase, long expectedVersion) {
-        Instant now = Instant.now();
+        Instant now = CourseJdbc.persistencePrecision(Instant.now());
         String sql = "UPDATE tblCourseSelectionPhase SET displayTitle=?, phaseStatus=?, rowVersion=?, "
                 + "updatedAt=? WHERE phaseId=? AND rowVersion=?";
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
