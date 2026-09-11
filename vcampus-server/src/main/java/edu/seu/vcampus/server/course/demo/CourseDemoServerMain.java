@@ -10,6 +10,7 @@ import edu.seu.vcampus.common.course.UpdateTermCommand;
 import edu.seu.vcampus.common.course.SelectionPhaseView;
 import edu.seu.vcampus.common.course.CreateSelectionPhaseCommand;
 import edu.seu.vcampus.common.course.ChangeSelectionPhaseStatusCommand;
+import edu.seu.vcampus.common.course.AcademicSeason;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.course.composition.CourseComposition;
 import edu.seu.vcampus.server.course.composition.CourseSchemaInitializer;
@@ -88,15 +89,17 @@ public final class CourseDemoServerMain {
             }
         };
         CourseStudentGateway students = CourseStudentGateway.of(userId -> switch (userId) {
-                    case "student-user-1" -> new StudentEnrollmentEligibility("student-demo-1", "ACTIVE");
-                    case "student-user-2" -> new StudentEnrollmentEligibility("student-demo-2", "ACTIVE");
+                    case "student-user-1" -> new StudentEnrollmentEligibility(
+                            "student-demo-1", "ACTIVE", CourseDemoDataset.MAJOR, CourseDemoDataset.COHORT);
+                    case "student-user-2" -> new StudentEnrollmentEligibility(
+                            "student-demo-2", "ACTIVE", CourseDemoDataset.MAJOR, CourseDemoDataset.COHORT);
                     default -> null;
                 }, studentId -> "student-demo-1".equals(studentId) || "student-demo-2".equals(studentId));
         MessageRouter router = new MessageRouter(Map.of());
         CourseComposition courses = CourseComposition.create(connections, authorization, students,
                 Clock.systemUTC(), new StripedResourceLockManager());
         courses.register(router);
-        seed(courses.service(), phase);
+        seed(connections, courses.service(), phase);
         return new DemoRuntime(router, courses.service(), connections);
     }
 
@@ -116,7 +119,7 @@ public final class CourseDemoServerMain {
         }
     }
 
-    private static void seed(CourseService service, String requestedPhase) {
+    private static void seed(ConnectionProvider connections, CourseService service, String requestedPhase) {
         Instant now = Instant.now();
         boolean adjustment = "ADJUSTMENT".equalsIgnoreCase(requestedPhase);
         Instant enrollmentStart = adjustment ? now.minus(Duration.ofDays(4)) : now.minus(Duration.ofDays(1));
@@ -128,12 +131,14 @@ public final class CourseDemoServerMain {
         TermView term;
         if (terms.isEmpty()) {
             term = service.createTerm(new CreateTermCommand("DEMO-TERM", "课程模块演示学期",
-                    today.minusMonths(1), today.plusMonths(5), enrollmentStart, enrollmentEnd,
+                    today.minusMonths(1), today.plusMonths(5), today.getYear(),
+                    AcademicSeason.fromStartMonth(today.getMonthValue()), enrollmentStart, enrollmentEnd,
                     adjustmentStart, adjustmentEnd, "ACTIVE"));
         } else {
             TermView old = terms.getFirst();
             term = service.updateTerm(new UpdateTermCommand(old.termId(), old.termCode(), old.termName(),
-                    today.minusMonths(1), today.plusMonths(5), enrollmentStart, enrollmentEnd,
+                    today.minusMonths(1), today.plusMonths(5), today.getYear(),
+                    AcademicSeason.fromStartMonth(today.getMonthValue()), enrollmentStart, enrollmentEnd,
                     adjustmentStart, adjustmentEnd, "ACTIVE", old.rowVersion()));
         }
         if (service.listSelectionPhases().stream().noneMatch(p -> "OPEN".equals(p.phaseStatus()))) {
@@ -145,40 +150,7 @@ public final class CourseDemoServerMain {
                     draft.phaseId(), "OPEN", draft.rowVersion()));
         }
 
-        var catalog = service.searchCatalog(new CourseCatalogQuery("", null, 0, 100)).items();
-        if (catalog.stream().noneMatch(course -> "MATH101".equals(course.courseCode()))) {
-            service.createCourse(new CreateCourseCommand("MATH101", "高等数学", new BigDecimal("5.0"),
-                    80, "理工科基础课程", true));
-        }
-        if (catalog.stream().noneMatch(course -> "CS201".equals(course.courseCode()))) {
-            service.createCourse(new CreateCourseCommand("CS201", "数据结构", new BigDecimal("4.0"),
-                    64, "计算机专业基础课程", true));
-        }
-        if (catalog.stream().noneMatch(course -> "DEMO-RACE".equals(course.courseCode()))) {
-            service.createCourse(new CreateCourseCommand("DEMO-RACE", "并发测试课程", new BigDecimal("1.0"),
-                    16, "供两台客户端同时竞争最后一个名额", true));
-        }
-        catalog = service.searchCatalog(new CourseCatalogQuery("", null, 0, 100)).items();
-        var math = catalog.stream().filter(course -> "MATH101".equals(course.courseCode())).findFirst().orElseThrow();
-        var data = catalog.stream().filter(course -> "CS201".equals(course.courseCode())).findFirst().orElseThrow();
-        var race = catalog.stream().filter(course -> "DEMO-RACE".equals(course.courseCode())).findFirst().orElseThrow();
-        var offerings = service.searchOfferings(
-                new OfferingSearchQuery(term.termId(), "", null, false, 0, 100)).items();
-        if (offerings.stream().noneMatch(offering -> math.courseId().equals(offering.courseId()))) {
-            service.createOffering(new CreateOfferingCommand(term.termId(), math.courseId(), "teacher-user",
-                    "01班", 40, "OPEN", List.of(new CreateOfferingCommand.ScheduleInput(
-                    "MONDAY", 1, 2, 1, 16, "教一-201"))));
-        }
-        if (offerings.stream().noneMatch(offering -> data.courseId().equals(offering.courseId()))) {
-            service.createOffering(new CreateOfferingCommand(term.termId(), data.courseId(), "teacher-user",
-                    "02班", 40, "OPEN", List.of(new CreateOfferingCommand.ScheduleInput(
-                    "WEDNESDAY", 3, 4, 1, 16, "计算中心-305"))));
-        }
-        if (offerings.stream().noneMatch(offering -> race.courseId().equals(offering.courseId()))) {
-            service.createOffering(new CreateOfferingCommand(term.termId(), race.courseId(), "teacher-user",
-                    "抢课测试班", 1, "OPEN", List.of(new CreateOfferingCommand.ScheduleInput(
-                    "FRIDAY", 5, 6, 1, 16, "网络实验室-101"))));
-        }
+        CourseDemoDataset.install(connections, service, term);
     }
 
     private static Properties load(Path path) throws Exception {

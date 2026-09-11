@@ -15,6 +15,7 @@ import javax.swing.RootPaneContainer;
 import javax.swing.SwingUtilities;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
+import java.awt.event.ActionEvent;
 import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -29,8 +30,11 @@ public final class CourseUiScreenshotGenerator {
     private CourseUiScreenshotGenerator() { }
 
     public static void main(String[] args) throws Exception {
-        Path output = Path.of("docs/ui-review/course");
+        Path output = Path.of(System.getProperty(
+                "vcampus.ui.output", "docs/ui-review/course"));
         Files.createDirectories(output);
+        boolean scaled = java.util.Arrays.asList(args).contains("--scale-150");
+        String suffix = scaled ? "-150" : "";
         UiThemeInstaller.install();
 
         ClientConnection previewConnection = new ClientConnection("127.0.0.1", 8888);
@@ -83,16 +87,23 @@ public final class CourseUiScreenshotGenerator {
                 .filter(javax.swing.JTable.class::isInstance).map(javax.swing.JTable.class::cast)
                 .filter(table -> table.getRowCount() > 0).findFirst()
                 .ifPresent(table -> table.setRowSelectionInterval(0, 0)));
-        SwingUtilities.invokeAndWait(() -> descendants(student[0]).stream()
-                .filter(javax.swing.JButton.class::isInstance).map(javax.swing.JButton.class::cast)
-                .filter(button -> button.getText().startsWith("▶  MATH101"))
-                .findFirst().ifPresent(javax.swing.JButton::doClick));
         SwingUtilities.invokeAndWait(() -> {
             try {
                 capture(login[0], output.resolve("integrated-login.png"),
                         WINDOW_WIDTH, WINDOW_HEIGHT);
-                capture(student[0], output.resolve("integrated-student-course.png"),
+                capture(student[0], output.resolve("student-selection-normal" + suffix + ".png"),
                         WINDOW_WIDTH, WINDOW_HEIGHT);
+                descendants(student[0]).stream().filter(StudentCourseRowPanel.class::isInstance)
+                        .map(StudentCourseRowPanel.class::cast)
+                        .filter(row -> "展开课程 B09D0012".equals(
+                                row.getAccessibleContext().getAccessibleName()))
+                        .findFirst().ifPresent(row -> row.getActionMap().get("toggle")
+                                .actionPerformed(new ActionEvent(
+                                        row, ActionEvent.ACTION_PERFORMED, "toggle")));
+                capture(student[0], output.resolve("student-selection-expanded" + suffix + ".png"),
+                        WINDOW_WIDTH, WINDOW_HEIGHT);
+                if (!scaled) capture(student[0], output.resolve("student-selection-expanded-1024x680.png"),
+                        1024, 680);
                 capture(administrator[0], output.resolve("integrated-admin-selection-phase.png"),
                         WINDOW_WIDTH, WINDOW_HEIGHT);
                 Dimension editorSize = administratorEditor[0].getSize();

@@ -21,6 +21,7 @@ import edu.seu.vcampus.server.user.repository.AccessPermissionRepository;
 import edu.seu.vcampus.server.user.repository.AccessUserRepository;
 import edu.seu.vcampus.server.user.service.PasswordHasher;
 import edu.seu.vcampus.server.user.service.SecurityAuditService;
+import edu.seu.vcampus.server.user.service.UserQueryPort;
 import edu.seu.vcampus.server.user.service.UserServiceImpl;
 import edu.seu.vcampus.server.student.service.StudentQueryPort;
 
@@ -31,6 +32,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 /** Production composition root for the user and course server modules. */
 public final class ApplicationRuntime {
@@ -60,6 +62,24 @@ public final class ApplicationRuntime {
     /** Creates a runtime using the configured idle-session timeout. */
     public static ApplicationRuntime create(ConnectionProvider connections, Path databaseResourceRoot,
                                             Clock clock, Duration sessionIdleTimeout)
+            throws IOException, SQLException {
+        return createUnified(connections, databaseResourceRoot, clock, sessionIdleTimeout, null);
+    }
+
+    /** Creates a runtime with an application-specific course-to-student adapter. */
+    public static ApplicationRuntime create(ConnectionProvider connections, Path databaseResourceRoot,
+                                            Clock clock, Duration sessionIdleTimeout,
+                                            Function<UserQueryPort, CourseStudentGateway> studentGatewayFactory)
+            throws IOException, SQLException {
+        Objects.requireNonNull(studentGatewayFactory, "studentGatewayFactory");
+        return createUnified(connections, databaseResourceRoot, clock, sessionIdleTimeout,
+                studentGatewayFactory);
+    }
+
+    private static ApplicationRuntime createUnified(ConnectionProvider connections,
+                                            Path databaseResourceRoot, Clock clock,
+                                            Duration sessionIdleTimeout,
+                                            Function<UserQueryPort, CourseStudentGateway> studentGatewayFactory)
             throws IOException, SQLException {
         Objects.requireNonNull(connections, "connections");
         Objects.requireNonNull(databaseResourceRoot, "databaseResourceRoot");
@@ -93,11 +113,13 @@ public final class ApplicationRuntime {
         StudentQueryPort studentQueries = UnifiedModuleRegistry.registerStudent(router,
                 transactions, locks, sessions, deduplicator, users, userRepository, audits,
                 passwords);
-        CourseStudentGateway students = CourseRuntimeAdapters.students(
-                studentQueries::getEnrollmentEligibility,
-                eligibility -> eligibility.studentId(),
-                eligibility -> eligibility.status().name(),
-                studentQueries::existsActiveStudent);
+        CourseStudentGateway students = studentGatewayFactory == null
+                ? CourseRuntimeAdapters.students(
+                        studentQueries::getEnrollmentEligibility,
+                        eligibility -> eligibility.studentId(),
+                        eligibility -> eligibility.status().name(),
+                        studentQueries::existsActiveStudent)
+                : Objects.requireNonNull(studentGatewayFactory.apply(users), "studentGateway");
         CourseComposition courses = CourseComposition.create(connections, courseAuthorization,
                 students, clock, locks);
         courses.register(router);

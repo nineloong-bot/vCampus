@@ -3,6 +3,9 @@ package edu.seu.vcampus.server.bootstrap.demo;
 import edu.seu.vcampus.common.course.EnrollmentView;
 import edu.seu.vcampus.common.course.OfferingSearchQuery;
 import edu.seu.vcampus.common.course.OfferingSummary;
+import edu.seu.vcampus.common.course.CourseSelectionQuery;
+import edu.seu.vcampus.common.course.CourseSelectionView;
+import edu.seu.vcampus.common.course.ChangeSelectionPhaseStatusCommand;
 import edu.seu.vcampus.common.course.ScheduleItem;
 import edu.seu.vcampus.common.course.TermView;
 import edu.seu.vcampus.common.paging.PageResult;
@@ -30,10 +33,11 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class IntegratedDemoServerMainTest {
@@ -44,6 +48,64 @@ class IntegratedDemoServerMainTest {
 
     @TempDir
     Path temporaryDirectory;
+
+    @Test
+    void exposesRealCurriculumCoursesToTheFullDemoStudent() throws Exception {
+        Path database = temporaryDirectory.resolve("course-user-demo.accdb");
+        ApplicationRuntime runtime = IntegratedDemoServerMain.prepare(
+                database, databaseRoot(), CLOCK);
+        LoginResult student = login(runtime, "DEMO_STUDENT", DEMO_PASSWORD);
+
+        List<TermView> terms = data(route(runtime, "COURSE_TERM_LIST",
+                student.sessionToken(), EmptyRequest.INSTANCE));
+        assertThat(terms).hasSize(1);
+        assertThat(runtime.course().service().listSelectionPhases())
+                .singleElement()
+                .satisfies(phase -> {
+                    assertThat(phase.termId()).isEqualTo(terms.getFirst().termId());
+                    assertThat(phase.phaseType()).isEqualTo("ENROLLMENT");
+                    assertThat(phase.phaseStatus()).isEqualTo("OPEN");
+                });
+
+        PageResult<CourseSelectionView> courses = data(route(runtime,
+                "COURSE_STUDENT_COURSE_SEARCH", student.sessionToken(),
+                new CourseSelectionQuery(terms.getFirst().termId(), "", null,
+                        null, null, null, 0, 100)));
+        assertThat(courses.items())
+                .extracting(CourseSelectionView::courseCode)
+                .contains("B09G0011", "BJSL0061")
+                .doesNotContain("B09S0061", "DEMO-MATH101", "DEMO-CS201");
+        assertThat(courses.items())
+                .filteredOn(course -> "BJSL0061".equals(course.courseCode()))
+                .singleElement()
+                .satisfies(course -> {
+                    assertThat(course.retakeCourse()).isTrue();
+                    assertThat(course.teachingClasses())
+                            .allMatch(option -> "RETAKE".equals(option.actionType()));
+                });
+    }
+
+    @Test
+    void reopensAnExistingDraftPhaseWhenTheFullDemoRestarts() throws Exception {
+        Path database = temporaryDirectory.resolve("course-user-demo.accdb");
+        ApplicationRuntime first = IntegratedDemoServerMain.prepare(
+                database, databaseRoot(), CLOCK);
+        var open = first.course().service().listSelectionPhases().getFirst();
+        var closed = first.course().service().changeSelectionPhaseStatus(
+                new ChangeSelectionPhaseStatusCommand(
+                        open.phaseId(), "CLOSED", open.rowVersion()));
+        var draft = first.course().service().changeSelectionPhaseStatus(
+                new ChangeSelectionPhaseStatusCommand(
+                        closed.phaseId(), "DRAFT", closed.rowVersion()));
+        assertThat(draft.phaseStatus()).isEqualTo("DRAFT");
+
+        AtomicReference<ApplicationRuntime> restarted = new AtomicReference<>();
+        assertThatCode(() -> restarted.set(IntegratedDemoServerMain.prepare(
+                database, databaseRoot(), CLOCK))).doesNotThrowAnyException();
+        assertThat(restarted.get().course().service().listSelectionPhases())
+                .singleElement()
+                .satisfies(phase -> assertThat(phase.phaseStatus()).isEqualTo("OPEN"));
+    }
 
     @Test
     void preparesIdempotentAuthenticatedThreeRoleDemoData() throws Exception {
@@ -77,15 +139,7 @@ class IntegratedDemoServerMainTest {
 
         List<EnrollmentView> enrollments = data(route(first, "COURSE_GET_MY_ENROLLMENTS",
                 student.sessionToken(), EmptyRequest.INSTANCE));
-        assertThat(enrollments).anySatisfy(enrollment -> {
-            assertThat(enrollment.studentId()).isEqualTo("demo-student");
-            assertThat(enrollment.enrollmentStatus()).isEqualTo("ACTIVE");
-        });
-        Set<String> enrolledOfferingIds = enrollments.stream()
-                .filter(enrollment -> "ACTIVE".equals(enrollment.enrollmentStatus()))
-                .map(EnrollmentView::offeringId).collect(java.util.stream.Collectors.toSet());
-        assertThat(offerings.items()).anyMatch(offering ->
-                !enrolledOfferingIds.contains(offering.offeringId()));
+        assertThat(enrollments).isEmpty();
 
         List<ScheduleItem> schedule = data(route(first, "COURSE_GET_MY_SCHEDULE",
                 teacher.sessionToken(), EmptyRequest.INSTANCE));
@@ -98,7 +152,7 @@ class IntegratedDemoServerMainTest {
             assertThat(roleOf(connection, "DEMO_STUDENT")).isEqualTo("STUDENT");
             assertThat(roleOf(connection, "DEMO_TEACHER")).isEqualTo("TEACHER");
             assertThat(roleOf(connection, "DEMO_ADMIN")).isEqualTo("ADMIN");
-            assertThat(activeEnrollmentCount(connection, "demo-student")).isPositive();
+            assertThat(activeEnrollmentCount(connection, "demo-student")).isZero();
             assertThat(openOfferingCount(connection)).isGreaterThan(1);
             assertThat(openUnselectedOfferingCount(connection, "demo-student")).isPositive();
             assertThat(openEnrollmentTermCount(connection, CLOCK.instant())).isEqualTo(1);
@@ -159,9 +213,9 @@ class IntegratedDemoServerMainTest {
         try (Connection connection = connection(database)) {
             return new DemoSnapshot(ids(connection, "tblUser", "userId", "loginId LIKE 'DEMO_%'"),
                     ids(connection, "tblTerm", "termId", "termCode='DEMO-TERM'"),
-                    ids(connection, "tblCourse", "courseId", "courseCode LIKE 'DEMO-%'"),
-                    ids(connection, "tblCourseOffering", "offeringId", "className LIKE 'Demo-%'"),
-                    ids(connection, "tblEnrollment", "enrollmentId", "studentId='demo-student'"));
+                    ids(connection, "tblCourse", "courseId", "courseCode LIKE 'B%'"),
+                    ids(connection, "tblCourseOffering", "offeringId", "className LIKE '%班'"),
+                    ids(connection, "tblCourseAttempt", "attemptId", "studentId='demo-student'"));
         }
     }
 
@@ -247,7 +301,7 @@ class IntegratedDemoServerMainTest {
 
     private record DemoSnapshot(List<String> userIds, List<String> termIds,
                                 List<String> courseIds, List<String> offeringIds,
-                                List<String> enrollmentIds) { }
+                                List<String> attemptIds) { }
 
     private static ResponseBody<?> route(ApplicationRuntime runtime, String command,
             String token, Serializable body) {

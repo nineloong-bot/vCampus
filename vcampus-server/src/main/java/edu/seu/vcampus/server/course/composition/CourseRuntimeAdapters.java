@@ -60,4 +60,21 @@ public final class CourseRuntimeAdapters {
                     return new StudentEnrollmentEligibility(studentId.apply(eligibility), status.apply(eligibility));
                 }, activeStudentExists);
     }
+
+    /** Curriculum-aware adapter used once the student module exposes major and cohort. */
+    public static <E> CourseStudentGateway students(
+            Function<String, E> getEnrollmentEligibility,
+            Function<E, String> studentId,
+            Function<E, String> status,
+            Function<E, String> majorCode,
+            java.util.function.ToIntFunction<E> cohortYear,
+            Predicate<String> activeStudentExists) {
+        Objects.requireNonNull(majorCode);
+        Objects.requireNonNull(cohortYear);
+        return CourseStudentGateway.of(userId -> {
+            E eligibility = Objects.requireNonNull(getEnrollmentEligibility.apply(userId), "student eligibility");
+            return new StudentEnrollmentEligibility(studentId.apply(eligibility), status.apply(eligibility),
+                    majorCode.apply(eligibility), cohortYear.applyAsInt(eligibility));
+        }, activeStudentExists);
+    }
 }

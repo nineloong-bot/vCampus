@@ -35,7 +35,8 @@ class CourseSchemaInitializerTest {
             }
             assertThat(tables).contains("tblterm", "tblcourse", "tblcourseoffering", "tblcourseschedule",
                     "tblenrollment", "tblenrollmentadjustment", "tblcourseattempt",
-                    "tblcourseselectionphase");
+                    "tblcourseselectionphase", "tblcurriculumplan", "tblcurriculumcourse",
+                    "tblcurriculumprerequisite", "tblcourseretakequota");
         }
     }
 
@@ -56,7 +57,8 @@ class CourseSchemaInitializerTest {
         try (Connection connection = database.open()) {
             assertThat(tableNames(connection)).contains("tblterm", "tblcourse", "tblcourseoffering",
                     "tblcourseschedule", "tblenrollment", "tblenrollmentadjustment", "tblcourseattempt",
-                    "tblcourseselectionphase");
+                    "tblcourseselectionphase", "tblcurriculumplan", "tblcurriculumcourse",
+                    "tblcurriculumprerequisite", "tblcourseretakequota");
         }
     }
 
@@ -85,6 +87,34 @@ class CourseSchemaInitializerTest {
                     .contains("studentId->tblStudent.studentId");
             assertThat(importedKeys(connection, "tblCourseAttempt"))
                     .contains("studentId->tblStudent.studentId");
+        }
+    }
+
+    @Test
+    void upgradesLegacyTermTableWithCurriculumMappingColumns() throws Exception {
+        Path directory = Path.of("target", "test-data");
+        Files.createDirectories(directory);
+        String url = "jdbc:ucanaccess://" + directory.resolve(UUID.randomUUID() + ".accdb")
+                + ";newDatabaseVersion=V2010;immediatelyReleaseResources=true";
+        ConnectionProvider database = () -> DriverManager.getConnection(url);
+        try (Connection connection = database.open()) {
+            connection.createStatement().execute("""
+                    CREATE TABLE tblTerm (
+                      termId VARCHAR(36) PRIMARY KEY, termCode VARCHAR(32) NOT NULL,
+                      termName VARCHAR(128) NOT NULL, startDate DATETIME NOT NULL,
+                      endDate DATETIME NOT NULL, status VARCHAR(16) NOT NULL,
+                      rowVersion LONG NOT NULL, createdAt DATETIME NOT NULL, updatedAt DATETIME NOT NULL)
+                    """);
+        }
+
+        new CourseSchemaInitializer(schema()).initialize(database);
+
+        try (Connection connection = database.open()) {
+            Set<String> columns = new HashSet<>();
+            try (ResultSet result = connection.getMetaData().getColumns(null, null, "tblTerm", null)) {
+                while (result.next()) columns.add(result.getString("COLUMN_NAME").toLowerCase());
+            }
+            assertThat(columns).contains("academicyearstart", "season");
         }
     }
 

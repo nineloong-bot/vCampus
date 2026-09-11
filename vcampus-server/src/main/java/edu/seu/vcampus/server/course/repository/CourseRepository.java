@@ -83,6 +83,23 @@ public interface CourseRepository {
     /** Applies one enrollment-count delta and increments the offering version. */
     Offering changeEnrolledCount(Connection connection, String offeringId, int delta);
 
+    /** Reads the independent retake bucket; legacy missing rows are exposed as zero. */
+    default RetakeQuota findRetakeQuota(Connection connection, String offeringId) {
+        return new RetakeQuota(offeringId, 0, 0);
+    }
+
+    /** Creates or changes the retake capacity without accepting a client-side counter. */
+    default RetakeQuota saveRetakeCapacity(Connection connection, String offeringId, int capacity) {
+        if (capacity < 0) throw new IllegalArgumentException("capacity");
+        return new RetakeQuota(offeringId, capacity, 0);
+    }
+
+    /** Applies a delta to the quota selected by the persisted enrollment type. */
+    default Offering changeEnrolledCount(Connection connection, String offeringId,
+                                         String enrollmentType, int delta) {
+        return changeEnrolledCount(connection, offeringId, delta);
+    }
+
     /** Writes an immutable adjustment audit row. */
     EnrollmentAdjustment insertAdjustment(Connection connection, EnrollmentAdjustment adjustment);
 

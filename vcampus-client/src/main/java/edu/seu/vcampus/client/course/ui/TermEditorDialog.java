@@ -7,6 +7,7 @@ import edu.seu.vcampus.client.core.ui.theme.UiTypography;
 import edu.seu.vcampus.common.course.CreateTermCommand;
 import edu.seu.vcampus.common.course.TermView;
 import edu.seu.vcampus.common.course.UpdateTermCommand;
+import edu.seu.vcampus.common.course.AcademicSeason;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -19,6 +20,7 @@ import javax.swing.JPanel;
 import javax.swing.JSpinner;
 import javax.swing.JTextField;
 import javax.swing.SpinnerDateModel;
+import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
@@ -42,6 +44,13 @@ final class TermEditorDialog extends JDialog {
     private final JTextField name = field("学期名称");
     private final JSpinner startDate;
     private final JSpinner endDate;
+    private final JSpinner academicYearStart = new JSpinner(new SpinnerNumberModel(
+            LocalDate.now().getYear(), 2000, 2200, 1));
+    private final JComboBox<SeasonChoice> season = new JComboBox<>(new SeasonChoice[]{
+            new SeasonChoice(AcademicSeason.SUMMER, "夏季"),
+            new SeasonChoice(AcademicSeason.AUTUMN, "秋季"),
+            new SeasonChoice(AcademicSeason.SPRING, "春季")
+    });
     private final JSpinner enrollmentStart;
     private final JSpinner enrollmentEnd;
     private final JSpinner adjustmentStart;
@@ -71,6 +80,10 @@ final class TermEditorDialog extends JDialog {
                 "yyyy-MM-dd HH:mm", "退改补开始");
         adjustmentEnd = dateSpinner(at(defaultStart.plusDays(7), 23, 59), Calendar.MINUTE,
                 "yyyy-MM-dd HH:mm", "退改补结束");
+        season.setSelectedIndex(1);
+        startDate.addChangeListener(event -> {
+            if (existing == null) academicYearStart.setValue(date(startDate).getYear());
+        });
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         JPanel root = new JPanel(new BorderLayout(0, UiSpacing.LG));
         root.setBackground(UiColors.BACKGROUND_PAGE);
@@ -104,12 +117,15 @@ final class TermEditorDialog extends JDialog {
         panel.setOpaque(false);
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
         panel.add(pair("学期代码（必填）", code, "学期名称（必填）", name));
+        academicYearStart.getAccessibleContext().setAccessibleName("学年起始年份");
+        season.getAccessibleContext().setAccessibleName("学期季节");
         panel.add(pair("开学日期", startDate, "结束日期", endDate));
         status.setFont(UiTypography.BODY);
         status.setMaximumSize(new Dimension(Integer.MAX_VALUE, UiDimensions.CONTROL_HEIGHT));
         status.getAccessibleContext().setAccessibleName("学期状态");
         panel.add(pair("学期状态", status, "选课开放",
                 label("在“选课阶段”中手动管理", UiColors.TEXT_SECONDARY)));
+        panel.add(pair("学年起始年份", academicYearStart, "培养方案学期", season));
         return panel;
     }
 
@@ -166,12 +182,16 @@ final class TermEditorDialog extends JDialog {
             Instant cleanAdjustmentEnd = existing == null ? cleanStart.plusDays(1).atStartOfDay(CAMPUS_ZONE).toInstant() : existing.adjustmentEndAt();
             CourseFormValidation.requireOrdered(cleanStart, cleanEnd, "结束日期必须晚于开学日期");
             String cleanStatus = ((StatusChoice) status.getSelectedItem()).code();
+            int cleanAcademicYear = ((Number) academicYearStart.getValue()).intValue();
+            AcademicSeason cleanSeason = ((SeasonChoice) season.getSelectedItem()).season();
             if (existing == null) {
                 request = gateway.createTerm(new CreateTermCommand(cleanCode, cleanName, cleanStart, cleanEnd,
-                        cleanEnrollmentStart, cleanEnrollmentEnd, cleanAdjustmentStart, cleanAdjustmentEnd, cleanStatus));
+                        cleanAcademicYear, cleanSeason, cleanEnrollmentStart, cleanEnrollmentEnd,
+                        cleanAdjustmentStart, cleanAdjustmentEnd, cleanStatus));
             } else {
                 request = gateway.updateTerm(new UpdateTermCommand(existing.termId(), cleanCode, cleanName,
-                        cleanStart, cleanEnd, cleanEnrollmentStart, cleanEnrollmentEnd, cleanAdjustmentStart,
+                        cleanStart, cleanEnd, cleanAcademicYear, cleanSeason,
+                        cleanEnrollmentStart, cleanEnrollmentEnd, cleanAdjustmentStart,
                         cleanAdjustmentEnd, cleanStatus, existing.rowVersion()));
             }
         } catch (IllegalArgumentException invalid) {
@@ -203,6 +223,8 @@ final class TermEditorDialog extends JDialog {
         name.setText(value.termName());
         startDate.setValue(atStartOfDay(value.startDate()));
         endDate.setValue(atStartOfDay(value.endDate()));
+        academicYearStart.setValue(value.academicYearStart());
+        season.setSelectedItem(new SeasonChoice(value.season(), value.season().displayName()));
         enrollmentStart.setValue(Date.from(value.enrollmentStartAt()));
         enrollmentEnd.setValue(Date.from(value.enrollmentEndAt()));
         adjustmentStart.setValue(Date.from(value.adjustmentStartAt()));
@@ -275,6 +297,10 @@ final class TermEditorDialog extends JDialog {
     }
 
     private record StatusChoice(String code, String label) {
+        @Override public String toString() { return label; }
+    }
+
+    private record SeasonChoice(AcademicSeason season, String label) {
         @Override public String toString() { return label; }
     }
 }

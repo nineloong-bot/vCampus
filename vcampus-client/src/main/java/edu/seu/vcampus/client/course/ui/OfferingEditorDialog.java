@@ -52,6 +52,7 @@ final class OfferingEditorDialog extends JDialog {
     private final JTextField teacherKeyword = field("教师关键字");
     private final JTextField className = field("教学班名称");
     private final JSpinner capacity;
+    private final JSpinner retakeCapacity;
     private final JComboBox<StatusChoice> status = new JComboBox<>(StatusChoice.values());
     private final OfferingScheduleEditorPanel schedules = new OfferingScheduleEditorPanel();
     private final JLabel referenceStatus = label("正在加载学期、课程和教师，请稍候…", UiColors.TEXT_SECONDARY);
@@ -71,6 +72,14 @@ final class OfferingEditorDialog extends JDialog {
         int minimumCapacity = existing == null ? 1 : Math.max(1, existing.enrolledCount());
         int initialCapacity = existing == null ? 40 : Math.max(minimumCapacity, existing.capacity());
         capacity = spinner(initialCapacity, minimumCapacity, Math.max(10_000, initialCapacity), "容量");
+        int minimumRetakeCapacity = existing == null ? 0 : existing.retakeEnrolledCount();
+        int initialRetakeCapacity = existing == null ? initialCapacity
+                : Math.max(minimumRetakeCapacity, existing.retakeCapacity());
+        retakeCapacity = spinner(initialRetakeCapacity, minimumRetakeCapacity,
+                Math.max(10_000, initialRetakeCapacity), "重修容量");
+        if (existing == null) {
+            capacity.addChangeListener(event -> retakeCapacity.setValue(capacity.getValue()));
+        }
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         JPanel root = new JPanel(new BorderLayout(0, UiSpacing.LG));
         root.setBackground(UiColors.BACKGROUND_PAGE);
@@ -116,7 +125,9 @@ final class OfferingEditorDialog extends JDialog {
         status.setFont(UiTypography.BODY);
         status.setMaximumSize(new Dimension(Integer.MAX_VALUE, UiDimensions.CONTROL_HEIGHT));
         status.getAccessibleContext().setAccessibleName("教学班状态");
-        panel.add(pair("容量（必填）", capacity, "教学班状态", status));
+        panel.add(pair("普通选课容量（必填）", capacity, "重修专用容量", retakeCapacity));
+        panel.add(pair("教学班状态", status, "容量说明",
+                label("普通与重修分别计数，共用教师和时间", UiColors.TEXT_SECONDARY)));
         panel.add(label("上课安排（必填）", UiColors.TEXT_PRIMARY));
         panel.add(Box.createVerticalStrut(UiSpacing.SM));
         panel.add(schedules);
@@ -290,17 +301,22 @@ final class OfferingEditorDialog extends JDialog {
             String cleanTeacher = requiredChoice(teacher, "请选择教师");
             String cleanClass = required(className, "请输入教学班名称");
             int cleanCapacity = ((Number) capacity.getValue()).intValue();
+            int cleanRetakeCapacity = ((Number) retakeCapacity.getValue()).intValue();
             if (existing != null && cleanCapacity < existing.enrolledCount()) {
                 throw new IllegalArgumentException("容量不能小于当前已选人数 " + existing.enrolledCount());
+            }
+            if (existing != null && cleanRetakeCapacity < existing.retakeEnrolledCount()) {
+                throw new IllegalArgumentException("重修容量不能小于当前重修人数 "
+                        + existing.retakeEnrolledCount());
             }
             StatusChoice cleanStatus = (StatusChoice) status.getSelectedItem();
             List<CreateOfferingCommand.ScheduleInput> cleanSchedules = schedules.scheduleInputs();
             if (existing == null) {
                 request = gateway.createOffering(new CreateOfferingCommand(cleanTerm, cleanCourse, cleanTeacher,
-                        cleanClass, cleanCapacity, cleanStatus.code(), cleanSchedules));
+                        cleanClass, cleanCapacity, cleanRetakeCapacity, cleanStatus.code(), cleanSchedules));
             } else {
                 request = gateway.updateOffering(new UpdateOfferingCommand(existing.offeringId(), cleanTerm,
-                        cleanCourse, cleanTeacher, cleanClass, cleanCapacity, cleanStatus.code(),
+                        cleanCourse, cleanTeacher, cleanClass, cleanCapacity, cleanRetakeCapacity, cleanStatus.code(),
                         existing.rowVersion(), cleanSchedules));
             }
         } catch (IllegalArgumentException invalid) {
@@ -331,6 +347,7 @@ final class OfferingEditorDialog extends JDialog {
     private void fill(OfferingSummary value) {
         className.setText(value.className());
         capacity.setValue(value.capacity());
+        retakeCapacity.setValue(value.retakeCapacity());
         status.setSelectedItem(StatusChoice.fromCode(value.offeringStatus()));
         schedules.setSchedules(value.schedules());
     }

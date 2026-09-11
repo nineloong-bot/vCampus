@@ -84,7 +84,7 @@ final class EnrollmentAdjustmentService {
                         Offering offering = repository.requireOffering(c, source.offeringId());
                         phases.requireDropOpen(c, offering.termId());
                         repository.updateEnrollment(c, dropped(source, now), command.expectedVersion());
-                        repository.changeEnrolledCount(c, source.offeringId(), -1);
+                        repository.changeEnrolledCount(c, source.offeringId(), source.enrollmentType(), -1);
                         repository.insertAdjustment(c, adjustment(initial.studentId(), "DROP", source.offeringId(), null, "SUCCEEDED", null, now));
                         return null;
                     });
@@ -116,10 +116,10 @@ final class EnrollmentAdjustmentService {
         requireOpenForAdd(target);
         phases.requireAdjustmentOpen(c, target.termId());
         List<Enrollment> active = repository.findActiveByStudentAndTerm(c, studentId, target.termId());
-        rules.requireTargetAllowed(c, active, target, null);
+        rules.requireTargetAllowed(c, active, target, null, "LATE_ADD");
         Enrollment saved = repository.insertEnrollment(c, new Enrollment(UUID.randomUUID().toString(), targetId,
                 studentId, "LATE_ADD", "ACTIVE", now, null, 0, null, null));
-        repository.changeEnrolledCount(c, targetId, 1);
+        repository.changeEnrolledCount(c, targetId, "LATE_ADD", 1);
         repository.insertAdjustment(c, adjustment(studentId, "ADD", null, targetId, "SUCCEEDED", null, now));
         return view(saved);
     }
@@ -131,12 +131,12 @@ final class EnrollmentAdjustmentService {
         phases.requireAdjustmentOpen(c, sourceOffering.termId());
         Offering target = rules.requireChangeTarget(c, sourceOffering, command.targetOfferingId());
         List<Enrollment> active = repository.findActiveByStudentAndTerm(c, studentId, target.termId());
-        rules.requireTargetAllowed(c, active, target, source.enrollmentId());
+        rules.requireTargetAllowed(c, active, target, source.enrollmentId(), source.enrollmentType());
         Enrollment saved = repository.insertEnrollment(c, new Enrollment(UUID.randomUUID().toString(), target.offeringId(),
                 studentId, source.enrollmentType(), "ACTIVE", now, null, 0, null, null));
         repository.updateEnrollment(c, dropped(source, now), command.expectedVersion());
-        repository.changeEnrolledCount(c, source.offeringId(), -1);
-        repository.changeEnrolledCount(c, target.offeringId(), 1);
+        repository.changeEnrolledCount(c, source.offeringId(), source.enrollmentType(), -1);
+        repository.changeEnrolledCount(c, target.offeringId(), source.enrollmentType(), 1);
         repository.insertAdjustment(c, adjustment(studentId, "CHANGE", source.offeringId(), target.offeringId(),
                 "SUCCEEDED", null, now));
         return view(saved);

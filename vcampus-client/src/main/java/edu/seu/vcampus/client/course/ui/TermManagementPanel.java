@@ -22,7 +22,7 @@ import java.util.List;
 public final class TermManagementPanel extends AbstractCoursePanel {
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("MM-dd HH:mm").withZone(ZoneId.systemDefault());
     private final CourseUiGateway gateway;
-    private final DefaultTableModel model = readOnlyModel("学期代码", "学期名称", "开学日期", "结束日期", "状态", "版本");
+    private final DefaultTableModel model = readOnlyModel("学期代码", "学期名称 / 培养方案映射", "开学日期", "结束日期", "状态", "版本");
     private final JTable table = table(new Object[0][0], new Object[0]);
     private final List<TermView> terms = new ArrayList<>();
 
@@ -60,7 +60,9 @@ public final class TermManagementPanel extends AbstractCoursePanel {
             this.terms.clear();
             this.terms.addAll(terms);
             for (TermView term : terms) model.addRow(new Object[]{
-                    term.termCode(), term.termName(), term.startDate(), term.endDate(), status(term.termStatus()), "v" + term.rowVersion()});
+                    term.termCode(), term.termName() + " · " + term.academicYearStart() + "-"
+                            + (term.academicYearStart() + 1) + " · " + term.season().displayName(),
+                    term.startDate(), term.endDate(), status(term.termStatus()), "v" + term.rowVersion()});
             showState(terms.isEmpty() ? ViewState.EMPTY : ViewState.NORMAL,
                     terms.isEmpty() ? "当前尚未配置学期，请新建学期后继续" : "");
         }));

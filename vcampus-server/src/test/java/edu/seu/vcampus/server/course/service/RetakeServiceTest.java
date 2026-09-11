@@ -5,6 +5,7 @@ import edu.seu.vcampus.common.course.ImportCourseOutcomesCommand;
 import edu.seu.vcampus.common.course.RetakeEligibility;
 import edu.seu.vcampus.common.course.RetakeCommand;
 import edu.seu.vcampus.common.course.EnrollmentView;
+import edu.seu.vcampus.common.course.EnrollCommand;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.course.domain.ScheduleConflictPolicy;
 import edu.seu.vcampus.server.course.domain.TermWindowPolicy;
@@ -151,7 +152,30 @@ class RetakeServiceTest {
         assertThat(result.enrollmentType()).isEqualTo("RETAKE");
         assertThat(result.studentId()).isEqualTo(STUDENT_ID);
         assertThat(activeCount("offering-1")).isOne();
-        assertThat(readOffering("offering-1").enrolledCount()).isOne();
+        assertThat(readOffering("offering-1").enrolledCount()).isZero();
+        assertThat(readRetakeCount("offering-1")).isOne();
+    }
+
+    @Test
+    void normalAndRetakeCapacityBucketsDoNotBlockEachOther() {
+        importOutcome(CourseOutcome.FAILED, "failed-source");
+        seedOffering("normal-full", "course-1", 1, 1, "OPEN");
+        configureRetakeQuota("normal-full", 1, 0);
+
+        service.enrollRetake(TOKEN, new RetakeCommand("normal-full"));
+
+        assertThat(readOffering("normal-full").enrolledCount()).isOne();
+        assertThat(readRetakeCount("normal-full")).isOne();
+
+        sessions.put("normal-token", new CourseSessionIdentity("normal-user", "STUDENT"));
+        studentRecords.put("normal-user", new StudentEnrollmentEligibility("normal-student", "ACTIVE"));
+        seedOffering("retake-full", "course-2", 1, 0, "OPEN");
+        configureRetakeQuota("retake-full", 1, 1);
+
+        service.enroll("normal-token", new EnrollCommand("retake-full"));
+
+        assertThat(readOffering("retake-full").enrolledCount()).isOne();
+        assertThat(readRetakeCount("retake-full")).isOne();
     }
 
     @Test
@@ -229,6 +253,7 @@ class RetakeServiceTest {
     void retakeFullAndConflictRulesAreReachedWhenNoSameCourseIsAlreadyActive() {
         importOutcome(CourseOutcome.FAILED, "failed-source");
         seedOffering("full", "course-1", 1, 1, "OPEN");
+        configureRetakeQuota("full", 1, 1);
         assertThatThrownBy(() -> service.enrollRetake(TOKEN, new RetakeCommand("full")))
                 .isInstanceOf(OfferingFullException.class);
 
@@ -343,7 +368,8 @@ class RetakeServiceTest {
                 .extracting(result -> ((CourseRuleException) result.failure()).code())
                 .containsOnly("COURSE_OFFERING_FULL");
         assertThat(activeCount("offering-1")).isOne();
-        assertThat(readOffering("offering-1").enrolledCount()).isOne();
+        assertThat(readOffering("offering-1").enrolledCount()).isZero();
+        assertThat(readRetakeCount("offering-1")).isOne();
     }
 
     @Test
@@ -360,7 +386,8 @@ class RetakeServiceTest {
                 .extracting(result -> ((CourseRuleException) result.failure()).code())
                 .containsOnly("COURSE_DUPLICATE_ENROLLMENT");
         assertThat(activeCount("offering-1")).isOne();
-        assertThat(readOffering("offering-1").enrolledCount()).isOne();
+        assertThat(readOffering("offering-1").enrolledCount()).isZero();
+        assertThat(readRetakeCount("offering-1")).isOne();
     }
 
     @Test
@@ -448,7 +475,8 @@ class RetakeServiceTest {
         assertThat(persisted.droppedAt()).isNull();
         assertThat(naturalKeyCount(STUDENT_ID, "offering-1")).isOne();
         assertThat(activeCount("offering-1")).isOne();
-        assertThat(readOffering("offering-1").enrolledCount()).isEqualTo(activeCount("offering-1"));
+        assertThat(readOffering("offering-1").enrolledCount()).isZero();
+        assertThat(readRetakeCount("offering-1")).isEqualTo(activeCount("offering-1"));
     }
 
     private void seedCatalog() {
@@ -531,6 +559,21 @@ class RetakeServiceTest {
     private Offering readOffering(String offeringId) {
         return new TransactionManager(connections).inTransaction(
                 connection -> repository.requireOffering(connection, offeringId));
+    }
+
+    private int readRetakeCount(String offeringId) {
+        return new TransactionManager(connections).inTransaction(
+                connection -> repository.findRetakeQuota(connection, offeringId).enrolledCount());
+    }
+
+    private void configureRetakeQuota(String offeringId, int capacity, int enrolledCount) {
+        new TransactionManager(connections).inTransaction(connection -> {
+            repository.saveRetakeCapacity(connection, offeringId, capacity);
+            if (enrolledCount != 0) {
+                repository.changeEnrolledCount(connection, offeringId, "RETAKE", enrolledCount);
+            }
+            return null;
+        });
     }
 
     private long activeCount(String offeringId) {
