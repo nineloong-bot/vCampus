@@ -2,6 +2,7 @@ package edu.seu.vcampus.client.user.ui;
 
 import edu.seu.vcampus.client.user.service.SessionExpiredClientException;
 import edu.seu.vcampus.client.user.service.PasswordResetSessionClientException;
+import edu.seu.vcampus.client.user.service.PermissionChangeSessionClientException;
 import edu.seu.vcampus.client.user.service.UserClientService;
 
 import javax.swing.SwingUtilities;
@@ -73,6 +74,9 @@ final class SessionMonitor {
         if (current instanceof PasswordResetSessionClientException) {
             return InvalidationReason.PASSWORD_RESET;
         }
+        if (current instanceof PermissionChangeSessionClientException) {
+            return InvalidationReason.PERMISSION_CHANGE;
+        }
         if (current instanceof SessionExpiredClientException) {
             return InvalidationReason.REPLACED;
         }
@@ -92,6 +96,7 @@ final class SessionMonitor {
 
     enum InvalidationReason {
         REPLACED,
-        PASSWORD_RESET
+        PASSWORD_RESET,
+        PERMISSION_CHANGE
     }
 }

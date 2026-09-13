@@ -2,6 +2,7 @@ package edu.seu.vcampus.server.session;
 
 import edu.seu.vcampus.server.security.SessionExpiredException;
 import edu.seu.vcampus.server.security.PasswordResetSessionRevokedException;
+import edu.seu.vcampus.server.security.PermissionChangeSessionRevokedException;
 import edu.seu.vcampus.server.security.UserIdentity;
 
 import java.security.SecureRandom;
@@ -20,6 +21,8 @@ public final class SessionRegistry {
     private static final Duration DEFAULT_IDLE_TIMEOUT = Duration.ofMinutes(30);
     private final ConcurrentHashMap<String, Session> sessions = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Instant> passwordResetRevocations =
+            new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Instant> permissionChangeRevocations =
             new ConcurrentHashMap<>();
     private final SecureRandom random = new SecureRandom();
     private final Clock clock;
@@ -73,6 +76,11 @@ public final class SessionRegistry {
                 throw new PasswordResetSessionRevokedException();
             }
             passwordResetRevocations.remove(token, reasonExpiresAt);
+            reasonExpiresAt = permissionChangeRevocations.get(token);
+            if (reasonExpiresAt != null && reasonExpiresAt.isAfter(now)) {
+                throw new PermissionChangeSessionRevokedException();
+            }
+            permissionChangeRevocations.remove(token, reasonExpiresAt);
             throw new SessionExpiredException();
         }
         session.touch(now);
@@ -130,8 +138,31 @@ public final class SessionRegistry {
         return removed.get();
     }
 
+    /** Revokes a user's sessions while retaining a short-lived permission-change reason. */
+    public int revokeAllForUserAfterPermissionChange(String userId) {
+        Objects.requireNonNull(userId, "userId");
+        Instant now = clock.instant();
+        cleanupPermissionChangeRevocations(now);
+        Instant expiresAt = now.plus(idleTimeout);
+        AtomicInteger removed = new AtomicInteger();
+        for (String token : sessions.keySet()) {
+            sessions.computeIfPresent(token, (key, session) -> {
+                if (!session.snapshot.identity().userId().equals(userId)) return session;
+                permissionChangeRevocations.put(key, expiresAt);
+                removed.incrementAndGet();
+                return null;
+            });
+        }
+        return removed.get();
+    }
+
     private void cleanupPasswordResetRevocations(Instant now) {
         passwordResetRevocations.entrySet().removeIf(
+                entry -> !entry.getValue().isAfter(now));
+    }
+
+    private void cleanupPermissionChangeRevocations(Instant now) {
+        permissionChangeRevocations.entrySet().removeIf(
                 entry -> !entry.getValue().isAfter(now));
     }
 

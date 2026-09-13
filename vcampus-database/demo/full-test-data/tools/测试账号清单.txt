@@ -1,6 +1,7 @@
 ﻿全模块合成测试账号；密码统一 Test12345。学生登录用一卡通号。
 账号 | 密码 | 角色 | 姓名/说明 | 场景 | 首次改密
-TESTADMIN | Test12345 | ADMIN | 全模块测试管理员 | 管理全部测试数据 | 否
+TESTADMIN | Test12345 | SUPER_ADMIN | 全模块测试管理员 | 管理全部测试数据 | 否
+USER_ADMIN_2 | Test12345 | USER_ADMIN | 用户模块测试管理员 | 权限调整、交换与停用测试 | 否
 TESTTEACHER001 | Test12345 | TEACHER | 测试教师001 | 课程管理、图书借阅、普通买家 | 否
 TESTTEACHER002 | Test12345 | TEACHER | 测试教师002 | 课程管理、图书借阅、普通买家 | 否
 TESTTEACHER003 | Test12345 | TEACHER | 测试教师003 | 课程管理、图书借阅、普通买家 | 否

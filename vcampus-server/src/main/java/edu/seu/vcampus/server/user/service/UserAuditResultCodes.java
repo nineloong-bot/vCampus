@@ -7,6 +7,7 @@ import edu.seu.vcampus.server.security.ForbiddenException;
 import edu.seu.vcampus.server.security.InitialPasswordChangeRequiredException;
 import edu.seu.vcampus.server.security.InvalidCredentialsException;
 import edu.seu.vcampus.server.security.PasswordResetSessionRevokedException;
+import edu.seu.vcampus.server.security.PermissionChangeSessionRevokedException;
 import edu.seu.vcampus.server.security.SessionExpiredException;
 
 import java.util.ConcurrentModificationException;
@@ -16,6 +17,7 @@ import java.util.Set;
 final class UserAuditResultCodes {
     private static final Set<String> STABLE_CODES = Set.of(
             "AUTH_SESSION_EXPIRED", "AUTH_SESSION_REVOKED_PASSWORD_RESET",
+            "AUTH_SESSION_REVOKED_PERMISSION_CHANGE",
             "AUTH_INITIAL_PASSWORD_CHANGE_REQUIRED",
             "AUTH_FORBIDDEN", "AUTH_INVALID_CREDENTIALS",
             "AUTH_PASSWORD_POLICY_VIOLATION", "AUTH_ACCOUNT_PENDING",
@@ -38,6 +40,9 @@ final class UserAuditResultCodes {
         if (error instanceof AccountLockedException) return "AUTH_ACCOUNT_LOCKED";
         if (error instanceof PasswordResetSessionRevokedException) {
             return "AUTH_SESSION_REVOKED_PASSWORD_RESET";
+        }
+        if (error instanceof PermissionChangeSessionRevokedException) {
+            return "AUTH_SESSION_REVOKED_PERMISSION_CHANGE";
         }
         if (error instanceof SessionExpiredException) return "AUTH_SESSION_EXPIRED";
         if (error instanceof InitialPasswordChangeRequiredException) {
