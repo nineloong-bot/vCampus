@@ -26,8 +26,7 @@ final class SessionReplacementWarningDialog extends JDialog {
 
     SessionReplacementWarningDialog(Window owner,
             SessionMonitor.InvalidationReason reason, Runnable onFinished) {
-        super(owner, reason == SessionMonitor.InvalidationReason.PASSWORD_RESET
-                ? "密码安全提醒" : "登录安全提醒", Dialog.ModalityType.MODELESS);
+        super(owner, dialogTitle(reason), Dialog.ModalityType.MODELESS);
         this.reason = Objects.requireNonNull(reason, "reason");
         this.onFinished = Objects.requireNonNull(onFinished, "onFinished");
         timer.setRepeats(false);
@@ -48,16 +47,20 @@ final class SessionReplacementWarningDialog extends JDialog {
         panel.setBackground(UiColors.BACKGROUND_PAGE);
         panel.setBorder(UiBorders.pageInset());
         boolean passwordReset = reason == SessionMonitor.InvalidationReason.PASSWORD_RESET;
-        JLabel title = new JLabel(passwordReset
-                ? "密码已被管理员初始化" : "登录状态已失效");
+        boolean permissionChange = reason == SessionMonitor.InvalidationReason.PERMISSION_CHANGE;
+        JLabel title = new JLabel(passwordReset ? "密码已被管理员初始化"
+                : permissionChange ? "管理员已变更账号权限" : "登录状态已失效");
         title.setFont(UiTypography.PAGE_TITLE);
         JLabel message = new JLabel(passwordReset
                 ? "管理员已初始化你的登录密码，当前登录已失效。"
                         + "请使用初始密码重新登录，并按提示修改密码。"
+                : permissionChange
+                ? "当前登录已失效，请重新登录以加载最新权限。"
                 : "该账号已在其他位置登录，可能存在密码泄露。请及时修改密码。");
         message.setForeground(UiColors.ERROR_FG);
         message.getAccessibleContext().setAccessibleName(passwordReset
-                ? "密码初始化安全提醒" : "异地登录安全警告");
+                ? "密码初始化安全提醒" : permissionChange
+                ? "账号权限变更提醒" : "异地登录安全警告");
         JLabel closing = new JLabel("此窗口将在约 5 秒后关闭，并返回登录页。");
         closing.setForeground(UiColors.TEXT_SECONDARY);
         JPanel body = new JPanel(new BorderLayout(0, UiSpacing.SPACE_2));
@@ -67,6 +70,14 @@ final class SessionReplacementWarningDialog extends JDialog {
         panel.add(title, BorderLayout.NORTH);
         panel.add(body, BorderLayout.CENTER);
         return panel;
+    }
+
+    private static String dialogTitle(SessionMonitor.InvalidationReason reason) {
+        return switch (reason) {
+            case PASSWORD_RESET -> "密码安全提醒";
+            case PERMISSION_CHANGE -> "权限变更提醒";
+            case REPLACED -> "登录安全提醒";
+        };
     }
 
     private void finish() {

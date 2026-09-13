@@ -28,6 +28,24 @@ class GenerationTest(unittest.TestCase):
         self.assertEqual({100}, set(majors.values()))
         self.assertEqual(40, len(rows["tblClass"]))
 
+    def test_testadmin_is_the_super_admin(self):
+        fast_password = dict(passwordHash="hash", passwordSalt="salt", passwordIterations=1)
+        with patch.object(people, "credentials", return_value=fast_password):
+            rows = self.capture(people.generate)
+
+        testadmin = next(row for row in rows["tblUser"] if row["loginId"] == "TESTADMIN")
+        self.assertEqual("SUPER_ADMIN", testadmin["roleCode"])
+
+    def test_second_user_administrator_is_available_for_governance_testing(self):
+        fast_password = dict(passwordHash="hash", passwordSalt="salt", passwordIterations=1)
+        with patch.object(people, "credentials", return_value=fast_password):
+            rows = self.capture(people.generate)
+
+        account = next(row for row in rows["tblUser"] if row["loginId"] == "USER_ADMIN_2")
+        self.assertEqual("USER_ADMIN", account["roleCode"])
+        self.assertEqual("ACTIVE", account["accountStatus"])
+        self.assertFalse(account["mustChangePassword"])
+
     def test_courses_include_three_seasons_and_canonical_plans(self):
         rows = self.capture(courses.generate)
         seasons = {row["season"] for row in rows["tblTerm"]}

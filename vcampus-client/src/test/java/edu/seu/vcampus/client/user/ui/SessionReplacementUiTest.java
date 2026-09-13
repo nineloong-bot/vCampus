@@ -127,6 +127,37 @@ class SessionReplacementUiTest {
     }
 
     @Test
+    void permissionChangeSessionRevocationShowsSpecificWarningAndLoginNotice() throws Exception {
+        AtomicReference<CompletableFuture<ResponseBody<UserView>>> current =
+                new AtomicReference<>(CompletableFuture.completedFuture(
+                        ResponseBody.success(loginResult().user())));
+        Fixture fixture = fixture(current);
+        MainFrame main = login(fixture.coordinator());
+        awaitCurrentChecks(fixture.connection(), 1);
+        clearInvocations(fixture.connection());
+        current.set(CompletableFuture.completedFuture(ResponseBody.failure(
+                "AUTH_SESSION_REVOKED_PERMISSION_CHANGE", "会话已失效", null)));
+
+        fire(timerInside(fixture.coordinator()));
+        JDialog warning = awaitShowing(JDialog.class);
+
+        assertThat(warning.getTitle()).isEqualTo("权限变更提醒");
+        assertThat(text(warning))
+                .contains("管理员已变更账号权限")
+                .contains("当前登录已失效，请重新登录以加载最新权限。")
+                .doesNotContain("其他位置登录", "AUTH_SESSION_REVOKED_PERMISSION_CHANGE",
+                        "session-token", "Exception");
+        assertThat(main.isEnabled()).isFalse();
+
+        fire(timerInside(warning));
+        awaitNoShowing(MainFrame.class);
+
+        verify(fixture.connection()).setSessionToken(null);
+        assertThat(text(showing(LoginFrame.class).getFirst()))
+                .contains("管理员已变更账号权限，请重新登录");
+    }
+
+    @Test
     void networkFailureKeepsSessionAndWindowAndClosingWindowStopsMonitoring() throws Exception {
         AtomicReference<CompletableFuture<ResponseBody<UserView>>> current =
                 new AtomicReference<>(CompletableFuture.completedFuture(

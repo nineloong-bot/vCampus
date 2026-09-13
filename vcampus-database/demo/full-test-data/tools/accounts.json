@@ -2,9 +2,17 @@
   {
     "login": "TESTADMIN",
     "password": "Test12345",
-    "role": "ADMIN",
+    "role": "SUPER_ADMIN",
     "name": "全模块测试管理员",
     "scenario": "管理全部测试数据",
+    "first_change": "否"
+  },
+  {
+    "login": "USER_ADMIN_2",
+    "password": "Test12345",
+    "role": "USER_ADMIN",
+    "name": "用户模块测试管理员",
+    "scenario": "权限调整、交换与停用测试",
     "first_change": "否"
   },
   {

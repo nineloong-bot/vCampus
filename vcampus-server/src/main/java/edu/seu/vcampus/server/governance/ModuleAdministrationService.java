@@ -70,7 +70,7 @@ public final class ModuleAdministrationService {
                             "MODULE:" + command.moduleCode(), account.userId(), "SUCCESS");
                     return null;
                 });
-                sessions.revokeAllForUser(command.userId());
+                sessions.revokeAllForUserAfterPermissionChange(command.userId());
             });
         } catch (RuntimeException error) {
             auditFailure(actorUserId, "GOVERNANCE_MODULE_ADMIN_ASSIGN",
@@ -102,7 +102,7 @@ public final class ModuleAdministrationService {
                             "MODULE:" + command.moduleCode(), account.userId(), "SUCCESS");
                     return null;
                 });
-                sessions.revokeAllForUser(command.userId());
+                sessions.revokeAllForUserAfterPermissionChange(command.userId());
             });
         } catch (RuntimeException error) {
             auditFailure(actorUserId, "GOVERNANCE_MODULE_ADMIN_REMOVE",
@@ -144,8 +144,8 @@ public final class ModuleAdministrationService {
                             "MODULE:" + command.firstModuleCode(), second.userId(), "SUCCESS");
                     return null;
                 });
-                sessions.revokeAllForUser(command.firstUserId());
-                sessions.revokeAllForUser(command.secondUserId());
+                sessions.revokeAllForUserAfterPermissionChange(command.firstUserId());
+                sessions.revokeAllForUserAfterPermissionChange(command.secondUserId());
             });
         } catch (RuntimeException error) {
             auditFailure(actorUserId, "GOVERNANCE_MODULE_ADMIN_SWAP",
@@ -184,6 +184,7 @@ public final class ModuleAdministrationService {
         String message = failure.getMessage();
         return message != null && java.util.Set.of("AUTH_FORBIDDEN",
                 "AUTH_SESSION_EXPIRED", "AUTH_SESSION_REVOKED_PASSWORD_RESET",
+                "AUTH_SESSION_REVOKED_PERMISSION_CHANGE",
                 "AUTH_INITIAL_PASSWORD_CHANGE_REQUIRED", "COMMON_VALIDATION_FAILED",
                 "GOVERNANCE_LAST_MODULE_ADMIN_PROTECTED").contains(message)
                 ? message : "COMMON_INTERNAL_ERROR";

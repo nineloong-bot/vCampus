@@ -22,6 +22,7 @@ public final class UserUiCoordinator {
     private static final String LOGGED_OUT = "已退出登录";
     private static final String SESSION_REPLACED = "登录已在其他位置失效，请重新登录";
     private static final String PASSWORD_RESET = "密码已被管理员初始化，请重新登录并修改密码";
+    private static final String PERMISSION_CHANGE = "管理员已变更账号权限，请重新登录";
     private static final String SESSION_INVALID = "登录状态已失效，请重新登录";
     private final UserClientService users;
     private final StudentClientService students;
@@ -205,8 +206,11 @@ public final class UserUiCoordinator {
         activeMain = null;
         main.dispose();
         sessionEnding = false;
-        showLogin(reason == SessionMonitor.InvalidationReason.PASSWORD_RESET
-                ? PASSWORD_RESET : SESSION_REPLACED);
+        showLogin(switch (reason) {
+            case PASSWORD_RESET -> PASSWORD_RESET;
+            case PERMISSION_CHANGE -> PERMISSION_CHANGE;
+            case REPLACED -> SESSION_REPLACED;
+        });
     }
 
     private void stopSessionMonitor() {

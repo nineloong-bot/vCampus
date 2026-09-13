@@ -233,6 +233,10 @@ public class UserClientService {
 
     private static <T extends Serializable> T requireSessionSuccess(ResponseBody<T> response) {
         if (!response.success()
+                && "AUTH_SESSION_REVOKED_PERMISSION_CHANGE".equals(response.code())) {
+            throw new PermissionChangeSessionClientException();
+        }
+        if (!response.success()
                 && "AUTH_SESSION_REVOKED_PASSWORD_RESET".equals(response.code())) {
             throw new PasswordResetSessionClientException();
         }

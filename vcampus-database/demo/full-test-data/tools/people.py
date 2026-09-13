@@ -23,7 +23,9 @@ def generate(add, now):
         accounts.append(dict(login=login, password=PASSWORD, role=role, name=name,
                              scenario=scenario, first_change='是' if initial else '否'))
 
-    user('bulk-admin-001', 'TESTADMIN', 'ADMIN', '全模块测试管理员', '管理全部测试数据')
+    user('bulk-admin-001', 'TESTADMIN', 'SUPER_ADMIN', '全模块测试管理员', '管理全部测试数据')
+    user('bulk-user-admin-002', 'USER_ADMIN_2', 'USER_ADMIN',
+         '用户模块测试管理员', '权限调整、交换与停用测试')
     for i in range(1, 51):
         user(f'bulk-teacher-{i:03}', f'TESTTEACHER{i:03}', 'TEACHER', f'测试教师{i:03}',
              '课程管理、图书借阅、普通买家')

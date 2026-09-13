@@ -9,7 +9,6 @@ import edu.seu.vcampus.server.bootstrap.DatabaseInitializer;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import edu.seu.vcampus.server.persistence.TransactionManager;
-import edu.seu.vcampus.server.security.SessionExpiredException;
 import edu.seu.vcampus.server.security.UserIdentity;
 import edu.seu.vcampus.server.session.SessionRegistry;
 import edu.seu.vcampus.server.user.repository.AccessAuditRepository;
@@ -111,9 +110,9 @@ class ModuleAdministrationServiceTest {
         assertThat(role(STUDENT_ADMIN)).isEqualTo(UserRole.COURSE_ADMIN);
         assertThat(role(COURSE_ADMIN)).isEqualTo(UserRole.STUDENT_ADMIN);
         assertThatThrownBy(() -> sessions.requireSession(firstToken))
-                .isInstanceOf(SessionExpiredException.class);
+                .hasMessage("AUTH_SESSION_REVOKED_PERMISSION_CHANGE");
         assertThatThrownBy(() -> sessions.requireSession(secondToken))
-                .isInstanceOf(SessionExpiredException.class);
+                .hasMessage("AUTH_SESSION_REVOKED_PERMISSION_CHANGE");
     }
 
     @Test
@@ -140,7 +139,7 @@ class ModuleAdministrationServiceTest {
                 return delegate.withLocks(keys, () -> {
                     T result = action.get();
                     assertThatThrownBy(() -> sessions.requireSession(token))
-                            .isInstanceOf(SessionExpiredException.class);
+                            .hasMessage("AUTH_SESSION_REVOKED_PERMISSION_CHANGE");
                     return result;
                 });
             }
