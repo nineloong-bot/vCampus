@@ -4,7 +4,7 @@
 
 ## 运行要求
 
-- Windows 系统；
+- Windows、macOS 或 Linux；
 - JDK 21 或更高版本。
 
 ## 直接启动
@@ -15,8 +15,15 @@ clone 或 pull 仓库后，进入：
 vcampus-distribution/scripts
 ```
 
+Windows：
+
 1. 双击 `start-server.bat`。
 2. 看到服务端监听 8888 端口后，双击 `start-client.bat`。
+
+macOS / Linux：
+
+1. 运行 `./start-server.sh`。
+2. 服务端启动后运行 `./start-client.sh`。
 
 仓库已随附 `vcampus-distribution/lib/vCampusServer.jar` 和
 `vcampus-distribution/lib/vCampusClient.jar`，仅运行演示不需要安装 Maven。
