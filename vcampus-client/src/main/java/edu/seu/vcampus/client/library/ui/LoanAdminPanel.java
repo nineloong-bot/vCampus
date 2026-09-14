@@ -11,28 +11,47 @@ public final class LoanAdminPanel extends LibraryDataPanel {
     private final JTextField borrower = new JTextField(12);
     private final JComboBox<String> loanStatus = new JComboBox<>(new String[]{"全部状态", "ACTIVE", "OVERDUE", "RETURNED", "LOST"});
     private final JComboBox<String> condition = new JComboBox<>(new String[]{"完好", "轻度损坏", "严重损坏"});
+    private final LibraryPagination pagination = new LibraryPagination(this::loadPage);
+    private AdminLoanSearchQuery loadedQuery;
     private List<LoanView> loans = List.of();
     public LoanAdminPanel(LibraryClientService service) {
         super("library.loan-admin", "借阅管理", "查询全校借阅；归还或遗失登记时计算罚金，仅登记金额。", "借阅号", "借阅人", "副本", "到期时间", "状态", "归还情况", "逾期罚金（元）", "赔偿（元）", "罚金合计（元）");
         this.service = Objects.requireNonNull(service, "service");
+        setColumnWidths(130, 110, 260, 210, 90, 100, 130, 110, 140);
         JButton refresh = new JButton("查询账号"); refresh.addActionListener(event -> refresh());
         JButton returnBook = new JButton("办理归还"); returnBook.addActionListener(event -> confirmSelected(LoanStatus.RETURNED));
         JButton markLost = new JButton("标记遗失"); markLost.addActionListener(event -> confirmSelected(LoanStatus.LOST));
+        JPanel filters = new JPanel(new FlowLayout(FlowLayout.LEFT)); filters.setOpaque(false);
+        filters.add(new JLabel("账号（精确查询）")); filters.add(borrower); filters.add(loanStatus); filters.add(refresh);
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT)); actions.setOpaque(false);
-        actions.add(new JLabel("账号（精确查询）")); actions.add(borrower); actions.add(loanStatus);
-        actions.add(refresh); actions.add(new JLabel("归还情况")); actions.add(condition); actions.add(returnBook); actions.add(markLost); add(actions, BorderLayout.SOUTH);
+        actions.add(new JLabel("归还情况")); actions.add(condition); actions.add(returnBook); actions.add(markLost);
+        JPanel footer = new JPanel(new GridLayout(0, 1)); footer.setOpaque(false);
+        footer.add(filters); footer.add(actions); footer.add(pagination); add(footer, BorderLayout.SOUTH);
         borrower.addActionListener(event -> refresh());
     }
-    public void refresh() {
+    public void refresh() { loadPage(1); }
+
+    private void loadPage(int requestedPage) {
         long request = beginRequest();
         status.setText("正在加载全校借阅……");
         String selected = (String) loanStatus.getSelectedItem();
         LoanStatus filter = "全部状态".equals(selected) ? null : LoanStatus.valueOf(selected);
         String user = borrower.getText().trim();
-        service.searchAllLoans(new AdminLoanSearchQuery(user.isEmpty() ? null : user, filter, 1, 20)).whenComplete((page, failure) ->
+        String userId = user.isEmpty() ? null : user;
+        int target = loadedQuery == null || !Objects.equals(userId, loadedQuery.borrowerUserId())
+                || filter != loadedQuery.status() ? 1 : requestedPage;
+        AdminLoanSearchQuery query = new AdminLoanSearchQuery(userId, filter, target, 20);
+        pagination.setLoading(true); table.setEnabled(false);
+        service.searchAllLoans(query).whenComplete((page, failure) ->
                 SwingUtilities.invokeLater(() -> {
                     if (!accepts(request)) return;
+                    pagination.setLoading(false); table.setEnabled(true);
                     if (failure != null) { LibraryFeedback.failure(this, status, failure, "借阅记录加载失败，请重试。"); return; }
+                    if (page.items().isEmpty() && target > 1) {
+                        loadPage((int) Math.max(1, (page.total() + 19) / 20)); return;
+                    }
+                    loadedQuery = query;
+                    pagination.showPage(page.page(), page.pageSize(), page.total());
                     loans = List.copyOf(page.items());
                     DefaultTableModel model = (DefaultTableModel) table.getModel(); model.setRowCount(0);
                     for (LoanView loan : loans) model.addRow(new Object[]{
@@ -67,6 +86,7 @@ public final class LoanAdminPanel extends LibraryDataPanel {
     }
 
     private LoanView selectedActiveLoan() {
+        if (!table.isEnabled()) { status.setText("请等待借阅记录加载完成"); return null; }
         int selected = table.getSelectedRow();
         if (selected < 0 || selected >= loans.size()) { status.setText("请先选择一条有效借阅记录"); return null; }
         LoanView loan = loans.get(table.convertRowIndexToModel(selected));

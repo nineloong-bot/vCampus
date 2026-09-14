@@ -441,7 +441,7 @@ class LibraryUiTest {
         SwingUtilities.invokeAndWait(() -> { });
 
         verify(service, atLeastOnce()).searchManagedBooks(
-                new BookSearchQuery("", BookSearchField.ANY, null, false, 1, 100));
+                new BookSearchQuery("", BookSearchField.ANY, null, false, 1, 20));
         verify(service).searchAllLoans(new AdminLoanSearchQuery(null, null, 1, 20));
     }
 

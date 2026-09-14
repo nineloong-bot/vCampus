@@ -14,6 +14,8 @@ public final class BookManagementPanel extends LibraryDataPanel {
             "全部栏目", "书名", "作者", "ISBN", "分类", "出版社"});
     private CopyManagementPanel copiesPanel;
     private boolean refreshing;
+    private final LibraryPagination pagination = new LibraryPagination(this::loadPage);
+    private BookSearchQuery loadedQuery;
     private List<BookSummary> books = List.of();
     public BookManagementPanel(LibraryClientService service) {
         super("library.book-management", "书目管理", "选择左侧书目，在右侧管理馆藏副本。", "ISBN", "书名", "作者", "状态");
@@ -24,12 +26,16 @@ public final class BookManagementPanel extends LibraryDataPanel {
         create.addActionListener(event -> openCreateDialog());
         edit.addActionListener(event -> editSelected());
         JPanel actions = new JPanel(new GridLayout(0, 1)); actions.setOpaque(false);
-        JPanel filters = new JPanel(new FlowLayout(FlowLayout.LEFT)); filters.setOpaque(false);
+        JPanel filters = new JPanel(new BorderLayout(8, 4)); filters.setOpaque(false);
         keyword.setColumns(10);
-        filters.add(keyword); filters.add(field); filters.add(refresh);
+        JPanel searchActions = new JPanel(new FlowLayout(FlowLayout.LEFT)); searchActions.setOpaque(false);
+        searchActions.add(field); searchActions.add(refresh);
+        filters.add(keyword, BorderLayout.NORTH); filters.add(searchActions, BorderLayout.CENTER);
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT)); buttons.setOpaque(false);
         buttons.add(edit); buttons.add(create);
-        actions.add(filters); actions.add(buttons); add(actions, BorderLayout.SOUTH);
+        actions.add(buttons); actions.add(pagination);
+        JPanel footer = new JPanel(new BorderLayout()); footer.setOpaque(false);
+        footer.add(filters, BorderLayout.NORTH); footer.add(actions, BorderLayout.CENTER); add(footer, BorderLayout.SOUTH);
         keyword.addActionListener(event -> refresh());
         table.getSelectionModel().addListSelectionListener(event -> {
             if (!event.getValueIsAdjusting() && !refreshing && copiesPanel != null)
@@ -82,12 +88,27 @@ public final class BookManagementPanel extends LibraryDataPanel {
     }
 
     public void refresh() {
+        loadPage(1);
+    }
+
+    private void loadPage(int requestedPage) {
         long request = beginRequest(); status.setText("正在加载书目……");
-        service.searchManagedBooks(new BookSearchQuery(keyword.getText().trim(),
-                BookSearchField.values()[field.getSelectedIndex()], null, false, 1, 100)).whenComplete((page, failure) ->
+        String text = keyword.getText().trim();
+        BookSearchField searchField = BookSearchField.values()[field.getSelectedIndex()];
+        int target = loadedQuery == null || !Objects.equals(text, loadedQuery.keyword())
+                || searchField != loadedQuery.field() ? 1 : requestedPage;
+        BookSearchQuery query = new BookSearchQuery(text, searchField, null, false, target, 20);
+        pagination.setLoading(true); table.setEnabled(false);
+        service.searchManagedBooks(query).whenComplete((page, failure) ->
                 SwingUtilities.invokeLater(() -> {
                     if (!accepts(request)) return;
+                    pagination.setLoading(false); table.setEnabled(true);
                     if (failure != null) { LibraryFeedback.failure(this, status, failure, "书目加载失败，请重试。"); return; }
+                    if (page.items().isEmpty() && target > 1) {
+                        loadPage((int) Math.max(1, (page.total() + 19) / 20)); return;
+                    }
+                    loadedQuery = query;
+                    pagination.showPage(page.page(), page.pageSize(), page.total());
                     BookSummary selected = selectedBook();
                     refreshing = true;
                     books = List.copyOf(page.items()); DefaultTableModel model = (DefaultTableModel) table.getModel();
@@ -108,6 +129,7 @@ public final class BookManagementPanel extends LibraryDataPanel {
     }
 
     private void editSelected() {
+        if (!table.isEnabled()) { status.setText("请等待书目加载完成"); return; }
         int row = table.getSelectedRow();
         if (row < 0 || row >= books.size()) { status.setText("请先选择一本书目"); return; }
         long request = beginRequest(); status.setText("正在加载书目详情……");

@@ -69,3 +69,12 @@ mvn javadoc:aggregate
 Swing 展示层的最新截图与客户端回归结果见 [Swing 展示层对照验收](swing-demo-fidelity.md)。
 
 订单索引初始化兼容 UCanAccess 重新加载数据库后的表名前缀，避免冷启动重复创建 `idx_shop_order_expiry`。`OrderSchemaRestartTest` 覆盖同连接生命周期重复初始化和完全关闭后的重新初始化，并核对原记录及索引数量。
+
+## 分支集成验收（2026-09-14）
+
+- 合入 `sTeven44` 的图书馆界面和设计文档，重新构建客户端与服务端。
+- `mvn -Dcommerce.release.validate=true package javadoc:aggregate`：1365 项测试，0 失败、0 错误、21 项条件跳过，构建及 JavaDoc 成功。
+- 网页 Demo 的 28 项 Node 测试通过。
+- 发布目录的20份数据库 SQL 与源码逐一校验一致，完整纳入版本管理。
+- 最终 JAR 使用四份全新数据库副本分别首次启动及再次启动，共8次真实进程启动通过；源数据库 SHA-256 保持不变。
+- 早于最终构建结束的一次启动探测出现 UCanAccess `Missing columns in relationship`；随后使用同一入口、全新副本重复8次未复现，未据此修改外键代码。此记录与已复现并修复的订单索引错误分别保留。
