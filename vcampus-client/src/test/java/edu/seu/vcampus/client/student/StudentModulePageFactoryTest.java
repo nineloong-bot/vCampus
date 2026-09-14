@@ -71,7 +71,7 @@ class StudentModulePageFactoryTest {
     }
 
     @Test
-    void studentAdminReceivesSearchOrganizationAndProfileReviewTabs() throws Exception {
+    void studentAdminReceivesOnlyGovernanceAndGlobalTransferBatchTabs() throws Exception {
         AtomicInteger requests = new AtomicInteger();
         CountDownLatch requestStarted = new CountDownLatch(1);
         StudentClientService students = students(requests, requestStarted);
@@ -82,28 +82,21 @@ class StudentModulePageFactoryTest {
         assertThat(page.getName()).isEqualTo("student.module");
         JTabbedPane tabs = findTabbedPane(page);
         assertThat(tabs).isNotNull();
-        assertThat(tabs.getTabCount()).isEqualTo(6);
-        assertThat(tabs.getTitleAt(0)).isEqualTo("学生查询");
-        assertThat(tabs.getComponentAt(0)).isInstanceOf(StudentSearchPanel.class);
-        assertThat(tabs.getTitleAt(1)).isEqualTo("组织管理");
-        assertThat(tabs.getComponentAt(1)).isInstanceOf(OrganizationManagementPanel.class);
-        assertThat(tabs.getTitleAt(2)).isEqualTo("资料审核");
-        assertThat(tabs.getComponentAt(2)).isInstanceOf(StudentProfileReviewPanel.class);
-        assertThat(tabs.getTitleAt(3)).isEqualTo("转专业管理");
-        assertThat(tabs.getTitleAt(4)).isEqualTo("培养方案管理");
-        assertThat(tabs.getTitleAt(5)).isEqualTo("成绩管理");
+        assertThat(tabs.getTabCount()).isEqualTo(2);
+        assertThat(tabs.getTitleAt(0)).isEqualTo("学院管理员管理");
+        assertThat(tabs.getTitleAt(1)).isEqualTo("转专业批次");
     }
 
     @Test
-    void collegeAdminReceivesOnlyTheTransferApprovalWorkspace() throws Exception {
+    void collegeAdminReceivesTheCompleteCollegeStudentWorkspace() throws Exception {
         JPanel page = onEdt(() -> StudentModulePageFactory.create(
                 user(UserRole.COLLEGE_ADMIN),
                 students(new AtomicInteger(), new CountDownLatch(1)), connection()));
 
         JTabbedPane tabs = findTabbedPane(page);
-        assertThat(tabs.getTabCount()).isEqualTo(1);
-        assertThat(tabs.getTitleAt(0)).isEqualTo("转专业审批");
-        assertThat(tabs.getComponentAt(0)).isInstanceOf(MajorTransferAdminPanel.class);
+        assertThat(tabs.getTabCount()).isEqualTo(6);
+        assertThat(tabTitles(tabs)).containsExactly("学生查询", "组织管理", "资料审核",
+                "转专业管理", "培养方案管理", "成绩管理");
     }
 
     @Test
@@ -160,6 +153,14 @@ class StudentModulePageFactoryTest {
             }
         }
         return null;
+    }
+
+    private static java.util.List<String> tabTitles(JTabbedPane tabs) {
+        java.util.List<String> result = new java.util.ArrayList<>();
+        for (int index = 0; index < tabs.getTabCount(); index++) {
+            result.add(tabs.getTitleAt(index));
+        }
+        return result;
     }
 
     private ClientConnection connection() {

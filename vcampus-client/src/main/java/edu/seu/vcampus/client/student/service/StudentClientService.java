@@ -5,6 +5,7 @@ import edu.seu.vcampus.common.protocol.EmptyRequest;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.student.*;
 import edu.seu.vcampus.common.student.majortransfer.*;
+import edu.seu.vcampus.common.student.governance.*;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Objects;
@@ -53,6 +54,15 @@ public final class StudentClientService {
     public CompletableFuture<ResponseBody<StudentProfileWorkspace>> getProfileReview(String applicationId) { return sendAsync("STUDENT_PROFILE_REVIEW_GET", new EntityIdRequest(applicationId)); }
     public CompletableFuture<ResponseBody<StudentProfileApplicationView>> approveProfile(ReviewStudentProfileCommand value) { return sendAsync("STUDENT_PROFILE_APPROVE", value); }
     public CompletableFuture<ResponseBody<StudentProfileApplicationView>> rejectProfile(ReviewStudentProfileCommand value) { return sendAsync("STUDENT_PROFILE_REJECT", value); }
+
+    /** Loads college-administrator assignments and the available colleges. */
+    public CompletableFuture<ResponseBody<StudentCollegeAdministrationSnapshot>> searchCollegeAdministrators() { return sendAsync("STUDENT_COLLEGE_ADMIN_SEARCH", EmptyRequest.INSTANCE); }
+    /** Assigns an unbound college administrator to a college. */
+    public CompletableFuture<ResponseBody<edu.seu.vcampus.common.protocol.EmptyResponse>> assignCollegeAdministrator(AssignStudentCollegeAdministratorCommand value) { return sendAsync("STUDENT_COLLEGE_ADMIN_ASSIGN", value); }
+    /** Moves a college administrator between colleges. */
+    public CompletableFuture<ResponseBody<edu.seu.vcampus.common.protocol.EmptyResponse>> transferCollegeAdministrator(TransferStudentCollegeAdministratorCommand value) { return sendAsync("STUDENT_COLLEGE_ADMIN_TRANSFER", value); }
+    /** Deactivates a college-administrator assignment. */
+    public CompletableFuture<ResponseBody<edu.seu.vcampus.common.protocol.EmptyResponse>> deactivateCollegeAdministrator(DeactivateStudentCollegeAdministratorCommand value) { return sendAsync("STUDENT_COLLEGE_ADMIN_DEACTIVATE", value); }
 
     // ── Major Transfer: Student ──
     public CompletableFuture<ResponseBody<MajorTransferWorkspace>> getTransferWorkspace() { return sendAsync("MAJOR_TRANSFER_GET_WORKSPACE", EmptyRequest.INSTANCE); }
