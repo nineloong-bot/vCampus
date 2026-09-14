@@ -97,6 +97,7 @@ class StudentModulePageFactoryTest {
         assertThat(tabs.getTabCount()).isEqualTo(6);
         assertThat(tabTitles(tabs)).containsExactly("学生查询", "组织管理", "资料审核",
                 "转专业管理", "培养方案管理", "成绩管理");
+        assertThat(findByName(tabs.getComponentAt(1), "student.org.add-dept")).isNull();
     }
 
     @Test
@@ -161,6 +162,17 @@ class StudentModulePageFactoryTest {
             result.add(tabs.getTitleAt(index));
         }
         return result;
+    }
+
+    private static Component findByName(Component root, String name) {
+        if (name.equals(root.getName())) return root;
+        if (root instanceof Container container) {
+            for (Component child : container.getComponents()) {
+                Component found = findByName(child, name);
+                if (found != null) return found;
+            }
+        }
+        return null;
     }
 
     private ClientConnection connection() {
