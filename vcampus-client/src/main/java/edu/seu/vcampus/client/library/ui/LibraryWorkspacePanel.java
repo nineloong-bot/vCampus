@@ -48,6 +48,8 @@ public final class LibraryWorkspacePanel extends JPanel {
                 LoanHistoryPanel history = new LoanHistoryPanel(service);
                 addTab("当前借阅", currentLoans, currentLoans::refresh);
                 addTab("借阅历史", history, history::refresh);
+                LibraryFinePanel fines = new LibraryFinePanel(service, false);
+                addTab("罚款缴纳", fines, fines::refresh);
             }
         }
         if (mayManageLibrary) {
@@ -66,6 +68,8 @@ public final class LibraryWorkspacePanel extends JPanel {
             addTab("借阅管理", loans, loans::refresh);
             LibraryPolicyPanel settings = new LibraryPolicyPanel(service);
             addTab("借阅策略设置", settings, settings::refreshStatus);
+            LibraryFinePanel fines = new LibraryFinePanel(service, true);
+            addTab("罚款记录", fines, fines::refresh);
         }
         tabs.addChangeListener(event -> refreshSelected());
         JButton refresh = new JButton("刷新当前页");

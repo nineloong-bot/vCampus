@@ -8,6 +8,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 class LibraryLayoutTest {
+    @Test void fineActionsAndPaginationFitAtMinimumWindowSize() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            var panel = new LibraryFinePanel(mock(LibraryClientService.class), false);
+            LibraryUiStyle.apply(panel); panel.setSize(800, 540); layout(panel);
+            assertControlsVisible(panel, panel);
+        });
+    }
+
     @Test void managedBookPaginationFitsInTheLeftPane() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             var panel = new BookManagementPanel(mock(LibraryClientService.class));

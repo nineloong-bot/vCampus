@@ -85,7 +85,7 @@ class LibraryUiTest {
     void signedInReadersReceiveAllFourPersonalLibraryPages() {
         LibraryWorkspacePanel workspace = new LibraryWorkspacePanel(service, Set.of());
 
-        assertThat(tabTitles(workspace)).containsExactly("馆藏检索", "当前借阅", "借阅历史");
+        assertThat(tabTitles(workspace)).containsExactly("馆藏检索", "当前借阅", "借阅历史", "罚款缴纳");
         assertThat(named(workspace, "library.book-search")).isNotNull();
         assertThat(named(workspace, "library.book-detail")).isNotNull();
         assertThat(named(workspace, "library.loan-action")).isNotNull();
@@ -96,7 +96,7 @@ class LibraryUiTest {
         LibraryWorkspacePanel workspace = new LibraryWorkspacePanel(
                 service, Set.of("LIBRARY_ADMIN"), UserRole.LIBRARY_ADMIN);
 
-        assertThat(tabTitles(workspace)).containsExactly("图书管理", "借阅管理", "借阅策略设置");
+        assertThat(tabTitles(workspace)).containsExactly("图书管理", "借阅管理", "借阅策略设置", "罚款记录");
         assertThat(named(workspace, "library.loan-action")).isNull();
         assertThat(named(workspace, "library.book-management")).isNotNull();
         assertThat(named(workspace, "library.copy-management")).isNotNull();

@@ -27,6 +27,21 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class LibraryClientServiceTest {
+    @Test void fineCommandsSendOnlyTheLoanIdentityAndPageScope() {
+        var query = new edu.seu.vcampus.common.library.LibraryFineQuery(2, 20);
+        var page = new PageResult<edu.seu.vcampus.common.library.LibraryFineView>(List.of(), 2, 20, 0);
+        var receipt = new edu.seu.vcampus.common.wallet.WalletOperationResult("receipt", 100);
+        when(connection.<PageResult<edu.seu.vcampus.common.library.LibraryFineView>>send("LIBRARY_GET_MY_FINES", query, TIMEOUT))
+                .thenReturn(CompletableFuture.completedFuture(ResponseBody.success(page)));
+        when(connection.<PageResult<edu.seu.vcampus.common.library.LibraryFineView>>send("LIBRARY_GET_ALL_FINES", query, TIMEOUT))
+                .thenReturn(CompletableFuture.completedFuture(ResponseBody.success(page)));
+        when(connection.<edu.seu.vcampus.common.wallet.WalletOperationResult>send("LIBRARY_PAY_FINE", "loan", TIMEOUT))
+                .thenReturn(CompletableFuture.completedFuture(ResponseBody.success(receipt)));
+        assertThat(service.getMyFines(query).join()).isEqualTo(page);
+        assertThat(service.getAllFines(query).join()).isEqualTo(page);
+        assertThat(service.payFine("loan").join()).isEqualTo(receipt);
+    }
+
     private static final Duration TIMEOUT = Duration.ofSeconds(3);
     private final ClientConnection connection = mock(ClientConnection.class);
     private final LibraryClientService service = new LibraryClientService(connection, TIMEOUT);

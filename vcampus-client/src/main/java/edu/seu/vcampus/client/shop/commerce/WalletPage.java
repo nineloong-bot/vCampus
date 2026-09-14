@@ -102,7 +102,11 @@ final class WalletPage {
         description.add(CommerceTheme.muted(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
                 .withZone(ZoneId.systemDefault()).format(value.createdAt())));
         description.add(CommerceTheme.gap(6));
-        description.add(CommerceTheme.muted("RECHARGE".equals(value.type()) ? "虚拟充值" : "订单 " + value.orderKey()));
+        description.add(CommerceTheme.muted(switch (value.type()) {
+            case "RECHARGE" -> "虚拟充值";
+            case "LIBRARY_FINE" -> "图书借阅 " + value.orderKey();
+            default -> "订单 " + value.orderKey();
+        }));
         JPanel amounts = new WalletColumn();
         JLabel delta = CommerceTheme.heading((value.deltaCents() > 0 ? "+" : "−")
                 + CommerceTheme.money(Math.abs(value.deltaCents())), 18);
@@ -121,6 +125,7 @@ final class WalletPage {
             case "PAYMENT" -> "购物扣款";
             case "REFUND" -> "退款到账";
             case "INCOME" -> "经营收入";
+            case "LIBRARY_FINE" -> "图书罚款";
             default -> type;
         };
     }
