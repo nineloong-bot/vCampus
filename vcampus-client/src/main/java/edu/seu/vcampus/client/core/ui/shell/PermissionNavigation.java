@@ -4,6 +4,7 @@ import edu.seu.vcampus.client.core.ui.theme.UiColors;
 import edu.seu.vcampus.client.core.ui.theme.UiDimensions;
 import edu.seu.vcampus.client.core.ui.theme.UiSpacing;
 import edu.seu.vcampus.client.core.ui.theme.UiBorders;
+import edu.seu.vcampus.common.user.UserRole;
 
 import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
@@ -23,7 +24,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-/** Fixed demo navigation for the five top-level application areas. */
+/** Fixed navigation for top-level application areas filtered by role. */
 public final class PermissionNavigation extends JPanel {
     private static final Border ITEM_BORDER = BorderFactory.createEmptyBorder(
             0, UiSpacing.SPACE_6, 0, UiSpacing.SPACE_4);
@@ -43,8 +44,13 @@ public final class PermissionNavigation extends JPanel {
             new Item("shop", "校园商城"),
             new Item("account", "账户设置"));
 
-    /** Creates the navigation and reports selected page identifiers. */
+    /** Creates the navigation with default item list. */
     public PermissionNavigation(Consumer<String> onSelected) {
+        this(onSelected, null);
+    }
+
+    /** Creates role-filtered navigation and reports selected page identifiers. */
+    public PermissionNavigation(Consumer<String> onSelected, UserRole role) {
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
         Objects.requireNonNull(onSelected, "onSelected");
         setBackground(UiColors.BACKGROUND_NAV);
@@ -52,8 +58,9 @@ public final class PermissionNavigation extends JPanel {
         setPreferredSize(new Dimension(UiDimensions.NAVIGATION_WIDTH, 0));
         setMinimumSize(new Dimension(UiDimensions.NAVIGATION_WIDTH, 0));
         ButtonGroup group = new ButtonGroup();
-        for (int index = 0; index < ITEMS.size(); index++) {
-            Item item = ITEMS.get(index);
+        List<Item> items = visibleItems(role);
+        for (int index = 0; index < items.size(); index++) {
+            Item item = items.get(index);
             JToggleButton button = new JToggleButton(item.title());
             button.setUI(new BasicToggleButtonUI());
             button.setName("navigation." + item.id());
@@ -84,13 +91,37 @@ public final class PermissionNavigation extends JPanel {
         }
     }
 
+    /** Returns the list of navigation items visible to the given role. */
+    public static List<Item> visibleItems(UserRole role) {
+        if (role == null) return ITEMS;
+        return switch (role) {
+            case SUPER_ADMIN, USER_ADMIN -> List.of(item("account"));
+            case LIBRARY_ADMIN -> List.of(item("library"), item("account"));
+            case STUDENT_ADMIN, COLLEGE_ADMIN -> List.of(item("student"), item("account"));
+            case COURSE_ADMIN -> List.of(item("course"), item("account"));
+            case SHOP_ADMIN -> List.of(item("shop"), item("account"));
+            case STUDENT, TEACHER, ADMIN -> ITEMS;
+        };
+    }
+
+    private static Item item(String id) {
+        return ITEMS.stream().filter(it -> it.id().equals(id)).findFirst().orElseThrow();
+    }
+
+    /** Computes the default landing page for the specified user role. */
+    public static String defaultPageFor(UserRole role) {
+        if (role == null) return "student";
+        if (role == UserRole.ADMIN) return "account";
+        return visibleItems(role).getFirst().id();
+    }
+
     /** Programmatically selects the navigation button matching the given page id. */
     public void selectById(String pageId) {
+        String targetName = "navigation." + pageId;
         for (int i = 0; i < getComponentCount(); i++) {
-            if (!(getComponent(i) instanceof JToggleButton button)) continue;
-            if (ITEMS.get(i).id().equals(pageId)) {
+            if (getComponent(i) instanceof JToggleButton button
+                    && targetName.equals(button.getName())) {
                 select(button);
-                button.setSelected(true);
                 return;
             }
         }
