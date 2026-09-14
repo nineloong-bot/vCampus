@@ -30,6 +30,7 @@ public final class OrganizationManagementPanel extends JPanel {
     private final StudentClientService students;
     private final ClientConnection connection;
     private final boolean departmentManagementAllowed;
+    private final boolean classManagementAllowed;
     private final AtomicLong requestGeneration = new AtomicLong();
     private volatile boolean active;
 
@@ -51,16 +52,23 @@ public final class OrganizationManagementPanel extends JPanel {
 
     /** Creates the full organization-management workspace. */
     public OrganizationManagementPanel(StudentClientService students, ClientConnection connection) {
-        this(students, connection, true);
+        this(students, connection, true, true);
     }
 
     /** Creates an organization workspace with optional department-level maintenance. */
     public OrganizationManagementPanel(StudentClientService students, ClientConnection connection,
             boolean departmentManagementAllowed) {
+        this(students, connection, departmentManagementAllowed, true);
+    }
+
+    /** Creates an organization workspace with optional department and class-level maintenance. */
+    public OrganizationManagementPanel(StudentClientService students, ClientConnection connection,
+            boolean departmentManagementAllowed, boolean classManagementAllowed) {
         super(new BorderLayout(UiSpacing.SPACE_4, 0));
         this.students = Objects.requireNonNull(students, "students");
         this.connection = Objects.requireNonNull(connection, "connection");
         this.departmentManagementAllowed = departmentManagementAllowed;
+        this.classManagementAllowed = classManagementAllowed;
         setName("student.org");
         setBackground(UiColors.BACKGROUND_PAGE);
         setBorder(UiBorders.pageInset());
@@ -113,21 +121,23 @@ public final class OrganizationManagementPanel extends JPanel {
         addMajorButton.setEnabled(false);
         addMajorButton.addActionListener(e -> startAddMajor());
         treeButtons.add(addMajorButton);
-        addClassButton.setName("student.org.add-class");
-        addClassButton.setFont(UiTypography.BODY);
-        addClassButton.setEnabled(false);
-        addClassButton.addActionListener(e -> startAddClass());
-        treeButtons.add(addClassButton);
-        addStudentButton.setName("student.org.add-student");
-        addStudentButton.setFont(UiTypography.BODY);
-        addStudentButton.setEnabled(false);
-        addStudentButton.addActionListener(e -> startAddStudent());
-        treeButtons.add(addStudentButton);
-        batchAssignButton.setName("student.org.batch-assign");
-        batchAssignButton.setFont(UiTypography.BODY);
-        batchAssignButton.setEnabled(false);
-        batchAssignButton.addActionListener(e -> startBatchAssign());
-        treeButtons.add(batchAssignButton);
+        if (classManagementAllowed) {
+            addClassButton.setName("student.org.add-class");
+            addClassButton.setFont(UiTypography.BODY);
+            addClassButton.setEnabled(false);
+            addClassButton.addActionListener(e -> startAddClass());
+            treeButtons.add(addClassButton);
+            addStudentButton.setName("student.org.add-student");
+            addStudentButton.setFont(UiTypography.BODY);
+            addStudentButton.setEnabled(false);
+            addStudentButton.addActionListener(e -> startAddStudent());
+            treeButtons.add(addStudentButton);
+            batchAssignButton.setName("student.org.batch-assign");
+            batchAssignButton.setFont(UiTypography.BODY);
+            batchAssignButton.setEnabled(false);
+            batchAssignButton.addActionListener(e -> startBatchAssign());
+            treeButtons.add(batchAssignButton);
+        }
         left.add(treeButtons, BorderLayout.SOUTH);
 
         add(left, BorderLayout.WEST);
@@ -208,7 +218,9 @@ public final class OrganizationManagementPanel extends JPanel {
                 for (MajorView major : body.data()) {
                     DefaultMutableTreeNode majorNode = new DefaultMutableTreeNode(major, true);
                     deptNode.add(majorNode);
-                    loadClasses(majorNode, major, generation);
+                    if (classManagementAllowed) {
+                        loadClasses(majorNode, major, generation);
+                    }
                 }
                 treeModel.reload();
                 expandAll();
@@ -297,9 +309,11 @@ public final class OrganizationManagementPanel extends JPanel {
         boolean isClass = editingTarget instanceof ClassView;
         addDeptButton.setEnabled(departmentManagementAllowed && connected && none);
         addMajorButton.setEnabled(connected && isDept);
-        addClassButton.setEnabled(connected && (isMajor || isYear));
-        addStudentButton.setEnabled(connected && isClass);
-        batchAssignButton.setEnabled(connected && (isMajor || isYear));
+        if (classManagementAllowed) {
+            addClassButton.setEnabled(connected && (isMajor || isYear));
+            addStudentButton.setEnabled(connected && isClass);
+            batchAssignButton.setEnabled(connected && (isMajor || isYear));
+        }
     }
 
     private void showPlaceholder() {

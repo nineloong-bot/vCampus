@@ -36,6 +36,8 @@ class StudentCollegeAdministrationHandlersTest {
         org.mockito.Mockito.when(service.list()).thenReturn(
                 new StudentCollegeAdministrationSnapshot(List.of(), List.of()));
         MessageRouter router = router(service, UserRole.STUDENT_ADMIN, null);
+        var create = new edu.seu.vcampus.common.student.governance.CreateCollegeAdministratorCommand(
+                "new_admin", "Pass1234", "department");
         var assign = new AssignStudentCollegeAdministratorCommand("department", "user", 0);
         var transfer = new TransferStudentCollegeAdministratorCommand(
                 "user", "department", "target", 0, 0);
@@ -44,13 +46,29 @@ class StudentCollegeAdministrationHandlersTest {
 
         assertThat(route(router, "STUDENT_COLLEGE_ADMIN_SEARCH", EmptyRequest.INSTANCE).success())
                 .isTrue();
+        assertThat(route(router, "STUDENT_COLLEGE_ADMIN_CREATE", create).success()).isTrue();
         assertThat(route(router, "STUDENT_COLLEGE_ADMIN_ASSIGN", assign).success()).isTrue();
         assertThat(route(router, "STUDENT_COLLEGE_ADMIN_TRANSFER", transfer).success()).isTrue();
         assertThat(route(router, "STUDENT_COLLEGE_ADMIN_DEACTIVATE", deactivate).success())
                 .isTrue();
+        verify(service).createAdministrator("actor", create);
         verify(service).assign("actor", assign);
         verify(service).transfer("actor", transfer);
         verify(service).deactivate("actor", deactivate);
+    }
+
+    @Test
+    void mapsProtectedLastCollegeAdminToReadableMessage() {
+        var service = mock(StudentCollegeAdministrationService.class);
+        org.mockito.Mockito.doThrow(new IllegalStateException("STUDENT_LAST_COLLEGE_ADMIN_PROTECTED"))
+                .when(service).deactivate(org.mockito.ArgumentMatchers.anyString(),
+                        org.mockito.ArgumentMatchers.any());
+        MessageRouter router = router(service, UserRole.STUDENT_ADMIN, null);
+        var response = route(router, "STUDENT_COLLEGE_ADMIN_DEACTIVATE",
+                new DeactivateStudentCollegeAdministratorCommand("dept", "user", 0));
+        assertThat(response.success()).isFalse();
+        assertThat(response.code()).isEqualTo("STUDENT_LAST_COLLEGE_ADMIN_PROTECTED");
+        assertThat(response.message()).contains("该学院仅剩一名管理员");
     }
 
     @Test

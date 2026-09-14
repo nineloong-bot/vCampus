@@ -5,6 +5,7 @@ import edu.seu.vcampus.client.core.ui.theme.UiSpacing;
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.common.student.DepartmentView;
 import edu.seu.vcampus.common.student.governance.AssignStudentCollegeAdministratorCommand;
+import edu.seu.vcampus.common.student.governance.CreateCollegeAdministratorCommand;
 import edu.seu.vcampus.common.student.governance.DeactivateStudentCollegeAdministratorCommand;
 import edu.seu.vcampus.common.student.governance.StudentCollegeAdministratorView;
 import edu.seu.vcampus.common.student.governance.TransferStudentCollegeAdministratorCommand;
@@ -43,11 +44,13 @@ public final class CollegeAdministratorManagementPanel extends JPanel {
     private void build() {
         JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
         toolbar.setOpaque(false);
+        JButton create = button("新增管理员", "collegeAdminCreateButton", event -> showCreateDialog());
         JButton refresh = button("刷新", "collegeAdminRefreshButton", event -> refresh());
         JButton assign = button("分配", "collegeAdminAssignButton", event -> assign());
         JButton transfer = button("调动", "collegeAdminTransferButton", event -> transfer());
         JButton deactivate = button("停用", "collegeAdminDeactivateButton",
                 event -> deactivate());
+        toolbar.add(create);
         toolbar.add(new JLabel("目标学院："));
         toolbar.add(departments);
         toolbar.add(assign);
@@ -120,6 +123,68 @@ public final class CollegeAdministratorManagementPanel extends JPanel {
                 administrator.departmentId(), administrator.userId(),
                 administrator.assignmentVersion()))
                 .whenComplete((response, failure) -> complete(response, "停用完成"));
+    }
+
+    private void showCreateDialog() {
+        JDialog dialog = new JDialog(SwingUtilities.getWindowAncestor(this), "新增学院管理员",
+                Dialog.ModalityType.APPLICATION_MODAL);
+        dialog.setLayout(new BorderLayout(UiSpacing.SPACE_3, UiSpacing.SPACE_3));
+        dialog.getRootPane().setBorder(new EmptyBorder(UiSpacing.SPACE_3, UiSpacing.SPACE_3,
+                UiSpacing.SPACE_3, UiSpacing.SPACE_3));
+
+        JPanel form = new JPanel(new GridLayout(3, 2, UiSpacing.SPACE_2, UiSpacing.SPACE_2));
+        JTextField loginField = new JTextField(16);
+        loginField.setName("newAdminLoginField");
+        JPasswordField passwordField = new JPasswordField(16);
+        passwordField.setName("newAdminPasswordField");
+        passwordField.setText("Pass1234");
+        JComboBox<Object> deptCombo = new JComboBox<>();
+        deptCombo.setName("newAdminDeptCombo");
+        deptCombo.addItem("暂不分配（未分配）");
+        for (int i = 0; i < departments.getItemCount(); i++) {
+            deptCombo.addItem(departments.getItemAt(i));
+        }
+
+        form.add(new JLabel("管理员账号："));
+        form.add(loginField);
+        form.add(new JLabel("初始密码："));
+        form.add(passwordField);
+        form.add(new JLabel("归属学院："));
+        form.add(deptCombo);
+
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JButton cancel = new JButton("取消");
+        JButton confirm = new JButton("确定创建");
+        confirm.setName("confirmCreateAdminButton");
+        cancel.addActionListener(e -> dialog.dispose());
+        confirm.addActionListener(e -> {
+            String login = loginField.getText().trim();
+            String pwd = new String(passwordField.getPassword()).trim();
+            if (login.isBlank()) {
+                JOptionPane.showMessageDialog(dialog, "账号不能为空", "提示", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            if (pwd.length() < 6) {
+                JOptionPane.showMessageDialog(dialog, "密码长度不能少于 6 位", "提示", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            String deptId = null;
+            if (deptCombo.getSelectedItem() instanceof DepartmentView dv) {
+                deptId = dv.departmentId();
+            }
+            dialog.dispose();
+            status.setText("正在创建管理员...");
+            students.createCollegeAdministrator(new CreateCollegeAdministratorCommand(login, pwd, deptId))
+                    .whenComplete((response, failure) -> complete(response, "管理员 " + login + " 创建成功"));
+        });
+        actions.add(cancel);
+        actions.add(confirm);
+
+        dialog.add(form, BorderLayout.CENTER);
+        dialog.add(actions, BorderLayout.SOUTH);
+        dialog.pack();
+        dialog.setLocationRelativeTo(this);
+        dialog.setVisible(true);
     }
 
     private StudentCollegeAdministratorView selected() {

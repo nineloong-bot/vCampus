@@ -57,6 +57,8 @@ public final class StudentClientService {
 
     /** Loads college-administrator assignments and the available colleges. */
     public CompletableFuture<ResponseBody<StudentCollegeAdministrationSnapshot>> searchCollegeAdministrators() { return sendAsync("STUDENT_COLLEGE_ADMIN_SEARCH", EmptyRequest.INSTANCE); }
+    /** Provisions a new college administrator account. */
+    public CompletableFuture<ResponseBody<edu.seu.vcampus.common.protocol.EmptyResponse>> createCollegeAdministrator(edu.seu.vcampus.common.student.governance.CreateCollegeAdministratorCommand value) { return sendAsync("STUDENT_COLLEGE_ADMIN_CREATE", value); }
     /** Assigns an unbound college administrator to a college. */
     public CompletableFuture<ResponseBody<edu.seu.vcampus.common.protocol.EmptyResponse>> assignCollegeAdministrator(AssignStudentCollegeAdministratorCommand value) { return sendAsync("STUDENT_COLLEGE_ADMIN_ASSIGN", value); }
     /** Moves a college administrator between colleges. */

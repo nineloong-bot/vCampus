@@ -100,6 +100,50 @@ class StudentCollegeAdministrationServiceTest {
         assertThat(active(MATH, EXTRA)).isTrue();
     }
 
+    @Test
+    void provisionsNewCollegeAdministratorWithoutAssignment() {
+        var create = new edu.seu.vcampus.common.student.governance.CreateCollegeAdministratorCommand(
+                "NEW_UNASSIGNED_ADMIN", "Pass1234", null);
+        service.createAdministrator(ACTOR, create);
+
+        var snapshot = service.list();
+        var found = snapshot.administrators().stream()
+                .filter(a -> "NEW_UNASSIGNED_ADMIN".equalsIgnoreCase(a.loginId()))
+                .findFirst();
+        assertThat(found).isPresent();
+        assertThat(found.get().assigned()).isFalse();
+        assertThat(found.get().departmentId()).isNull();
+
+        // Assign to CS
+        service.assign(ACTOR, new AssignStudentCollegeAdministratorCommand(CS, found.get().userId(), 0));
+        assertThat(active(CS, found.get().userId())).isTrue();
+    }
+
+    @Test
+    void provisionsNewCollegeAdministratorWithDirectAssignment() {
+        var create = new edu.seu.vcampus.common.student.governance.CreateCollegeAdministratorCommand(
+                "NEW_CS_ADMIN", "Pass1234", CS);
+        service.createAdministrator(ACTOR, create);
+
+        var snapshot = service.list();
+        var found = snapshot.administrators().stream()
+                .filter(a -> "NEW_CS_ADMIN".equalsIgnoreCase(a.loginId()))
+                .findFirst();
+        assertThat(found).isPresent();
+        assertThat(found.get().assigned()).isTrue();
+        assertThat(found.get().departmentId()).isEqualTo(CS);
+        assertThat(active(CS, found.get().userId())).isTrue();
+    }
+
+    @Test
+    void provisionsAdministratorRejectsDuplicateUsername() {
+        var create = new edu.seu.vcampus.common.student.governance.CreateCollegeAdministratorCommand(
+                "CS_COLLEGE_ADMIN", "Pass1234", null);
+        assertThatThrownBy(() -> service.createAdministrator(ACTOR, create))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("USER_LOGIN_ID_EXISTS");
+    }
+
     private boolean active(String department, String user) {
         return transactions.inTransaction(c -> {
             try (var s=c.prepareStatement("SELECT isActive FROM tblStudentCollegeAdministrator WHERE departmentId=? AND userId=?")) {

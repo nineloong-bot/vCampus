@@ -64,6 +64,7 @@ public final class StudentModulePageFactory {
                                           ClientConnection connection) {
         JTabbedPane tabs = tabs();
         tabs.addTab("学院管理员管理", new CollegeAdministratorManagementPanel(students));
+        tabs.addTab("组织架构管理", new OrganizationManagementPanel(students, connection, true, false));
         tabs.addTab("转专业批次", new MajorTransferBatchManagementPanel(students));
         return wrap(tabs);
     }

@@ -40,6 +40,19 @@ public final class AccessStudentCollegeAdministrationRepository
     }
 
     @Override
+    public void requireActiveDepartment(Connection connection, String id) {
+        try (var statement = connection.prepareStatement(
+                "SELECT isActive FROM tblDepartment WHERE departmentId=?")) {
+            statement.setString(1, id);
+            try (var row = statement.executeQuery()) {
+                if (!row.next() || !row.getBoolean(1)) invalid();
+            }
+        } catch (SQLException error) {
+            throw failure(error);
+        }
+    }
+
+    @Override
     public void requireAdministrator(Connection connection, String id) {
         try (var statement = connection.prepareStatement(
                 "SELECT roleCode,accountStatus FROM tblUser WHERE userId=?")) {

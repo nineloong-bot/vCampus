@@ -98,14 +98,18 @@ public final class StudentAcademicAdministrationHandlers {
     private ResponseBody<? extends Serializable> scoped(Message message,
             java.util.function.Function<String, ? extends Serializable> action) {
         StudentPrincipal actor = principal(message);
-        if (actor.hasRole("ADMIN")) return success(action.apply(null));
+        if (actor.hasRole("ADMIN") || actor.hasRole("STUDENT_ADMIN") || actor.hasRole("SUPER_ADMIN")) {
+            return success(action.apply(null));
+        }
         String departmentId = actor.hasRole("COLLEGE_ADMIN") ? department(actor) : null;
         return departmentId == null ? forbidden() : success(action.apply(departmentId));
     }
 
     private ResponseBody<? extends Serializable> legacy(Message message,
             java.util.function.Supplier<? extends Serializable> action) {
-        return principal(message).hasRole("ADMIN") ? success(action.get()) : forbidden();
+        StudentPrincipal actor = principal(message);
+        return (actor.hasRole("ADMIN") || actor.hasRole("STUDENT_ADMIN") || actor.hasRole("SUPER_ADMIN"))
+                ? success(action.get()) : forbidden();
     }
 
     private ResponseBody<? extends Serializable> write(Message message,

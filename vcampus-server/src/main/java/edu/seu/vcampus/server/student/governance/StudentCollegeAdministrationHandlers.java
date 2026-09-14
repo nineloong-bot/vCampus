@@ -6,6 +6,7 @@ import edu.seu.vcampus.common.protocol.EmptyResponse;
 import edu.seu.vcampus.common.protocol.Message;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.student.governance.AssignStudentCollegeAdministratorCommand;
+import edu.seu.vcampus.common.student.governance.CreateCollegeAdministratorCommand;
 import edu.seu.vcampus.common.student.governance.DeactivateStudentCollegeAdministratorCommand;
 import edu.seu.vcampus.common.student.governance.TransferStudentCollegeAdministratorCommand;
 import edu.seu.vcampus.common.user.UserRole;
@@ -29,13 +30,14 @@ public final class StudentCollegeAdministrationHandlers {
     private static final Set<String> STABLE_CODES = Set.of(
             "AUTH_FORBIDDEN", "AUTH_SESSION_EXPIRED",
             "AUTH_INITIAL_PASSWORD_CHANGE_REQUIRED",
-            "COMMON_VALIDATION_FAILED", "STUDENT_LAST_COLLEGE_ADMIN_PROTECTED");
+            "COMMON_VALIDATION_FAILED", "STUDENT_LAST_COLLEGE_ADMIN_PROTECTED",
+            "USER_LOGIN_ID_EXISTS");
 
     private final StudentCollegeAdministrationService service;
     private final AuthorizationPort authorization;
     private final RequestDeduplicator deduplicator;
 
-    /** Registers search, assignment, transfer and deactivation routes. */
+    /** Registers search, creation, assignment, transfer and deactivation routes. */
     public StudentCollegeAdministrationHandlers(MessageRouter router,
             StudentCollegeAdministrationService service,
             AuthorizationPort authorization, RequestDeduplicator deduplicator) {
@@ -43,6 +45,7 @@ public final class StudentCollegeAdministrationHandlers {
         this.authorization = Objects.requireNonNull(authorization);
         this.deduplicator = deduplicator;
         Objects.requireNonNull(router).register("STUDENT_COLLEGE_ADMIN_SEARCH", search());
+        router.register("STUDENT_COLLEGE_ADMIN_CREATE", create());
         router.register("STUDENT_COLLEGE_ADMIN_ASSIGN", assign());
         router.register("STUDENT_COLLEGE_ADMIN_TRANSFER", transfer());
         router.register("STUDENT_COLLEGE_ADMIN_DEACTIVATE", deactivate());
@@ -58,6 +61,12 @@ public final class StudentCollegeAdministrationHandlers {
                 return failure(error, "学院管理员查询失败");
             }
         };
+    }
+
+    private edu.seu.vcampus.server.routing.MessageHandler create() {
+        return (message, context) -> handleWrite(message, context,
+                CreateCollegeAdministratorCommand.class,
+                service::createAdministrator);
     }
 
     private edu.seu.vcampus.server.routing.MessageHandler assign() {
@@ -99,7 +108,9 @@ public final class StudentCollegeAdministrationHandlers {
     private UserIdentity requireStudentAdministrator(Message message, String permission) {
         authorization.requirePermission(message.sessionToken(), permission);
         UserIdentity identity = authorization.requireSession(message.sessionToken());
-        if (identity.role() != UserRole.STUDENT_ADMIN) throw new ForbiddenException();
+        if (identity.role() != UserRole.STUDENT_ADMIN && identity.role() != UserRole.SUPER_ADMIN) {
+            throw new ForbiddenException();
+        }
         return identity;
     }
 
@@ -113,10 +124,39 @@ public final class StudentCollegeAdministrationHandlers {
     private static <T extends Serializable> ResponseBody<T> failure(
             RuntimeException error, String safeMessage) {
         String code = code(error);
+        String msg = messageFor(error, safeMessage);
         ErrorDetail detail = "COMMON_INTERNAL_ERROR".equals(code)
-                ? new ErrorDetail(code, safeMessage, Map.of(),
+                ? new ErrorDetail(code, msg, Map.of(),
                         UUID.randomUUID().toString(), false) : null;
-        return ResponseBody.failure(code, safeMessage, detail);
+        return ResponseBody.failure(code, msg, detail);
+    }
+
+    private static String messageFor(RuntimeException error, String fallback) {
+        if (error instanceof ConcurrentModificationException) {
+            return "数据已被修改，请刷新后重试";
+        }
+        if (error instanceof ForbiddenException) {
+            return "无操作权限";
+        }
+        String message = error.getMessage();
+        if ("STUDENT_LAST_COLLEGE_ADMIN_PROTECTED".equals(message)) {
+            return "该学院仅剩一名管理员，受保护无法停用或调离";
+        }
+        if ("USER_LOGIN_ID_EXISTS".equals(message)) {
+            return "该用户名已存在";
+        }
+        if (error instanceof IllegalArgumentException) {
+            if (message != null && !message.isBlank() && !"COMMON_VALIDATION_FAILED".equals(message)) {
+                return message;
+            }
+            return "请求参数有误或数据状态不符合要求";
+        }
+        if (error instanceof IllegalStateException) {
+            if (message != null && !message.isBlank()) {
+                return message;
+            }
+        }
+        return fallback;
     }
 
     private static String code(RuntimeException error) {

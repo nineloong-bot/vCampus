@@ -43,6 +43,44 @@ class StudentHandlersTest {
     }
 
     @Test
+    void studentAdministratorCanSaveDepartmentAndMajor() {
+        var router = new MessageRouter(Map.of());
+        var savedDept = new AtomicBoolean();
+        var savedMajor = new AtomicBoolean();
+        StudentOrganizationQuery orgQuery = new StudentOrganizationQuery() {
+            public java.util.List<edu.seu.vcampus.common.student.DepartmentView> listDepartments(boolean active) { return java.util.List.of(); }
+            public java.util.List<edu.seu.vcampus.common.student.MajorView> listMajors(String id) { return java.util.List.of(); }
+            public java.util.List<edu.seu.vcampus.common.student.ClassView> listClasses(String id) { return java.util.List.of(); }
+            public edu.seu.vcampus.common.student.DepartmentView saveDepartment(
+                    edu.seu.vcampus.common.student.SaveDepartmentCommand command) {
+                savedDept.set(true);
+                return new edu.seu.vcampus.common.student.DepartmentView(
+                        "dept-1", command.code(), command.name(), command.active(), 0);
+            }
+            public edu.seu.vcampus.common.student.MajorView saveMajor(
+                    edu.seu.vcampus.common.student.SaveMajorCommand command) {
+                savedMajor.set(true);
+                return new edu.seu.vcampus.common.student.MajorView(
+                        "major-1", command.departmentId(), command.code(), command.name(),
+                        command.grades(), command.active(), 0);
+            }
+        };
+        new StudentHandlers((command, context) -> null, studentService(), orgQuery,
+                token -> new StudentPrincipal("student-admin-1", Set.of("STUDENT_ADMIN"), Set.of()),
+                (request, principal, action) -> action.get(), null, null, null).register(router);
+
+        var deptResponse = router.route(request("STUDENT_SAVE_DEPARTMENT",
+                new edu.seu.vcampus.common.student.SaveDepartmentCommand("", "CS", "Computer Science", true, 0)), client());
+        assertThat(deptResponse.success()).isTrue();
+        assertThat(savedDept).isTrue();
+
+        var majorResponse = router.route(request("STUDENT_SAVE_MAJOR",
+                new edu.seu.vcampus.common.student.SaveMajorCommand("", "dept-1", "090", "SE", "1,2", true, 0)), client());
+        assertThat(majorResponse.success()).isTrue();
+        assertThat(savedMajor).isTrue();
+    }
+
+    @Test
     void collegeAdministratorSearchUsesServerResolvedDepartment() {
         var called = new AtomicBoolean();
         var department = new AtomicReference<String>();

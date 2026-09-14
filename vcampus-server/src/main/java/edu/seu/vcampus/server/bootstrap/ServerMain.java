@@ -144,7 +144,8 @@ public final class ServerMain {
                 transactions, locks, new AccessModuleAdministrationRepository(), audits, sessions);
         StudentCollegeAdministrationService collegeGovernance =
                 new StudentCollegeAdministrationService(transactions, locks,
-                        new AccessStudentCollegeAdministrationRepository(), audits, sessions);
+                        new AccessStudentCollegeAdministrationRepository(), audits, sessions,
+                        userRepository, passwords);
         SecurityAuditHandler auditHandler = new SecurityAuditHandler(authorization,
                 new SecurityAuditService(transactions, audits));
         StudentHandlers students = createStudentHandlers(transactions, locks, sessions,

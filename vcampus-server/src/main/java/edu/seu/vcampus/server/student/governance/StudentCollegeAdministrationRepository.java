@@ -10,6 +10,7 @@ interface StudentCollegeAdministrationRepository {
     List<StudentCollegeAdministratorView> listAdministrators(Connection connection);
     List<DepartmentView> listDepartments(Connection connection);
     void requireDepartment(Connection connection, String id, long version);
+    void requireActiveDepartment(Connection connection, String id);
     void requireAdministrator(Connection connection, String userId);
     void requireUnassigned(Connection connection, String userId);
     void requireAssignment(Connection connection, String departmentId,

@@ -71,7 +71,7 @@ class StudentModulePageFactoryTest {
     }
 
     @Test
-    void studentAdminReceivesOnlyGovernanceAndGlobalTransferBatchTabs() throws Exception {
+    void studentAdminReceivesGovernanceOrganizationAndTransferBatchTabs() throws Exception {
         AtomicInteger requests = new AtomicInteger();
         CountDownLatch requestStarted = new CountDownLatch(1);
         StudentClientService students = students(requests, requestStarted);
@@ -82,9 +82,13 @@ class StudentModulePageFactoryTest {
         assertThat(page.getName()).isEqualTo("student.module");
         JTabbedPane tabs = findTabbedPane(page);
         assertThat(tabs).isNotNull();
-        assertThat(tabs.getTabCount()).isEqualTo(2);
+        assertThat(tabs.getTabCount()).isEqualTo(3);
         assertThat(tabs.getTitleAt(0)).isEqualTo("学院管理员管理");
-        assertThat(tabs.getTitleAt(1)).isEqualTo("转专业批次");
+        assertThat(tabs.getTitleAt(1)).isEqualTo("组织架构管理");
+        assertThat(tabs.getTitleAt(2)).isEqualTo("转专业批次");
+        assertThat(findByName(tabs.getComponentAt(1), "student.org.add-dept")).isNotNull();
+        assertThat(findByName(tabs.getComponentAt(1), "student.org.add-class")).isNull();
+        assertThat(findByName(tabs.getComponentAt(1), "student.org.add-student")).isNull();
     }
 
     @Test
