@@ -137,8 +137,7 @@ public final class MainFrame extends JFrame {
         installPage("library", new LibraryWorkspacePanel(
                 Objects.requireNonNull(library, "library"),
                 Objects.requireNonNull(permissions, "permissions"), user.role()));
-        ShopUiInstaller.install(this, user, Objects.requireNonNull(shop, "shop"),
-                new SharedShopUiKitAdapter(), onAuthenticationFailure);
+        edu.seu.vcampus.client.shop.commerce.CommerceInstaller.install(this, user, connection);
     }
 
     private void registerPages(UserView user, ClientConnection connection,

@@ -11,7 +11,7 @@ public final class DatabaseInitializer {
     private DatabaseInitializer() {
     }
 
-    /** Usage: DatabaseInitializer <schema-dir> <seed-dir> <output.accdb> */
+    /** Usage: {@code DatabaseInitializer <schema-dir> <seed-dir> <output.accdb>}. */
     public static void main(String[] args) throws Exception {
         if (args.length != 3) {
             System.err.println("用法: DatabaseInitializer <schema目录> <seed目录> <输出.accdb>");

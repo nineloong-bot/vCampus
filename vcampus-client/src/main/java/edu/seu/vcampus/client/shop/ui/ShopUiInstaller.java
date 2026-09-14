@@ -24,7 +24,7 @@ public final class ShopUiInstaller {
     /** Installs the Shop module into the shared Shop entry and placeholder page. */
     public static void install(MainFrame frame, UserView user, ShopClientPort client,
             ShopUiKit uiKit, Runnable sessionExpired) {
-        install(frame, user, client, uiKit, sessionExpired, ShopPageCoordinator::new);
+        install(frame, user, client, uiKit, sessionExpired, ShopUiInstaller::createCoordinator);
     }
 
     static void install(MainFrame frame, UserView user, ShopClientPort client, ShopUiKit uiKit,
@@ -62,6 +62,17 @@ public final class ShopUiInstaller {
                 disposeOnce.run();
             }
         });
+    }
+
+    static InstalledCoordinator createCoordinator(ShopModulePanel module, UserView user,
+            ShopClientPort client, ShopUiKit uiKit, Runnable sessionExpired) {
+        if (user.role() != edu.seu.vcampus.common.user.UserRole.STUDENT
+                && user.role() != edu.seu.vcampus.common.user.UserRole.TEACHER) {
+            return new AdminShopCoordinator(module,
+                    (edu.seu.vcampus.client.shop.service.AdminShopClientPort) client,
+                    uiKit, sessionExpired);
+        }
+        return new ShopPageCoordinator(module, user, client, uiKit, sessionExpired);
     }
 
     @FunctionalInterface

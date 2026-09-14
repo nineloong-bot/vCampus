@@ -1,5 +1,8 @@
 package edu.seu.vcampus.server.bootstrap;
 
+import edu.seu.vcampus.server.wallet.WalletSchemaInitializer;
+import edu.seu.vcampus.server.wallet.handler.WalletHandlers;
+import edu.seu.vcampus.server.wallet.service.WalletService;
 import edu.seu.vcampus.common.protocol.EmptyResponse;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.user.UserRole;
@@ -36,7 +39,8 @@ import java.util.Objects;
 import java.util.function.Function;
 
 /** Production composition root for the user and course server modules. */
-public final class ApplicationRuntime {
+public final class ApplicationRuntime implements AutoCloseable {
+    private edu.seu.vcampus.server.shop.composition.CommerceRuntime commerce;
     private final MessageRouter router;
     private final CourseComposition course;
     private final ResourceLockManager resourceLocks;
@@ -87,6 +91,8 @@ public final class ApplicationRuntime {
         Objects.requireNonNull(clock, "clock");
         Objects.requireNonNull(sessionIdleTimeout, "sessionIdleTimeout");
         new ApplicationSchemaInitializer(databaseResourceRoot).initialize(connections);
+        new WalletSchemaInitializer(databaseResourceRoot.resolve("schema/051_shop_wallet.sql")).initialize(connections);
+        new edu.seu.vcampus.server.shop.composition.CommerceSchemaInitializer(databaseResourceRoot.resolve("schema")).initialize(connections);
 
         ResourceLockManager locks = new StripedResourceLockManager();
         SessionRegistry sessions = new SessionRegistry(clock, sessionIdleTimeout);
@@ -109,6 +115,9 @@ public final class ApplicationRuntime {
         MessageRouter router = new MessageRouter(Map.of(
                 "PING", (request, context) -> ResponseBody.success(EmptyResponse.INSTANCE)));
         new UserHandlers(router, users, authorization, deduplicator);
+        // Account provisioning takes application stripes inside the transaction monitor.
+        // Wallet takes its own stripes first; isolation prevents a reversed-order cycle.
+        new WalletHandlers(router, new WalletService(transactions, new StripedResourceLockManager(), clock), sessions);
         UnifiedModuleRegistry.registerGovernance(router, transactions, locks, sessions,
                 authorization, deduplicator, audits);
         router.register("SECURITY_AUDIT_SEARCH", new SecurityAuditHandler(authorization,
@@ -130,8 +139,16 @@ public final class ApplicationRuntime {
         courses.register(router);
         UnifiedModuleRegistry.registerLibraryAndShop(router, transactions, locks, sessions,
                 authorization, deduplicator, clock);
-        return new ApplicationRuntime(router, courses, locks, authorization);
+        ApplicationRuntime runtime = new ApplicationRuntime(router, courses, locks, authorization);
+        runtime.commerce = new edu.seu.vcampus.server.shop.composition.CommerceRuntime(router, transactions, locks, sessions, clock);
+        return runtime;
     }
+
+    /** Starts production background expiry and qualification recovery. */
+    public void startMaintenance() { commerce.start(); }
+
+    /** Stops background commerce jobs while preserving persistent records. */
+    @Override public void close() { if (commerce != null) commerce.close(); }
 
     /** Returns the application-wide message router. */
     public MessageRouter router() {

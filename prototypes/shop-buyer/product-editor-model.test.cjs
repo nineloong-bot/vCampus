@@ -1,0 +1,5 @@
+const {test}=require('node:test'),a=require('node:assert/strict'),m=require('./product-editor-model.js');
+const good=()=>({name:'手账本',description:'记录生活',category:'ordinary',image:'book',variants:[{name:'标准款',price:'19.00',stock:'0'}],defaultVariant:0});
+test('name-only draft succeeds; publishing lists missing fields',()=>{const p={name:'新品',variants:[{name:'标准款',price:'',stock:''}],defaultVariant:0};a.deepEqual(m.errors(p,false,false),[]);a.ok(m.errors(p,true,false).length>=4);});
+test('valid product allows zero stock; price and stock rules apply',()=>{a.deepEqual(m.errors(good(),true,false),[]);for(const price of ['0','-1','1.001','abc']){const p=good();p.variants[0].price=price;a.ok(m.errors(p,true,false).length);}const p=good();p.variants[0].stock='1.5';a.ok(m.errors(p,false,false).length);});
+test('qualification image and exactly one default gate publishing',()=>{const p=good();p.category='licensed';a.ok(m.errors(p,true,false).length);a.deepEqual(m.errors(p,true,true),[]);p.image='unknown';a.ok(m.errors(p,true,true).length);p.defaultVariant=4;a.ok(m.errors(p,true,true).length);});

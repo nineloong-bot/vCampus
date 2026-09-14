@@ -1,0 +1,4 @@
+const {test}=require('node:test'),a=require('node:assert/strict'),m=require('./report-model.js');
+test('report requires reason and explanation; evidence optional',()=>{a.throws(()=>m.validate('其他问题','  ',[]));a.throws(()=>m.validate('unknown','说明',[]));m.validate('其他问题','说明',[]);});
+test('evidence enforces count type and size',()=>{const f={type:'image/png',size:5*1024*1024};m.validate('其他问题','说明',[f]);a.throws(()=>m.validate('其他问题','说明',[f,f,f,f]));a.throws(()=>m.validate('其他问题','说明',[{...f,size:f.size+1}]));a.throws(()=>m.validate('其他问题','说明',[{...f,type:'image/gif'}]));});
+test('resolution requires explanation and cannot repeat',()=>{a.throws(()=>m.resolve({status:'待处理'},' '));const r=m.resolve({status:'待处理'},'已警告店铺');a.equal(r.status,'已处理');a.equal(r.result,'已警告店铺');a.throws(()=>m.resolve(r,'再次处理'));});

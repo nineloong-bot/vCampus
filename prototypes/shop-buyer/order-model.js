@@ -1,0 +1,6 @@
+(function(root){
+ const transitions={pay:['待付款','待发货'],cancel:['待付款','已取消'],request:['待发货','退款审核中'],reject:['退款审核中','待发货'],approve:['退款审核中','已退款'],ship:['待发货','待收货'],receive:['待收货','已完成']};
+ const api={create(rows,products,group){const groups=new Map();for(const r of rows){const p=products.find(x=>x.id===r.id),v=p?.variants[r.variant];if(!v||!Number.isSafeInteger(r.quantity)||r.quantity<1||r.quantity>v.stock)throw Error('商品库存不足，请返回购物车调整');if(!groups.has(p.shop))groups.set(p.shop,{id:group+'-'+p.shop,group,shop:p.shop,status:'待付款',nickname:'校园买家',items:[],totalCents:0,events:['提交订单']});const o=groups.get(p.shop);const cents=Math.round(v.price*100);o.items.push({productId:p.id,sku:p.id+':'+r.variant,name:p.name,variant:v.name,quantity:r.quantity,cents});o.totalCents+=cents*r.quantity;}return [...groups.values()];},
+ move(o,action,reason=''){const t=transitions[action];if(!t||o.status!==t[0])throw Error('当前订单状态不允许此操作');if(action==='reject'&&!reason.trim())throw Error('请填写驳回原因');return {...o,status:t[1],reason:action==='reject'?reason.trim():o.reason,events:[...(o.events||[]),t[1]+(action==='reject'?'：'+reason.trim():'')]};}};
+ if(typeof module!=='undefined')module.exports=api;else root.OrderModel=api;
+})(globalThis);

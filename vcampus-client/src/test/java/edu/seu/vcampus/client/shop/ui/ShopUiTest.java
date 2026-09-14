@@ -94,12 +94,11 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 /** Cross-page navigation and lifecycle regression suite. */
 class ShopUiTest {
     @Test
-    void productionCompositionUsesSharedShopUiKitAdapter() throws Exception {
+    void productionUsesCommerceWhileLegacyDemoKeepsSharedAdapter() throws Exception {
         assertThat(readSourceText("src/main/java"
                         + "/edu/seu/vcampus/client/core/ui/MainFrame.java"))
-                .contains("new SharedShopUiKitAdapter()")
-                .doesNotContain("new DefaultShopUiKit()")
-                .contains("import edu.seu.vcampus.client.shop.ui.style.SharedShopUiKitAdapter;");
+                .contains("CommerceInstaller.install(this, user, connection)")
+                .doesNotContain("ShopUiInstaller.install(");
         assertThat(readSourceText("src/main/java"
                         + "/edu/seu/vcampus/client/shop/demo/ShopAuthDemoClientMain.java"))
                 .contains("new SharedShopUiKitAdapter()")

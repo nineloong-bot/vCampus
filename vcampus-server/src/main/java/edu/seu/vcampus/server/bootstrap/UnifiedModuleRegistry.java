@@ -87,7 +87,7 @@ final class UnifiedModuleRegistry {
                                        SessionRegistry sessions, AuthorizationService authorization,
                                        RequestDeduplicator deduplicator, Clock clock) {
         registerLibrary(router, transactions, locks, authorization, deduplicator, clock);
-        registerShop(router, transactions, locks, sessions, authorization, deduplicator, clock);
+
     }
 
     static void registerGovernance(MessageRouter router, TransactionManager transactions,
@@ -159,29 +159,4 @@ final class UnifiedModuleRegistry {
         LibraryHandlers.register(router, library, libraryAuthorization, deduplicator);
     }
 
-    private static void registerShop(MessageRouter router, TransactionManager transactions,
-                                     ResourceLockManager locks, SessionRegistry sessions,
-                                     AuthorizationService authorization,
-                                     RequestDeduplicator deduplicator, Clock clock) {
-        FoundationShopUserAdapter shopUsers = new FoundationShopUserAdapter(
-                authorization, token -> sessions.requireSnapshot(token).restricted());
-        AccessShopRepository repository = new AccessShopRepository();
-        ShopBusinessLogger businessLogger = new ShopBusinessLogger();
-        new BuyerShopHandlers(router, shopUsers, deduplicator,
-                new ShopService(repository, transactions),
-                new CartService(repository, shopUsers, transactions, locks, clock),
-                new CheckoutService(repository, shopUsers, transactions, locks, clock),
-                new BuyerOrderService(repository, transactions),
-                new SimulatedPaymentService(shopUsers, transactions, locks, clock),
-                businessLogger);
-        new SellerShopHandlers(router, shopUsers, deduplicator,
-                new SellerApplicationService(repository, shopUsers, transactions, locks, clock),
-                new SellerService(repository, shopUsers, transactions),
-                new ProductService(repository, shopUsers, transactions, locks, clock),
-                new SellerOrderService(repository, shopUsers, transactions), businessLogger);
-        new AdminShopHandlers(router, shopUsers, deduplicator,
-                new ShopAdminService(repository, shopUsers, transactions, locks, clock),
-                new AdminProductService(repository, shopUsers, transactions, locks, clock,
-                        businessLogger), businessLogger);
-    }
 }
