@@ -29,6 +29,10 @@ public interface CourseService {
     CourseView updateCourse(UpdateCourseCommand command);
     OfferingView createOffering(CreateOfferingCommand command);
     OfferingView updateOffering(UpdateOfferingCommand command);
+    /** Places one eligible retake student into an offering as an administrator exception. */
+    default EnrollmentView adminEnrollStudent(AdminEnrollStudentCommand command) {
+        throw new UnsupportedOperationException();
+    }
     PageResult<OfferingSummary> searchOfferings(OfferingSearchQuery query);
     default StudentSelectionContextView getStudentSelectionContext(String sessionToken) { throw new UnsupportedOperationException(); }
     default PageResult<CourseSelectionView> searchStudentCourses(String sessionToken, CourseSelectionQuery query) { throw new UnsupportedOperationException(); }

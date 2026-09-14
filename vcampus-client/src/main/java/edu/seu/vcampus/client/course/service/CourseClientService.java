@@ -72,6 +72,7 @@ public final class CourseClientService {
     public CompletableFuture<CourseView> updateCourse(UpdateCourseCommand c) { return call("COURSE_UPDATE", c, WRITE, CourseView.class); }
     public CompletableFuture<OfferingView> createOffering(CreateOfferingCommand c) { return call("COURSE_CREATE_OFFERING", c, WRITE, OfferingView.class); }
     public CompletableFuture<OfferingView> updateOffering(UpdateOfferingCommand c) { return call("COURSE_UPDATE_OFFERING", c, WRITE, OfferingView.class); }
+    public CompletableFuture<EnrollmentView> adminEnrollStudent(AdminEnrollStudentCommand c) { return call("COURSE_ADMIN_ENROLL_STUDENT", c, WRITE, EnrollmentView.class); }
 
     private <T extends Serializable> CompletableFuture<T> call(String command, Serializable body, Duration timeout, Class<T> type) {
         return raw(command, body, timeout).thenApply(data -> requireType(data, type));

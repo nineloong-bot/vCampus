@@ -73,13 +73,10 @@ final class OfferingEditorDialog extends JDialog {
         int initialCapacity = existing == null ? 40 : Math.max(minimumCapacity, existing.capacity());
         capacity = spinner(initialCapacity, minimumCapacity, Math.max(10_000, initialCapacity), "容量");
         int minimumRetakeCapacity = existing == null ? 0 : existing.retakeEnrolledCount();
-        int initialRetakeCapacity = existing == null ? initialCapacity
+        int initialRetakeCapacity = existing == null ? 5
                 : Math.max(minimumRetakeCapacity, existing.retakeCapacity());
         retakeCapacity = spinner(initialRetakeCapacity, minimumRetakeCapacity,
                 Math.max(10_000, initialRetakeCapacity), "重修容量");
-        if (existing == null) {
-            capacity.addChangeListener(event -> retakeCapacity.setValue(capacity.getValue()));
-        }
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         JPanel root = new JPanel(new BorderLayout(0, UiSpacing.LG));
         root.setBackground(UiColors.BACKGROUND_PAGE);

@@ -198,7 +198,7 @@ public final class LoginFrame extends JFrame {
         panel.add(demoLabel("教师：TESTTEACHER001 / Test12345", "login.demoTeacher"));
         panel.add(demoLabel("学生：213260001 / Test12345",
                 "login.demoStudent"));
-        panel.add(demoLabel("完整测试库账号统一密码：Test12345",
+        panel.add(demoLabel("演示账号统一密码：Test12345",
                 "login.demoManagementPassword"));
         panel.add(demoLabel("模块：学籍 STUDENT_ADMIN ｜ 课程 COURSE_ADMIN",
                 "login.demoModuleAdmins1"));

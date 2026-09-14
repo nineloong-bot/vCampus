@@ -73,6 +73,17 @@ class CourseRepositoryTest {
     }
 
     @Test
+    void missingRetakeQuotaFallsBackToFiveSeatsInsteadOfNormalCapacity() {
+        seedCatalog();
+        Offering saved = repository.insertOffering(connection, offering("offering-1", 40), List.of());
+
+        RetakeQuota quota = repository.findRetakeQuota(connection, saved.offeringId());
+
+        assertThat(quota.capacity()).isEqualTo(5);
+        assertThat(quota.enrolledCount()).isZero();
+    }
+
+    @Test
     void reactivatesDroppedEnrollmentInsteadOfCreatingAnotherNaturalKeyRow() {
         seedCatalog();
         repository.insertOffering(connection, offering("offering-1", 30), List.of(schedule(DayOfWeek.MONDAY, 1, 2)));

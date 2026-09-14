@@ -119,6 +119,7 @@ public final class ApplicationRuntime {
         CourseStudentGateway students = studentGatewayFactory == null
                 ? CourseRuntimeAdapters.students(
                         studentQueries::getEnrollmentEligibility,
+                        studentQueries::getEnrollmentEligibilityByStudentNumber,
                         eligibility -> eligibility.studentId(),
                         eligibility -> eligibility.status().name(),
                         eligibility -> eligibility.majorCode(),

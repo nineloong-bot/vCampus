@@ -29,6 +29,7 @@ import edu.seu.vcampus.common.course.StudentSelectionContextView;
 import edu.seu.vcampus.common.course.CourseSelectionQuery;
 import edu.seu.vcampus.common.course.CourseSelectionView;
 import edu.seu.vcampus.common.course.TeachingClassOptionView;
+import edu.seu.vcampus.common.course.AdminEnrollStudentCommand;
 import edu.seu.vcampus.common.protocol.EmptyResponse;
 import edu.seu.vcampus.common.course.OfferingSearchQuery;
 import edu.seu.vcampus.common.course.OfferingSummary;
@@ -65,6 +66,7 @@ public interface CourseUiGateway {
     default CompletableFuture<TermView> updateTerm(UpdateTermCommand command) { return unsupported(); }
     default CompletableFuture<OfferingView> createOffering(CreateOfferingCommand command) { return unsupported(); }
     default CompletableFuture<OfferingView> updateOffering(UpdateOfferingCommand command) { return unsupported(); }
+    default CompletableFuture<EnrollmentView> adminEnrollStudent(AdminEnrollStudentCommand command) { return unsupported(); }
     default CompletableFuture<TermPhaseView> getTermPhase(String termId) { return unsupported(); }
     default CompletableFuture<List<SelectionPhaseView>> listSelectionPhases() { return unsupported(); }
     default CompletableFuture<SelectionPhaseView> createSelectionPhase(CreateSelectionPhaseCommand command) { return unsupported(); }

@@ -20,7 +20,7 @@ public final class BookSearchPanel extends LibraryDataPanel {
     private BookDetailPanel detail;
 
     public BookSearchPanel(LibraryClientService service) {
-        super("library.book-search", "馆藏检索", "按书名、作者或 ISBN 检索可借馆藏。",
+        super("library.book-search", "馆藏检索", null,
                 "书名", "作者", "分类", "可借/总数");
         this.service = Objects.requireNonNull(service, "service");
         JPanel filters = new JPanel(new FlowLayout(FlowLayout.LEFT));

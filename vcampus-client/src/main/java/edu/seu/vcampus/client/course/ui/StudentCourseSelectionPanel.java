@@ -29,7 +29,7 @@ public final class StudentCourseSelectionPanel extends AbstractCoursePanel {
     }
 
     StudentCourseSelectionPanel(CourseUiGateway gateway, DropConfirmation confirmation, Runnable onMutation) {
-        super("选课", "按课程查看可选教学班；选课、退课和重修会根据当前阶段与学生状态自动开放。");
+        super("选课", null);
         this.gateway = gateway;
         this.confirmation = confirmation;
         this.onMutation = onMutation;
@@ -45,9 +45,10 @@ public final class StudentCourseSelectionPanel extends AbstractCoursePanel {
         body.add(filters(), BorderLayout.NORTH);
         JPanel listing = new JPanel(new BorderLayout(0, UiSpacing.MD));listing.setOpaque(false);
         JPanel listTop = new JPanel(new BorderLayout()); listTop.setOpaque(false);
-        listTop.add(count, BorderLayout.NORTH); listTop.add(tableHeader(), BorderLayout.SOUTH);
+        listTop.add(count, BorderLayout.NORTH);
         listing.add(listTop, BorderLayout.NORTH);
         JScrollPane scroll = new JScrollPane(courses);scroll.setBorder(BorderFactory.createLineBorder(UiColors.BORDER_DEFAULT));scroll.getVerticalScrollBar().setUnitIncrement(18);
+        scroll.setColumnHeaderView(tableHeader());
         listing.add(scroll, BorderLayout.CENTER);listing.add(pager, BorderLayout.SOUTH);body.add(listing, BorderLayout.CENTER);
         refresh();
     }

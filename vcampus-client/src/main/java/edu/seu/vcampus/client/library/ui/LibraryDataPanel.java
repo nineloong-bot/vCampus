@@ -35,12 +35,14 @@ class LibraryDataPanel extends JPanel {
         JLabel headingLabel = new JLabel(title);
         headingLabel.setFont(LibraryPalette.TITLE);
         headingLabel.setForeground(LibraryPalette.TEXT);
-        JLabel descriptionLabel = new JLabel(description);
-        descriptionLabel.setFont(LibraryPalette.BODY);
-        descriptionLabel.setForeground(LibraryPalette.MUTED);
         heading.add(breadcrumb);
         heading.add(headingLabel);
-        heading.add(descriptionLabel);
+        if (description != null && !description.isBlank()) {
+            JLabel descriptionLabel = new JLabel(description);
+            descriptionLabel.setFont(LibraryPalette.BODY);
+            descriptionLabel.setForeground(LibraryPalette.MUTED);
+            heading.add(descriptionLabel);
+        }
         add(heading, BorderLayout.NORTH);
         table = new JTable(new DefaultTableModel(columns, 0) {
             @Override public boolean isCellEditable(int row, int column) { return false; }

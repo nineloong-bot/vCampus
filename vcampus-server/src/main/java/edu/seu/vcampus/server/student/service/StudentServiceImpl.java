@@ -14,6 +14,7 @@ import edu.seu.vcampus.server.student.repository.StudentRepository;
 import edu.seu.vcampus.server.user.service.UserQueryPort;
 
 import java.time.Instant;
+import java.sql.Connection;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -250,17 +251,26 @@ public final class StudentServiceImpl implements StudentService, StudentQueryPor
         return transactions.inTransaction(connection -> {
             Student student = students.findByUserId(connection, userId)
                     .orElseThrow(StudentNotFoundException::new);
-            var major = organizations.findMajor(connection, student.majorId())
-                    .orElseThrow(() -> new StudentAdmissionException(
-                            "STUDENT_MAJOR_NOT_FOUND", "学生专业不存在"));
-            var studentClass = organizations.findClass(connection, student.classId())
-                    .orElseThrow(() -> new StudentAdmissionException(
-                            "STUDENT_CLASS_NOT_FOUND", "学生班级不存在"));
-            boolean eligible = student.status() == StudentStatus.ACTIVE;
-            return new StudentEligibility(student.studentId(), student.status(), eligible,
-                    eligible ? "ELIGIBLE" : "STATUS_" + student.status(),
-                    major.majorCode(), studentClass.enrollmentYear());
+            return eligibility(connection, student);
         });
+    }
+
+    @Override public StudentEligibility getEnrollmentEligibilityByStudentNumber(String studentNumber) {
+        return transactions.inTransaction(connection -> students.findByStudentNumber(connection, studentNumber)
+                .map(student -> eligibility(connection, student)).orElse(null));
+    }
+
+    private StudentEligibility eligibility(Connection connection, Student student) {
+        var major = organizations.findMajor(connection, student.majorId())
+                .orElseThrow(() -> new StudentAdmissionException(
+                        "STUDENT_MAJOR_NOT_FOUND", "学生专业不存在"));
+        var studentClass = organizations.findClass(connection, student.classId())
+                .orElseThrow(() -> new StudentAdmissionException(
+                        "STUDENT_CLASS_NOT_FOUND", "学生班级不存在"));
+        boolean eligible = student.status() == StudentStatus.ACTIVE;
+        return new StudentEligibility(student.studentId(), student.status(), eligible,
+                eligible ? "ELIGIBLE" : "STATUS_" + student.status(),
+                major.majorCode(), studentClass.enrollmentYear());
     }
 
     @Override public StudentIdentity findByUserId(String userId) {

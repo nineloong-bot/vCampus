@@ -37,13 +37,13 @@ INSERT INTO tblCourse
     (courseId, courseCode, courseName, credit, totalHours, description,
      isActive, rowVersion, createdAt, updatedAt)
 VALUES ('demo-course-java', 'CS201', 'Java程序设计', 4.0, 64,
-    '用于选课、退课与时间冲突测试', TRUE, 0, NOW(), NOW());
+    '程序设计基础课程', TRUE, 0, NOW(), NOW());
 
 INSERT INTO tblCourse
     (courseId, courseCode, courseName, credit, totalHours, description,
      isActive, rowVersion, createdAt, updatedAt)
 VALUES ('demo-course-math', 'MATH101', '高等数学', 5.0, 80,
-    '用于满员教学班测试', TRUE, 0, NOW(), NOW());
+    '面向高年级学生的软件工程课程', TRUE, 0, NOW(), NOW());
 
 INSERT INTO tblCourseOffering
     (offeringId, termId, courseId, teacherUserId, className, capacity,
@@ -58,6 +58,12 @@ INSERT INTO tblCourseOffering
 VALUES ('demo-offering-math-full', 'demo-term-2026', 'demo-course-math',
     '00000000-0000-0000-0000-000000000402', '高等数学-满员班', 1, 1,
     'OPEN', 0, NOW(), NOW());
+
+INSERT INTO tblCourseRetakeQuota (offeringId, capacity, enrolledCount)
+VALUES ('demo-offering-java-a', 5, 0);
+
+INSERT INTO tblCourseRetakeQuota (offeringId, capacity, enrolledCount)
+VALUES ('demo-offering-math-full', 5, 0);
 
 INSERT INTO tblCourseSchedule
     (scheduleId, offeringId, dayOfWeek, startPeriod, endPeriod, startWeek, endWeek, classroom)
@@ -78,13 +84,13 @@ INSERT INTO tblBook
     (bookId, isbn, title, author, publisher, publishDate, category, description,
      isActive, rowVersion)
 VALUES ('demo-book-java', '9787111213826', 'Java核心技术', 'Cay S. Horstmann',
-    '机械工业出版社', #2024-01-01#, '计算机', '用于借阅流程测试', TRUE, 0);
+    '机械工业出版社', #2024-01-01#, '计算机', 'Java 程序设计参考书', TRUE, 0);
 
 INSERT INTO tblBook
     (bookId, isbn, title, author, publisher, publishDate, category, description,
      isActive, rowVersion)
-VALUES ('demo-book-campus', '9787300000001', '大学生活指南', '测试编写组',
-    '东南大学出版社', #2025-09-01#, '综合', '用于馆藏检索测试', TRUE, 0);
+VALUES ('demo-book-campus', '9787300000001', '大学生活指南', '校园文化编写组',
+    '东南大学出版社', #2025-09-01#, '综合', '校园生活与学习指南', TRUE, 0);
 
 INSERT INTO tblBookCopy
     (copyId, bookId, barcode, locationCode, copyStatus, rowVersion)
@@ -143,7 +149,7 @@ INSERT INTO tblShop
      contact, shopStatus, suspensionReason, suspendedByUserId, suspendedAt,
      rowVersion, createdAt, updatedAt)
 VALUES ('demo-shop-stationery', 'demo-shop-owner-user', '校园文具铺', '校园文具铺',
-    '测试商品和订单的示例店铺', '文具', '13800000013', 'ACTIVE', NULL, NULL,
+    '提供文具和学习用品的校园店铺', '文具', '13800000013', 'ACTIVE', NULL, NULL,
     NULL, 0, NOW(), NOW());
 
 INSERT INTO tblProduct

@@ -26,8 +26,8 @@ def generate(add, now):
             adjustmentEndAt=base + timedelta(days=45), termStatus=status, **stamp)
     # 服务使用手动阶段；全库仅允许一个 OPEN 或 PREVIEW。
     for phase, kind, status, title in (
-        ("bulk-phase-enrollment", "ENROLLMENT", "OPEN", "批量测试正式选课"),
-        ("bulk-phase-adjustment", "ADJUSTMENT", "DRAFT", "批量测试退改补选"),
+        ("bulk-phase-enrollment", "ENROLLMENT", "OPEN", "2026-2027学年秋季学期正式选课"),
+        ("bulk-phase-adjustment", "ADJUSTMENT", "DRAFT", "2026-2027学年秋季学期退改补选"),
     ):
         add("tblCourseSelectionPhase", phaseId=phase, termId=current,
             phaseType=kind, displayTitle=title, phaseStatus=status, **stamp)
@@ -36,7 +36,7 @@ def generate(add, now):
     for course in range(1, 121):
         add("tblCourse", courseId=f"bulk-course-{course:03d}",
             courseCode=f"BULK-C{course:03d}",
-            courseName=f"{names[(course - 1) % len(names)]}（测试{course:03d}）",
+            courseName=f"{names[(course - 1) % len(names)]}{(course - 1) // len(names) + 1}",
             credit=Decimal("2.0") + Decimal(course % 4),
             totalHours=(2 + course % 4) * 16,
             description="批量合成课程，用于分页、搜索、选课及教学班管理。",
@@ -60,14 +60,16 @@ def generate(add, now):
         for course in rotated[:2 if retake is not None else 3]:
             section = (student - 1) % 2
             selections.append((student, course, (course - 1) * 2 + section + 1, False))
-    counts = Counter(o for _, _, o, _ in selections)
+    counts = Counter(o for _, _, o, retake in selections if not retake)
+    retake_counts = Counter(o for _, _, o, retake in selections if retake)
     for offering in range(1, 241):
         course, section = (offering + 1) // 2, (offering - 1) % 2
         slot = (course - 1) % 20
         add("tblCourseOffering", offeringId=f"bulk-offering-{offering:03d}",
             termId=current, courseId=f"bulk-course-{course:03d}",
             teacherUserId=f"bulk-teacher-{((course - 1) // 20) * 2 + section + 1:03d}",
-            className=f"测试课程{course:03d}-{('A' if offering % 2 else 'B')}班",
+            className=f"{names[(course - 1) % len(names)]}{(course - 1) // len(names) + 1}"
+                      f"-{('A' if offering % 2 else 'B')}班",
             capacity=counts[offering] if offering == 80 else 40,
             enrolledCount=counts[offering],
             offeringStatus="CLOSED" if offering == 240 else "OPEN", **stamp)
@@ -75,7 +77,10 @@ def generate(add, now):
             offeringId=f"bulk-offering-{offering:03d}",
             dayOfWeek=slot % 5 + 1,
             startPeriod=1 + (slot // 5) * 2, endPeriod=2 + (slot // 5) * 2,
-            startWeek=1, endWeek=18, classroom=f"测试教学楼-{offering:03d}")
+            startWeek=1, endWeek=18,
+            classroom=f"{['教一', '教二', '教三', '计算中心'][slot % 4]}-{101 + offering % 50}")
+        add("tblCourseRetakeQuota", offeringId=f"bulk-offering-{offering:03d}",
+            capacity=5, enrolledCount=retake_counts[offering])
     generate_season_offerings(add, spring, "spring", range(1, 31), stamp)
     generate_season_offerings(add, summer, "summer", range(31, 51), stamp)
     for index, (student, course, offering, retake) in enumerate(selections, 1):
@@ -114,7 +119,8 @@ def self_check():
     offers = {o["offeringId"]: o for o in rows["tblCourseOffering"]}
     schedules = {s["offeringId"]: s for s in rows["tblCourseSchedule"]}
     active = [e for e in rows["tblEnrollment"] if e["enrollmentStatus"] == "ACTIVE"]
-    counts, selected, student_slots, teacher_slots = Counter(), set(), set(), set()
+    counts, retake_counts = Counter(), Counter()
+    selected, student_slots, teacher_slots = set(), set(), set()
     for e in active:
         o, s = offers[e["offeringId"]], schedules[e["offeringId"]]
         assert int(e["studentId"].split("-")[-1]) <= 900
@@ -124,13 +130,19 @@ def self_check():
         slot = (e["studentId"], s["dayOfWeek"], s["startPeriod"])
         assert slot not in student_slots
         student_slots.add(slot)
-        counts[o["offeringId"]] += 1
+        target = retake_counts if e["enrollmentType"] == "RETAKE" else counts
+        target[o["offeringId"]] += 1
     for o in offers.values():
         assert counts[o["offeringId"]] == o["enrolledCount"] <= o["capacity"]
         s = schedules[o["offeringId"]]
         slot = (o["termId"], o["teacherUserId"], s["dayOfWeek"], s["startPeriod"])
         assert slot not in teacher_slots
         teacher_slots.add(slot)
+    quotas = {q["offeringId"]: q for q in rows["tblCourseRetakeQuota"]}
+    assert set(quotas) == set(offers)
+    for offering, quota in quotas.items():
+        assert quota["capacity"] == 5
+        assert quota["enrolledCount"] == retake_counts[offering] <= quota["capacity"]
     pairs = {(e["studentId"], e["offeringId"]) for e in rows["tblEnrollment"]}
     assert len(pairs) == len(rows["tblEnrollment"]) == 2720
     outcomes = {(a["studentId"], a["courseId"], a["outcome"]) for a in rows["tblCourseAttempt"]}
@@ -172,19 +184,21 @@ def generate_plans(add, now):
 
 
 def generate_season_offerings(add, term, label, courses, stamp):
+    season_name = {"spring": "春季", "summer": "暑期"}[label]
     for course in courses:
         offering = f"bulk-{label}-offering-{course:03d}"
         add("tblCourseOffering", offeringId=offering, termId=term,
             courseId=f"bulk-course-{course:03d}",
             teacherUserId=f"bulk-teacher-{course % 50 + 1:03d}",
-            className=f"{label}课程{course:03d}-A班", capacity=40,
+            className=f"{season_name}课程{course:03d}-A班", capacity=40,
             enrolledCount=0, offeringStatus="OPEN", **stamp)
         add("tblCourseSchedule", scheduleId=f"bulk-{label}-schedule-{course:03d}",
             offeringId=offering, dayOfWeek=(course - 1) % 5 + 1,
             startPeriod=1 + ((course - 1) // 5 % 4) * 2,
             endPeriod=2 + ((course - 1) // 5 % 4) * 2,
             startWeek=1, endWeek=6 if label == "summer" else 18,
-            classroom=f"{label}教学楼-{course:03d}")
+            classroom=f"{season_name}教学楼-{101 + course % 50}")
+        add("tblCourseRetakeQuota", offeringId=offering, capacity=5, enrolledCount=0)
 
 
 if __name__ == "__main__":

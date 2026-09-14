@@ -18,7 +18,7 @@ public final class BookDetailPanel extends LibraryDataPanel {
     }
 
     BookDetailPanel(LibraryClientService service, boolean borrowingEnabled) {
-        super("library.book-detail", "图书详情", "查看书目信息和馆藏副本。", "条码", "位置", "状态");
+        super("library.book-detail", "图书详情", null, "条码", "位置", "状态");
         this.service = Objects.requireNonNull(service, "service");
         if (!borrowingEnabled) return;
         JButton borrow = new JButton("借阅所选副本");
