@@ -17,4 +17,25 @@ public record TrainingPlanCourse(
         boolean active,
         long rowVersion,
         Instant createdAt,
-        Instant updatedAt) { }
+        Instant updatedAt,
+        String courseId,
+        String offeringDepartmentId,
+        String offeringDepartmentName,
+        Integer allocatedQuota) {
+
+    public TrainingPlanCourse(
+            String planCourseId,
+            String planId,
+            String courseCode,
+            String courseName,
+            BigDecimal credits,
+            CourseType courseType,
+            int semester,
+            boolean active,
+            long rowVersion,
+            Instant createdAt,
+            Instant updatedAt) {
+        this(planCourseId, planId, courseCode, courseName, credits, courseType, semester, active,
+                rowVersion, createdAt, updatedAt, null, null, null, null);
+    }
+}

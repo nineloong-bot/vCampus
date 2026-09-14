@@ -24,7 +24,9 @@ public final class TrainingPlanHandlers {
     public static final List<String> PLAN_COMMANDS = List.of(
             "TRAINING_PLAN_SAVE", "TRAINING_PLAN_GET", "TRAINING_PLAN_LIST",
             "TRAINING_PLAN_SAVE_COURSE", "TRAINING_PLAN_REMOVE_COURSE",
-            "TRAINING_PLAN_IMPORT_COURSES");
+            "TRAINING_PLAN_IMPORT_COURSES",
+            "COURSE_POOL_LIST", "CROSS_COURSE_SUBMIT_APPLICATION",
+            "CROSS_COURSE_LIST_APPLICATIONS", "CROSS_COURSE_REVIEW_APPLICATION");
     public static final List<String> GRADE_COMMANDS = List.of(
             "GRADE_RECORD", "GRADE_BATCH_RECORD", "GRADE_LIST_BY_STUDENT");
     public static final List<String> STUDENT_COMMANDS = List.of(
@@ -78,6 +80,21 @@ public final class TrainingPlanHandlers {
         router.register("TRAINING_PLAN_GET_MY", typed(EmptyRequest.class,
                 (message, body) -> student(message,
                         () -> planService.getMyPlan(principal(message).userId()))));
+        router.register("COURSE_POOL_LIST", typed(CoursePoolQuery.class,
+                (message, body) -> admin(message,
+                        departmentId -> new ArrayList<>(planService.listCoursePool(body)))));
+        router.register("CROSS_COURSE_SUBMIT_APPLICATION", typed(SubmitCrossCourseApplicationCommand.class,
+                (message, body) -> write(message, () -> admin(message,
+                        departmentId -> planService.submitCrossCourseApplication(
+                                body, principal(message).userId(), departmentId)))));
+        router.register("CROSS_COURSE_LIST_APPLICATIONS", typed(CrossCourseApplicationQuery.class,
+                (message, body) -> admin(message,
+                        departmentId -> new ArrayList<>(planService.listCrossCourseApplications(
+                                body, principal(message).userId(), departmentId)))));
+        router.register("CROSS_COURSE_REVIEW_APPLICATION", typed(ReviewCrossCourseApplicationCommand.class,
+                (message, body) -> write(message, () -> admin(message,
+                        departmentId -> planService.reviewCrossCourseApplication(
+                                body, principal(message).userId(), departmentId)))));
         router.register("GRADE_RECORD", typed(RecordStudentGradeCommand.class,
                 (message, body) -> write(message, () -> admin(message, departmentId ->
                         gradeService.recordGrade(body, principal(message).userId(), departmentId)))));

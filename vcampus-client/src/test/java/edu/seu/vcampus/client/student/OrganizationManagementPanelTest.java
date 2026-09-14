@@ -184,7 +184,7 @@ class OrganizationManagementPanelTest {
         flushEdt();
         assertThat(fixture.button("student.org.add-major").isVisible()).isTrue();
 
-        SwingUtilities.invokeAndWait(() -> fixture.button("student.org.add-major").doClick());
+        SwingUtilities.invokeAndWait(() -> fixture.button("student.org.add-major").doClick(0));
         flushEdt();
         assertThat(componentExists(fixture.panel, "student.org.parent")).isTrue();
         JLabel parentLabel = fixture.component("student.org.parent", JLabel.class);

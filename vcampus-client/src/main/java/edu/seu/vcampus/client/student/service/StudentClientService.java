@@ -95,6 +95,10 @@ public final class StudentClientService {
     public CompletableFuture<ResponseBody<TrainingPlanCourseView>> saveTrainingPlanCourse(SaveTrainingPlanCourseCommand value) { return sendAsync("TRAINING_PLAN_SAVE_COURSE", value); }
     public CompletableFuture<ResponseBody<edu.seu.vcampus.common.protocol.EmptyResponse>> removeTrainingPlanCourse(String planCourseId) { return sendAsync("TRAINING_PLAN_REMOVE_COURSE", new EntityIdRequest(planCourseId)); }
     public CompletableFuture<ResponseBody<ArrayList<TrainingPlanCourseView>>> importTrainingPlanCourses(ImportTrainingPlanCoursesCommand value) { return sendAsync("TRAINING_PLAN_IMPORT_COURSES", value); }
+    public CompletableFuture<ResponseBody<ArrayList<CoursePoolItemView>>> listCoursePool(CoursePoolQuery value) { return sendAsync("COURSE_POOL_LIST", value); }
+    public CompletableFuture<ResponseBody<CrossCourseApplicationView>> submitCrossCourseApplication(SubmitCrossCourseApplicationCommand value) { return sendAsync("CROSS_COURSE_SUBMIT_APPLICATION", value); }
+    public CompletableFuture<ResponseBody<ArrayList<CrossCourseApplicationView>>> listCrossCourseApplications(CrossCourseApplicationQuery value) { return sendAsync("CROSS_COURSE_LIST_APPLICATIONS", value); }
+    public CompletableFuture<ResponseBody<CrossCourseApplicationView>> reviewCrossCourseApplication(ReviewCrossCourseApplicationCommand value) { return sendAsync("CROSS_COURSE_REVIEW_APPLICATION", value); }
 
     // ── Training Plan: Student ──
     public CompletableFuture<ResponseBody<TrainingPlanDetailView>> getMyTrainingPlan() { return sendAsync("TRAINING_PLAN_GET_MY", EmptyRequest.INSTANCE); }

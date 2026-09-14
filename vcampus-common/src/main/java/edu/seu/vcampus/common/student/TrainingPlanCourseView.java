@@ -12,4 +12,22 @@ public record TrainingPlanCourseView(
         CourseType courseType,
         int semester,
         boolean isActive,
-        long rowVersion) implements Serializable { }
+        long rowVersion,
+        String courseId,
+        String offeringDepartmentId,
+        String offeringDepartmentName,
+        Integer allocatedQuota) implements Serializable {
+
+    public TrainingPlanCourseView(
+            String planCourseId,
+            String courseCode,
+            String courseName,
+            BigDecimal credits,
+            CourseType courseType,
+            int semester,
+            boolean isActive,
+            long rowVersion) {
+        this(planCourseId, courseCode, courseName, credits, courseType, semester, isActive, rowVersion,
+                null, null, null, null);
+    }
+}

@@ -31,6 +31,7 @@ public final class MyMajorTransferPanel extends JPanel {
     private JLabel statusLabel, errorLabel;
     private JButton refreshButton, saveButton, submitButton, withdrawButton, uploadButton;
     private JPanel eligibilityPanel, applicationPanel, timelinePanel;
+    private MajorTransferFlowChartPanel flowChartPanel;
     private JPanel infoPanel;
     private boolean busy;
     private JComboBox<OptionItem> targetMajorCombo;
@@ -141,6 +142,9 @@ public final class MyMajorTransferPanel extends JPanel {
 
         // Timeline
         content.add(sectionHeader("审核进度"));
+        flowChartPanel = new MajorTransferFlowChartPanel();
+        content.add(flowChartPanel);
+        content.add(Box.createVerticalStrut(UiSpacing.SPACE_3));
         timelinePanel = new JPanel();
         timelinePanel.setLayout(new BoxLayout(timelinePanel, BoxLayout.Y_AXIS));
         timelinePanel.setOpaque(false);
@@ -297,6 +301,9 @@ public final class MyMajorTransferPanel extends JPanel {
             timelinePanel.removeAll();
             attachmentsPanel.revalidate();
             timelinePanel.revalidate();
+        }
+        if (flowChartPanel != null) {
+            flowChartPanel.update(app, ws.availableOptions());
         }
         setFormEnabled(true);
     }

@@ -112,6 +112,79 @@ class StudentProfileUiTest {
                 .hasMessageContaining("入学时必须已年满 18 周岁");
     }
 
+    @Test void personalEditTogglesInPlaceModeAndRevertsOnCancel() throws Exception {
+        var response = CompletableFuture.completedFuture(
+                ResponseBody.success(workspace(StudentProfileApplicationStatus.DRAFT, null)));
+        MyStudentProfilePanel panel = panel(response, new CountDownLatch(0));
+        SwingUtilities.invokeAndWait(panel::addNotify);
+        awaitText(panel, "student.profile.name", "正式姓名");
+
+        JButton editBtn = button(panel, "student.profile.personal.edit");
+        assertThat(editBtn.getText()).isEqualTo("编辑");
+        assertThat(button(panel, "student.profile.personal.save").isVisible()).isFalse();
+
+        // 1. Click "编辑" -> in-place edit mode
+        SwingUtilities.invokeAndWait(editBtn::doClick);
+        assertThat(editBtn.getText()).isEqualTo("取消编辑");
+        JButton saveBtn = button(panel, "student.profile.personal.save");
+        assertThat(saveBtn).isNotNull();
+        assertThat(saveBtn.getText()).isEqualTo("暂存");
+
+        // 2. Locate political status combo in edit table
+        JComboBox<?> politicalBox = find(panel, "student.profile.personal.politicalStatus", JComboBox.class);
+        assertThat(politicalBox).isNotNull();
+        JComboBox<?> leagueBox = find(panel, "student.profile.personal.leagueMember", JComboBox.class);
+        assertThat(leagueBox).isNotNull();
+        JTextField leagueDate = find(panel, "student.profile.personal.leagueJoinDate", JTextField.class);
+        assertThat(leagueDate).isNotNull();
+
+        // 3. Switch political status to "群众"
+        SwingUtilities.invokeAndWait(() -> {
+            ((JComboBox<String>) politicalBox).setSelectedItem("群众");
+        });
+        assertThat(leagueBox.getSelectedItem()).isEqualTo("否");
+        assertThat(leagueDate.isEnabled()).isFalse();
+        assertThat(leagueDate.getText()).isEmpty();
+
+        // 4. Click "取消编辑" -> reverts to view mode
+        SwingUtilities.invokeAndWait(editBtn::doClick);
+        assertThat(editBtn.getText()).isEqualTo("编辑");
+        JButton saveBtnAfterCancel = button(panel, "student.profile.personal.save");
+        assertThat(saveBtnAfterCancel == null || !saveBtnAfterCancel.isVisible()).isTrue();
+    }
+
+    @Test void personalProfileEditPanelMassesClearsLeagueAndParty() {
+        StudentPersonalProfile profile = new StudentPersonalProfile(
+                "ZHENGSHI", null, "共青团员", "汉族",
+                "未婚", "居民身份证", "11010519491231002X", null, LocalDate.of(1949, 12, 31), "江苏省",
+                "中国", "南京市", "南京市", "非农业家庭户口", "南京市", "南京市", "否", "无",
+                true, LocalDate.of(2019, 5, 4), false, null, "健康或良好", "A", 58, 172, "魔方", "乒乓球", false,
+                "formal@seu.edu.cn", "13800000000");
+
+        PersonalProfileEditPanel editor = new PersonalProfileEditPanel(profile);
+        JComboBox<?> politicalBox = find(editor, "student.profile.personal.politicalStatus", JComboBox.class);
+        assertThat(politicalBox).isNotNull();
+        JCheckBox leagueBox = find(editor, "student.profile.personal.leagueMember", JCheckBox.class);
+        assertThat(leagueBox).isNotNull();
+        JTextField leagueDate = find(editor, "student.profile.personal.leagueJoinDate", JTextField.class);
+        assertThat(leagueDate).isNotNull();
+
+        // Switch to "群众"
+        ((JComboBox<String>) politicalBox).setSelectedItem("群众");
+        assertThat(leagueBox.isSelected()).isFalse();
+        assertThat(leagueBox.isEnabled()).isFalse();
+        assertThat(leagueDate.getText()).isEmpty();
+        assertThat(leagueDate.isEnabled()).isFalse();
+
+        // Check value()
+        StudentPersonalProfile val = editor.value();
+        assertThat(val.politicalStatus()).isEqualTo("群众");
+        assertThat(val.leagueMember()).isFalse();
+        assertThat(val.leagueJoinDate()).isNull();
+        assertThat(val.partyMember()).isFalse();
+        assertThat(val.partyJoinDate()).isNull();
+    }
+
     private static StudentPersonalProfile emptyPersonal() {
         return new StudentPersonalProfile(null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null, null, null,

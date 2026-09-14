@@ -26,4 +26,23 @@ public interface TrainingPlanService {
     default List<TrainingPlanCourseView> importCourses(ImportTrainingPlanCoursesCommand command,
             String operatorUserId, String departmentId) { return importCourses(command, operatorUserId); }
     TrainingPlanDetailView getMyPlan(String userId);
+
+    List<CoursePoolItemView> listCoursePool(CoursePoolQuery query);
+    CrossCourseApplicationView submitCrossCourseApplication(SubmitCrossCourseApplicationCommand command, String operatorUserId);
+    default CrossCourseApplicationView submitCrossCourseApplication(
+            SubmitCrossCourseApplicationCommand command, String operatorUserId,
+            String departmentId) {
+        return submitCrossCourseApplication(command, operatorUserId);
+    }
+    List<CrossCourseApplicationView> listCrossCourseApplications(CrossCourseApplicationQuery query, String operatorUserId);
+    default List<CrossCourseApplicationView> listCrossCourseApplications(
+            CrossCourseApplicationQuery query, String operatorUserId, String departmentId) {
+        return listCrossCourseApplications(query, operatorUserId);
+    }
+    CrossCourseApplicationView reviewCrossCourseApplication(ReviewCrossCourseApplicationCommand command, String operatorUserId);
+    default CrossCourseApplicationView reviewCrossCourseApplication(
+            ReviewCrossCourseApplicationCommand command, String operatorUserId,
+            String departmentId) {
+        return reviewCrossCourseApplication(command, operatorUserId);
+    }
 }
