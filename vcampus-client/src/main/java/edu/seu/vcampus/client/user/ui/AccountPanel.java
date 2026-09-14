@@ -206,7 +206,6 @@ public final class AccountPanel extends JPanel {
         response.whenComplete((ignored, failure) -> onEdt(this::finishLogout));
     }
     private void finishLogout() {
-        if (closed) return;
         onLoggedOut.run();
     }
     @Override public void addNotify() {

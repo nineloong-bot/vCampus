@@ -25,12 +25,16 @@ CREATE TABLE tblTrainingPlanCourse (
     courseCode VARCHAR(16) NOT NULL,
     courseName VARCHAR(64) NOT NULL,
     credits DECIMAL(4,1) NOT NULL,
-    courseType VARCHAR(16) NOT NULL,
+    courseType VARCHAR(32) NOT NULL,
     semester LONG NOT NULL,
     isActive YESNO NOT NULL,
     rowVersion LONG NOT NULL,
     createdAt DATETIME NOT NULL,
     updatedAt DATETIME NOT NULL,
+    courseId VARCHAR(36),
+    offeringDepartmentId VARCHAR(36),
+    offeringDepartmentName VARCHAR(64),
+    allocatedQuota LONG,
     CONSTRAINT fk_tblTrainingPlanCourse_plan FOREIGN KEY (planId)
         REFERENCES tblTrainingPlan (planId)
 );

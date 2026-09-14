@@ -15,4 +15,9 @@ public interface TrainingPlanService {
     void removeCourse(String planCourseId, String operatorUserId);
     List<TrainingPlanCourseView> importCourses(ImportTrainingPlanCoursesCommand command, String operatorUserId);
     TrainingPlanDetailView getMyPlan(String userId);
+
+    List<CoursePoolItemView> listCoursePool(CoursePoolQuery query);
+    CrossCourseApplicationView submitCrossCourseApplication(SubmitCrossCourseApplicationCommand command, String operatorUserId);
+    List<CrossCourseApplicationView> listCrossCourseApplications(CrossCourseApplicationQuery query, String operatorUserId);
+    CrossCourseApplicationView reviewCrossCourseApplication(ReviewCrossCourseApplicationCommand command, String operatorUserId);
 }

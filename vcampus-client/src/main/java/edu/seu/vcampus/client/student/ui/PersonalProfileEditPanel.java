@@ -15,7 +15,7 @@ import java.util.Map;
 
 /** Scrollable editor for the student-owned personal section. */
 public final class PersonalProfileEditPanel extends JPanel {
-    private static final Map<String, String> HINTS = Map.ofEntries(
+    static final Map<String, String> HINTS = Map.ofEntries(
             Map.entry("namePinyin", "使用大写拼音，姓与名之间留空格，例：ZHANG SAN"),
             Map.entry("formerName", "填写曾用名；如无可留空"),
             Map.entry("politicalStatus", "从列表选择，例：共青团员"),
@@ -44,7 +44,7 @@ public final class PersonalProfileEditPanel extends JPanel {
             Map.entry("hobbies", "简要填写爱好，例：乒乓球"),
             Map.entry("email", "填写完整邮箱，例：student@seu.edu.cn"),
             Map.entry("phone", "填写 11 位大陆手机号或固话，例：13800000000"));
-    private static final Map<String, String[]> OPTIONS = Map.of(
+    static final Map<String, String[]> OPTIONS = Map.of(
             "politicalStatus", new String[]{"", "中共党员", "中共预备党员", "共青团员", "群众", "其他"},
             "maritalStatus", new String[]{"", "未婚", "已婚", "离异", "丧偶"},
             "idDocumentType", new String[]{"", "居民身份证", "护照", "港澳台居民居住证", "其他"},
@@ -52,11 +52,17 @@ public final class PersonalProfileEditPanel extends JPanel {
             "overseasChineseStatus", new String[]{"", "无", "港澳台学生", "华侨", "外国留学生"},
             "healthStatus", new String[]{"", "健康或良好", "一般或较弱", "有慢性病", "残疾"},
             "bloodType", new String[]{"", "A", "B", "AB", "O", "不详"});
-    private static final String[] ETHNICITIES = {"", "汉族", "壮族", "回族", "满族", "维吾尔族", "苗族", "彝族", "土家族", "藏族", "蒙古族", "侗族", "布依族", "瑶族", "白族", "朝鲜族", "哈尼族", "黎族", "哈萨克族", "傣族", "畲族", "拉祜族", "水族", "东乡族", "纳西族", "景颇族", "柯尔克孜族", "土族", "达斡尔族", "仫佬族", "羌族", "布朗族", "撒拉族", "毛南族", "仡佬族", "锡伯族", "阿昌族", "普米族", "塔吉克族", "怒族", "乌孜别克族", "俄罗斯族", "鄂温克族", "德昂族", "保安族", "裕固族", "京族", "塔塔尔族", "独龙族", "鄂伦春族", "赫哲族", "门巴族", "珞巴族", "基诺族", "高山族", "其他"};
+    static final String[] ETHNICITIES = {"", "汉族", "壮族", "回族", "满族", "维吾尔族", "苗族", "彝族", "土家族", "藏族", "蒙古族", "侗族", "布依族", "瑶族", "白族", "朝鲜族", "哈尼族", "黎族", "哈萨克族", "傣族", "畲族", "拉祜族", "水族", "东乡族", "纳西族", "景颇族", "柯尔克孜族", "土族", "达斡尔族", "仫佬族", "羌族", "布朗族", "撒拉族", "毛南族", "仡佬族", "锡伯族", "阿昌族", "普米族", "塔吉克族", "怒族", "乌孜别克族", "俄罗斯族", "鄂温克族", "德昂族", "保安族", "裕固族", "京族", "塔塔尔族", "独龙族", "鄂伦春族", "赫哲族", "门巴族", "珞巴族", "基诺族", "高山族", "其他"};
 
     private final Map<String, JComponent> fields = new LinkedHashMap<>();
     private final LocalDate enrollmentDate;
     private final JCheckBox league = check("是否团员"), party = check("是否党员"), onlyChild = check("是否独生子女");
+
+    {
+        league.setName("student.profile.personal.leagueMember");
+        party.setName("student.profile.personal.partyMember");
+        onlyChild.setName("student.profile.personal.onlyChild");
+    }
 
     public PersonalProfileEditPanel(StudentPersonalProfile value) {
         this(value, null);
@@ -123,17 +129,24 @@ public final class PersonalProfileEditPanel extends JPanel {
         set("email", v.email()); set("phone", v.phone()); league.setSelected(v.leagueMember());
         party.setSelected(v.partyMember()); onlyChild.setSelected(v.onlyChild());
         membershipBehavior(league, "leagueJoinDate"); membershipBehavior(party, "partyJoinDate");
+        politicalBehavior();
     }
 
     public StudentPersonalProfile value() {
         try {
-            StudentPersonalProfile value = new StudentPersonalProfile(text("namePinyin"), text("formerName"), text("politicalStatus"),
+            String political = text("politicalStatus");
+            boolean isMasses = "群众".equals(political);
+            boolean leagueVal = !isMasses && league.isSelected();
+            LocalDate leagueDate = leagueVal ? date("leagueJoinDate") : null;
+            boolean partyVal = !isMasses && party.isSelected();
+            LocalDate partyDate = partyVal ? date("partyJoinDate") : null;
+            StudentPersonalProfile value = new StudentPersonalProfile(text("namePinyin"), text("formerName"), political,
                     text("ethnicity"), text("maritalStatus"), text("idDocumentType"), text("idDocumentNumber"),
                     date("idIssuedDate"), date("birthDate"), text("nativePlace"), text("countryRegion"),
                     text("birthplace"), text("studentOriginPlace"), text("householdRegistrationType"),
                     text("householdBeforeEnrollment"), text("householdAfterEnrollment"), text("overseasChineseStatus"),
-                    text("religion"), league.isSelected(), league.isSelected() ? date("leagueJoinDate") : null,
-                    party.isSelected(), party.isSelected() ? date("partyJoinDate") : null,
+                    text("religion"), leagueVal, leagueDate,
+                    partyVal, partyDate,
                     text("healthStatus"), text("bloodType"), integer("weightKg"), integer("heightCm"),
                     text("specialties"), text("hobbies"), onlyChild.isSelected(), text("email"), text("phone"));
             List<StudentFieldError> errors = StudentFieldValidator.validatePersonal(
@@ -142,6 +155,34 @@ public final class PersonalProfileEditPanel extends JPanel {
             return value;
         } catch (DateTimeParseException | NumberFormatException error) {
             throw new IllegalArgumentException("日期须为 yyyy-MM-dd，身高和体重须为整数");
+        }
+    }
+
+    private void politicalBehavior() {
+        JComponent politicalComp = fields.get("politicalStatus");
+        if (politicalComp instanceof JComboBox<?> combo) {
+            combo.addActionListener(event -> {
+                Object item = combo.getSelectedItem();
+                if ("群众".equals(item)) {
+                    league.setSelected(false);
+                    league.setEnabled(false);
+                    fields.get("leagueJoinDate").setEnabled(false);
+                    if (fields.get("leagueJoinDate") instanceof JTextField text) text.setText("");
+                    party.setSelected(false);
+                    party.setEnabled(false);
+                    fields.get("partyJoinDate").setEnabled(false);
+                    if (fields.get("partyJoinDate") instanceof JTextField text) text.setText("");
+                } else if ("共青团员".equals(item)) {
+                    league.setSelected(true);
+                    fields.get("leagueJoinDate").setEnabled(true);
+                    party.setSelected(false);
+                    fields.get("partyJoinDate").setEnabled(false);
+                    if (fields.get("partyJoinDate") instanceof JTextField text) text.setText("");
+                } else if ("中共党员".equals(item) || "中共预备党员".equals(item)) {
+                    party.setSelected(true);
+                    fields.get("partyJoinDate").setEnabled(true);
+                }
+            });
         }
     }
     private void membershipBehavior(JCheckBox member, String dateKey) {

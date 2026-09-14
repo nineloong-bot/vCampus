@@ -123,7 +123,7 @@ class StudentSearchPanelTest {
         client.enqueue(ResponseBody.success(new PageResult<>(new ArrayList<>(), 1, 20, 0)));
 
         var panel = showPanel(client);
-        flushEdt();
+        waitForLabelText(panel, "student.search.empty", "未找到");
 
         JLabel emptyLabel = find(panel, "student.search.empty");
         assertThat(emptyLabel.isVisible()).isTrue();
@@ -301,6 +301,16 @@ class StudentSearchPanelTest {
         int actual = onEdt(() -> find(panel, comboName, JComboBox.class).getItemCount());
         throw new AssertionError("Combo " + comboName + " did not reach " + expectedItems
                 + " items within timeout; actual=" + actual);
+    }
+
+    private static void waitForLabelText(JPanel panel, String labelName, String expected) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < deadline) {
+            flushEdt();
+            JLabel label = find(panel, labelName);
+            if (label != null && label.getText() != null && label.getText().contains(expected)) return;
+            Thread.sleep(10);
+        }
     }
 
     private static final class AutoCompletingClient implements StudentRequestClient {

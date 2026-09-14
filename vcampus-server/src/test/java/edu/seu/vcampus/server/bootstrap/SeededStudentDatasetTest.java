@@ -31,6 +31,8 @@ class SeededStudentDatasetTest {
             assertThat(count(connection, "SELECT COUNT(*) FROM tblMajorTransferOption")).isGreaterThanOrEqualTo(3);
             assertThat(count(connection, "SELECT COUNT(*) FROM tblTrainingPlan")).isGreaterThanOrEqualTo(1);
             assertThat(count(connection, "SELECT COUNT(*) FROM tblTrainingPlanCourse")).isGreaterThanOrEqualTo(4);
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblCourse")).isGreaterThanOrEqualTo(10);
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblCrossCourseApplication")).isGreaterThanOrEqualTo(1);
         }
     }
 

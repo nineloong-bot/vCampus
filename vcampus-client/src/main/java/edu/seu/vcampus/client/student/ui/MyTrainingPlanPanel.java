@@ -16,6 +16,7 @@ public final class MyTrainingPlanPanel extends JPanel {
     private final JLabel planInfoLabel = new JLabel();
     private final CourseTableModel requiredModel = new CourseTableModel();
     private final CourseTableModel electiveModel = new CourseTableModel();
+    private final CourseTableModel crossModel = new CourseTableModel();
 
     public MyTrainingPlanPanel(StudentClientService students) {
         this.students = students;
@@ -34,7 +35,8 @@ public final class MyTrainingPlanPanel extends JPanel {
 
         JTabbedPane courseTabs = new JTabbedPane();
         courseTabs.addTab("必修课程", createCourseTablePanel(requiredModel));
-        courseTabs.addTab("选修课程", createCourseTablePanel(electiveModel));
+        courseTabs.addTab("专业选修课程", createCourseTablePanel(electiveModel));
+        courseTabs.addTab("跨学科选修课程", createCourseTablePanel(crossModel));
         add(courseTabs, BorderLayout.CENTER);
     }
 
@@ -42,10 +44,22 @@ public final class MyTrainingPlanPanel extends JPanel {
         JTable table = new JTable(model);
         table.setRowHeight(26);
         table.getTableHeader().setReorderingAllowed(false);
+        table.setDefaultRenderer(Object.class, new javax.swing.table.DefaultTableCellRenderer() {
+            @Override public Component getTableCellRendererComponent(JTable table, Object value,
+                    boolean isSelected, boolean hasFocus, int row, int column) {
+                Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                if (c instanceof JComponent jc && value != null) {
+                    jc.setToolTipText(value.toString());
+                }
+                return c;
+            }
+        });
         table.getColumnModel().getColumn(0).setPreferredWidth(80);
-        table.getColumnModel().getColumn(1).setPreferredWidth(200);
-        table.getColumnModel().getColumn(2).setPreferredWidth(60);
-        table.getColumnModel().getColumn(3).setPreferredWidth(80);
+        table.getColumnModel().getColumn(1).setPreferredWidth(180);
+        table.getColumnModel().getColumn(2).setPreferredWidth(50);
+        table.getColumnModel().getColumn(3).setPreferredWidth(140);
+        table.getColumnModel().getColumn(4).setPreferredWidth(70);
+        table.getColumnModel().getColumn(5).setPreferredWidth(70);
         JScrollPane scrollPane = new JScrollPane(table);
         JPanel panel = new JPanel(new BorderLayout());
         panel.add(scrollPane, BorderLayout.CENTER);
@@ -60,14 +74,21 @@ public final class MyTrainingPlanPanel extends JPanel {
                         + " " + plan.enrollmentYear() + "级 培养方案 — " + plan.planName());
                 List<TrainingPlanCourseView> required = new ArrayList<>();
                 List<TrainingPlanCourseView> elective = new ArrayList<>();
+                List<TrainingPlanCourseView> cross = new ArrayList<>();
                 for (TrainingPlanCourseView c : plan.courses()) {
-                    if (c.courseType() == CourseType.REQUIRED) required.add(c);
-                    else elective.add(c);
+                    if (c.courseType() == CourseType.REQUIRED) {
+                        required.add(c);
+                    } else if (c.courseType() == CourseType.CROSS_DISCIPLINARY) {
+                        cross.add(c);
+                    } else {
+                        elective.add(c);
+                    }
                 }
                 requiredModel.setCourses(required);
                 electiveModel.setCourses(elective);
-                statusLabel.setText("必修 " + required.size() + " 门 | 选修 " + elective.size()
-                        + " 门 | 毕业要求选修 ≥ " + plan.minElectiveCount() + " 门，≥ "
+                crossModel.setCourses(cross);
+                statusLabel.setText("必修 " + required.size() + " 门 | 专业选修 " + elective.size()
+                        + " 门 | 跨学科选修 " + cross.size() + " 门 | 毕业要求选修 ≥ " + plan.minElectiveCount() + " 门，≥ "
                         + plan.minElectiveCredits() + " 学分");
             } else {
                 statusLabel.setText("暂无培养方案: " + (response.data() == null ? "" : response.message()));
@@ -79,7 +100,7 @@ public final class MyTrainingPlanPanel extends JPanel {
     }
 
     private static class CourseTableModel extends AbstractTableModel {
-        private static final String[] COLUMNS = {"课程代码", "课程名称", "学分", "建议学期"};
+        private static final String[] COLUMNS = {"课程代码", "课程名称", "学分", "开课学院", "建议学期", "选课名额"};
         private List<TrainingPlanCourseView> courses = List.of();
 
         void setCourses(List<TrainingPlanCourseView> courses) {
@@ -97,7 +118,9 @@ public final class MyTrainingPlanPanel extends JPanel {
                 case 0 -> c.courseCode();
                 case 1 -> c.courseName();
                 case 2 -> c.credits();
-                case 3 -> "第" + c.semester() + "学期";
+                case 3 -> c.offeringDepartmentName() != null && !c.offeringDepartmentName().isBlank() ? c.offeringDepartmentName() : "本院";
+                case 4 -> "第" + c.semester() + "学期";
+                case 5 -> c.courseType() == CourseType.CROSS_DISCIPLINARY ? (c.allocatedQuota() != null ? String.valueOf(c.allocatedQuota()) : "待定") : "不限";
                 default -> "";
             };
         }
