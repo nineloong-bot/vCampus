@@ -315,20 +315,7 @@ public final class MajorTransferAdminPanel extends JPanel {
                 }
             }
             case ASSESSED -> {
-                detailHint.setText("可生成拟录取名单");
-                if (mode == TransferAdminMode.CENTRAL_MANAGEMENT) {
-                    JButton proposal = new JButton("生成拟录取名单");
-                    proposal.addActionListener(e -> generateProposal(app));
-                    actionsPanel.add(proposal);
-                }
-            }
-            case PROPOSED -> {
                 detailHint.setText("可进行终审");
-                if (mode == TransferAdminMode.CENTRAL_MANAGEMENT) {
-                    JButton fin = new JButton("终审通过");
-                    fin.addActionListener(e -> finalizeApp(app));
-                    actionsPanel.add(fin);
-                }
                 if (mode == TransferAdminMode.COLLEGE_APPROVAL && app.targetApprovalAllowed()) {
                     JButton fin = new JButton("终审通过");
                     fin.setName("finalizeButton");
@@ -652,23 +639,6 @@ public final class MajorTransferAdminPanel extends JPanel {
         }));
     }
 
-    private void generateProposal(MajorTransferApplicationView app) {
-        students.listTransferOptions(app.batchId()).whenComplete((r, e) -> SwingUtilities.invokeLater(() -> {
-            if (r == null || !r.success()) { errorLabel.setText("专业配置加载失败"); return; }
-            var option = r.data().stream().filter(o -> o.optionId().equals(app.optionId())).findFirst().orElseThrow();
-            if (JOptionPane.showConfirmDialog(this, "确认生成拟录取名单？", "生成拟录取", JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) return;
-            students.generateTransferProposal(new GenerateMajorTransferProposalCommand(option.optionId(), option.rowVersion()))
-                    .whenComplete((result, fail) -> SwingUtilities.invokeLater(() -> {
-                        if (result == null || !result.success()) { errorLabel.setText(responseMessage(result, "生成失败")); return; }
-                        StringBuilder text = new StringBuilder();
-                        result.data().applicants().forEach(a -> text.append(a.studentName()).append(" ")
-                                .append(a.finalScore()).append(a.proposed() ? "  拟录取" : "  未录取").append("\n"));
-                        JOptionPane.showMessageDialog(this, new JScrollPane(new JTextArea(text.toString(), 14, 40)), "拟录取结果", JOptionPane.INFORMATION_MESSAGE);
-                        loadApplicationDetail();
-                    }));
-        }));
-    }
-
     private void finalizeApp(MajorTransferApplicationView app) {
         var cmd = new FinalizeMajorTransferCommand(app.applicationId(), app.applicationVersion());
         students.finalizeTransfer(cmd).whenComplete((r, e) -> SwingUtilities.invokeLater(() -> {
@@ -722,8 +692,7 @@ public final class MajorTransferAdminPanel extends JPanel {
             case SUBMITTED -> "已提交(待原学院审核)";
             case SOURCE_APPROVED -> "原学院审核通过(待转入学院审核)";
             case QUALIFIED -> "资格审核通过(待录入成绩)";
-            case ASSESSED -> "已考核";
-            case PROPOSED -> "拟录取(待终审)";
+            case ASSESSED -> "已考核(待终审)";
             case PENDING_EFFECTIVE -> "待生效";
             case EFFECTIVE -> "已生效";
             case REJECTED -> "已驳回";
@@ -737,7 +706,6 @@ public final class MajorTransferAdminPanel extends JPanel {
             case SOURCE_REVIEW -> "原学院审核";
             case QUALIFICATION_REVIEW -> "转入学院审核";
             case ASSESSMENT -> "成绩录入";
-            case PROPOSAL -> "拟录取生成";
             case FINAL_APPROVAL -> "终审";
             case EXECUTION -> "执行";
         };
@@ -763,7 +731,6 @@ public final class MajorTransferAdminPanel extends JPanel {
                     case SUBMITTED -> "[待原学院审核]";
                     case SOURCE_APPROVED -> "[待转入学院审核]";
                     case QUALIFIED -> "[待录入成绩]";
-                    case PROPOSED -> "[拟录取]";
                     case PENDING_EFFECTIVE -> "[待生效]";
                     case EFFECTIVE -> "[已生效]";
                     case REJECTED -> "[已驳回]";
@@ -776,7 +743,7 @@ public final class MajorTransferAdminPanel extends JPanel {
                     case DRAFT -> Color.GRAY;
                     case SUBMITTED -> new Color(33, 150, 243);
                     case SOURCE_APPROVED, QUALIFIED -> new Color(255, 152, 0);
-                    case PROPOSED, PENDING_EFFECTIVE -> new Color(76, 175, 80);
+                    case PENDING_EFFECTIVE -> new Color(76, 175, 80);
                     case EFFECTIVE -> new Color(139, 195, 74);
                     case REJECTED, CANCELLED, EXECUTION_FAILED -> new Color(244, 67, 54);
                     case ASSESSED -> Color.BLACK;

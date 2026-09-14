@@ -49,13 +49,11 @@ public interface MajorTransferService {
 
     MajorTransferApplicationView cancel(String adminUserId, CancelMajorTransferCommand command);
 
-    // ── Admin: assessment and ranking ──
+    // ── Admin: assessment ──
 
     MajorTransferApplicationView recordScore(String adminUserId, RecordMajorTransferScoreCommand command);
 
     MajorTransferImportResult importScores(String adminUserId, ImportMajorTransferScoresCommand command);
-
-    MajorTransferRankingView generateProposal(String adminUserId, GenerateMajorTransferProposalCommand command);
 
     // ── Admin: final approval and execution ──
 

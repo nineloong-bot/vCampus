@@ -154,45 +154,12 @@ class MajorTransferStudentWorkflowTest {
         assertThat(assessed().status()).isEqualTo(MajorTransferStatus.ASSESSED);
     }
 
-    @Test void zeroQuotaDoesNotAdmitEveryone() {
-        var app = assessed();
-        sql("UPDATE tblMajorTransferOption SET receiveQuota=0");
-        service.generateProposal("admin", new GenerateMajorTransferProposalCommand("opt-1", 0));
-        assertThat(service.getApplicationDetail(app.applicationId()).status()).isEqualTo(MajorTransferStatus.REJECTED);
-    }
-
-    @Test void rankingKeepsCutoffTies() {
-        var first = assessed();
-        var second = service.saveDraft("user-2", new SaveMajorTransferDraftCommand(null, "batch-1", "opt-1",
-                MajorTransferApplicationType.ORDINARY, "希望转入", 0));
-        second = service.submit("user-2", new SubmitMajorTransferCommand(second.applicationId(), 0));
-        second = service.reviewSource("admin", new ReviewMajorTransferSourceCommand(second.applicationId(),
-                MajorTransferDecision.APPROVE, true, true, true, "通过", second.applicationVersion()));
-        second = service.reviewQualification("admin", new ReviewMajorTransferQualificationCommand(second.applicationId(),
-                MajorTransferDecision.APPROVE, "通过", second.applicationVersion()));
-        service.recordScore("admin", new RecordMajorTransferScoreCommand(second.applicationId(),
-                new java.math.BigDecimal("80"), new java.math.BigDecimal("90"), second.applicationVersion()));
-        sql("UPDATE tblMajorTransferOption SET receiveQuota=1");
-        var ranking = service.generateProposal("admin", new GenerateMajorTransferProposalCommand("opt-1", 0));
-        assertThat(ranking.applicants()).hasSize(2).allMatch(a -> a.proposed());
-        assertThat(ranking.cutoffScore()).isEqualTo(84.0);
-        assertThatThrownBy(() -> service.generateProposal("admin", new GenerateMajorTransferProposalCommand("opt-1", 0)))
-                .isInstanceOf(MajorTransferException.class);
-    }
-
     @Test void missingWeightedScoreIsRejected() {
         var app = assessed();
         sql("UPDATE tblMajorTransferApplication SET applicationStatus='QUALIFIED'");
         assertThatThrownBy(() -> service.recordScore("admin", new RecordMajorTransferScoreCommand(app.applicationId(),
                 new java.math.BigDecimal("80"), null, app.applicationVersion())))
                 .isInstanceOf(MajorTransferException.class);
-    }
-
-    @Test void zeroInterviewQuotaCannotAdmitApplicant() {
-        var app = assessed();
-        sql("UPDATE tblMajorTransferOption SET interviewQuota=0");
-        service.generateProposal("admin", new GenerateMajorTransferProposalCommand("opt-1", 0));
-        assertThat(service.getApplicationDetail(app.applicationId()).status()).isEqualTo(MajorTransferStatus.REJECTED);
     }
 
     @Test void explicitOffCampusStatusPreventsSubmission() {
@@ -214,18 +181,15 @@ class MajorTransferStudentWorkflowTest {
         assertThat(service.getApplicationDetail(app.applicationId()).attachments()).isEmpty();
     }
 
-    @Test void difficultyExemptionDoesNotConsumeOrdinaryQuota() {
+    @Test void assessedApplicationCanBeFinalizedWithoutProposal() {
         var app = assessed();
-        sql("UPDATE tblMajorTransferOption SET receiveQuota=0, difficultyQuotaExempt=1");
-        sql("UPDATE tblMajorTransferApplication SET applicationType='DIFFICULTY'");
-        service.generateProposal("admin", new GenerateMajorTransferProposalCommand("opt-1", 0));
-        assertThat(service.getApplicationDetail(app.applicationId()).status()).isEqualTo(MajorTransferStatus.PROPOSED);
+        var finalized = service.finalizeProposal("admin",
+                new FinalizeMajorTransferCommand(app.applicationId(), app.applicationVersion()));
+        assertThat(finalized.status()).isEqualTo(MajorTransferStatus.PENDING_EFFECTIVE);
     }
 
     @Test void executeRequiresEffectiveDateAndCannotPartiallyWriteOnStaleVersion() throws Exception {
         var app = assessed();
-        service.generateProposal("admin", new GenerateMajorTransferProposalCommand("opt-1", 0));
-        app = service.getApplicationDetail(app.applicationId());
         app = service.finalizeProposal("admin", new FinalizeMajorTransferCommand(app.applicationId(), app.applicationVersion()));
         String id = app.applicationId();
         long version = app.applicationVersion();

@@ -30,9 +30,9 @@ class MajorTransferStateMachineTest {
     @Test
     void finalApprovalDoesNotBecomeEffectiveImmediately() {
         assertThatCode(() -> MajorTransferStateMachine.requireTransition(
-                PROPOSED, PENDING_EFFECTIVE)).doesNotThrowAnyException();
+                ASSESSED, PENDING_EFFECTIVE)).doesNotThrowAnyException();
         assertThatThrownBy(() -> MajorTransferStateMachine.requireTransition(
-                PROPOSED, EFFECTIVE)).isInstanceOf(IllegalStateException.class);
+                ASSESSED, EFFECTIVE)).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
@@ -89,7 +89,6 @@ class MajorTransferStateMachineTest {
         assertThat(MajorTransferStateMachine.adminMayCancel(SOURCE_APPROVED)).isTrue();
         assertThat(MajorTransferStateMachine.adminMayCancel(QUALIFIED)).isTrue();
         assertThat(MajorTransferStateMachine.adminMayCancel(ASSESSED)).isTrue();
-        assertThat(MajorTransferStateMachine.adminMayCancel(PROPOSED)).isTrue();
         assertThat(MajorTransferStateMachine.adminMayCancel(PENDING_EFFECTIVE)).isTrue();
         assertThat(MajorTransferStateMachine.adminMayCancel(DRAFT)).isFalse();
         assertThat(MajorTransferStateMachine.adminMayCancel(SUBMITTED)).isFalse();
@@ -104,8 +103,7 @@ class MajorTransferStateMachineTest {
             MajorTransferStateMachine.requireTransition(SUBMITTED, SOURCE_APPROVED);
             MajorTransferStateMachine.requireTransition(SOURCE_APPROVED, QUALIFIED);
             MajorTransferStateMachine.requireTransition(QUALIFIED, ASSESSED);
-            MajorTransferStateMachine.requireTransition(ASSESSED, PROPOSED);
-            MajorTransferStateMachine.requireTransition(PROPOSED, PENDING_EFFECTIVE);
+            MajorTransferStateMachine.requireTransition(ASSESSED, PENDING_EFFECTIVE);
             MajorTransferStateMachine.requireTransition(PENDING_EFFECTIVE, EFFECTIVE);
         }).doesNotThrowAnyException();
     }
@@ -113,7 +111,7 @@ class MajorTransferStateMachineTest {
     @Test
     void rejectionPathIsValidFromAnyReviewStage() {
         for (MajorTransferStatus status : new MajorTransferStatus[]{
-                SUBMITTED, SOURCE_APPROVED, QUALIFIED, ASSESSED, PROPOSED}) {
+                SUBMITTED, SOURCE_APPROVED, QUALIFIED, ASSESSED}) {
             assertThatCode(() -> MajorTransferStateMachine.requireTransition(status, REJECTED))
                     .doesNotThrowAnyException();
         }

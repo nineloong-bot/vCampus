@@ -73,7 +73,6 @@ public final class StudentClientService {
     public CompletableFuture<ResponseBody<MajorTransferApplicationView>> reviewTransferSource(ReviewMajorTransferSourceCommand value) { return sendAsync("MAJOR_TRANSFER_REVIEW_SOURCE", value); }
     public CompletableFuture<ResponseBody<MajorTransferApplicationView>> reviewTransferQualification(ReviewMajorTransferQualificationCommand value) { return sendAsync("MAJOR_TRANSFER_REVIEW_QUALIFICATION", value); }
     public CompletableFuture<ResponseBody<MajorTransferApplicationView>> recordTransferScore(RecordMajorTransferScoreCommand value) { return sendAsync("MAJOR_TRANSFER_RECORD_SCORE", value); }
-    public CompletableFuture<ResponseBody<MajorTransferRankingView>> generateTransferProposal(GenerateMajorTransferProposalCommand value) { return sendAsync("MAJOR_TRANSFER_GENERATE_PROPOSAL", value); }
     public CompletableFuture<ResponseBody<MajorTransferApplicationView>> finalizeTransfer(FinalizeMajorTransferCommand value) { return sendAsync("MAJOR_TRANSFER_FINALIZE", value); }
     public CompletableFuture<ResponseBody<MajorTransferApplicationView>> executeTransfer(ExecuteMajorTransferCommand value) { return sendAsync("MAJOR_TRANSFER_EXECUTE", value); }
     public CompletableFuture<ResponseBody<MajorTransferApplicationView>> cancelTransfer(CancelMajorTransferCommand value) { return sendAsync("MAJOR_TRANSFER_CANCEL", value); }

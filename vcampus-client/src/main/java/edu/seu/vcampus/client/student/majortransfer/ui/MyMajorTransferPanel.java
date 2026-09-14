@@ -357,8 +357,7 @@ public final class MyMajorTransferPanel extends JPanel {
             case SUBMITTED -> "已提交";
             case SOURCE_APPROVED -> "原学院审核通过";
             case QUALIFIED -> "转入学院审核通过";
-            case ASSESSED -> "已考核";
-            case PROPOSED -> "拟录取";
+            case ASSESSED -> "已考核，待终审";
             case PENDING_EFFECTIVE -> "待生效";
             case EFFECTIVE -> "已生效";
             case REJECTED -> "已驳回";
