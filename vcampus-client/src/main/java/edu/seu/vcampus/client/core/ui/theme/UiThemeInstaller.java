@@ -19,5 +19,7 @@ public final class UiThemeInstaller {
         UIManager.put("PasswordField.border", UiBorders.LINE);
         UIManager.put("Button.font", UiTypography.BODY);
         UIManager.put("Button.focus", UiColors.FOCUS);
+        javax.swing.ToolTipManager.sharedInstance().setInitialDelay(150);
+        javax.swing.ToolTipManager.sharedInstance().setDismissDelay(20000);
     }
 }

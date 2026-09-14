@@ -9,7 +9,6 @@ public enum MajorTransferStatus implements Serializable {
     SOURCE_APPROVED,
     QUALIFIED,
     ASSESSED,
-    PROPOSED,
     PENDING_EFFECTIVE,
     EFFECTIVE,
     REJECTED,

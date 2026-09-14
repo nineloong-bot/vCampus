@@ -475,7 +475,8 @@ public final class MajorTransferRepository {
     }
 
     public List<ApplicationRow> listApplicationsByBatch(Connection connection, String batchId) {
-        String sql = "SELECT * FROM tblMajorTransferApplication WHERE batchId = ? ORDER BY createdAt";
+        String sql = "SELECT * FROM tblMajorTransferApplication "
+                + "WHERE batchId = ? AND applicationStatus <> 'DRAFT' ORDER BY createdAt";
         try (var ps = connection.prepareStatement(sql)) {
             ps.setString(1, batchId);
             try (var rs = ps.executeQuery()) {
@@ -495,6 +496,7 @@ public final class MajorTransferRepository {
                 FROM tblMajorTransferApplication a
                 INNER JOIN tblMajorTransferOption o ON a.optionId=o.optionId
                 WHERE a.batchId=?
+                  AND a.applicationStatus <> 'DRAFT'
                   AND (a.fromDepartmentId=? OR o.targetDepartmentId=?)
                 ORDER BY a.createdAt
                 """;

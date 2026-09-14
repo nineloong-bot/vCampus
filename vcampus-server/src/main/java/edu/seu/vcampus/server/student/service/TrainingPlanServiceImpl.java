@@ -28,22 +28,42 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
     private final TrainingPlanRepository plans;
     private final StudentRepository students;
     private final OrganizationRepository organizations;
+    private final edu.seu.vcampus.server.student.repository.CoursePoolRepository coursePool;
+    private final edu.seu.vcampus.server.student.repository.CrossCourseApplicationRepository crossApplications;
 
     public TrainingPlanServiceImpl(TransactionManager transactions, ResourceLockManager locks,
             TrainingPlanRepository plans, StudentRepository students,
             OrganizationRepository organizations) {
+        this(transactions, locks, plans, students, organizations,
+                new edu.seu.vcampus.server.student.repository.CoursePoolRepository(),
+                new edu.seu.vcampus.server.student.repository.CrossCourseApplicationRepository());
+    }
+
+    public TrainingPlanServiceImpl(TransactionManager transactions, ResourceLockManager locks,
+            TrainingPlanRepository plans, StudentRepository students,
+            OrganizationRepository organizations,
+            edu.seu.vcampus.server.student.repository.CoursePoolRepository coursePool,
+            edu.seu.vcampus.server.student.repository.CrossCourseApplicationRepository crossApplications) {
         this.transactions = Objects.requireNonNull(transactions);
         this.locks = Objects.requireNonNull(locks);
         this.plans = Objects.requireNonNull(plans);
         this.students = Objects.requireNonNull(students);
         this.organizations = Objects.requireNonNull(organizations);
+        this.coursePool = Objects.requireNonNull(coursePool);
+        this.crossApplications = Objects.requireNonNull(crossApplications);
     }
 
     @Override
     public TrainingPlanDetailView getPlan(String planId) {
+        return getPlan(planId, null);
+    }
+
+    @Override
+    public TrainingPlanDetailView getPlan(String planId, String departmentId) {
         return transactions.inTransaction(connection -> {
             TrainingPlan plan = plans.findById(connection, planId)
                     .orElseThrow(() -> new TrainingPlanException("TRAINING_PLAN_NOT_FOUND", "培养方案不存在"));
+            requireMajor(connection, plan.majorId(), departmentId);
             return detailView(connection, plan);
         });
     }
@@ -59,19 +79,32 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
 
     @Override
     public PageResult<TrainingPlanSummary> searchPlans(TrainingPlanQuery query) {
+        return searchPlans(query, null);
+    }
+
+    @Override
+    public PageResult<TrainingPlanSummary> searchPlans(TrainingPlanQuery query,
+            String departmentId) {
         if (query.page() < 1 || query.pageSize() < 1 || query.pageSize() > 100)
             throw new IllegalArgumentException("Invalid page");
         int offset = (query.page() - 1) * query.pageSize();
         return transactions.inTransaction(connection -> {
             List<TrainingPlanSummary> items = plans.search(connection, query.majorId(),
-                    query.enrollmentYear(), offset, query.pageSize());
-            int total = plans.countSearch(connection, query.majorId(), query.enrollmentYear());
+                    query.enrollmentYear(), offset, query.pageSize(), departmentId);
+            int total = plans.countSearch(connection, query.majorId(), query.enrollmentYear(),
+                    departmentId);
             return new PageResult<>(items, query.page(), query.pageSize(), total);
         });
     }
 
     @Override
     public TrainingPlanDetailView savePlan(SaveTrainingPlanCommand command, String operatorUserId) {
+        return savePlan(command, operatorUserId, null);
+    }
+
+    @Override
+    public TrainingPlanDetailView savePlan(SaveTrainingPlanCommand command, String operatorUserId,
+            String departmentId) {
         Objects.requireNonNull(command.majorId());
         Objects.requireNonNull(command.planName());
         if (command.minElectiveCount() < 0)
@@ -83,6 +116,7 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
                 () -> transactions.inTransaction(connection -> {
             organizations.findMajor(connection, command.majorId())
                     .orElseThrow(() -> new TrainingPlanException("TRAINING_PLAN_MAJOR_NOT_FOUND", "专业不存在"));
+            requireMajor(connection, command.majorId(), departmentId);
             Instant now = Instant.now();
             if (command.planId() == null || command.planId().isBlank()) {
                 plans.findByMajorAndYear(connection, command.majorId(), command.enrollmentYear())
@@ -100,6 +134,7 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
             } else {
                 TrainingPlan existing = plans.findById(connection, command.planId())
                         .orElseThrow(() -> new TrainingPlanException("TRAINING_PLAN_NOT_FOUND", "培养方案不存在"));
+                requireMajor(connection, existing.majorId(), departmentId);
                 TrainingPlan updated = new TrainingPlan(existing.planId(), existing.majorId(),
                         existing.enrollmentYear(), command.planName(),
                         command.minElectiveCount(), command.minElectiveCredits(),
@@ -113,19 +148,27 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
     @Override
     public TrainingPlanCourseView saveCourse(SaveTrainingPlanCourseCommand command,
             String operatorUserId) {
+        return saveCourse(command, operatorUserId, null);
+    }
+
+    @Override
+    public TrainingPlanCourseView saveCourse(SaveTrainingPlanCourseCommand command,
+            String operatorUserId, String departmentId) {
         validateCourse(command.planId(), command.courseCode(), command.courseName(),
                 command.credits(), command.courseType(), command.semester());
         return locks.withLocks(List.of(new ResourceKey("TRAINING_PLAN_COURSES", command.planId())),
                 () -> transactions.inTransaction(connection -> {
-            plans.findById(connection, command.planId())
+            TrainingPlan plan = plans.findById(connection, command.planId())
                     .orElseThrow(() -> new TrainingPlanException("TRAINING_PLAN_NOT_FOUND", "培养方案不存在"));
+            requireMajor(connection, plan.majorId(), departmentId);
             Instant now = Instant.now();
             if (command.planCourseId() == null || command.planCourseId().isBlank()) {
                 rejectDuplicateCourse(connection, command.planId(), command.courseCode(), null);
                 String id = UUID.randomUUID().toString();
                 TrainingPlanCourse course = new TrainingPlanCourse(id, command.planId(),
                         command.courseCode(), command.courseName(), command.credits(),
-                        command.courseType(), command.semester(), command.isActive(), 0, now, now);
+                        command.courseType(), command.semester(), command.isActive(), 0, now, now,
+                        command.courseId(), command.offeringDepartmentId(), command.offeringDepartmentName(), command.allocatedQuota());
                 plans.insertCourse(connection, course);
                 return courseView(course);
             } else {
@@ -140,7 +183,11 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
                 TrainingPlanCourse updated = new TrainingPlanCourse(existing.planCourseId(),
                         existing.planId(), command.courseCode(), command.courseName(),
                         command.credits(), command.courseType(), command.semester(),
-                        command.isActive(), existing.rowVersion(), existing.createdAt(), now);
+                        command.isActive(), existing.rowVersion(), existing.createdAt(), now,
+                        command.courseId() != null ? command.courseId() : existing.courseId(),
+                        command.offeringDepartmentId() != null ? command.offeringDepartmentId() : existing.offeringDepartmentId(),
+                        command.offeringDepartmentName() != null ? command.offeringDepartmentName() : existing.offeringDepartmentName(),
+                        command.allocatedQuota() != null ? command.allocatedQuota() : existing.allocatedQuota());
                 plans.updateCourse(connection, updated, command.expectedVersion());
                 return courseView(updated);
             }
@@ -149,10 +196,17 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
 
     @Override
     public void removeCourse(String planCourseId, String operatorUserId) {
+        removeCourse(planCourseId, operatorUserId, null);
+    }
+
+    @Override
+    public void removeCourse(String planCourseId, String operatorUserId, String departmentId) {
         locks.withLocks(List.of(new ResourceKey("TRAINING_PLAN_COURSE", planCourseId)),
                 () -> transactions.inTransaction(connection -> {
-            plans.findCourseById(connection, planCourseId)
+            TrainingPlanCourse course = plans.findCourseById(connection, planCourseId)
                     .orElseThrow(() -> new TrainingPlanException("TRAINING_PLAN_COURSE_NOT_FOUND", "课程不存在"));
+            TrainingPlan plan = plans.findById(connection, course.planId()).orElseThrow();
+            requireMajor(connection, plan.majorId(), departmentId);
             if (plans.hasGradesForCourse(connection, planCourseId)) {
                 throw new TrainingPlanException("TRAINING_PLAN_COURSE_IN_USE",
                         "课程已有成绩记录，不能删除");
@@ -165,14 +219,21 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
     @Override
     public List<TrainingPlanCourseView> importCourses(ImportTrainingPlanCoursesCommand command,
             String operatorUserId) {
+        return importCourses(command, operatorUserId, null);
+    }
+
+    @Override
+    public List<TrainingPlanCourseView> importCourses(ImportTrainingPlanCoursesCommand command,
+            String operatorUserId, String departmentId) {
         Objects.requireNonNull(command.planId());
         Objects.requireNonNull(command.courses());
         command.courses().forEach(entry -> validateCourse(command.planId(), entry.courseCode(),
                 entry.courseName(), entry.credits(), entry.courseType(), entry.semester()));
         return locks.withLocks(List.of(new ResourceKey("TRAINING_PLAN_COURSES", command.planId())),
                 () -> transactions.inTransaction(connection -> {
-            plans.findById(connection, command.planId())
+            TrainingPlan plan = plans.findById(connection, command.planId())
                     .orElseThrow(() -> new TrainingPlanException("TRAINING_PLAN_NOT_FOUND", "培养方案不存在"));
+            requireMajor(connection, plan.majorId(), departmentId);
             var incomingCodes = new HashSet<String>();
             for (var entry : command.courses()) {
                 String normalizedCode = entry.courseCode().trim().toUpperCase(Locale.ROOT);
@@ -224,7 +285,187 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
     private TrainingPlanCourseView courseView(TrainingPlanCourse course) {
         return new TrainingPlanCourseView(course.planCourseId(), course.courseCode(),
                 course.courseName(), course.credits(), course.courseType(),
-                course.semester(), course.active(), course.rowVersion());
+                course.semester(), course.active(), course.rowVersion(),
+                course.courseId(), course.offeringDepartmentId(), course.offeringDepartmentName(),
+                course.allocatedQuota());
+    }
+
+    @Override
+    public List<CoursePoolItemView> listCoursePool(CoursePoolQuery query) {
+        return transactions.inTransaction(connection -> {
+            String deptId = query != null ? query.departmentId() : null;
+            String keyword = query != null ? query.keyword() : null;
+            List<edu.seu.vcampus.server.student.domain.CoursePoolItem> list = coursePool.listCourses(connection, deptId, keyword);
+            return list.stream().map(c -> new CoursePoolItemView(
+                    c.courseId(), c.courseCode(), c.courseName(),
+                    c.departmentId(), c.departmentName(),
+                    c.credit(), c.totalHours(), c.description(), c.active())).toList();
+        });
+    }
+
+    @Override
+    public CrossCourseApplicationView submitCrossCourseApplication(
+            SubmitCrossCourseApplicationCommand command, String operatorUserId) {
+        return submitCrossCourseApplication(command, operatorUserId, null);
+    }
+
+    @Override
+    public CrossCourseApplicationView submitCrossCourseApplication(
+            SubmitCrossCourseApplicationCommand command, String operatorUserId,
+            String departmentId) {
+        if (command.courseId() == null || command.courseId().isBlank()) {
+            throw new IllegalArgumentException("课程不能为空");
+        }
+        if (command.targetPlanId() == null || command.targetPlanId().isBlank()) {
+            throw new IllegalArgumentException("目标培养方案不能为空");
+        }
+        if (command.semester() < 1 || command.semester() > 12) {
+            throw new IllegalArgumentException("开设学期必须在 1-12 之间");
+        }
+        if (command.requestedQuota() <= 0) {
+            throw new IllegalArgumentException("申请名额必须大于 0");
+        }
+
+        return transactions.inTransaction(connection -> {
+            edu.seu.vcampus.server.student.domain.CoursePoolItem course = coursePool.findById(connection, command.courseId())
+                    .orElseThrow(() -> new TrainingPlanException("COURSE_NOT_FOUND", "所选课程在课程库中不存在"));
+            TrainingPlan plan = plans.findById(connection, command.targetPlanId())
+                    .orElseThrow(() -> new TrainingPlanException("TRAINING_PLAN_NOT_FOUND", "目标培养方案不存在"));
+
+            edu.seu.vcampus.server.student.domain.Major major = organizations.findMajor(connection, plan.majorId())
+                    .orElseThrow(() -> new TrainingPlanException("MAJOR_NOT_FOUND", "专业不存在"));
+            requireDepartment(major.departmentId(), departmentId);
+            edu.seu.vcampus.server.student.domain.Department targetDept = organizations.findDepartment(connection, major.departmentId())
+                    .orElseThrow(() -> new TrainingPlanException("DEPARTMENT_NOT_FOUND", "院系不存在"));
+
+            List<TrainingPlanCourse> existingCourses = plans.listCourses(connection, plan.planId());
+            boolean alreadyInPlan = existingCourses.stream()
+                    .anyMatch(c -> c.courseCode().equalsIgnoreCase(course.courseCode()));
+            if (alreadyInPlan) {
+                throw new TrainingPlanException("COURSE_ALREADY_IN_PLAN", "该课程已在当前培养方案中，无需重复申请");
+            }
+
+            Instant now = Instant.now();
+            String appId = UUID.randomUUID().toString();
+            edu.seu.vcampus.server.student.domain.CrossCourseApplication app = new edu.seu.vcampus.server.student.domain.CrossCourseApplication(
+                    appId, course.courseId(), course.courseCode(), course.courseName(),
+                    course.credit(), course.departmentId(), course.departmentName(),
+                    targetDept.departmentId(), targetDept.departmentName(),
+                    plan.planId(), plan.planName(), command.semester(),
+                    command.requestedQuota(), null, operatorUserId, "教务管理员",
+                    command.reason(), CrossCourseApplicationStatus.PENDING,
+                    null, null, null, 0, now, now);
+
+            crossApplications.insert(connection, app);
+            return applicationView(app);
+        });
+    }
+
+    @Override
+    public List<CrossCourseApplicationView> listCrossCourseApplications(
+            CrossCourseApplicationQuery query, String operatorUserId) {
+        return listCrossCourseApplications(query, operatorUserId, null);
+    }
+
+    @Override
+    public List<CrossCourseApplicationView> listCrossCourseApplications(
+            CrossCourseApplicationQuery query, String operatorUserId, String departmentId) {
+        return transactions.inTransaction(connection -> {
+            String offeringDept = query != null ? query.offeringDepartmentId() : null;
+            String targetDept = query != null ? query.targetDepartmentId() : null;
+            CrossCourseApplicationStatus status = query != null ? query.status() : null;
+            List<edu.seu.vcampus.server.student.domain.CrossCourseApplication> list =
+                    crossApplications.list(connection, offeringDept, targetDept, status);
+            return list.stream().filter(app -> departmentId == null
+                            || departmentId.equals(app.offeringDepartmentId())
+                            || departmentId.equals(app.targetDepartmentId()))
+                    .map(this::applicationView).toList();
+        });
+    }
+
+    @Override
+    public CrossCourseApplicationView reviewCrossCourseApplication(
+            ReviewCrossCourseApplicationCommand command, String operatorUserId) {
+        return reviewCrossCourseApplication(command, operatorUserId, null);
+    }
+
+    @Override
+    public CrossCourseApplicationView reviewCrossCourseApplication(
+            ReviewCrossCourseApplicationCommand command, String operatorUserId,
+            String departmentId) {
+        if (command.applicationId() == null || command.applicationId().isBlank()) {
+            throw new IllegalArgumentException("申请ID不能为空");
+        }
+        if (command.approved() && (command.allocatedQuota() == null || command.allocatedQuota() <= 0)) {
+            throw new IllegalArgumentException("同意申请时必须分配大于 0 的选课名额");
+        }
+
+        return transactions.inTransaction(connection -> {
+            edu.seu.vcampus.server.student.domain.CrossCourseApplication app = crossApplications.findById(connection, command.applicationId())
+                    .orElseThrow(() -> new TrainingPlanException("APPLICATION_NOT_FOUND", "跨学科申请不存在"));
+            requireDepartment(app.offeringDepartmentId(), departmentId);
+            if (app.status() != CrossCourseApplicationStatus.PENDING) {
+                throw new TrainingPlanException("APPLICATION_NOT_PENDING", "该申请已完成审批，无法重复操作");
+            }
+
+            Instant now = Instant.now();
+            CrossCourseApplicationStatus newStatus = command.approved()
+                    ? CrossCourseApplicationStatus.APPROVED : CrossCourseApplicationStatus.REJECTED;
+            Integer quota = command.approved() ? command.allocatedQuota() : null;
+
+            edu.seu.vcampus.server.student.domain.CrossCourseApplication updated = new edu.seu.vcampus.server.student.domain.CrossCourseApplication(
+                    app.applicationId(), app.courseId(), app.courseCode(), app.courseName(),
+                    app.credits(), app.offeringDepartmentId(), app.offeringDepartmentName(),
+                    app.targetDepartmentId(), app.targetDepartmentName(),
+                    app.targetPlanId(), app.targetPlanName(), app.semester(),
+                    app.requestedQuota(), quota, app.applicantUserId(), app.applicantName(),
+                    app.reason(), newStatus, operatorUserId, command.reviewComment(),
+                    now, app.rowVersion(), app.createdAt(), now);
+
+            crossApplications.update(connection, updated, app.rowVersion());
+
+            // If approved, automatically add this course as CROSS_DISCIPLINARY into the target training plan!
+            if (command.approved()) {
+                List<TrainingPlanCourse> existingCourses = plans.listCourses(connection, app.targetPlanId());
+                boolean exists = existingCourses.stream()
+                        .anyMatch(c -> c.courseCode().equalsIgnoreCase(app.courseCode()));
+                if (!exists) {
+                    String planCourseId = UUID.randomUUID().toString();
+                    TrainingPlanCourse course = new TrainingPlanCourse(
+                            planCourseId, app.targetPlanId(), app.courseCode(), app.courseName(),
+                            app.credits(), CourseType.CROSS_DISCIPLINARY, app.semester(),
+                            true, 0, now, now,
+                            app.courseId(), app.offeringDepartmentId(), app.offeringDepartmentName(), quota);
+                    plans.insertCourse(connection, course);
+                }
+            }
+
+            return applicationView(updated);
+        });
+    }
+
+    private CrossCourseApplicationView applicationView(edu.seu.vcampus.server.student.domain.CrossCourseApplication app) {
+        return new CrossCourseApplicationView(
+                app.applicationId(), app.courseId(), app.courseCode(), app.courseName(),
+                app.credits(), app.offeringDepartmentId(), app.offeringDepartmentName(),
+                app.targetDepartmentId(), app.targetDepartmentName(),
+                app.targetPlanId(), app.targetPlanName(), app.semester(),
+                app.requestedQuota(), app.allocatedQuota(), app.applicantUserId(),
+                app.applicantName(), app.reason(), app.status(), app.reviewerUserId(),
+                app.reviewComment(), app.reviewedAt(), app.createdAt(), app.updatedAt());
+    }
+
+    private void requireMajor(java.sql.Connection connection, String majorId,
+            String departmentId) {
+        if (departmentId != null && organizations.findMajor(connection, majorId)
+                .filter(major -> departmentId.equals(major.departmentId())).isEmpty())
+            throw new IllegalArgumentException("COMMON_FORBIDDEN");
+    }
+
+    private static void requireDepartment(String actualDepartmentId, String departmentId) {
+        if (departmentId != null && !departmentId.equals(actualDepartmentId)) {
+            throw new IllegalArgumentException("COMMON_FORBIDDEN");
+        }
     }
 
     private void rejectDuplicateCourse(java.sql.Connection connection, String planId,

@@ -91,6 +91,12 @@ public final class TrainingPlanRepository {
 
     public List<TrainingPlanSummary> search(Connection connection, String majorId,
             Integer enrollmentYear, int offset, int limit) {
+        return search(connection, majorId, enrollmentYear, offset, limit, null);
+    }
+
+    /** Searches training plans restricted to a trusted department. */
+    public List<TrainingPlanSummary> search(Connection connection, String majorId,
+            Integer enrollmentYear, int offset, int limit, String departmentId) {
         StringBuilder sql = new StringBuilder(
                 "SELECT p.planId, p.majorId, m.majorName, d.departmentName, p.enrollmentYear, "
                 + "p.planName, p.minElectiveCount, p.minElectiveCredits, p.isActive, p.rowVersion, "
@@ -102,6 +108,10 @@ public final class TrainingPlanRepository {
                 + "FROM (tblTrainingPlan p INNER JOIN tblMajor m ON p.majorId = m.majorId) "
                 + "INNER JOIN tblDepartment d ON m.departmentId = d.departmentId WHERE 1=1");
         List<Object> params = new ArrayList<>();
+        if (departmentId != null) {
+            sql.append(" AND m.departmentId = ?");
+            params.add(departmentId);
+        }
         if (majorId != null && !majorId.isBlank()) {
             sql.append(" AND p.majorId = ?");
             params.add(majorId);
@@ -132,9 +142,20 @@ public final class TrainingPlanRepository {
     }
 
     public int countSearch(Connection connection, String majorId, Integer enrollmentYear) {
+        return countSearch(connection, majorId, enrollmentYear, null);
+    }
+
+    /** Counts matching training plans restricted to a trusted department. */
+    public int countSearch(Connection connection, String majorId, Integer enrollmentYear,
+            String departmentId) {
         StringBuilder sql = new StringBuilder(
-                "SELECT COUNT(*) FROM tblTrainingPlan p WHERE 1=1");
+                "SELECT COUNT(*) FROM tblTrainingPlan p INNER JOIN tblMajor m "
+                        + "ON p.majorId=m.majorId WHERE 1=1");
         List<Object> params = new ArrayList<>();
+        if (departmentId != null) {
+            sql.append(" AND m.departmentId = ?");
+            params.add(departmentId);
+        }
         if (majorId != null && !majorId.isBlank()) {
             sql.append(" AND p.majorId = ?");
             params.add(majorId);
@@ -160,7 +181,8 @@ public final class TrainingPlanRepository {
 
     public List<TrainingPlanCourse> listCourses(Connection connection, String planId) {
         String sql = "SELECT planCourseId, planId, courseCode, courseName, credits, courseType, "
-                + "semester, isActive, rowVersion, createdAt, updatedAt "
+                + "semester, isActive, rowVersion, createdAt, updatedAt, "
+                + "courseId, offeringDepartmentId, offeringDepartmentName, allocatedQuota "
                 + "FROM tblTrainingPlanCourse WHERE planId = ? ORDER BY courseType, semester, courseCode";
         try (var statement = connection.prepareStatement(sql)) {
             statement.setString(1, planId);
@@ -177,7 +199,8 @@ public final class TrainingPlanRepository {
     public Optional<TrainingPlanCourse> findCourseById(Connection connection,
             String planCourseId) {
         String sql = "SELECT planCourseId, planId, courseCode, courseName, credits, courseType, "
-                + "semester, isActive, rowVersion, createdAt, updatedAt "
+                + "semester, isActive, rowVersion, createdAt, updatedAt, "
+                + "courseId, offeringDepartmentId, offeringDepartmentName, allocatedQuota "
                 + "FROM tblTrainingPlanCourse WHERE planCourseId = ?";
         try (var statement = connection.prepareStatement(sql)) {
             statement.setString(1, planCourseId);
@@ -192,7 +215,8 @@ public final class TrainingPlanRepository {
     public Optional<TrainingPlanCourse> findCourseByPlanAndCode(Connection connection,
             String planId, String courseCode) {
         String sql = "SELECT planCourseId, planId, courseCode, courseName, credits, courseType, "
-                + "semester, isActive, rowVersion, createdAt, updatedAt "
+                + "semester, isActive, rowVersion, createdAt, updatedAt, "
+                + "courseId, offeringDepartmentId, offeringDepartmentName, allocatedQuota "
                 + "FROM tblTrainingPlanCourse WHERE planId = ? AND courseCode = ?";
         try (var statement = connection.prepareStatement(sql)) {
             statement.setString(1, planId);
@@ -220,20 +244,26 @@ public final class TrainingPlanRepository {
 
     public void insertCourse(Connection connection, TrainingPlanCourse course) {
         String sql = "INSERT INTO tblTrainingPlanCourse (planCourseId, planId, courseCode, "
-                + "courseName, credits, courseType, semester, isActive, rowVersion, createdAt, updatedAt) "
-                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                + "courseName, credits, courseType, semester, isActive, rowVersion, createdAt, updatedAt, "
+                + "courseId, offeringDepartmentId, offeringDepartmentName, allocatedQuota) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (var statement = connection.prepareStatement(sql)) {
             statement.setString(1, course.planCourseId());
             statement.setString(2, course.planId());
             statement.setString(3, course.courseCode());
             statement.setString(4, course.courseName());
             statement.setBigDecimal(5, course.credits());
-            statement.setString(6, course.courseType().name());
+            statement.setString(6, TrainingPlanCourseTypeCodec.store(course.courseType()));
             statement.setInt(7, course.semester());
             statement.setBoolean(8, course.active());
             statement.setLong(9, course.rowVersion());
             statement.setTimestamp(10, Timestamp.from(course.createdAt()));
             statement.setTimestamp(11, Timestamp.from(course.updatedAt()));
+            statement.setString(12, course.courseId());
+            statement.setString(13, course.offeringDepartmentId());
+            statement.setString(14, course.offeringDepartmentName());
+            if (course.allocatedQuota() != null) statement.setInt(15, course.allocatedQuota());
+            else statement.setNull(15, java.sql.Types.INTEGER);
             statement.executeUpdate();
         } catch (java.sql.SQLException error) {
             if (error.getErrorCode() == 19 || error.getMessage() != null
@@ -249,18 +279,24 @@ public final class TrainingPlanRepository {
     public void updateCourse(Connection connection, TrainingPlanCourse course,
             long expectedVersion) {
         String sql = "UPDATE tblTrainingPlanCourse SET courseCode=?, courseName=?, credits=?, "
-                + "courseType=?, semester=?, isActive=?, rowVersion=rowVersion+1, updatedAt=? "
+                + "courseType=?, semester=?, isActive=?, rowVersion=rowVersion+1, updatedAt=?, "
+                + "courseId=?, offeringDepartmentId=?, offeringDepartmentName=?, allocatedQuota=? "
                 + "WHERE planCourseId=? AND rowVersion=?";
         try (var statement = connection.prepareStatement(sql)) {
             statement.setString(1, course.courseCode());
             statement.setString(2, course.courseName());
             statement.setBigDecimal(3, course.credits());
-            statement.setString(4, course.courseType().name());
+            statement.setString(4, TrainingPlanCourseTypeCodec.store(course.courseType()));
             statement.setInt(5, course.semester());
             statement.setBoolean(6, course.active());
             statement.setTimestamp(7, Timestamp.from(course.updatedAt()));
-            statement.setString(8, course.planCourseId());
-            statement.setLong(9, expectedVersion);
+            statement.setString(8, course.courseId());
+            statement.setString(9, course.offeringDepartmentId());
+            statement.setString(10, course.offeringDepartmentName());
+            if (course.allocatedQuota() != null) statement.setInt(11, course.allocatedQuota());
+            else statement.setNull(11, java.sql.Types.INTEGER);
+            statement.setString(12, course.planCourseId());
+            statement.setLong(13, expectedVersion);
             if (statement.executeUpdate() != 1)
                 throw new ConcurrentModificationException("Training plan course version changed");
         } catch (java.sql.SQLException error) {
@@ -299,18 +335,23 @@ public final class TrainingPlanRepository {
     }
 
     private TrainingPlanCourse mapCourse(java.sql.ResultSet result) throws java.sql.SQLException {
+        Integer quota = result.getObject("allocatedQuota") != null ? result.getInt("allocatedQuota") : null;
         return new TrainingPlanCourse(
                 result.getString("planCourseId"),
                 result.getString("planId"),
                 result.getString("courseCode"),
                 result.getString("courseName"),
                 result.getBigDecimal("credits"),
-                CourseType.valueOf(result.getString("courseType")),
+                TrainingPlanCourseTypeCodec.read(result.getString("courseType")),
                 result.getInt("semester"),
                 result.getBoolean("isActive"),
                 result.getLong("rowVersion"),
                 result.getTimestamp("createdAt").toInstant(),
-                result.getTimestamp("updatedAt").toInstant());
+                result.getTimestamp("updatedAt").toInstant(),
+                result.getString("courseId"),
+                result.getString("offeringDepartmentId"),
+                result.getString("offeringDepartmentName"),
+                quota);
     }
 
     private TrainingPlanSummary mapSummary(java.sql.ResultSet result)

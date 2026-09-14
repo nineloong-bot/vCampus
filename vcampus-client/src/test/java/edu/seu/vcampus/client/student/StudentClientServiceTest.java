@@ -8,6 +8,7 @@ import edu.seu.vcampus.common.student.StudentAdmissionResult;
 import edu.seu.vcampus.common.student.StudentType;
 import edu.seu.vcampus.common.student.SaveDepartmentCommand;
 import edu.seu.vcampus.common.student.*;
+import edu.seu.vcampus.common.student.governance.*;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
@@ -117,6 +118,26 @@ class StudentClientServiceTest {
         service.getProfile("student-9").join();
         assertThat(client.command).isEqualTo("STUDENT_GET_PROFILE");
         assertThat(client.body).isEqualTo(new EntityIdRequest("student-9"));
+    }
+
+    @Test
+    void collegeGovernanceUsesDedicatedMessageContracts() {
+        var client = new RecordingClient();
+        var service = new StudentClientService(client, Duration.ofSeconds(3));
+        var assign = new AssignStudentCollegeAdministratorCommand("department", "user", 1);
+        var transfer = new TransferStudentCollegeAdministratorCommand(
+                "user", "department", "target", 2, 3);
+        var deactivate = new DeactivateStudentCollegeAdministratorCommand(
+                "target", "user", 4);
+
+        service.searchCollegeAdministrators().join();
+        assertThat(client.command).isEqualTo("STUDENT_COLLEGE_ADMIN_SEARCH");
+        service.assignCollegeAdministrator(assign).join();
+        assertThat(client.command).isEqualTo("STUDENT_COLLEGE_ADMIN_ASSIGN");
+        service.transferCollegeAdministrator(transfer).join();
+        assertThat(client.command).isEqualTo("STUDENT_COLLEGE_ADMIN_TRANSFER");
+        service.deactivateCollegeAdministrator(deactivate).join();
+        assertThat(client.command).isEqualTo("STUDENT_COLLEGE_ADMIN_DEACTIVATE");
     }
 
     private static final class RecordingClient implements StudentRequestClient {

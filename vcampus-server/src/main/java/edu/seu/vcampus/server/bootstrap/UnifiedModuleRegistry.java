@@ -1,8 +1,6 @@
 package edu.seu.vcampus.server.bootstrap;
 
 import edu.seu.vcampus.server.concurrency.ResourceLockManager;
-import edu.seu.vcampus.server.governance.AccessModuleAdministrationRepository;
-import edu.seu.vcampus.server.governance.ModuleAdministrationService;
 import edu.seu.vcampus.server.library.handler.LibraryHandlers;
 import edu.seu.vcampus.server.library.repository.AccessBookRepository;
 import edu.seu.vcampus.server.library.repository.AccessLibraryPolicyRepository;
@@ -61,7 +59,7 @@ import edu.seu.vcampus.server.student.service.StudentQueryPort;
 import edu.seu.vcampus.server.student.service.StudentServiceImpl;
 import edu.seu.vcampus.server.student.service.StudentGradeServiceImpl;
 import edu.seu.vcampus.server.student.service.TrainingPlanServiceImpl;
-import edu.seu.vcampus.server.user.handler.ModuleAdministrationHandlers;
+import edu.seu.vcampus.server.student.security.StudentCollegeScopeAuthorizationService;
 import edu.seu.vcampus.server.user.repository.AccessAuditRepository;
 import edu.seu.vcampus.server.user.repository.AccessUserRepository;
 import edu.seu.vcampus.server.user.service.PasswordHasher;
@@ -90,16 +88,6 @@ final class UnifiedModuleRegistry {
         registerShop(router, transactions, locks, sessions, authorization, deduplicator, clock);
     }
 
-    static void registerGovernance(MessageRouter router, TransactionManager transactions,
-                                   ResourceLockManager locks, SessionRegistry sessions,
-                                   AuthorizationService authorization,
-                                   RequestDeduplicator deduplicator,
-                                   AccessAuditRepository audits) {
-        ModuleAdministrationService governance = new ModuleAdministrationService(
-                transactions, locks, new AccessModuleAdministrationRepository(), audits, sessions);
-        new ModuleAdministrationHandlers(router, governance, authorization, deduplicator);
-    }
-
     static StudentQueryPort registerStudent(MessageRouter router, TransactionManager transactions,
                                             ResourceLockManager locks, SessionRegistry sessions,
                                             RequestDeduplicator deduplicator, UserQueryPort users,
@@ -126,10 +114,12 @@ final class UnifiedModuleRegistry {
             return new StudentPrincipal(identity.userId(), Set.of(identity.role().name()),
                     snapshot.permissions());
         };
+        StudentCollegeScopeAuthorizationService collegeScope =
+                new StudentCollegeScopeAuthorizationService(transactions);
         new StudentHandlers(admissions, service,
                 new StudentOrganizationAdminService(transactions, locks, organizations),
                 studentAuthorization, new DeduplicatingStudentWriteExecutor(deduplicator),
-                profiles, new StudentProfilePdfService()).register(router);
+                profiles, new StudentProfilePdfService(), collegeScope).register(router);
         MajorTransferServiceImpl transfers = new MajorTransferServiceImpl(
                 transactions, locks, new MajorTransferRepository(), students, changes,
                 organizations, users);
@@ -141,7 +131,8 @@ final class UnifiedModuleRegistry {
         new TrainingPlanHandlers(
                 new TrainingPlanServiceImpl(transactions, locks, plans, students, organizations),
                 new StudentGradeServiceImpl(transactions, locks, grades, plans, students),
-                studentAuthorization, new DeduplicatingStudentWriteExecutor(deduplicator))
+                studentAuthorization, new DeduplicatingStudentWriteExecutor(deduplicator),
+                collegeScope)
                 .register(router);
         return service;
     }

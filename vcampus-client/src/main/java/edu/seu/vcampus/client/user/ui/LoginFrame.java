@@ -109,7 +109,7 @@ public final class LoginFrame extends JFrame {
         c.gridwidth = 2;
         c.weightx = 1;
         c.fill = GridBagConstraints.HORIZONTAL;
-        c.insets = new Insets(0, 0, UiSpacing.SPACE_6, 0);
+        c.insets = new Insets(0, 0, UiSpacing.SPACE_3, 0);
         JLabel heading = new JLabel("登录校园账户");
         heading.setFont(UiTypography.PAGE_TITLE);
         panel.add(heading, c);

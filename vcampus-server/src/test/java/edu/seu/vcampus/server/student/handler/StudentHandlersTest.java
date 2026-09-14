@@ -19,10 +19,87 @@ import java.util.Set;
 import java.util.ConcurrentModificationException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicBoolean;
+import edu.seu.vcampus.server.student.security.StudentCollegeScopeAuthorizationService;
+import static org.mockito.Mockito.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class StudentHandlersTest {
+    @Test
+    void studentAdministratorCannotSearchConcreteStudentRecords() {
+        var called = new AtomicBoolean();
+        StudentService service = recordingSearchService(called, new AtomicReference<>());
+        var router = new MessageRouter(Map.of());
+        new StudentHandlers((command, context) -> null, service, organizationQuery(),
+                token -> new StudentPrincipal("central-1", Set.of("STUDENT_ADMIN"), Set.of()),
+                (request, principal, action) -> action.get(), null, null, null).register(router);
+
+        var response = router.route(request("STUDENT_SEARCH",
+                new edu.seu.vcampus.common.student.StudentSearchQuery(
+                        null, null, null, null, null, 1, 20)), client());
+
+        assertThat(response.code()).isEqualTo("COMMON_FORBIDDEN");
+        assertThat(called).isFalse();
+    }
+
+    @Test
+    void studentAdministratorCanSaveDepartmentAndMajor() {
+        var router = new MessageRouter(Map.of());
+        var savedDept = new AtomicBoolean();
+        var savedMajor = new AtomicBoolean();
+        StudentOrganizationQuery orgQuery = new StudentOrganizationQuery() {
+            public java.util.List<edu.seu.vcampus.common.student.DepartmentView> listDepartments(boolean active) { return java.util.List.of(); }
+            public java.util.List<edu.seu.vcampus.common.student.MajorView> listMajors(String id) { return java.util.List.of(); }
+            public java.util.List<edu.seu.vcampus.common.student.ClassView> listClasses(String id) { return java.util.List.of(); }
+            public edu.seu.vcampus.common.student.DepartmentView saveDepartment(
+                    edu.seu.vcampus.common.student.SaveDepartmentCommand command) {
+                savedDept.set(true);
+                return new edu.seu.vcampus.common.student.DepartmentView(
+                        "dept-1", command.code(), command.name(), command.active(), 0);
+            }
+            public edu.seu.vcampus.common.student.MajorView saveMajor(
+                    edu.seu.vcampus.common.student.SaveMajorCommand command) {
+                savedMajor.set(true);
+                return new edu.seu.vcampus.common.student.MajorView(
+                        "major-1", command.departmentId(), command.code(), command.name(),
+                        command.grades(), command.active(), 0);
+            }
+        };
+        new StudentHandlers((command, context) -> null, studentService(), orgQuery,
+                token -> new StudentPrincipal("student-admin-1", Set.of("STUDENT_ADMIN"), Set.of()),
+                (request, principal, action) -> action.get(), null, null, null).register(router);
+
+        var deptResponse = router.route(request("STUDENT_SAVE_DEPARTMENT",
+                new edu.seu.vcampus.common.student.SaveDepartmentCommand("", "CS", "Computer Science", true, 0)), client());
+        assertThat(deptResponse.success()).isTrue();
+        assertThat(savedDept).isTrue();
+
+        var majorResponse = router.route(request("STUDENT_SAVE_MAJOR",
+                new edu.seu.vcampus.common.student.SaveMajorCommand("", "dept-1", "090", "SE", "1,2", true, 0)), client());
+        assertThat(majorResponse.success()).isTrue();
+        assertThat(savedMajor).isTrue();
+    }
+
+    @Test
+    void collegeAdministratorSearchUsesServerResolvedDepartment() {
+        var called = new AtomicBoolean();
+        var department = new AtomicReference<String>();
+        StudentService service = recordingSearchService(called, department);
+        var scope = mock(StudentCollegeScopeAuthorizationService.class);
+        when(scope.requireActiveDepartment("college-1")).thenReturn("trusted-department");
+        var router = new MessageRouter(Map.of());
+        new StudentHandlers((command, context) -> null, service, organizationQuery(),
+                token -> new StudentPrincipal("college-1", Set.of("COLLEGE_ADMIN"), Set.of()),
+                (request, principal, action) -> action.get(), null, null, scope).register(router);
+
+        var response = router.route(request("STUDENT_SEARCH",
+                new edu.seu.vcampus.common.student.StudentSearchQuery(
+                        null, "forged-department", null, null, null, 1, 20)), client());
+
+        assertThat(response.success()).isTrue();
+        assertThat(called).isTrue();
+        assertThat(department).hasValue("trusted-department");
+    }
     @Test
     void studentCreateRejectsUserWithoutWritePermissionBeforeBusinessCall() {
         var router = new MessageRouter(Map.of());
@@ -235,6 +312,19 @@ class StudentHandlersTest {
             }
             public edu.seu.vcampus.common.student.StudentView getCurrentStudent(String id) { return getStudent(id); }
             public edu.seu.vcampus.common.paging.PageResult<edu.seu.vcampus.common.student.StudentSummary> searchStudents(edu.seu.vcampus.common.student.StudentSearchQuery q) { return null; }
+            public edu.seu.vcampus.common.student.StudentView updateContact(edu.seu.vcampus.common.student.UpdateStudentContactCommand c) { return null; }
+            public edu.seu.vcampus.common.student.StudentView updateEnrollment(edu.seu.vcampus.common.student.UpdateStudentEnrollmentCommand c) { return null; }
+            public edu.seu.vcampus.common.student.StudentView changeStatus(edu.seu.vcampus.common.student.ChangeStudentStatusCommand c) { return null; }
+        };
+    }
+
+    private static StudentService recordingSearchService(AtomicBoolean called,
+            AtomicReference<String> department) {
+        return new StudentService() {
+            public edu.seu.vcampus.common.student.StudentView getStudent(String id) { return null; }
+            public edu.seu.vcampus.common.student.StudentView getCurrentStudent(String id) { return null; }
+            public edu.seu.vcampus.common.paging.PageResult<edu.seu.vcampus.common.student.StudentSummary> searchStudents(edu.seu.vcampus.common.student.StudentSearchQuery q) { called.set(true); return new edu.seu.vcampus.common.paging.PageResult<>(java.util.List.of(), 1, 20, 0); }
+            public edu.seu.vcampus.common.paging.PageResult<edu.seu.vcampus.common.student.StudentSummary> searchStudents(edu.seu.vcampus.common.student.StudentSearchQuery q, String departmentId) { called.set(true); department.set(departmentId); return new edu.seu.vcampus.common.paging.PageResult<>(java.util.List.of(), 1, 20, 0); }
             public edu.seu.vcampus.common.student.StudentView updateContact(edu.seu.vcampus.common.student.UpdateStudentContactCommand c) { return null; }
             public edu.seu.vcampus.common.student.StudentView updateEnrollment(edu.seu.vcampus.common.student.UpdateStudentEnrollmentCommand c) { return null; }
             public edu.seu.vcampus.common.student.StudentView changeStatus(edu.seu.vcampus.common.student.ChangeStudentStatusCommand c) { return null; }

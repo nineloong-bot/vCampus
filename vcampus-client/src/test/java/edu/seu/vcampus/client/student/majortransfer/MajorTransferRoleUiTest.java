@@ -1,8 +1,7 @@
 package edu.seu.vcampus.client.student.majortransfer;
 
-import edu.seu.vcampus.client.core.network.ClientConnection;
-import edu.seu.vcampus.client.student.majortransfer.ui.MajorTransferAdminPanel;
-import edu.seu.vcampus.client.student.majortransfer.ui.MajorTransferAdminPanel.TransferAdminMode;
+import edu.seu.vcampus.client.student.majortransfer.ui.MajorTransferBatchManagementPanel;
+import edu.seu.vcampus.client.student.majortransfer.ui.MajorTransferCollegeProcessingPanel;
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.student.majortransfer.MajorTransferApplicationType;
@@ -24,34 +23,33 @@ import static org.assertj.core.api.Assertions.assertThat;
 class MajorTransferRoleUiTest {
     @Test
     void centralModeShowsManagementButNeverCollegeReviewControls() throws Exception {
-        try (ClientConnection connection = new ClientConnection("localhost", 1)) {
-            SwingUtilities.invokeAndWait(() -> {
-                var panel = new MajorTransferAdminPanel(client(), connection,
-                        TransferAdminMode.CENTRAL_MANAGEMENT);
-                assertThat(find(panel, "saveBatchButton")).isNotNull();
-                render(panel, application(MajorTransferStatus.SUBMITTED));
-                assertThat(find(panel, "sourceReviewButton")).isNull();
-                render(panel, application(MajorTransferStatus.QUALIFIED));
-                assertThat(find(panel, "recordScoreButton")).isNotNull();
-            });
-        }
+        SwingUtilities.invokeAndWait(() -> {
+            var panel = new MajorTransferBatchManagementPanel(client());
+            assertThat(find(panel, "saveBatchButton")).isNotNull();
+            assertThat(find(panel, "sourceReviewButton")).isNull();
+            assertThat(find(panel, "recordScoreButton")).isNull();
+            assertThat(find(panel, "executeButton")).isNull();
+        });
     }
 
     @Test
-    void collegeModeShowsOnlyStageApprovals() throws Exception {
-        try (ClientConnection connection = new ClientConnection("localhost", 1)) {
-            SwingUtilities.invokeAndWait(() -> {
-                var panel = new MajorTransferAdminPanel(client(), connection,
-                        TransferAdminMode.COLLEGE_APPROVAL);
-                assertThat(find(panel, "saveBatchButton")).isNull();
-                render(panel, application(MajorTransferStatus.SUBMITTED));
-                assertThat(find(panel, "sourceReviewButton")).isNotNull();
-                render(panel, application(MajorTransferStatus.SOURCE_APPROVED));
-                assertThat(find(panel, "targetReviewButton")).isNotNull();
-                render(panel, application(MajorTransferStatus.QUALIFIED));
-                assertThat(find(panel, "recordScoreButton")).isNull();
-            });
-        }
+    void collegeModeShowsOptionAndTargetProcessingControls() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            var panel = new MajorTransferCollegeProcessingPanel(client());
+            assertThat(find(panel, "saveBatchButton")).isNull();
+            assertThat(find(panel, "saveOptionButton")).isNotNull();
+            ownOption(panel, "option");
+            render(panel, application(MajorTransferStatus.SUBMITTED));
+            assertThat(find(panel, "sourceReviewButton")).isNotNull();
+            render(panel, application(MajorTransferStatus.SOURCE_APPROVED));
+            assertThat(find(panel, "targetReviewButton")).isNotNull();
+            render(panel, application(MajorTransferStatus.QUALIFIED));
+            assertThat(find(panel, "recordScoreButton")).isNotNull();
+            render(panel, application(MajorTransferStatus.PENDING_EFFECTIVE));
+            assertThat(find(panel, "executeButton")).isNotNull();
+            render(panel, applicationWithAttachment());
+            assertThat(find(panel, "downloadAttachmentButton")).isNotNull();
+        });
     }
 
     private static StudentClientService client() {
@@ -77,13 +75,39 @@ class MajorTransferRoleUiTest {
                 0, now, now, now);
     }
 
-    private static void render(MajorTransferAdminPanel panel,
+    private static MajorTransferApplicationView applicationWithAttachment() {
+        MajorTransferApplicationView app = application(MajorTransferStatus.SUBMITTED);
+        return new MajorTransferApplicationView(app.applicationId(), app.batchId(), app.studentId(),
+                app.studentName(), app.applicationType(), app.status(), app.optionId(),
+                app.targetMajorId(), app.targetMajorName(), app.targetDepartmentId(),
+                app.targetDepartmentName(), app.fromDepartmentId(), app.fromDepartmentName(),
+                app.fromMajorId(), app.fromMajorName(), app.fromClassId(), app.fromClassName(),
+                app.fromStudentNumber(), app.fromGrade(), app.reason(), app.writtenScore(),
+                app.interviewScore(), app.finalScore(), app.reviews(),
+                List.of(new MajorTransferApplicationView.AttachmentInfo(
+                        "attachment", "证明.pdf", "application/pdf", 1024)),
+                app.sourceApprovalAllowed(), app.targetApprovalAllowed(),
+                app.applicationVersion(), app.submittedAt(), app.createdAt(), app.updatedAt());
+    }
+
+    private static void render(MajorTransferCollegeProcessingPanel panel,
                                MajorTransferApplicationView application) {
         try {
-            var method = MajorTransferAdminPanel.class.getDeclaredMethod(
+            var method = MajorTransferCollegeProcessingPanel.class.getDeclaredMethod(
                     "renderDetail", MajorTransferApplicationView.class);
             method.setAccessible(true);
             method.invoke(panel, application);
+        } catch (ReflectiveOperationException error) {
+            throw new AssertionError(error);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void ownOption(MajorTransferCollegeProcessingPanel panel, String optionId) {
+        try {
+            var field = MajorTransferCollegeProcessingPanel.class.getDeclaredField("ownedOptions");
+            field.setAccessible(true);
+            ((java.util.Set<String>) field.get(panel)).add(optionId);
         } catch (ReflectiveOperationException error) {
             throw new AssertionError(error);
         }

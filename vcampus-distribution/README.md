@@ -4,7 +4,7 @@
 
 ## 运行要求
 
-- Windows 系统；
+- Windows、macOS 或 Linux；
 - JDK 21 或更高版本。
 
 ## 直接启动
@@ -15,8 +15,15 @@ clone 或 pull 仓库后，进入：
 vcampus-distribution/scripts
 ```
 
+Windows：
+
 1. 双击 `start-server-with-data.bat`。
 2. 看到服务端监听 8888 端口后，双击 `start-client.bat`。
+
+macOS / Linux：
+
+1. 运行 `./start-server-with-data.sh`。
+2. 服务端启动后运行 `./start-client.sh`。
 
 需要恢复仓库随附的初始演示数据时，先停止服务端，再运行 `reset-data.bat`。
 

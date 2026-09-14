@@ -9,7 +9,6 @@ vcampus-distribution/data/
 vcampus-distribution/database/
 vcampus-distribution/logs/
 **/docs/uml/
-/vCampus-release/
 /docs/student-class-diagram.md
 
 # Local test packages, runtime logs, and temporary design previews
@@ -21,7 +20,9 @@ vcampus-distribution/logs/
 *.pdf
 /.mimocode/
 /docs/转专业与培养方案功能说明及测试账号.md
-
 !/artifacts/
 /artifacts/*
 !/artifacts/vCampus-full-test-data-20260911.zip
+vCampus-release/logs/
+vCampus-release/docs/
+vCampus-release/lib/vcampus-*-1.0.0-SNAPSHOT.jar

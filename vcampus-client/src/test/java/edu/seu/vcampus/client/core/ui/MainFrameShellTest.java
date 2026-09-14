@@ -32,8 +32,8 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 import static edu.seu.vcampus.common.user.AccountStatus.ACTIVE;
-import static edu.seu.vcampus.common.user.UserRole.ADMIN;
 import static edu.seu.vcampus.common.user.UserRole.STUDENT;
+import static edu.seu.vcampus.common.user.UserRole.STUDENT_ADMIN;
 import static edu.seu.vcampus.common.user.UserRole.TEACHER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -67,7 +67,7 @@ class MainFrameShellTest {
         assertThat(component(frame[0], "header.brand", JLabel.class).getText())
                 .isEqualTo("vCampus · 虚拟校园");
         assertThat(component(frame[0], "identity.summary", JLabel.class).getText())
-                .isEqualTo("DEMO_ADMIN · 管理员");
+                .isEqualTo("DEMO_STUDENT · 学生");
         assertThat(component(frame[0], "status.message", JLabel.class).getText())
                 .isEqualTo("就绪");
         assertThat(component(frame[0], "status.date", JLabel.class).getText())
@@ -85,7 +85,7 @@ class MainFrameShellTest {
                     AbstractButton.class);
             assertThat(item.getText()).isEqualTo(TITLES[index]);
             assertThat(item.getAccessibleContext().getAccessibleName()).isNotBlank();
-            assertThat(item.isSelected()).isEqualTo("account".equals(PAGE_IDS[index]));
+            assertThat(item.isSelected()).isEqualTo(index == 0);
         }
     }
 
@@ -133,9 +133,9 @@ class MainFrameShellTest {
             assertThat(item.isFocusPainted()).isFalse();
             assertThat(item.isOpaque()).isTrue();
             assertThat(item.isContentAreaFilled()).isTrue();
-            assertThat(item.getBackground()).isEqualTo("account".equals(PAGE_IDS[index])
+            assertThat(item.getBackground()).isEqualTo(index == 0
                     ? UiColors.PRIMARY : UiColors.BACKGROUND_NAV);
-            assertThat(item.getForeground()).isEqualTo("account".equals(PAGE_IDS[index])
+            assertThat(item.getForeground()).isEqualTo(index == 0
                     ? UiColors.TEXT_ON_PRIMARY : UiColors.TEXT_PRIMARY);
         }
     }
@@ -209,24 +209,22 @@ class MainFrameShellTest {
     }
 
     @Test
-    void dependencyAwareTeacherStartsOnStudentPlaceholderAndAdminStartsOnAccount() throws Exception {
+    void dependencyAwareTeacherAndAdminShellsStartOnTheirStudentModule() throws Exception {
         MainFrame[] teacher = new MainFrame[1];
         MainFrame[] admin = new MainFrame[1];
         SwingUtilities.invokeAndWait(() -> {
             teacher[0] = new MainFrame(user(TEACHER), connected(), students());
-            admin[0] = new MainFrame(user(ADMIN), connected(), students());
+            admin[0] = new MainFrame(user(STUDENT_ADMIN), connected(), students());
         });
 
         assertThat(component(teacher[0].content(), "student.module", JPanel.class).isVisible())
                 .isTrue();
-        assertThat(component(admin[0].content(), "page.account", JPanel.class).isVisible())
-                .isTrue();
-        assertThat(component(admin[0], "navigation.account", AbstractButton.class).isSelected())
+        assertThat(component(admin[0].content(), "student.module", JPanel.class).isVisible())
                 .isTrue();
     }
 
     private static UserView user() {
-        return user(ADMIN);
+        return user(STUDENT);
     }
 
     private static UserView user(edu.seu.vcampus.common.user.UserRole role) {

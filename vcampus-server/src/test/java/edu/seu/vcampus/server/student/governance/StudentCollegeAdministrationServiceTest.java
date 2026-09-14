@@ -8,6 +8,10 @@ import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import edu.seu.vcampus.server.persistence.TransactionManager;
 import edu.seu.vcampus.server.session.SessionRegistry;
+import edu.seu.vcampus.server.security.SessionExpiredException;
+import edu.seu.vcampus.server.security.UserIdentity;
+import edu.seu.vcampus.common.user.AccountStatus;
+import edu.seu.vcampus.common.user.UserRole;
 import edu.seu.vcampus.server.user.repository.AccessAuditRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,6 +33,7 @@ class StudentCollegeAdministrationServiceTest {
     private static final String EXTRA = "00000000-0000-0000-0000-000000000302";
     private TransactionManager transactions;
     private StudentCollegeAdministrationService service;
+    private SessionRegistry sessions;
 
     @BeforeEach void setup() throws Exception {
         Path database = Path.of("target", "test-data", UUID.randomUUID() + ".accdb");
@@ -45,9 +50,10 @@ class StudentCollegeAdministrationServiceTest {
                     """)) { statement.setString(1, EXTRA); statement.setString(2, CS_ADMIN); statement.executeUpdate(); }
             return null;
         });
+        sessions = new SessionRegistry();
         service = new StudentCollegeAdministrationService(transactions,
                 new StripedResourceLockManager(), new AccessStudentCollegeAdministrationRepository(),
-                new AccessAuditRepository(), new SessionRegistry());
+                new AccessAuditRepository(), sessions);
     }
 
     @Test void enforcesUniqueCollegeAndProtectsLastAdministrator() {
@@ -62,6 +68,29 @@ class StudentCollegeAdministrationServiceTest {
         assertThat(active(MATH, MATH_ADMIN)).isTrue();
     }
 
+    @Test
+    void listsSanitizedAdministratorsAndAssignableDepartments() {
+        var snapshot = service.list();
+
+        assertThat(snapshot.administrators()).extracting("userId")
+                .contains(CS_ADMIN, MATH_ADMIN, EXTRA);
+        assertThat(snapshot.administrators()).allSatisfy(administrator ->
+                assertThat(administrator.loginId()).isNotBlank());
+        assertThat(snapshot.departments()).extracting("departmentId")
+                .contains(CS, MATH);
+    }
+
+    @Test
+    void assignmentRevokesExistingAdministratorSessions() {
+        String token = sessions.create(new UserIdentity(EXTRA, "EXTRA_COLLEGE_ADMIN",
+                UserRole.COLLEGE_ADMIN, AccountStatus.ACTIVE));
+
+        service.assign(ACTOR, new AssignStudentCollegeAdministratorCommand(CS, EXTRA, 0));
+
+        assertThatThrownBy(() -> sessions.requireSession(token))
+                .isInstanceOf(SessionExpiredException.class);
+    }
+
     @Test void transfersAtomicallyWithoutLeavingSourceCollegeUnmanaged() {
         service.assign(ACTOR, new AssignStudentCollegeAdministratorCommand(CS, EXTRA, 0));
         service.transfer(ACTOR, new TransferStudentCollegeAdministratorCommand(
@@ -69,6 +98,50 @@ class StudentCollegeAdministrationServiceTest {
         assertThat(active(CS, EXTRA)).isFalse();
         assertThat(active(CS, CS_ADMIN)).isTrue();
         assertThat(active(MATH, EXTRA)).isTrue();
+    }
+
+    @Test
+    void provisionsNewCollegeAdministratorWithoutAssignment() {
+        var create = new edu.seu.vcampus.common.student.governance.CreateCollegeAdministratorCommand(
+                "NEW_UNASSIGNED_ADMIN", "Pass1234", null);
+        service.createAdministrator(ACTOR, create);
+
+        var snapshot = service.list();
+        var found = snapshot.administrators().stream()
+                .filter(a -> "NEW_UNASSIGNED_ADMIN".equalsIgnoreCase(a.loginId()))
+                .findFirst();
+        assertThat(found).isPresent();
+        assertThat(found.get().assigned()).isFalse();
+        assertThat(found.get().departmentId()).isNull();
+
+        // Assign to CS
+        service.assign(ACTOR, new AssignStudentCollegeAdministratorCommand(CS, found.get().userId(), 0));
+        assertThat(active(CS, found.get().userId())).isTrue();
+    }
+
+    @Test
+    void provisionsNewCollegeAdministratorWithDirectAssignment() {
+        var create = new edu.seu.vcampus.common.student.governance.CreateCollegeAdministratorCommand(
+                "NEW_CS_ADMIN", "Pass1234", CS);
+        service.createAdministrator(ACTOR, create);
+
+        var snapshot = service.list();
+        var found = snapshot.administrators().stream()
+                .filter(a -> "NEW_CS_ADMIN".equalsIgnoreCase(a.loginId()))
+                .findFirst();
+        assertThat(found).isPresent();
+        assertThat(found.get().assigned()).isTrue();
+        assertThat(found.get().departmentId()).isEqualTo(CS);
+        assertThat(active(CS, found.get().userId())).isTrue();
+    }
+
+    @Test
+    void provisionsAdministratorRejectsDuplicateUsername() {
+        var create = new edu.seu.vcampus.common.student.governance.CreateCollegeAdministratorCommand(
+                "CS_COLLEGE_ADMIN", "Pass1234", null);
+        assertThatThrownBy(() -> service.createAdministrator(ACTOR, create))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("USER_LOGIN_ID_EXISTS");
     }
 
     private boolean active(String department, String user) {

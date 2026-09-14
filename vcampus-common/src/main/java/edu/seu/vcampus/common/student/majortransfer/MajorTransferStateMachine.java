@@ -13,8 +13,7 @@ public final class MajorTransferStateMachine {
             Map.entry(SUBMITTED, Set.of(DRAFT, SOURCE_APPROVED, REJECTED)),
             Map.entry(SOURCE_APPROVED, Set.of(QUALIFIED, REJECTED, CANCELLED)),
             Map.entry(QUALIFIED, Set.of(ASSESSED, REJECTED, CANCELLED)),
-            Map.entry(ASSESSED, Set.of(PROPOSED, REJECTED, CANCELLED)),
-            Map.entry(PROPOSED, Set.of(PENDING_EFFECTIVE, REJECTED, CANCELLED)),
+            Map.entry(ASSESSED, Set.of(PENDING_EFFECTIVE, REJECTED, CANCELLED)),
             Map.entry(PENDING_EFFECTIVE, Set.of(EFFECTIVE, EXECUTION_FAILED, CANCELLED)),
             Map.entry(EXECUTION_FAILED, Set.of(EFFECTIVE, CANCELLED))
     );
@@ -49,7 +48,7 @@ public final class MajorTransferStateMachine {
     /** Returns true when an administrator may cancel the application. */
     public static boolean adminMayCancel(MajorTransferStatus status) {
         return switch (status) {
-            case SOURCE_APPROVED, QUALIFIED, ASSESSED, PROPOSED, PENDING_EFFECTIVE -> true;
+            case SOURCE_APPROVED, QUALIFIED, ASSESSED, PENDING_EFFECTIVE -> true;
             default -> false;
         };
     }
