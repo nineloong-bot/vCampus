@@ -28,9 +28,23 @@ public interface MajorTransferService {
 
     MajorTransferOptionView saveOption(String adminUserId, SaveMajorTransferOptionCommand command);
 
+    /** Saves an option after rechecking that its target belongs to the trusted college. */
+    default MajorTransferOptionView saveOption(String adminUserId,
+            SaveMajorTransferOptionCommand command, String trustedDepartmentId) {
+        return saveOption(adminUserId, command);
+    }
+
     List<MajorTransferBatchView> listBatches();
 
     List<MajorTransferOptionView> listOptions(String batchId);
+
+    /** Lists only options owned by the trusted college. */
+    default List<MajorTransferOptionView> listOptionsForCollege(
+            String batchId, String trustedDepartmentId) {
+        return listOptions(batchId).stream()
+                .filter(option -> trustedDepartmentId.equals(option.targetDepartmentId()))
+                .toList();
+    }
 
     // ── Admin: review workflow ──
 
@@ -45,19 +59,61 @@ public interface MajorTransferService {
 
     MajorTransferApplicationView reviewSource(String adminUserId, ReviewMajorTransferSourceCommand command);
 
+    /** Reviews a source stage after transaction-time college validation. */
+    default MajorTransferApplicationView reviewSource(String adminUserId,
+            ReviewMajorTransferSourceCommand command, String trustedDepartmentId) {
+        return reviewSource(adminUserId, command);
+    }
+
     MajorTransferApplicationView reviewQualification(String adminUserId, ReviewMajorTransferQualificationCommand command);
 
+    /** Reviews qualification after transaction-time target-college validation. */
+    default MajorTransferApplicationView reviewQualification(String adminUserId,
+            ReviewMajorTransferQualificationCommand command, String trustedDepartmentId) {
+        return reviewQualification(adminUserId, command);
+    }
+
     MajorTransferApplicationView cancel(String adminUserId, CancelMajorTransferCommand command);
+
+    /** Cancels an application after transaction-time target-college validation. */
+    default MajorTransferApplicationView cancel(String adminUserId,
+            CancelMajorTransferCommand command, String trustedDepartmentId) {
+        return cancel(adminUserId, command);
+    }
 
     // ── Admin: assessment ──
 
     MajorTransferApplicationView recordScore(String adminUserId, RecordMajorTransferScoreCommand command);
 
+    /** Records a score after transaction-time target-college validation. */
+    default MajorTransferApplicationView recordScore(String adminUserId,
+            RecordMajorTransferScoreCommand command, String trustedDepartmentId) {
+        return recordScore(adminUserId, command);
+    }
+
     MajorTransferImportResult importScores(String adminUserId, ImportMajorTransferScoresCommand command);
+
+    /** Imports scores after transaction-time target-college validation. */
+    default MajorTransferImportResult importScores(String adminUserId,
+            ImportMajorTransferScoresCommand command, String trustedDepartmentId) {
+        return importScores(adminUserId, command);
+    }
 
     // ── Admin: final approval and execution ──
 
-    MajorTransferApplicationView finalizeProposal(String adminUserId, FinalizeMajorTransferCommand command);
+    MajorTransferApplicationView finalizeApproval(String adminUserId, FinalizeMajorTransferCommand command);
+
+    /** Finalizes an application after transaction-time target-college validation. */
+    default MajorTransferApplicationView finalizeApproval(String adminUserId,
+            FinalizeMajorTransferCommand command, String trustedDepartmentId) {
+        return finalizeApproval(adminUserId, command);
+    }
 
     MajorTransferApplicationView execute(String adminUserId, ExecuteMajorTransferCommand command);
+
+    /** Executes or retries after transaction-time target-college validation. */
+    default MajorTransferApplicationView execute(String adminUserId,
+            ExecuteMajorTransferCommand command, String trustedDepartmentId) {
+        return execute(adminUserId, command);
+    }
 }

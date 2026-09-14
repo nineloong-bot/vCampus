@@ -11,6 +11,8 @@ import edu.seu.vcampus.common.student.majortransfer.ReviewMajorTransferSourceCom
 import edu.seu.vcampus.common.student.majortransfer.SaveMajorTransferBatchCommand;
 import edu.seu.vcampus.common.student.majortransfer.RecordMajorTransferScoreCommand;
 import edu.seu.vcampus.common.student.majortransfer.FinalizeMajorTransferCommand;
+import edu.seu.vcampus.common.student.majortransfer.ExecuteMajorTransferCommand;
+import edu.seu.vcampus.common.student.majortransfer.SaveMajorTransferOptionCommand;
 import java.math.BigDecimal;
 import edu.seu.vcampus.server.routing.ClientContext;
 import edu.seu.vcampus.server.routing.MessageRouter;
@@ -67,7 +69,7 @@ class MajorTransferRoleAuthorizationTest {
 
         assertThat(result.success()).isTrue();
         verify(fixture.scope).requireSourceApproval("operator", APPLICATION);
-        verify(fixture.service).reviewSource("operator", sourceReview());
+        verify(fixture.service).reviewSource("operator", sourceReview(), "managed-department");
     }
 
     @Test
@@ -80,7 +82,7 @@ class MajorTransferRoleAuthorizationTest {
 
         assertThat(result.success()).isTrue();
         verify(fixture.scope).requireTargetApproval("operator", APPLICATION);
-        verify(fixture.service).reviewQualification("operator", command);
+        verify(fixture.service).reviewQualification("operator", command, "managed-department");
     }
 
     @Test
@@ -121,7 +123,7 @@ class MajorTransferRoleAuthorizationTest {
 
         assertThat(result.success()).isTrue();
         verify(fixture.scope).requireTargetApproval("operator", APPLICATION);
-        verify(fixture.service).recordScore("operator", command);
+        verify(fixture.service).recordScore("operator", command, "managed-department");
     }
 
     @Test
@@ -133,7 +135,7 @@ class MajorTransferRoleAuthorizationTest {
 
         assertThat(result.success()).isTrue();
         verify(fixture.scope).requireTargetApproval("operator", APPLICATION);
-        verify(fixture.service).finalizeProposal("operator", command);
+        verify(fixture.service).finalizeApproval("operator", command, "managed-department");
     }
 
     @Test
@@ -155,7 +157,96 @@ class MajorTransferRoleAuthorizationTest {
         var result = fixture.route("MAJOR_TRANSFER_FINALIZE", command);
 
         assertThat(result.code()).isEqualTo("COMMON_FORBIDDEN");
-        verify(fixture.service, never()).finalizeProposal(anyString(), any());
+        verify(fixture.service, never()).finalizeApproval(anyString(), any());
+    }
+
+    @Test
+    void studentAdministratorCannotReadConcreteApplications() {
+        Fixture fixture = fixture("STUDENT_ADMIN");
+
+        assertThat(fixture.route("MAJOR_TRANSFER_LIST_APPLICATIONS",
+                new MajorTransferApplicationQuery("batch", null, null)).code())
+                .isEqualTo("COMMON_FORBIDDEN");
+        assertThat(fixture.route("MAJOR_TRANSFER_GET_APPLICATION",
+                new EntityIdRequest(APPLICATION)).code()).isEqualTo("COMMON_FORBIDDEN");
+        assertThat(fixture.route("MAJOR_TRANSFER_GET_ATTACHMENT",
+                new EntityIdRequest("attachment-1")).code()).isEqualTo("COMMON_FORBIDDEN");
+        verify(fixture.service, never()).listApplications(any());
+        verify(fixture.service, never()).getApplicationDetail(anyString());
+        verify(fixture.service, never()).getAttachment(anyString());
+    }
+
+    @Test
+    void targetCollegeAdministratorCanExecuteTransfer() {
+        Fixture fixture = fixture("COLLEGE_ADMIN");
+        var command = new ExecuteMajorTransferCommand(APPLICATION, "class-2", 0);
+
+        var result = fixture.route("MAJOR_TRANSFER_EXECUTE", command);
+
+        assertThat(result.success()).isTrue();
+        verify(fixture.scope).requireTargetApproval("operator", APPLICATION);
+        verify(fixture.service).execute("operator", command, "managed-department");
+    }
+
+    @Test
+    void studentAdministratorCannotExecuteTransfer() {
+        Fixture fixture = fixture("STUDENT_ADMIN");
+
+        var result = fixture.route("MAJOR_TRANSFER_EXECUTE",
+                new ExecuteMajorTransferCommand(APPLICATION, "class-2", 0));
+
+        assertThat(result.code()).isEqualTo("COMMON_FORBIDDEN");
+        verify(fixture.service, never()).execute(anyString(),
+                any(ExecuteMajorTransferCommand.class), anyString());
+    }
+
+    @Test
+    void collegeAdministratorCanSaveOwnOption() {
+        Fixture fixture = fixture("COLLEGE_ADMIN");
+        when(fixture.scope.findActiveDepartmentId("operator"))
+                .thenReturn("managed-department");
+        var command = new SaveMajorTransferOptionCommand(null, "batch", "major", "2025",
+                10, 20, 60.0, 60.0, 50, 50, false, "requirements", true, 0);
+
+        var result = fixture.route("MAJOR_TRANSFER_SAVE_OPTION", command);
+
+        assertThat(result.success()).isTrue();
+        verify(fixture.scope).findActiveDepartmentId("operator");
+        verify(fixture.service).saveOption("operator", command, "managed-department");
+    }
+
+    @Test
+    void studentAdministratorCannotSaveCollegeOption() {
+        Fixture fixture = fixture("STUDENT_ADMIN");
+        var command = new SaveMajorTransferOptionCommand(null, "batch", "major", "2025",
+                10, 20, 60.0, 60.0, 50, 50, false, "requirements", true, 0);
+
+        assertThat(fixture.route("MAJOR_TRANSFER_SAVE_OPTION", command).code())
+                .isEqualTo("COMMON_FORBIDDEN");
+        verify(fixture.service, never()).saveOption(anyString(),
+                any(SaveMajorTransferOptionCommand.class), anyString());
+    }
+
+    @Test
+    void collegeAdministratorListsOnlyOwnOptions() {
+        Fixture fixture = fixture("COLLEGE_ADMIN");
+
+        var result = fixture.route("MAJOR_TRANSFER_LIST_OPTIONS",
+                new EntityIdRequest("batch"));
+
+        assertThat(result.success()).isTrue();
+        verify(fixture.service).listOptionsForCollege("batch", "managed-department");
+        verify(fixture.service, never()).listOptions("batch");
+    }
+
+    @Test
+    void studentAdministratorCannotListCollegeOptions() {
+        Fixture fixture = fixture("STUDENT_ADMIN");
+
+        assertThat(fixture.route("MAJOR_TRANSFER_LIST_OPTIONS",
+                new EntityIdRequest("batch")).code()).isEqualTo("COMMON_FORBIDDEN");
+        verify(fixture.service, never()).listOptions(anyString());
+        verify(fixture.service, never()).listOptionsForCollege(anyString(), anyString());
     }
 
     private static ReviewMajorTransferSourceCommand sourceReview() {
@@ -167,6 +258,7 @@ class MajorTransferRoleAuthorizationTest {
         MajorTransferService service = mock(MajorTransferService.class);
         MajorTransferCollegeAuthorizationService scope =
                 mock(MajorTransferCollegeAuthorizationService.class);
+        when(scope.findActiveDepartmentId("operator")).thenReturn("managed-department");
         MessageRouter router = new MessageRouter(Map.of());
         new MajorTransferHandlers(service,
                 token -> new StudentPrincipal("operator", Set.of(role), Set.of()),

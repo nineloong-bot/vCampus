@@ -71,6 +71,14 @@ class MajorTransferCollegeQueryTest {
                 application.status() == edu.seu.vcampus.common.student.majortransfer.MajorTransferStatus.DRAFT);
     }
 
+    @Test
+    void collegeOptionListContainsOnlyPersistedTargetCollege() {
+        var options = service.listOptionsForCollege(OPEN_BATCH, MATH);
+
+        assertThat(options).isNotEmpty().allSatisfy(option ->
+                assertThat(option.targetDepartmentId()).isEqualTo(MATH));
+    }
+
     private static Path directory(String child) {
         Path current = Path.of("").toAbsolutePath();
         Path databaseModule = current.getFileName().toString().equals("vcampus-server")

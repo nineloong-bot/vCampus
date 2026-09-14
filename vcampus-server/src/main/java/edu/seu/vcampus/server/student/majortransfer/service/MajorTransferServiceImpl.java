@@ -345,6 +345,12 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
 
     @Override
     public synchronized MajorTransferOptionView saveOption(String adminUserId, SaveMajorTransferOptionCommand command) {
+        return saveOption(adminUserId, command, null);
+    }
+
+    @Override
+    public synchronized MajorTransferOptionView saveOption(String adminUserId,
+            SaveMajorTransferOptionCommand command, String trustedDepartmentId) {
         return transactions.inTransaction(connection -> {
             Instant now = Instant.now();
             Major major = organizations.findMajor(connection, command.targetMajorId())
@@ -352,6 +358,7 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
             var dept = organizations.findDepartment(connection, major.departmentId());
             if (!major.active() || dept.isEmpty() || !dept.get().active())
                 throw error("TRANSFER_INVALID_TARGET", "目标学院或专业未启用");
+            requireDepartment(trustedDepartmentId, major.departmentId());
             repository.findBatch(connection, command.batchId())
                     .orElseThrow(() -> error("TRANSFER_BATCH_NOT_FOUND", "批次不存在"));
             String deptName = dept.map(d -> d.departmentName()).orElse("");
@@ -359,6 +366,7 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
                 MajorTransferRepository.OptionRow existing =
                         repository.findOption(connection, command.optionId())
                                 .orElseThrow(() -> error("TRANSFER_OPTION_NOT_FOUND", "选项不存在"));
+                requireDepartment(trustedDepartmentId, existing.targetDepartmentId());
                 if (existing.rowVersion() != command.expectedVersion()) throw concurrent();
                 if (!existing.batchId().equals(command.batchId()) || !existing.targetMajorId().equals(command.targetMajorId()))
                     throw error("TRANSFER_INVALID_TARGET", "已有选项不能更换批次或目标专业");
@@ -399,6 +407,16 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
     public List<MajorTransferOptionView> listOptions(String batchId) {
         return transactions.inTransaction(connection ->
                 repository.listOptionsByBatch(connection, batchId).stream()
+                        .map(this::toOptionView).toList());
+    }
+
+    @Override
+    public List<MajorTransferOptionView> listOptionsForCollege(
+            String batchId, String trustedDepartmentId) {
+        Objects.requireNonNull(trustedDepartmentId, "trustedDepartmentId");
+        return transactions.inTransaction(connection ->
+                repository.listOptionsByBatch(connection, batchId).stream()
+                        .filter(option -> trustedDepartmentId.equals(option.targetDepartmentId()))
                         .map(this::toOptionView).toList());
     }
 
@@ -453,11 +471,18 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
     @Override
     public MajorTransferApplicationView reviewSource(String adminUserId,
                                                       ReviewMajorTransferSourceCommand command) {
+        return reviewSource(adminUserId, command, null);
+    }
+
+    @Override
+    public MajorTransferApplicationView reviewSource(String adminUserId,
+            ReviewMajorTransferSourceCommand command, String trustedDepartmentId) {
         return locks.withLocks(List.of(new ResourceKey("TRANSFER_APPLICATION", command.applicationId())), () ->
                 transactions.inTransaction(connection -> {
                     MajorTransferRepository.ApplicationRow app =
                             repository.findApplication(connection, command.applicationId())
                                     .orElseThrow(() -> error("TRANSFER_APPLICATION_NOT_FOUND", "申请不存在"));
+                    requireDepartment(trustedDepartmentId, app.fromDepartmentId());
                     if (app.status() != SUBMITTED)
                         throw error("TRANSFER_STATE_INVALID", "申请状态不允许原学院审核");
                     if (command.decision() == MajorTransferDecision.APPROVE) {
@@ -485,11 +510,18 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
     @Override
     public MajorTransferApplicationView reviewQualification(String adminUserId,
                                                              ReviewMajorTransferQualificationCommand command) {
+        return reviewQualification(adminUserId, command, null);
+    }
+
+    @Override
+    public MajorTransferApplicationView reviewQualification(String adminUserId,
+            ReviewMajorTransferQualificationCommand command, String trustedDepartmentId) {
         return locks.withLocks(List.of(new ResourceKey("TRANSFER_APPLICATION", command.applicationId())), () ->
                 transactions.inTransaction(connection -> {
                     MajorTransferRepository.ApplicationRow app =
                             repository.findApplication(connection, command.applicationId())
                                     .orElseThrow(() -> error("TRANSFER_APPLICATION_NOT_FOUND", "申请不存在"));
+                    requireTargetDepartment(connection, app, trustedDepartmentId);
                     if (app.status() != SOURCE_APPROVED)
                         throw error("TRANSFER_STATE_INVALID", "申请状态不允许转入学院资格审核");
                     if (command.decision() == MajorTransferDecision.APPROVE) {
@@ -513,11 +545,18 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
 
     @Override
     public MajorTransferApplicationView cancel(String adminUserId, CancelMajorTransferCommand command) {
+        return cancel(adminUserId, command, null);
+    }
+
+    @Override
+    public MajorTransferApplicationView cancel(String adminUserId,
+            CancelMajorTransferCommand command, String trustedDepartmentId) {
         return locks.withLocks(List.of(new ResourceKey("TRANSFER_APPLICATION", command.applicationId())), () ->
                 transactions.inTransaction(connection -> {
                     MajorTransferRepository.ApplicationRow app =
                             repository.findApplication(connection, command.applicationId())
                                     .orElseThrow(() -> error("TRANSFER_APPLICATION_NOT_FOUND", "申请不存在"));
+                    requireTargetDepartment(connection, app, trustedDepartmentId);
                     if (!MajorTransferStateMachine.adminMayCancel(app.status()))
                         throw error("TRANSFER_STATE_INVALID", "当前状态不允许取消");
                     changeStatus(connection, command.applicationId(),
@@ -537,6 +576,12 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
     @Override
     public MajorTransferApplicationView recordScore(String adminUserId,
                                                      RecordMajorTransferScoreCommand command) {
+        return recordScore(adminUserId, command, null);
+    }
+
+    @Override
+    public MajorTransferApplicationView recordScore(String adminUserId,
+            RecordMajorTransferScoreCommand command, String trustedDepartmentId) {
         return locks.withLocks(List.of(new ResourceKey("TRANSFER_APPLICATION", command.applicationId())), () ->
                 transactions.inTransaction(connection -> {
                     MajorTransferRepository.ApplicationRow app =
@@ -546,6 +591,7 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
                         throw error("TRANSFER_STATE_INVALID", "申请状态不允许录入成绩");
                     MajorTransferRepository.OptionRow option =
                             repository.findOption(connection, app.optionId()).orElseThrow();
+                    requireDepartment(trustedDepartmentId, option.targetDepartmentId());
                     Double written = command.writtenScore() != null
                             ? command.writtenScore().doubleValue() : null;
                     Double interview = command.interviewScore() != null
@@ -569,11 +615,18 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
     @Override
     public MajorTransferImportResult importScores(String adminUserId,
                                                    ImportMajorTransferScoresCommand command) {
+        return importScores(adminUserId, command, null);
+    }
+
+    @Override
+    public MajorTransferImportResult importScores(String adminUserId,
+            ImportMajorTransferScoresCommand command, String trustedDepartmentId) {
         return locks.withLocks(List.of(new ResourceKey("TRANSFER_OPTION", command.optionId())), () ->
                 transactions.inTransaction(connection -> {
                     MajorTransferRepository.OptionRow option =
                             repository.findOption(connection, command.optionId())
                                     .orElseThrow(() -> error("TRANSFER_OPTION_NOT_FOUND", "选项不存在"));
+                    requireDepartment(trustedDepartmentId, option.targetDepartmentId());
                     int total = command.entries().size();
                     int success = 0;
                     var failures = new java.util.ArrayList<MajorTransferImportResult.Failure>();
@@ -582,6 +635,11 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
                             MajorTransferRepository.ApplicationRow app =
                                     repository.findApplication(connection, entry.applicationId())
                                             .orElseThrow(() -> error("TRANSFER_APPLICATION_NOT_FOUND", "申请不存在"));
+                            if (!command.optionId().equals(app.optionId())) {
+                                failures.add(new MajorTransferImportResult.Failure(
+                                        entry.applicationId(), "申请不属于所选招生专业"));
+                                continue;
+                            }
                             if (app.status() != QUALIFIED) {
                                 failures.add(new MajorTransferImportResult.Failure(
                                         entry.applicationId(), "申请状态不允许录入成绩"));
@@ -615,13 +673,20 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
     // ── Admin: final approval and execution ──
 
     @Override
-    public MajorTransferApplicationView finalizeProposal(String adminUserId,
+    public MajorTransferApplicationView finalizeApproval(String adminUserId,
                                                           FinalizeMajorTransferCommand command) {
+        return finalizeApproval(adminUserId, command, null);
+    }
+
+    @Override
+    public MajorTransferApplicationView finalizeApproval(String adminUserId,
+            FinalizeMajorTransferCommand command, String trustedDepartmentId) {
         return locks.withLocks(List.of(new ResourceKey("TRANSFER_APPLICATION", command.applicationId())), () ->
                 transactions.inTransaction(connection -> {
                     MajorTransferRepository.ApplicationRow app =
                             repository.findApplication(connection, command.applicationId())
                                     .orElseThrow(() -> error("TRANSFER_APPLICATION_NOT_FOUND", "申请不存在"));
+                    requireTargetDepartment(connection, app, trustedDepartmentId);
                     if (app.status() != ASSESSED)
                         throw error("TRANSFER_STATE_INVALID", "申请状态不允许终审");
                     Instant now = Instant.now();
@@ -639,6 +704,12 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
 
     @Override
     public MajorTransferApplicationView execute(String adminUserId, ExecuteMajorTransferCommand command) {
+        return execute(adminUserId, command, null);
+    }
+
+    @Override
+    public MajorTransferApplicationView execute(String adminUserId,
+            ExecuteMajorTransferCommand command, String trustedDepartmentId) {
         String studentId = transactions.inTransaction(c -> repository.findApplication(c, command.applicationId())
                 .orElseThrow(() -> error("TRANSFER_APPLICATION_NOT_FOUND", "申请不存在")).studentId());
         List<ResourceKey> keys = List.of(
@@ -648,6 +719,7 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
             MajorTransferRepository.ApplicationRow app =
                     repository.findApplication(connection, command.applicationId())
                             .orElseThrow(() -> error("TRANSFER_APPLICATION_NOT_FOUND", "申请不存在"));
+            requireTargetDepartment(connection, app, trustedDepartmentId);
             if (app.status() != PENDING_EFFECTIVE && app.status() != EXECUTION_FAILED)
                 throw error("TRANSFER_STATE_INVALID", "申请状态不允许执行");
             if (app.applicationVersion() != command.expectedVersion()) throw concurrent();
@@ -715,6 +787,24 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
     }
 
     // ── Helpers ──
+
+    private void requireTargetDepartment(Connection connection,
+            MajorTransferRepository.ApplicationRow application,
+            String trustedDepartmentId) {
+        if (trustedDepartmentId == null) return;
+        MajorTransferRepository.OptionRow option = repository.findOption(
+                connection, application.optionId()).orElseThrow(() ->
+                error("TRANSFER_OPTION_NOT_FOUND", "选项不存在"));
+        requireDepartment(trustedDepartmentId, option.targetDepartmentId());
+    }
+
+    private static void requireDepartment(String trustedDepartmentId,
+            String actualDepartmentId) {
+        if (trustedDepartmentId != null
+                && !trustedDepartmentId.equals(actualDepartmentId)) {
+            throw new IllegalArgumentException("COMMON_FORBIDDEN");
+        }
+    }
 
     private MajorTransferWorkspace emptyWorkspace(Student student) {
         return new MajorTransferWorkspace(null, List.of(), List.of(),

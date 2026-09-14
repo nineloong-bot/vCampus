@@ -181,16 +181,16 @@ class MajorTransferStudentWorkflowTest {
         assertThat(service.getApplicationDetail(app.applicationId()).attachments()).isEmpty();
     }
 
-    @Test void assessedApplicationCanBeFinalizedWithoutProposal() {
+    @Test void assessedApplicationCanReceiveFinalApproval() {
         var app = assessed();
-        var finalized = service.finalizeProposal("admin",
+        var finalized = service.finalizeApproval("admin",
                 new FinalizeMajorTransferCommand(app.applicationId(), app.applicationVersion()));
         assertThat(finalized.status()).isEqualTo(MajorTransferStatus.PENDING_EFFECTIVE);
     }
 
     @Test void executeRequiresEffectiveDateAndCannotPartiallyWriteOnStaleVersion() throws Exception {
         var app = assessed();
-        app = service.finalizeProposal("admin", new FinalizeMajorTransferCommand(app.applicationId(), app.applicationVersion()));
+        app = service.finalizeApproval("admin", new FinalizeMajorTransferCommand(app.applicationId(), app.applicationVersion()));
         String id = app.applicationId();
         long version = app.applicationVersion();
         assertThatThrownBy(() -> service.execute("admin", new ExecuteMajorTransferCommand(id, "class-2", version)))
@@ -203,6 +203,77 @@ class MajorTransferStudentWorkflowTest {
         service.execute("admin", new ExecuteMajorTransferCommand(id, "class-2", version));
         assertThat(database.stringValue("SELECT classId FROM tblStudent WHERE studentId='student-1'")).isEqualTo("class-2");
         assertThat(database.count("tblMajorTransferExecution")).isEqualTo(1);
+    }
+
+    @Test
+    void trustedTargetDepartmentIsRecheckedInsideEveryTargetMutation() {
+        var app = draft();
+        app = service.submit("user-1", new SubmitMajorTransferCommand(
+                app.applicationId(), app.applicationVersion()));
+        app = service.reviewSource("source-admin", new ReviewMajorTransferSourceCommand(
+                app.applicationId(), MajorTransferDecision.APPROVE, true, true, true,
+                "通过", app.applicationVersion()), "dept-1");
+        String applicationId = app.applicationId();
+        long qualificationVersion = app.applicationVersion();
+
+        assertThatThrownBy(() -> service.reviewQualification("wrong-admin",
+                new ReviewMajorTransferQualificationCommand(applicationId,
+                        MajorTransferDecision.APPROVE, "通过", qualificationVersion), "dept-1"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("COMMON_FORBIDDEN");
+        app = service.reviewQualification("target-admin",
+                new ReviewMajorTransferQualificationCommand(applicationId,
+                        MajorTransferDecision.APPROVE, "通过", qualificationVersion), "dept-2");
+        long scoreVersion = app.applicationVersion();
+        var score = new RecordMajorTransferScoreCommand(applicationId,
+                new java.math.BigDecimal("80"), new java.math.BigDecimal("90"), scoreVersion);
+        assertThatThrownBy(() -> service.recordScore("wrong-admin", score, "dept-1"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("COMMON_FORBIDDEN");
+        app = service.recordScore("target-admin", score, "dept-2");
+        long finalVersion = app.applicationVersion();
+        assertThatThrownBy(() -> service.finalizeApproval("wrong-admin",
+                new FinalizeMajorTransferCommand(applicationId, finalVersion), "dept-1"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("COMMON_FORBIDDEN");
+        app = service.finalizeApproval("target-admin",
+                new FinalizeMajorTransferCommand(applicationId, finalVersion), "dept-2");
+        sql("UPDATE tblMajorTransferBatch SET effectiveDate=#2020-01-01#");
+        long executeVersion = app.applicationVersion();
+        assertThatThrownBy(() -> service.execute("wrong-admin",
+                new ExecuteMajorTransferCommand(applicationId, "class-2", executeVersion),
+                "dept-1")).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("COMMON_FORBIDDEN");
+        assertThat(service.execute("target-admin",
+                new ExecuteMajorTransferCommand(applicationId, "class-2", executeVersion),
+                "dept-2").status()).isEqualTo(MajorTransferStatus.EFFECTIVE);
+    }
+
+    @Test
+    void trustedDepartmentRejectsForgedOptionAndScoreImport() {
+        seedOpenBatchWithOption();
+        var optionCommand = new SaveMajorTransferOptionCommand(null, "batch-1", "major-2",
+                "2024", 10, 5, 60.0, 60.0, 60, 40, false, null, true, 0);
+        assertThatThrownBy(() -> service.saveOption("wrong-admin", optionCommand, "dept-1"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("COMMON_FORBIDDEN");
+
+        var app = service.saveDraft("user-1", new SaveMajorTransferDraftCommand(null,
+                "batch-1", "opt-1", MajorTransferApplicationType.ORDINARY, "申请理由", 0));
+        app = service.submit("user-1", new SubmitMajorTransferCommand(
+                app.applicationId(), app.applicationVersion()));
+        app = service.reviewSource("source-admin", new ReviewMajorTransferSourceCommand(
+                app.applicationId(), MajorTransferDecision.APPROVE, true, true, true,
+                "通过", app.applicationVersion()), "dept-1");
+        app = service.reviewQualification("target-admin",
+                new ReviewMajorTransferQualificationCommand(app.applicationId(),
+                        MajorTransferDecision.APPROVE, "通过", app.applicationVersion()), "dept-2");
+        var importCommand = new ImportMajorTransferScoresCommand("opt-1", java.util.List.of(
+                new ImportMajorTransferScoresCommand.ScoreEntry(app.applicationId(),
+                        new java.math.BigDecimal("80"), new java.math.BigDecimal("90"))), 0);
+        assertThatThrownBy(() -> service.importScores("wrong-admin", importCommand, "dept-1"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("COMMON_FORBIDDEN");
     }
 
     @Test

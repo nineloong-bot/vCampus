@@ -19,6 +19,7 @@ class MajorTransferCollegeAuthorizationServiceTest {
     private static final String MATH_ADMIN = "00000000-0000-0000-0000-000000000203";
     private static final String EE_ADMIN = "00000000-0000-0000-0000-000000000208";
     private static final String APPLICATION_TO_MATH = "00000000-0000-0000-0000-000000001023";
+    private static final String DRAFT_APPLICATION = "00000000-0000-0000-0000-000000001021";
 
     private MajorTransferCollegeAuthorizationService authorization;
     private TransactionManager transactions;
@@ -55,8 +56,37 @@ class MajorTransferCollegeAuthorizationServiceTest {
     }
 
     @Test
+    void targetAdministratorCanUseOnlyItsPersistedOption() {
+        String mathOption = transactions.inTransaction(connection -> {
+            try (var statement = connection.prepareStatement("""
+                    SELECT optionId FROM tblMajorTransferOption
+                    WHERE targetDepartmentId=?
+                    """)) {
+                statement.setString(1, "00000000-0000-0000-0000-000000000111");
+                try (var result = statement.executeQuery()) {
+                    result.next();
+                    return result.getString(1);
+                }
+            }
+        });
+
+        assertThatCode(() -> authorization.requireTargetApprovalForOption(
+                MATH_ADMIN, mathOption)).doesNotThrowAnyException();
+        assertThatThrownBy(() -> authorization.requireTargetApprovalForOption(
+                CS_ADMIN, mathOption)).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("COMMON_FORBIDDEN");
+    }
+
+    @Test
     void unrelatedAdministratorCannotReadApplication() {
         assertThatThrownBy(() -> authorization.requireCanRead(EE_ADMIN, APPLICATION_TO_MATH))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("COMMON_FORBIDDEN");
+    }
+
+    @Test
+    void evenRelatedAdministratorsCannotReadStudentDraft() {
+        assertThatThrownBy(() -> authorization.requireCanRead(CS_ADMIN, DRAFT_APPLICATION))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("COMMON_FORBIDDEN");
     }

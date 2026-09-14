@@ -7,6 +7,8 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Objects;
 
+import static edu.seu.vcampus.common.student.majortransfer.MajorTransferStatus.DRAFT;
+
 /** Enforces college scope for major-transfer reads and review stages. */
 public final class MajorTransferCollegeAuthorizationService {
     private final TransactionManager transactions;
@@ -97,6 +99,7 @@ public final class MajorTransferCollegeAuthorizationService {
         boolean allowed = transactions.inTransaction(connection -> {
             String departmentId = findActiveDepartmentId(connection, administratorUserId);
             Departments application = findApplicationDepartments(connection, applicationId);
+            if (application.draft()) return false;
             return switch (scope) {
                 case SOURCE -> departmentId.equals(application.source());
                 case TARGET -> departmentId.equals(application.target());
@@ -109,7 +112,7 @@ public final class MajorTransferCollegeAuthorizationService {
 
     private static Departments findApplicationDepartments(Connection connection, String applicationId) {
         String sql = """
-                SELECT a.fromDepartmentId, o.targetDepartmentId
+                SELECT a.fromDepartmentId, o.targetDepartmentId, a.applicationStatus
                 FROM tblMajorTransferApplication a
                 INNER JOIN tblMajorTransferOption o ON a.optionId=o.optionId
                 WHERE a.applicationId=?
@@ -118,7 +121,8 @@ public final class MajorTransferCollegeAuthorizationService {
             statement.setString(1, applicationId);
             try (var result = statement.executeQuery()) {
                 if (!result.next()) forbidden();
-                return new Departments(result.getString(1), result.getString(2));
+                return new Departments(result.getString(1), result.getString(2),
+                        DRAFT.name().equals(result.getString(3)));
             }
         } catch (SQLException error) {
             throw new PersistenceException("Major-transfer application scope lookup failed", error);
@@ -131,5 +135,5 @@ public final class MajorTransferCollegeAuthorizationService {
 
     private enum Scope { SOURCE, TARGET, EITHER }
 
-    private record Departments(String source, String target) { }
+    private record Departments(String source, String target, boolean draft) { }
 }
