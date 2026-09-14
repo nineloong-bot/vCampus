@@ -23,6 +23,9 @@ import edu.seu.vcampus.server.student.handler.StudentAuthorizationPort;
 import edu.seu.vcampus.server.student.handler.StudentHandlers;
 import edu.seu.vcampus.server.student.handler.StudentPrincipal;
 import edu.seu.vcampus.server.student.handler.TrainingPlanHandlers;
+import edu.seu.vcampus.server.student.governance.AccessStudentCollegeAdministrationRepository;
+import edu.seu.vcampus.server.student.governance.StudentCollegeAdministrationHandlers;
+import edu.seu.vcampus.server.student.governance.StudentCollegeAdministrationService;
 import edu.seu.vcampus.server.student.majortransfer.handler.MajorTransferHandlers;
 import edu.seu.vcampus.server.student.majortransfer.repository.MajorTransferRepository;
 import edu.seu.vcampus.server.student.majortransfer.security.MajorTransferCollegeAuthorizationService;
@@ -107,6 +110,8 @@ public final class ServerMain {
         new UserHandlers(router, runtime.users(), runtime.authorization(), runtime.deduplicator());
         new ModuleAdministrationHandlers(router, runtime.governance(),
                 runtime.authorization(), runtime.deduplicator());
+        new StudentCollegeAdministrationHandlers(router, runtime.collegeGovernance(),
+                runtime.authorization(), runtime.deduplicator());
         registerSecurityAudit(router, runtime.auditHandler());
         runtime.students().register(router);
         runtime.transfers().register(router);
@@ -137,6 +142,9 @@ public final class ServerMain {
         RequestDeduplicator deduplicator = new RequestDeduplicator(transactions, locks);
         ModuleAdministrationService governance = new ModuleAdministrationService(
                 transactions, locks, new AccessModuleAdministrationRepository(), audits, sessions);
+        StudentCollegeAdministrationService collegeGovernance =
+                new StudentCollegeAdministrationService(transactions, locks,
+                        new AccessStudentCollegeAdministrationRepository(), audits, sessions);
         SecurityAuditHandler auditHandler = new SecurityAuditHandler(authorization,
                 new SecurityAuditService(transactions, audits));
         StudentHandlers students = createStudentHandlers(transactions, locks, sessions,
@@ -146,7 +154,7 @@ public final class ServerMain {
         TrainingPlanHandlers planHandlers = createPlanHandlers(transactions, locks,
                 deduplicator, sessions);
         return new ServerRuntime(users, authorization, deduplicator, auditHandler,
-                governance, students, transfers, planHandlers);
+                governance, collegeGovernance, students, transfers, planHandlers);
     }
 
     private static void registerSecurityAudit(
@@ -265,6 +273,7 @@ public final class ServerMain {
                                  RequestDeduplicator deduplicator,
                                  SecurityAuditHandler auditHandler,
                                  ModuleAdministrationService governance,
+                                 StudentCollegeAdministrationService collegeGovernance,
                                  StudentHandlers students,
                                  MajorTransferHandlers transfers,
                                  TrainingPlanHandlers plans) {
