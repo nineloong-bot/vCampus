@@ -822,6 +822,7 @@ public final class AccessShopRepository implements ShopRepository {
         }
         return List.copyOf(items);
     }
+/** 已支付订单基础主表数据载体。 */
 
     private record PaidOrderHeader(String orderId, String orderNumber, String shopId,
             String shopName, java.math.BigDecimal totalAmount, Instant paidAt) { }

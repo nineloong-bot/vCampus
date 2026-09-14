@@ -65,10 +65,12 @@ public final class ShopUiInstaller {
     }
 
     @FunctionalInterface
+    /** CoordinatorFactory 内部组件模型。 */
     interface CoordinatorFactory {
         InstalledCoordinator create(ShopModulePanel module, UserView user,
                 ShopClientPort client, ShopUiKit uiKit, Runnable sessionExpired);
     }
+/** InstalledCoordinator 内部组件模型。 */
 
     interface InstalledCoordinator {
         edu.seu.vcampus.client.shop.ui.navigation.ShopNavigator navigator();

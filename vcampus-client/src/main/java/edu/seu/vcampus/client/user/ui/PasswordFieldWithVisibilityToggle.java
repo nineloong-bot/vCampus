@@ -63,6 +63,7 @@ final class PasswordFieldWithVisibilityToggle extends JPanel {
         toggle.setToolTipText(action);
         toggle.getAccessibleContext().setAccessibleName(action);
     }
+/** EyeIcon 内部组件模型。 */
 
     private static final class EyeIcon implements Icon {
         private static final int WIDTH = 20;

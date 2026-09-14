@@ -361,8 +361,10 @@ public final class StudentAdmissionCoordinator implements StudentAdmissionServic
     private static String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
     }
+/** 校验通过的新生录取数据模型。 */
 
     private record ValidatedAdmission(Major major, StudentClass studentClass, String sequenceKey) { }
+    /** 人工审核录入数据校验模型。 */
     private record ValidatedManual(Major major, StudentClass studentClass,
                                    String departmentName) { }
 }

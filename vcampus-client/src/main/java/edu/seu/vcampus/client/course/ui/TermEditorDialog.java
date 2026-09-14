@@ -295,10 +295,12 @@ final class TermEditorDialog extends JDialog {
         label.setForeground(color);
         return label;
     }
+/** StatusChoice 内部组件模型。 */
 
     private record StatusChoice(String code, String label) {
         @Override public String toString() { return label; }
     }
+/** SeasonChoice 内部组件模型。 */
 
     private record SeasonChoice(AcademicSeason season, String label) {
         @Override public String toString() { return label; }

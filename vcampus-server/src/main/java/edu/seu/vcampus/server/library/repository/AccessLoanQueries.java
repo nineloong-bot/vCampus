@@ -12,7 +12,10 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.List;
+import java.util.List;/**
+ * 基于 Access 数据库实现的借阅流水记录底层检索与 SQL 辅助类。
+ */
+
 
 final class AccessLoanQueries {
     private static final String SELECT_JOINED = "SELECT l.*, c.bookId, c.barcode, b.title, "

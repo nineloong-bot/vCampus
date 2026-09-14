@@ -194,6 +194,7 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
         page.setName(pageId);
         cards.register(pageId, page);
     }
+/** CardNavigator 内部组件模型。 */
 
     interface CardNavigator {
         void register(String pageId, JPanel page);
@@ -202,6 +203,7 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
     }
 
     @FunctionalInterface
+    /** PageFactory 内部组件模型。 */
     interface PageFactory {
         PageSet create(UserView user, ShopNavigator navigator, ShopUiKit uiKit,
                 Runnable homeSessionExpired,
@@ -210,6 +212,7 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
                 Runnable checkoutSessionExpired, Runnable mySessionExpired);
         default void setCartCountModel(CartCountModel cartCount) { }
     }
+/** PageSet 内部组件模型。 */
 
     interface PageSet {
         JPanel home();
@@ -261,6 +264,7 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
             case ShopRoute.AdminWorkspace ignored -> ADMIN_WORKSPACE;
         };
     }
+/** BuyerPageFactory 内部组件模型。 */
 
     static final class BuyerPageFactory implements PageFactory {
         private final ShopClientPort client;
@@ -299,15 +303,18 @@ public final class ShopPageCoordinator implements ShopRouteHost, ShopUiInstaller
     }
 
     @FunctionalInterface
+    /** CheckoutPageFactory 内部组件模型。 */
     interface CheckoutPageFactory {
         CheckoutPanel create(ShopClientPort client, ShopNavigator navigator, ShopUiKit uiKit,
                 Runnable sessionExpired);
     }
 
     @FunctionalInterface
+    /** CallbackObserver 内部组件模型。 */
     interface CallbackObserver {
         void passedTo(String page, Runnable callback);
     }
+/** BuyerPageSet 内部组件模型。 */
 
     static final class BuyerPageSet implements PageSet {
         private final ShopHomePanel home;

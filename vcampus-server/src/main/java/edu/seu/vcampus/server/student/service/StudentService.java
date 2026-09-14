@@ -8,6 +8,9 @@ import edu.seu.vcampus.common.student.UpdateStudentEnrollmentCommand;
 import edu.seu.vcampus.common.student.StudentSearchQuery;
 import edu.seu.vcampus.common.student.StudentSummary;
 import edu.seu.vcampus.common.paging.PageResult;
+/**
+ * 学籍模块核心业务服务接口，提供学生档案增删改查与状态流转。
+ */
 public interface StudentService {
     StudentView getStudent(String studentId);
     StudentView getCurrentStudent(String userId);

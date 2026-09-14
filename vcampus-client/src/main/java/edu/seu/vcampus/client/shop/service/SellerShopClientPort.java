@@ -8,7 +8,10 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.protocol.EmptyResponse;
-import edu.seu.vcampus.common.shop.*;
+import edu.seu.vcampus.common.shop.*;/**
+ * 商城商家客户端与服务端通信端口契约接口。
+ */
+
 
 public interface SellerShopClientPort {
     CompletableFuture<Optional<SellerApplicationView>> getMyApplication();

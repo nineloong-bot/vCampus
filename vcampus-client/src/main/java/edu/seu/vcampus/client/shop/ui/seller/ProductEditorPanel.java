@@ -78,6 +78,7 @@ public final class ProductEditorPanel extends JPanel {
     }
     private void refreshSkus() { model.setRowCount(0); for (EditableSku sku : skus) model.addRow(new Object[]{
             sku.name, sku.price, sku.stock, sku.active ? "启用" : "停用", "双击编辑"}); }
+    /** EditableSku 内部组件模型。 */
     private record EditableSku(String id, String name, java.math.BigDecimal price, long stock, boolean active, long version) {
         static EditableSku created(SkuEditorDialog.Result v) { return new EditableSku(null, v.name(), v.unitPrice(), v.stockQuantity(), v.active(), 0); }
         EditableSku with(SkuEditorDialog.Result v) { return new EditableSku(id, v.name(), v.unitPrice(), v.stockQuantity(), v.active(), version); }

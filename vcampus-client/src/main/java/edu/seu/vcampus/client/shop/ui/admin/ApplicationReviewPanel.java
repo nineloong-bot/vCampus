@@ -18,6 +18,7 @@ public final class ApplicationReviewPanel extends JPanel {
         Optional<DetailReview> show(Component parent, SellerApplicationView application,
                 boolean reviewable);
     }
+/** DetailReview 内部组件模型。 */
 
     record DetailReview(SellerReviewDecision decision, String reason) { }
 

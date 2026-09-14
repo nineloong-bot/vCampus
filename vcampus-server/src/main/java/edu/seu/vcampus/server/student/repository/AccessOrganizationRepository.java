@@ -283,11 +283,13 @@ public final class AccessOrganizationRepository implements OrganizationRepositor
     }
 
     @FunctionalInterface
+    /** 数据库操作预编译参数绑定器。 */
     private interface SqlBinder {
         void bind(java.sql.PreparedStatement statement) throws SQLException;
     }
 
     @FunctionalInterface
+    /** 数据库结果集映射实体转换器。 */
     private interface SqlMapper<T> {
         T map(ResultSet result) throws SQLException;
     }

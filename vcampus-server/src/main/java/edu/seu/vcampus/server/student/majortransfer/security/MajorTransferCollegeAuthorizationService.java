@@ -109,8 +109,10 @@ public final class MajorTransferCollegeAuthorizationService {
     private static void forbidden() {
         throw new IllegalArgumentException("COMMON_FORBIDDEN");
     }
+/** 学院分管权限作用域枚举。 */
 
     private enum Scope { SOURCE, TARGET, EITHER }
+/** 学院关联的院系专业映射集合。 */
 
     private record Departments(String source, String target) { }
 }

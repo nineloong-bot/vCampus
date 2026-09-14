@@ -246,6 +246,7 @@ public final class ModulePermissionManagementPanel extends JPanel {
     }
 
     @FunctionalInterface
+    /** Confirmation 内部组件模型。 */
     interface Confirmation {
         boolean confirm(String message);
     }

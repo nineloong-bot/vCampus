@@ -225,6 +225,7 @@ final class CourseEditorDialog extends JDialog {
         label.setForeground(color);
         return label;
     }
+/** BigDecimalSpinnerModel 内部组件模型。 */
 
     private static final class BigDecimalSpinnerModel extends SpinnerNumberModel {
         private final BigDecimal minimum;

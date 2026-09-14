@@ -27,7 +27,10 @@ import edu.seu.vcampus.server.persistence.TransactionManager;
 import java.time.Clock;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Supplier;
+import java.util.function.Supplier;/**
+ * 图书管理只读操作协作者，封装借还流水综合查询与管理统计逻辑。
+ */
+
 
 final class LibraryReadAdminOperations {
     private final LibraryIdentityPort identities;

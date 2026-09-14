@@ -101,6 +101,7 @@ public final class ShopComponentStyle {
         }
         return javax.swing.SwingConstants.LEFT;
     }
+/** ShopCellRenderer 内部组件模型。 */
 
     private static final class ShopCellRenderer extends DefaultTableCellRenderer {
         private final int alignment;

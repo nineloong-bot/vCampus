@@ -379,5 +379,6 @@ public final class StudentRepository {
         return switch (status) { case ACTIVE -> "正常"; case SUSPENDED -> "休学"; case GRADUATED -> "已毕业"; case WITHDRAWN -> "已退学"; };
     }
 
+    /** SQL 预编译语句参数绑定器接口。 */
     @FunctionalInterface private interface Binder { void bind(java.sql.PreparedStatement statement) throws SQLException; }
 }

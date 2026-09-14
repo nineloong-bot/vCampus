@@ -5,7 +5,10 @@ import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
 import edu.seu.vcampus.common.shop.CartItemView;
 
 import javax.swing.*;
-import java.math.BigDecimal;
+import java.math.BigDecimal;/**
+ * 订单结算确认清单中的单个商品规格展示行组件。
+ */
+
 
 final class CheckoutItemRow extends JPanel {
     CheckoutItemRow(CartItemView item, Runnable open, ShopUiKit kit) {

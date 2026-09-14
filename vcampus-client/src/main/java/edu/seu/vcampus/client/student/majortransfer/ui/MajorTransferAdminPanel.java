@@ -616,6 +616,7 @@ public final class MajorTransferAdminPanel extends JPanel {
             case EXECUTION -> "执行";
         };
     }
+/** BatchCellRenderer 内部组件模型。 */
 
     private static class BatchCellRenderer extends DefaultListCellRenderer {
         @Override public Component getListCellRendererComponent(JList<?> list, Object value,
@@ -625,6 +626,7 @@ public final class MajorTransferAdminPanel extends JPanel {
             return this;
         }
     }
+/** ApplicationCellRenderer 内部组件模型。 */
 
     private static class ApplicationCellRenderer extends DefaultListCellRenderer {
         @Override public Component getListCellRendererComponent(JList<?> list, Object value,

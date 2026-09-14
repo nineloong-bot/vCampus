@@ -303,11 +303,13 @@ public final class CheckoutPanel extends JPanel {
     }
     private void refresh() { content.revalidate(); content.repaint(); }
 
+    /** 收银台组件创建工厂接口。 */
     @FunctionalInterface interface CashierFactory {
         ActiveCashier create(Window owner, ShopClientPort client, ShopNavigator navigator, ShopUiKit uiKit,
                 CheckoutResult checkout, Runnable sessionExpired, Consumer<PaymentView> terminal,
                 Runnable settled, Runnable closed);
     }
+    /** ActiveCashier 内部组件模型。 */
     interface ActiveCashier {
         void open();
         void disposePage();

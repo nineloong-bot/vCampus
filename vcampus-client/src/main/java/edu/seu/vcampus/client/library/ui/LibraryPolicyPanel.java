@@ -111,6 +111,7 @@ public final class LibraryPolicyPanel extends JPanel {
         panel.add(new JLabel("配置来源")); panel.add(new JLabel("服务端数据库 tblLibraryPolicy"));
         return panel;
     }
+/** PolicyRow 内部组件模型。 */
 
     private final class PolicyRow {
         private final String roleCode;

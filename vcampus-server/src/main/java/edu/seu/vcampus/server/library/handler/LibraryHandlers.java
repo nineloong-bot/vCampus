@@ -121,6 +121,7 @@ public final class LibraryHandlers {
     }
 
     @FunctionalInterface
+    /** 图书管理员操作事务执行接口。 */
     private interface AdminAction<T, R> {
         R apply(String sessionToken, T body);
     }

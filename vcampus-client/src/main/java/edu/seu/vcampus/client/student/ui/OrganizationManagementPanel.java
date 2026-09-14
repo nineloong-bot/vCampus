@@ -21,7 +21,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.regex.Pattern;
+import java.util.regex.Pattern;/**
+ * 院系、专业与行政班级组织树管理面板，支持层级架构浏览与增删改。
+ */
+
 
 public final class OrganizationManagementPanel extends JPanel {
     private static final Pattern MAJOR_CODE = Pattern.compile("^[0-9A-Z]{3}$");
@@ -728,6 +731,7 @@ public final class OrganizationManagementPanel extends JPanel {
     private static String safeMessage(ResponseBody<?> body) {
         return body != null && body.message() != null && !body.message().isBlank() ? body.message() : "操作失败，请稍后重试";
     }
+/** OrgTreeCellRenderer 内部组件模型。 */
 
     private static final class OrgTreeCellRenderer extends DefaultTreeCellRenderer {
         @Override public Component getTreeCellRendererComponent(JTree tree, Object value,

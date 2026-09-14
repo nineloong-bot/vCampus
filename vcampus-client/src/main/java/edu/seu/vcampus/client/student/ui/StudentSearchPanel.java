@@ -15,7 +15,10 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicLong;/**
+ * 学籍档案综合组合检索与学生列表管理面板。
+ */
+
 
 public final class StudentSearchPanel extends JPanel {
     private final StudentClientService students;

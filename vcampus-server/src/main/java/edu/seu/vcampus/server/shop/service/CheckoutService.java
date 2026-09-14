@@ -345,6 +345,7 @@ public final class CheckoutService {
     private static RuntimeException emptyCart(String message) {
         return SellerApplicationService.error(ShopErrorCode.SHOP_CART_EMPTY, message);
     }
+/** 结算条目单项领域明细。 */
 
     private record CheckoutLine(String cartItemId, String skuId, String productId,
             String shopId, String productName, String ownerUserId, String skuName, String shopName,

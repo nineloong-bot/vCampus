@@ -134,6 +134,7 @@ public final class AccessAuditRepository implements AuditRepository {
     private static boolean present(String value) {
         return value != null && !value.isBlank();
     }
+/** 查询过滤条件与参数绑定载体。 */
 
     private record Filter(String clause, List<Object> values) { }
 }

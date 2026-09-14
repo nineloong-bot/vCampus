@@ -5,7 +5,10 @@ import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.util.Objects;
-import java.util.List;
+import java.util.List;/**
+ * 学生当前在借图书列表展示面板，支持借阅期限查看与一键续借。
+ */
+
 public final class CurrentLoansPanel extends LibraryDataPanel {
     private final LibraryClientService service;
     private List<LoanView> loans = List.of();

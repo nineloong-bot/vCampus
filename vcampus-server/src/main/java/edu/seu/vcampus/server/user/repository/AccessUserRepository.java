@@ -195,6 +195,6 @@ public final class AccessUserRepository implements UserRepository {
         return new PersistenceException(message, cause);
     }
 
-    private record Filter(String clause, List<String> parameters) {
-    }
+    /** 查询过滤条件与参数绑定载体。 */
+    private record Filter(String clause, List<String> parameters) {}
 }

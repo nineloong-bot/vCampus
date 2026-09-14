@@ -12,7 +12,10 @@ import edu.seu.vcampus.server.shop.port.ShopUserPort;
 
 import java.io.Serializable;
 import java.util.Objects;
-import java.util.function.BiFunction;
+import java.util.function.BiFunction;/**
+ * 商城网络协议分发处理 Handler 的通用抽象基类，提供参数提取与异常封装。
+ */
+
 
 final class ShopHandlerSupport {
     private final ShopUserPort users;

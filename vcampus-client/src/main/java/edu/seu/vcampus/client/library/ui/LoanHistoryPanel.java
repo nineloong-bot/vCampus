@@ -4,7 +4,10 @@ import edu.seu.vcampus.common.library.*;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.util.Objects;
-import java.awt.*;
+import java.awt.*;/**
+ * 学生历史借阅记录查询与分页展示面板。
+ */
+
 public final class LoanHistoryPanel extends LibraryDataPanel {
     private final LibraryClientService service;
     public LoanHistoryPanel(LibraryClientService service) {

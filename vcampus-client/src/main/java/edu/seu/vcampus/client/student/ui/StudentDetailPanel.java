@@ -430,6 +430,7 @@ public final class StudentDetailPanel extends JPanel {
             case "PROFILE_CHANGE" -> "信息修改"; default -> type;
         };
     }
+/** ChangesTableModel 内部组件模型。 */
 
     private static final class ChangesTableModel extends AbstractTableModel {
         private static final String[] COLUMNS = {"变更类型", "变更前", "变更后", "原因", "生效日期", "创建时间"};
@@ -448,6 +449,7 @@ public final class StudentDetailPanel extends JPanel {
             };
         }
     }
+/** ScrollContent 内部组件模型。 */
 
     private static final class ScrollContent extends JPanel implements Scrollable {
         @Override public Dimension getPreferredScrollableViewportSize() { return getPreferredSize(); }

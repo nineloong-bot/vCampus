@@ -13,7 +13,10 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.List;
+import java.util.List;/**
+ * 基于 Access 数据库实现的图书目录底层检索与 SQL 组装辅助类。
+ */
+
 
 final class AccessCatalogQueries {
     private AccessCatalogQueries() {

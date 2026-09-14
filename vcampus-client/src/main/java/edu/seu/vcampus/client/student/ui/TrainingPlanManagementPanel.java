@@ -311,6 +311,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
                     }));
         }
     }
+/** CourseTableModel 内部组件模型。 */
 
     private static class CourseTableModel extends AbstractTableModel {
         private static final String[] COLUMNS = {"课程代码", "课程名称", "学分", "类型", "学期"};

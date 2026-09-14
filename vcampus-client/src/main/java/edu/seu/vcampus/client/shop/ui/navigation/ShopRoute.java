@@ -18,22 +18,26 @@ public sealed interface ShopRoute permits ShopRoute.Home, ShopRoute.Search,
         return new Home(new HomeProductQuery(null, null,
                 ProductSortMode.SALES_DESC, 0, 20));
     }
+/** Home 内部组件模型。 */
 
     record Home(HomeViewState state) implements ShopRoute {
         public Home { Objects.requireNonNull(state, "state"); }
         public Home(HomeProductQuery query) { this(new HomeViewState(query, 0)); }
         public HomeProductQuery query() { return state.query(); }
     }
+/** Search 内部组件模型。 */
 
     record Search(SearchViewState state) implements ShopRoute {
         public Search { Objects.requireNonNull(state, "state"); }
         public Search(ProductSearchQuery query) { this(new SearchViewState(query, false, false, 0)); }
         public ProductSearchQuery query() { return state.query(); }
     }
+/** Product 内部组件模型。 */
 
     record Product(String productId) implements ShopRoute {
         public Product { Objects.requireNonNull(productId, "productId"); }
     }
+/** Storefront 内部组件模型。 */
 
     record Storefront(StorefrontViewState state) implements ShopRoute {
         public Storefront { Objects.requireNonNull(state, "state"); }
@@ -44,23 +48,30 @@ public sealed interface ShopRoute permits ShopRoute.Home, ShopRoute.Search,
         public Storefront(ShopProductQuery query) { this(new StorefrontViewState(query, 0)); }
         public String shopId() { return state.query().shopId(); }
     }
+/** Cart 内部组件模型。 */
 
     record Cart() implements ShopRoute { }
+/** Checkout 内部组件模型。 */
 
     record Checkout(Set<String> cartItemIds) implements ShopRoute {
         public Checkout { cartItemIds = Set.copyOf(cartItemIds); }
         public Checkout() { this(Set.of()); }
     }
+/** PaymentResult 内部组件模型。 */
 
     record PaymentResult(PaymentView payment) implements ShopRoute {
         public PaymentResult { Objects.requireNonNull(payment, "payment"); }
     }
+/** My 内部组件模型。 */
 
     record My() implements ShopRoute { }
+/** SellerApplication 内部组件模型。 */
 
     record SellerApplication() implements ShopRoute { }
+/** SellerWorkspace 内部组件模型。 */
 
     record SellerWorkspace() implements ShopRoute { }
+/** AdminWorkspace 内部组件模型。 */
 
     record AdminWorkspace() implements ShopRoute { }
 }

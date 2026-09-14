@@ -7,7 +7,10 @@ import java.io.Serializable;
 import java.util.ConcurrentModificationException;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
+import java.util.UUID;/**
+ * 用户模块网络 Handler 错误响应映射器，将系统异常转换为标准协议错误响应。
+ */
+
 
 final class UserHandlerErrorMapper {
     private static final String INTERNAL_ERROR = "COMMON_INTERNAL_ERROR";

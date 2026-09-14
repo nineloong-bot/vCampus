@@ -249,6 +249,7 @@ public final class StudentProfileServiceImpl implements StudentProfileService {
     private static String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
     }
+/** 学生资料变更草稿暂存键值模型。 */
 
     private record DraftValues(StudentPersonalProfile personal, AttendanceMode attendanceMode) { }
 }

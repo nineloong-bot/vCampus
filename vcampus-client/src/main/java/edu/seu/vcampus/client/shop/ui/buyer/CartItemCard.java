@@ -9,7 +9,10 @@ import java.awt.FlowLayout;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.function.Consumer;
-import java.util.function.IntConsumer;
+import java.util.function.IntConsumer;/**
+ * 购物车界面中展示单个选购规格条目的卡片组件。
+ */
+
 
 final class CartItemCard extends JPanel {
     final JButton update;

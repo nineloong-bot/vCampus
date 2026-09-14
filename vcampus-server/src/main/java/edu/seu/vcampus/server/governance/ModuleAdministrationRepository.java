@@ -18,6 +18,7 @@ interface ModuleAdministrationRepository {
 
     void updateRoleAndStatus(Connection connection, String userId, UserRole role,
                              AccountStatus status, long expectedVersion);
+/** 分模块管理员账号与密码元数据。 */
 
     record AdministratorAccount(
             String userId, String loginId, UserRole role,

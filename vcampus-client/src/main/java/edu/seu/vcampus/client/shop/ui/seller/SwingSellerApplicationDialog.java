@@ -59,6 +59,7 @@ public final class SwingSellerApplicationDialog implements SellerApplicationDial
     Form createForm(Optional<SellerApplicationView> application, Runnable changed, Runnable closed) {
         return new Form(application.orElse(null), changed, closed);
     }
+/** Form 内部组件模型。 */
 
     final class Form extends JPanel {
         private final JTextField name = LimitedTextInput.field("seller.application.name",
@@ -171,6 +172,7 @@ public final class SwingSellerApplicationDialog implements SellerApplicationDial
         private void fail(Throwable failure) { String code = ShopUiErrors.code(failure);
             status.setText(ShopUiErrors.message(code)); if (ShopUiErrors.sessionExpired(code)) sessionExpired.run(); }
     }
+/** 先修课程依赖图拓扑遍历状态枚举。 */
 
     private record State(String name, String description, String category, String contact, String statement) {
         boolean valid() { return !name.isBlank() && !description.isBlank() && !category.isBlank()

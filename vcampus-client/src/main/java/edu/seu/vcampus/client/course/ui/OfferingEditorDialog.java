@@ -434,6 +434,7 @@ final class OfferingEditorDialog extends JDialog {
         label.setForeground(color);
         return label;
     }
+/** StatusChoice 内部组件模型。 */
 
     private enum StatusChoice {
         DRAFT("DRAFT", "草稿"), OPEN("OPEN", "开放"), CLOSED("CLOSED", "已关闭"),
@@ -450,12 +451,16 @@ final class OfferingEditorDialog extends JDialog {
         }
         @Override public String toString() { return label; }
     }
+/** TermAndCurrent 内部组件模型。 */
 
     private record TermAndCurrent(List<TermView> terms, String currentTermId) { }
+    /** PartialReferenceData 内部组件模型。 */
     private record PartialReferenceData(TermAndCurrent termData, PageResult<CourseView> courses) { }
+    /** ReferenceData 内部组件模型。 */
     private record ReferenceData(TermAndCurrent termData, PageResult<CourseView> courses,
                                  PageResult<UserSummary> teachers,
                                  Optional<UserSummary> existingTeacher) { }
+/** BoundedIntegerSpinnerModel 内部组件模型。 */
 
     private static final class BoundedIntegerSpinnerModel extends SpinnerNumberModel {
         private final int minimum;

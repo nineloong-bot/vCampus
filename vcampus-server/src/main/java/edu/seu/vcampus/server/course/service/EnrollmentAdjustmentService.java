@@ -222,8 +222,10 @@ final class EnrollmentAdjustmentService {
 
     private ResourceKey studentKey(String id) { return new ResourceKey("STUDENT", id); }
     private ResourceKey offeringKey(String id) { return new ResourceKey("OFFERING", id); }
+/** 选课退改补操作主体信息对象。 */
 
     private record Actor(String userId, String studentId) { }
+/** 选课调整来源追踪凭据对象。 */
 
     private static final class SourceReference {
         private String offeringId;

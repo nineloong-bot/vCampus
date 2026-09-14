@@ -7,6 +7,9 @@ import edu.seu.vcampus.common.shop.PaymentView;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * 商城业务操作专用审计与业务日志记录器。
+ */
 public final class ShopBusinessLogger {
     private static final Logger LOG = LoggerFactory.getLogger("vcampus.business");
 

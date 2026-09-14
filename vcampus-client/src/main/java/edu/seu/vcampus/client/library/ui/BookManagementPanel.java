@@ -6,7 +6,10 @@ import java.util.Objects;
 import java.awt.*;
 import java.time.LocalDate;
 import java.util.List;
-import javax.swing.table.DefaultTableModel;
+import javax.swing.table.DefaultTableModel;/**
+ * 图书管理主界面面板，提供书目检索、录入与基本信息维护功能。
+ */
+
 public final class BookManagementPanel extends LibraryDataPanel {
     private final LibraryClientService service;
     private final JTextField keyword = new JTextField(18);

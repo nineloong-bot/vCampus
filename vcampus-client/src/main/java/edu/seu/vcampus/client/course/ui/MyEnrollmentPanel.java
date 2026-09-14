@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @FunctionalInterface
+/** DropConfirmation 内部组件模型。 */
 interface DropConfirmation {
     boolean confirm(java.awt.Window owner, String courseLabel);
 }

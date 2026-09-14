@@ -1,7 +1,10 @@
 package edu.seu.vcampus.client.course.ui;
 
 import java.time.Instant;
-import java.time.LocalDate;
+import java.time.LocalDate;/**
+ * 课程管理相关表单与对话框的统一输入校验工具类。
+ */
+
 
 final class CourseFormValidation {
     private CourseFormValidation() { }

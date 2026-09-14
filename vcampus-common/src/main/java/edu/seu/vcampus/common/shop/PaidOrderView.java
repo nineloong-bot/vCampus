@@ -6,6 +6,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * 已支付订单的详细视图对象。
+ */
 public record PaidOrderView(String orderId, String orderNumber, String shopId,
         String shopName, BigDecimal totalAmount, Instant paidAt, OrderStatus status,
         List<PaidOrderItemView> items) implements Serializable {

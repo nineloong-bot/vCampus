@@ -184,6 +184,7 @@ public final class ServerMain {
             LOGGER.warn("服务端停机清理未完全成功", error);
         }
     }
+/** 服务端各模块运行时服务聚合模型。 */
 
     private record ServerRuntime(UserService users, AuthorizationService authorization,
                                  RequestDeduplicator deduplicator,

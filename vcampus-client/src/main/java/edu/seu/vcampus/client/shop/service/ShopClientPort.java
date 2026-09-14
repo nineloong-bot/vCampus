@@ -3,7 +3,10 @@ package edu.seu.vcampus.client.shop.service;
 import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.shop.*;
 
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletableFuture;/**
+ * 商城买家客户端与服务端通信端口契约接口。
+ */
+
 
 public interface ShopClientPort {
     CompletableFuture<PageResult<ProductSummary>> home(HomeProductQuery query);

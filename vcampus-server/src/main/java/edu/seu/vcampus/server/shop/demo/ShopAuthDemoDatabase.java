@@ -318,6 +318,7 @@ public final class ShopAuthDemoDatabase {
             default -> throw new IllegalStateException("Unknown demo shop " + shopId);
         };
     }
+/** 演示订单与预置明细数据结构。 */
 
     private record DemoOrderSeed(String groupId, String orderId, String orderNumber,
             String itemId, String paymentId, String paymentNumber, String attemptId,

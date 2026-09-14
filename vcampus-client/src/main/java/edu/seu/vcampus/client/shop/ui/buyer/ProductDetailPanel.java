@@ -212,6 +212,7 @@ public final class ProductDetailPanel extends JPanel {
     }
 
     private void refresh() { content.revalidate(); content.repaint(); }
+    /** SkuChoice 内部组件模型。 */
     private record SkuChoice(String skuId, String label) {
         @Override public String toString() { return label; }
     }

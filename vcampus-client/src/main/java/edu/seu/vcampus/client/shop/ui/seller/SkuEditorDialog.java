@@ -3,7 +3,10 @@ import edu.seu.vcampus.client.shop.ui.style.ShopComponentStyle;
 import javax.swing.*;
 import java.awt.GridLayout;
 import java.math.BigDecimal;
-import java.util.Optional;
+import java.util.Optional;/**
+ * 商品规格（SKU）新建与编辑弹窗对话框。
+ */
+
 public final class SkuEditorDialog {
     public record Result(String name, BigDecimal unitPrice, long stockQuantity, boolean active) { }
     public static Optional<Result> show(java.awt.Component parent, Result initial) {

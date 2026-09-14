@@ -15,11 +15,13 @@ public final class MajorTransferRepository {
 
     // ── Nested persistence records ──
 
+    /** 转专业批次持久化行模型。 */
     public record BatchRow(String batchId, String batchName, MajorTransferBatchStatus status,
                            Instant applicationStart, Instant applicationEnd,
                            Instant publicityStart, Instant publicityEnd, Instant effectiveDate,
                            long rowVersion, Instant createdAt, Instant updatedAt) {}
 
+    /** 转专业志愿选项持久化行模型。 */
     public record OptionRow(String optionId, String batchId, String targetMajorId,
                             String targetDepartmentId, String targetMajorName,
                             String targetDepartmentName, String grades, int receiveQuota,
@@ -28,6 +30,7 @@ public final class MajorTransferRepository {
                             boolean difficultyQuotaExempt, String requirements, boolean active,
                             long rowVersion, Instant createdAt, Instant updatedAt) {}
 
+    /** 转专业申请单持久化行模型。 */
     public record ApplicationRow(String applicationId, String batchId, String studentId,
                                  MajorTransferApplicationType applicationType,
                                  MajorTransferStatus status, String optionId,
@@ -45,15 +48,18 @@ public final class MajorTransferRepository {
                                  Instant qualificationReviewedAt, String qualificationComment,
                                  Instant createdAt, Instant updatedAt) {}
 
+    /** 转专业申请附件持久化行模型。 */
     public record AttachmentRow(String attachmentId, String applicationId, String fileName,
                                 String contentType, long fileSize, Instant createdAt) {}
 
+    /** 转专业审核意见持久化行模型。 */
     public record ReviewRow(String reviewId, String applicationId,
                             MajorTransferReviewStage reviewStage, MajorTransferDecision decision,
                             String reviewerUserId, String comment,
                             Boolean sourceVerified, Boolean noMisconduct, Boolean admissionAllowed,
                             Instant createdAt) {}
 
+    /** 转专业执行生效持久化行模型。 */
     public record ExecutionRow(String executionId, String applicationId,
                                String toClassId, String toClassName,
                                String toMajorId, String toMajorName,

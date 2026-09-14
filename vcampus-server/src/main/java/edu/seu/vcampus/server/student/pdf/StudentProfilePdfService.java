@@ -113,8 +113,10 @@ public final class StudentProfilePdfService implements StudentProfilePdfGenerato
     private static String safe(String value) {
         return value == null ? "未填写" : value.replaceAll("[\\\\/:*?\"<>|]", "_");
     }
+/** 学生登记表 PDF 导出字段定义。 */
 
     private record Field(String label, String value) { }
+/** 学生登记表 PDF 页面图形渲染协作者。 */
 
     private static final class Renderer {
         private final PDDocument document;

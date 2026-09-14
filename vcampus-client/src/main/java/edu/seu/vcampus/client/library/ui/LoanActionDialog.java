@@ -1,6 +1,9 @@
 package edu.seu.vcampus.client.library.ui;
 import javax.swing.*;
-import java.awt.*;
+import java.awt.*;/**
+ * 图书借还与操作确认弹窗对话框。
+ */
+
 public final class LoanActionDialog extends JDialog {
     public LoanActionDialog(Window owner, String action, String subject) {
         this(owner, action, subject, null);

@@ -51,6 +51,13 @@ public final class CurriculumSelectionPolicy {
         return new CandidateSet(false, Map.copyOf(allowed), Set.copyOf(retakes));
     }
 
+    /**
+     * 学生候选选课与重修课程集合。
+     *
+     * @param legacy 是否兼容旧模式
+     * @param courses 可选培养方案课程映射
+     * @param retakeCourseIds 允许重修的课程标识集合
+     */
     public record CandidateSet(boolean legacy, Map<String, CurriculumCourse> courses,
                                Set<String> retakeCourseIds) {
         private static CandidateSet legacyMode() { return new CandidateSet(true, Map.of(), Set.of()); }

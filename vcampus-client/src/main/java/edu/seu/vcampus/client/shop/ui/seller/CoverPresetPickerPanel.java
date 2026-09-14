@@ -3,7 +3,10 @@ import edu.seu.vcampus.common.shop.*;
 import edu.seu.vcampus.client.shop.ui.style.ShopComponentStyle;
 import javax.swing.*;
 import java.awt.FlowLayout;
-import java.util.Objects;
+import java.util.Objects;/**
+ * 商品封面预设图片选取面板，支持从预设库中快捷挑选封面图。
+ */
+
 public final class CoverPresetPickerPanel extends JPanel {
     private final ButtonGroup group = new ButtonGroup();
     public CoverPresetPickerPanel() { super(new FlowLayout(FlowLayout.LEFT, 6, 4));

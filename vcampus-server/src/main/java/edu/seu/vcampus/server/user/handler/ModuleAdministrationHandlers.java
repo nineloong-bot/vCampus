@@ -158,6 +158,7 @@ public final class ModuleAdministrationHandlers {
     }
 
     @FunctionalInterface
+    /** 治理模块写事务执行接口。 */
     private interface GovernanceAction<T> {
         void run(String actorUserId, T command);
     }

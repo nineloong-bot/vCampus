@@ -168,6 +168,7 @@ public final class CourseDemoDataset {
                              AcademicSeason season, String nature, String category) {
         return new Item(code, name, new BigDecimal(credit), year, season, nature, category);
     }
+/** 选课演示测试数据集条目模型。 */
 
     private record Item(String code, String name, BigDecimal credit, int year,
                         AcademicSeason season, String nature, String category) {}

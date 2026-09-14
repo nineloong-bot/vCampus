@@ -5,7 +5,10 @@ import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.util.Objects;
 import java.awt.*;
-import java.util.List;
+import java.util.List;/**
+ * 图书管理员借还流水监控与人工借还办理面板。
+ */
+
 public final class LoanAdminPanel extends LibraryDataPanel {
     private final LibraryClientService service;
     private final JTextField borrower = new JTextField(12);

@@ -170,5 +170,12 @@ public final class CourseDemoServerMain {
         catch (Exception ignored) { }
     }
 
+    /**
+     * 课程演示运行期上下文。
+     *
+     * @param router 消息路由器
+     * @param service 课程服务
+     * @param connections 数据库连接提供者
+     */
     public record DemoRuntime(MessageRouter router, CourseService service, ConnectionProvider connections) { }
 }

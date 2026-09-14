@@ -124,6 +124,7 @@ public final class SharedShopUiKitAdapter implements ShopUiKit {
         component.setName(name);
         return component;
     }
+/** StateTheme 内部组件模型。 */
 
     private static final class StateTheme {
         final Color background;
@@ -134,6 +135,7 @@ public final class SharedShopUiKitAdapter implements ShopUiKit {
             this.foreground = foreground;
         }
     }
+/** Style 内部组件模型。 */
 
     private enum Style {
         PRIMARY(UiColors.ACCENT, UiColors.TEXT_ON_PRIMARY),

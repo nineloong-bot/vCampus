@@ -173,6 +173,7 @@ public final class CourseServiceImpl implements CourseService, CourseQueryPort {
                         .thenComparing(ScheduleShape::classroom))
                 .toList();
     }
+    /** 课程时间冲突校验调度形状模型。 */
     private record ScheduleShape(DayOfWeek dayOfWeek, int startPeriod, int endPeriod,
                                  int startWeek, int endWeek, String classroom) {
         private static ScheduleShape from(Schedule schedule) {

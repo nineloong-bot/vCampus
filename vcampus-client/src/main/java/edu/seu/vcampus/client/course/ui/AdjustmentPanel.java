@@ -379,11 +379,14 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
             public boolean isCellEditable(int row, int column) { return false; }
         };
     }
+/** PartialData 内部组件模型。 */
 
     private record PartialData(List<EnrollmentView> enrollments, edu.seu.vcampus.common.paging.PageResult<OfferingSummary> offerings) { }
+    /** PartialDataWithPhase 内部组件模型。 */
     private record PartialDataWithPhase(List<EnrollmentView> enrollments,
                                         edu.seu.vcampus.common.paging.PageResult<OfferingSummary> offerings,
                                         TermPhaseView phase) { }
+    /** Data 内部组件模型。 */
     private record Data(List<EnrollmentView> enrollments, edu.seu.vcampus.common.paging.PageResult<OfferingSummary> offerings,
                         TermPhaseView phase, List<ScheduleItem> schedule) { }
 }

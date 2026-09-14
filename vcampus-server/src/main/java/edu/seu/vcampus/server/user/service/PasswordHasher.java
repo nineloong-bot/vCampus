@@ -49,6 +49,7 @@ public final class PasswordHasher {
         }
     }
 }
+/** 密码哈希与加密盐值计算模型。 */
 
 record PasswordHash(String hash, String salt, int iterations) {
 }

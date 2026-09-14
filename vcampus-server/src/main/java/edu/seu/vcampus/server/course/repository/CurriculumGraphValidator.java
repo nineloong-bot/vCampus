@@ -35,6 +35,7 @@ public final class CurriculumGraphValidator {
         states.put(node, State.DONE);
         ordered.add(node);
     }
+/** 先修课程依赖图拓扑遍历状态枚举。 */
 
     private enum State { VISITING, DONE }
 }

@@ -364,16 +364,20 @@ public final class SimulatedPaymentService {
     private static ShopException error(ShopErrorCode code, String message) {
         return new ShopException(code, message);
     }
+/** 支付并发锁控制数据对象。 */
 
     record PaymentLockData(String paymentId, String orderGroupId, List<ResourceKey> keys) { }
+/** 模拟支付流水状态记录模型。 */
 
     record PaymentRecord(String paymentId, String orderGroupId, String buyerUserId,
             String paymentNumber, BigDecimal amount, PaymentStatus status,
             PaymentChannel channel, Instant expiresAt, Instant completedAt,
             long rowVersion) { }
+/** 商城库存预留锁定记录模型。 */
 
     record Reservation(String reservationId, String skuId, long quantity,
             String status, Instant expiresAt) { }
+/** 商品销量聚合统计模型。 */
 
     private record ProductSale(String productId, long quantity) { }
 }

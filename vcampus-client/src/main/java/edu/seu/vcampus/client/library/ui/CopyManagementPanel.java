@@ -9,7 +9,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletableFuture;/**
+ * 图书馆藏副本物理实体管理面板，支持馆藏条码录入、副本状态流转与注销。
+ */
+
 
 public final class CopyManagementPanel extends LibraryDataPanel {
     private final LibraryClientService service;
@@ -214,6 +217,7 @@ public final class CopyManagementPanel extends LibraryDataPanel {
         for (int index = 0; index < labels.length; index++) { panel.add(new JLabel(labels[index])); panel.add(fields[index]); }
         return panel;
     }
+/** CopyRow 内部组件模型。 */
 
     private record CopyRow(BookCopyView copy, String title) { }
 }

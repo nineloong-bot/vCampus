@@ -47,6 +47,8 @@ public final class SelectionPhaseManagementPanel extends AbstractCoursePanel {
     private String statusValue(){return switch(status.getSelectedIndex()){case 1->"PREVIEW";case 2->"OPEN";case 3->"CLOSED";default->"DRAFT";};}
     private static int statusIndex(String value){return switch(value){case "PREVIEW"->1;case "OPEN"->2;case "CLOSED"->3;default->0;};}
     private static String statusName(String value){return switch(value){case "DRAFT"->"草稿";case "PREVIEW"->"预选课";case "OPEN"->"正式开放";case "CLOSED"->"已关闭";default->value;};}
+    /** TermChoice 内部组件模型。 */
     private record TermChoice(String id,String name,String status,int academicYearStart,AcademicSeason season){public String toString(){return academicYearStart+"-"+(academicYearStart+1)+" · "+season.displayName()+("ACTIVE".equals(status)?"  (进行中)":"");}}
+    /** PhaseData 内部组件模型。 */
     private record PhaseData(List<TermView> terms,List<SelectionPhaseView> phases){}
 }

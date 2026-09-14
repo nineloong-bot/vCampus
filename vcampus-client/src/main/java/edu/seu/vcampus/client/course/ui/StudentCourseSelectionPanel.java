@@ -167,5 +167,6 @@ public final class StudentCourseSelectionPanel extends AbstractCoursePanel {
     private String selectedDay(){return switch(weekday.getSelectedIndex()){case 1->"MONDAY";case 2->"TUESDAY";case 3->"WEDNESDAY";case 4->"THURSDAY";case 5->"FRIDAY";case 6->"SATURDAY";case 7->"SUNDAY";default->null;};}
     static String scheduleText(OfferingSummary o){if(o.schedules().isEmpty())return "待安排";return o.schedules().stream().map(s->dayName(s.dayOfWeek())+" 第"+s.startPeriod()+"–"+s.endPeriod()+"节 "+s.classroom()).collect(java.util.stream.Collectors.joining("；"));}
     private static String dayName(String day){return switch(day){case "MONDAY"->"星期一";case "TUESDAY"->"星期二";case "WEDNESDAY"->"星期三";case "THURSDAY"->"星期四";case "FRIDAY"->"星期五";case "SATURDAY"->"星期六";case "SUNDAY"->"星期日";default->day;};}
+    /** SelectionData 内部组件模型。 */
     private record SelectionData(StudentSelectionContextView context,edu.seu.vcampus.common.paging.PageResult<CourseSelectionView> page){}
 }

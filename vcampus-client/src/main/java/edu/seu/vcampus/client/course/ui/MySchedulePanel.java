@@ -136,9 +136,13 @@ public final class MySchedulePanel extends AbstractCoursePanel {
                 GridBagConstraints.CENTER, GridBagConstraints.BOTH, new Insets(0, 0, 0, 0), 0, 0);
         grid.add(cell, c);
     }
+/** CellKey 内部组件模型。 */
 
     private record CellKey(String dayOfWeek, int startPeriod) { }
+    /** CellEntry 内部组件模型。 */
     private record CellEntry(ScheduleItem item, boolean continuation) { }
+    /** TermContext 内部组件模型。 */
     private record TermContext(String termId, List<TermView> terms) { }
+    /** SchedulePayload 内部组件模型。 */
     private record SchedulePayload(List<ScheduleItem> items, TermContext context) { }
 }

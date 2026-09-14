@@ -4,6 +4,9 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Objects;
 
+/**
+ * 已支付订单中的单项商品明细视图对象。
+ */
 public record PaidOrderItemView(String productId, String productName,
         String skuId, String skuName, int quantity, BigDecimal unitPrice,
         BigDecimal lineAmount) implements Serializable {

@@ -168,8 +168,10 @@ public final class ShopAuthDemoClientMain {
             throw new IllegalStateException("Shop Demo UI must run on the EDT");
         }
     }
+/** ServerAddress 内部组件模型。 */
 
     record ServerAddress(String host, int port) { }
+/** AsyncUserClientService 内部组件模型。 */
 
     private static final class AsyncUserClientService extends UserClientService {
         private final Executor executor;

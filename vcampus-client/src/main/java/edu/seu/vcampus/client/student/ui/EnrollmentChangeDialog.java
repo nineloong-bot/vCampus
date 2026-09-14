@@ -21,7 +21,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
+import java.util.function.Consumer;/**
+ * 学生学籍异动申请与登记对话框，支持休学、复学、退学等异动办理。
+ */
+
 
 public final class EnrollmentChangeDialog extends JDialog {
     private static final Border SUBMIT_BORDER = BorderFactory.createCompoundBorder(UiBorders.LINE,
@@ -412,6 +415,7 @@ public final class EnrollmentChangeDialog extends JDialog {
         result.getAccessibleContext().setAccessibleName(accessibleName);
         return result;
     }
+/** EnrollmentFocusTraversalPolicy 内部组件模型。 */
 
     private final class EnrollmentFocusTraversalPolicy extends FocusTraversalPolicy {
         private List<Component> order() {

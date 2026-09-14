@@ -5,7 +5,10 @@ import edu.seu.vcampus.common.shop.ShopCategories;
 import edu.seu.vcampus.common.shop.ShopCoverPreset;
 import edu.seu.vcampus.common.shop.ShopCoverPresets;
 
-import java.net.URI;
+import java.net.URI;/**
+ * 商城商品图片静态资源地址解析与分类默认封面校验工具类。
+ */
+
 
 final class ProductImageUrl {
     private static final int MAX_LENGTH = 2048;

@@ -3,6 +3,9 @@ import edu.seu.vcampus.common.student.ClassView;
 import edu.seu.vcampus.common.student.DepartmentView;
 import edu.seu.vcampus.common.student.MajorView;
 import java.util.List;
+/**
+ * 院系、专业与行政班级组织架构只读查询接口。
+ */
 public interface StudentOrganizationQuery {
     List<DepartmentView> listDepartments(boolean activeOnly);
     List<MajorView> listMajors(String departmentId);

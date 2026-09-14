@@ -1,5 +1,8 @@
 package edu.seu.vcampus.server.student.governance;
-import java.sql.Connection;
+import java.sql.Connection;/**
+ * 学院级学生管理权限与分管组织数据访问仓储接口。
+ */
+
 interface StudentCollegeAdministrationRepository {
     void requireDepartment(Connection connection,String id,long version);
     void requireAdministrator(Connection connection,String userId);

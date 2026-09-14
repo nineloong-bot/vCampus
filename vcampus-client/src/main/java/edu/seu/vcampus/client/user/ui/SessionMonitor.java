@@ -93,6 +93,7 @@ final class SessionMonitor {
             throw new IllegalStateException("Session monitor must run on the EDT");
         }
     }
+/** InvalidationReason 内部组件模型。 */
 
     enum InvalidationReason {
         REPLACED,

@@ -91,6 +91,7 @@ public final class OfferingScheduleEditorPanel extends JPanel {
     private void renameRows() {
         for (int index = 0; index < rows.size(); index++) rows.get(index).setRowNumber(index + 1);
     }
+/** ScheduleRow 内部组件模型。 */
 
     private final class ScheduleRow extends JPanel {
         private final JComboBox<WeekdayChoice> day = new JComboBox<>(WeekdayChoice.values());
@@ -193,6 +194,7 @@ public final class OfferingScheduleEditorPanel extends JPanel {
     private static int number(JSpinner spinner) {
         return ((Number) spinner.getValue()).intValue();
     }
+/** WeekdayChoice 内部组件模型。 */
 
     private enum WeekdayChoice {
         MONDAY("MONDAY", "周一"), TUESDAY("TUESDAY", "周二"), WEDNESDAY("WEDNESDAY", "周三"),
@@ -216,6 +218,7 @@ public final class OfferingScheduleEditorPanel extends JPanel {
 
         @Override public String toString() { return label; }
     }
+/** BoundedIntegerSpinnerModel 内部组件模型。 */
 
     private static final class BoundedIntegerSpinnerModel extends SpinnerNumberModel {
         private final int minimum;

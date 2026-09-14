@@ -176,6 +176,7 @@ public final class SessionRegistry {
             clientInstanceId = clientInstanceId == null ? "unknown" : clientInstanceId;
         }
     }
+/** 登录会话内部状态保持包装类。 */
 
     private static final class Session {
         private final SessionSnapshot snapshot;

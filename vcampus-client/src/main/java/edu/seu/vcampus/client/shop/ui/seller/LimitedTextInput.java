@@ -72,6 +72,7 @@ final class LimitedTextInput {
         int used = text.codePointCount(0, text.length());
         remaining.setText("还可输入 " + Math.max(0, limit - used) + " 字");
     }
+/** CharacterLimitFilter 内部组件模型。 */
 
     private static final class CharacterLimitFilter extends DocumentFilter {
         private final int limit;
@@ -103,6 +104,7 @@ final class LimitedTextInput {
             return value.substring(0, value.offsetByCodePoints(0, maximumCodePoints));
         }
     }
+/** PlaceholderField 内部组件模型。 */
 
     private static final class PlaceholderField extends JTextField {
         private final String placeholder;
@@ -121,6 +123,7 @@ final class LimitedTextInput {
                             - graphics.getFontMetrics().getDescent()) / 2);
         }
     }
+/** PlaceholderArea 内部组件模型。 */
 
     private static final class PlaceholderArea extends JTextArea {
         private final String placeholder;

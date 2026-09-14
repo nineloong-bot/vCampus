@@ -307,6 +307,7 @@ public final class MyStudentProfilePanel extends JPanel {
             {"graduationDate", "毕业日期"}, {"studentSource", "学生来源"}, {"graduateStudyMode", "学习形式（研）"},
             {"counselorName", "辅导员姓名"}, {"counselorContact", "辅导员联系方式"}
     }; }
+/** ScrollContent 内部组件模型。 */
 
     private static final class ScrollContent extends JPanel implements Scrollable {
         @Override public Dimension getPreferredScrollableViewportSize() { return getPreferredSize(); }

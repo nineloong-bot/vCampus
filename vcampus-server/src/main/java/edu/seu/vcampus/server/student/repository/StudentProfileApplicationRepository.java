@@ -297,5 +297,6 @@ public final class StudentProfileApplicationRepository {
     }
 
     @FunctionalInterface
+    /** 数据库操作预编译参数绑定器。 */
     private interface SqlBinder { void bind(PreparedStatement statement) throws SQLException; }
 }

@@ -231,6 +231,7 @@ public final class CartPanel extends JPanel {
     private CartItemView item(String id) { return cart == null ? null : cart.items().stream().filter(i -> i.cartItemId().equals(id)).findFirst().orElse(null); }
     private void showState(ShopPageState state, String message, Runnable retry) { content.removeAll(); content.add(uiKit.stateView("cart.state", state, message, retry), BorderLayout.CENTER); refresh(); }
     private void refresh() { content.revalidate(); content.repaint(); }
+    /** Write 内部组件模型。 */
     private record Write(boolean update, String id, int quantity, long generation) {
         private Write(boolean update, String id, int quantity) { this(update, id, quantity, 0); }
         String key() { return (update ? "U:" : "R:") + id; }

@@ -18,7 +18,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicLong;/**
+ * 新生录取信息录入与资格校验对话框。
+ */
+
 
 public final class StudentAdmissionDialog extends JDialog {
     private static final Border SUBMIT_BORDER = BorderFactory.createCompoundBorder(UiBorders.LINE,
@@ -446,6 +449,7 @@ public final class StudentAdmissionDialog extends JDialog {
         result.getAccessibleContext().setAccessibleName(accessibleName);
         return result;
     }
+/** AdmissionFocusTraversalPolicy 内部组件模型。 */
 
     private final class AdmissionFocusTraversalPolicy extends FocusTraversalPolicy {
         private List<Component> order() {

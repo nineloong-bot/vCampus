@@ -282,6 +282,7 @@ public final class UpdateContactDialog extends JDialog {
         result.getAccessibleContext().setAccessibleName(accessibleName);
         return result;
     }
+/** ContactFocusTraversalPolicy 内部组件模型。 */
 
     private final class ContactFocusTraversalPolicy extends FocusTraversalPolicy {
         private List<Component> order() {

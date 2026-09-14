@@ -340,6 +340,7 @@ public final class BatchClassAssignmentDialog extends JDialog {
     }
 
     // --- Data model ---
+/** StudentRow 内部组件模型。 */
 
     static final class StudentRow {
         String name, campusCard, gender;
@@ -350,6 +351,7 @@ public final class BatchClassAssignmentDialog extends JDialog {
             this.score = score; this.classIndex = classIndex;
         }
     }
+/** BatchTableModel 内部组件模型。 */
 
     private class BatchTableModel extends AbstractTableModel {
         private final String[] COLUMNS = {"姓名", "一卡通号", "性别", "综合成绩", "分配班级"};
@@ -385,6 +387,7 @@ public final class BatchClassAssignmentDialog extends JDialog {
             }
         }
     }
+/** ClassComboEditor 内部组件模型。 */
 
     private class ClassComboEditor extends AbstractCellEditor implements TableCellEditor {
         private final JComboBox<String> combo = new JComboBox<>();
@@ -400,6 +403,7 @@ public final class BatchClassAssignmentDialog extends JDialog {
         }
         @Override public Object getCellEditorValue() { return combo.getSelectedIndex(); }
     }
+/** ScoreRenderer 内部组件模型。 */
 
     private static class ScoreRenderer extends DefaultTableCellRenderer {
         @Override public Component getTableCellRendererComponent(JTable table, Object value,

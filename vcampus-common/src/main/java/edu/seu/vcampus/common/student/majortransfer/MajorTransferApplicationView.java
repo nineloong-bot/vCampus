@@ -39,6 +39,14 @@ public record MajorTransferApplicationView(
         Instant updatedAt
 ) implements Serializable {
 
+    /**
+     * 转专业申请附件信息对象。
+     *
+     * @param attachmentId 附件标识
+     * @param fileName 文件名
+     * @param contentType 内容类型
+     * @param fileSize 文件大小（字节）
+     */
     public record AttachmentInfo(
             String attachmentId,
             String fileName,

@@ -123,6 +123,7 @@ public final class GradeManagementPanel extends JPanel {
             }));
         }
     }
+/** GradeTableModel 内部组件模型。 */
 
     private static class GradeTableModel extends AbstractTableModel {
         private static final String[] COLUMNS = {"课程代码", "课程名称", "学分", "类型", "学期", "修读学期", "结果"};

@@ -1,7 +1,10 @@
 package edu.seu.vcampus.client.library.ui;
 
 import edu.seu.vcampus.common.library.LoanStatus;
-import edu.seu.vcampus.common.library.LoanView;
+import edu.seu.vcampus.common.library.LoanView;/**
+ * 图书馆客户端界面通用提示信息与按钮文本常量类。
+ */
+
 
 final class LoanUiText {
     private LoanUiText() { }

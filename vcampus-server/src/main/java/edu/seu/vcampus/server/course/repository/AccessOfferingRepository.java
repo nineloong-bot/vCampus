@@ -126,6 +126,7 @@ final class AccessOfferingRepository {
             if (value instanceof Integer integer) statement.setInt(i + 1, integer); else statement.setString(i + 1, (String) value);
         }
     }
+/** 教学班条件检索 SQL 与参数组装对象。 */
 
     private record SearchSql(String fromWhere, List<Object> parameters) {
     }

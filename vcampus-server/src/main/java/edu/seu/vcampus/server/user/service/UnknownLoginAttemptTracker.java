@@ -44,6 +44,7 @@ final class UnknownLoginAttemptTracker {
         });
         return result.get();
     }
+/** 异常登录尝试频次计数状态。 */
 
     private record AttemptState(int failures, Instant expiresAt, Instant lockedUntil) { }
 }
