@@ -186,4 +186,3 @@ Expected: no production/schema/seed matches.
 - [ ] Run full `mvn test` with loopback binding permitted. Compare any failures with the recorded six client baseline problems.
 - [ ] Review `git diff origin/nineloong...HEAD` for secrets, generated junk, missing JavaDoc and unintended main-worktree changes.
 - [ ] Commit verification-only corrections with `test: verify college-scoped student administration`.
-
