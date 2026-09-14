@@ -69,12 +69,29 @@ public final class CourseRuntimeAdapters {
             Function<E, String> majorCode,
             java.util.function.ToIntFunction<E> cohortYear,
             Predicate<String> activeStudentExists) {
+        return students(getEnrollmentEligibility, number -> null, studentId, status,
+                majorCode, cohortYear, activeStudentExists);
+    }
+
+    /** Curriculum-aware adapter with administrator lookup by student number. */
+    public static <E> CourseStudentGateway students(
+            Function<String, E> getEnrollmentEligibility,
+            Function<String, E> getEligibilityByStudentNumber,
+            Function<E, String> studentId,
+            Function<E, String> status,
+            Function<E, String> majorCode,
+            java.util.function.ToIntFunction<E> cohortYear,
+            Predicate<String> activeStudentExists) {
         Objects.requireNonNull(majorCode);
         Objects.requireNonNull(cohortYear);
-        return CourseStudentGateway.of(userId -> {
-            E eligibility = Objects.requireNonNull(getEnrollmentEligibility.apply(userId), "student eligibility");
-            return new StudentEnrollmentEligibility(studentId.apply(eligibility), status.apply(eligibility),
-                    majorCode.apply(eligibility), cohortYear.applyAsInt(eligibility));
-        }, activeStudentExists);
+        Objects.requireNonNull(getEligibilityByStudentNumber);
+        Function<E, StudentEnrollmentEligibility> projection = eligibility -> eligibility == null ? null
+                : new StudentEnrollmentEligibility(studentId.apply(eligibility), status.apply(eligibility),
+                        majorCode.apply(eligibility), cohortYear.applyAsInt(eligibility));
+        return CourseStudentGateway.of(
+                userId -> projection.apply(Objects.requireNonNull(
+                        getEnrollmentEligibility.apply(userId), "student eligibility")),
+                activeStudentExists,
+                number -> projection.apply(getEligibilityByStudentNumber.apply(number)));
     }
 }

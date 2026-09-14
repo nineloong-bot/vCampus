@@ -116,7 +116,7 @@ final class AccessEnrollmentRepository {
             s.setString(1, offeringId);
             try (ResultSet r = s.executeQuery()) {
                 return r.next() ? new RetakeQuota(offeringId, r.getInt(1), r.getInt(2))
-                        : new RetakeQuota(offeringId, offerings.requireOffering(c, offeringId).capacity(), 0);
+                        : new RetakeQuota(offeringId, 5, 0);
             }
         } catch (SQLException error) { throw CourseJdbc.failure("read retake quota", error); }
     }

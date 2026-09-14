@@ -58,6 +58,9 @@ public final class OfferingManagementPanel extends AbstractCoursePanel {
         panel.setLayout(new BoxLayout(panel, BoxLayout.X_AXIS));
         panel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, UiColors.BORDER_DEFAULT));
         panel.add(label("保存时整体校验并更新教学班及全部上课安排", UiTypography.CAPTION, UiColors.TEXT_SECONDARY));
+        panel.add(Box.createHorizontalStrut(UiSpacing.MD));
+        panel.add(new AdminEnrollmentControl(gateway, this::selectedOffering,
+                () -> search(pager.currentPage()), message -> showState(ViewState.ERROR, message)));
         panel.add(Box.createHorizontalGlue());
         JButton edit = secondary("编辑所选");
         edit.addActionListener(event -> editSelected());
@@ -135,6 +138,11 @@ public final class OfferingManagementPanel extends AbstractCoursePanel {
         int selected = table.getSelectedRow();
         if (selected < 0) { showState(ViewState.ERROR, "请先选择要编辑的教学班"); return; }
         openEditor(offerings.get(table.convertRowIndexToModel(selected)));
+    }
+
+    private OfferingSummary selectedOffering() {
+        int selected = table.getSelectedRow();
+        return selected < 0 ? null : offerings.get(table.convertRowIndexToModel(selected));
     }
 
     private void openEditor(OfferingSummary offering) {

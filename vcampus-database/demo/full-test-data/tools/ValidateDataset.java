@@ -109,10 +109,31 @@ class ValidateDataset {
             }
             require(count(c,"SELECT COUNT(*) FROM (SELECT season FROM tblTerm "
                     +"WHERE termId LIKE 'bulk-%' GROUP BY season)")==3,"Academic season coverage");
-            Map<String,Integer> enrolled=new HashMap<>();
-            try(var s=c.createStatement();var r=s.executeQuery("SELECT offeringId FROM tblEnrollment WHERE enrollmentStatus='ACTIVE'")) {
-                while(r.next()) enrolled.merge(r.getString(1),1,Integer::sum);
+            Map<String,Integer> enrolled=new HashMap<>(),retakes=new HashMap<>();
+            try(var s=c.createStatement();var r=s.executeQuery("SELECT offeringId,enrollmentType FROM tblEnrollment WHERE enrollmentStatus='ACTIVE'")) {
+                while(r.next()) ("RETAKE".equals(r.getString(2))?retakes:enrolled).merge(r.getString(1),1,Integer::sum);
             }
+            try(var s=c.createStatement();var r=s.executeQuery("SELECT offeringId,capacity,enrolledCount FROM tblCourseRetakeQuota WHERE offeringId LIKE 'bulk-%'")) {
+                while(r.next()) {
+                    require(r.getInt(2)==5,"Retake capacity "+r.getString(1));
+                    require(r.getInt(3)==retakes.getOrDefault(r.getString(1),0),"Retake count "+r.getString(1));
+                }
+            }
+            require(count(c,"SELECT COUNT(*) FROM tblCourseOffering o LEFT JOIN tblCourseRetakeQuota q "
+                    +"ON o.offeringId=q.offeringId WHERE q.offeringId IS NULL")==0,
+                    "Missing retake quota");
+            require(count(c,"SELECT COUNT(*) FROM tblCourseRetakeQuota WHERE capacity<>5")==0,
+                    "Non-default retake capacity");
+            String[] cleanTextQueries={
+                "SELECT COUNT(*) FROM tblCourse WHERE courseName LIKE '%测试%' OR description LIKE '%测试%'",
+                "SELECT COUNT(*) FROM tblCourseOffering WHERE className LIKE '%测试%'",
+                "SELECT COUNT(*) FROM tblCourseSchedule WHERE classroom LIKE '%测试%'",
+                "SELECT COUNT(*) FROM tblDepartment WHERE departmentName LIKE '%测试%'",
+                "SELECT COUNT(*) FROM tblMajor WHERE majorName LIKE '%测试%'",
+                "SELECT COUNT(*) FROM tblBook WHERE title LIKE '%测试%' OR author LIKE '%测试%' OR publisher LIKE '%测试%' OR description LIKE '%测试%'",
+                "SELECT COUNT(*) FROM tblShop WHERE shopName LIKE '%测试%' OR description LIKE '%测试%'",
+                "SELECT COUNT(*) FROM tblProduct WHERE productName LIKE '%测试%' OR description LIKE '%测试%'"};
+            for(String query:cleanTextQueries) require(count(c,query)==0,"Visible test marker remains");
             try(var s=c.createStatement();var r=s.executeQuery("SELECT offeringId,enrolledCount,capacity FROM tblCourseOffering WHERE offeringId LIKE 'bulk-%'")) {
                 while(r.next()) {
                     require(r.getInt(2)==enrolled.getOrDefault(r.getString(1),0),"Enrollment count "+r.getString(1));

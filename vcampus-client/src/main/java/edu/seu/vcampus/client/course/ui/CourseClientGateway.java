@@ -31,6 +31,7 @@ import edu.seu.vcampus.common.course.StudentSelectionContextView;
 import edu.seu.vcampus.common.course.CourseSelectionQuery;
 import edu.seu.vcampus.common.course.CourseSelectionView;
 import edu.seu.vcampus.common.course.CourseTeacherQuery;
+import edu.seu.vcampus.common.course.AdminEnrollStudentCommand;
 import edu.seu.vcampus.common.protocol.EmptyResponse;
 import edu.seu.vcampus.common.course.OfferingSearchQuery;
 import edu.seu.vcampus.common.course.OfferingSummary;
@@ -72,6 +73,10 @@ public final class CourseClientGateway implements CourseUiGateway {
 
     public CompletableFuture<EnrollmentView> enroll(EnrollCommand command) {
         return client.enroll(command);
+    }
+
+    public CompletableFuture<EnrollmentView> adminEnrollStudent(AdminEnrollStudentCommand command) {
+        return client.adminEnrollStudent(command);
     }
 
     public CompletableFuture<EnrollmentView> lateAdd(LateAddCommand command) { return client.addDuringAdjustment(command); }

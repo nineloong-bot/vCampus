@@ -38,6 +38,7 @@ public final class CourseHandlers {
   r.register("COURSE_UPDATE",write(UpdateCourseCommand.class,Set.of("ADMIN"),(m,b)->service.updateCourse(b)));
   r.register("COURSE_CREATE_OFFERING",write(CreateOfferingCommand.class,Set.of("ADMIN"),(m,b)->service.createOffering(b)));
   r.register("COURSE_UPDATE_OFFERING",write(UpdateOfferingCommand.class,Set.of("ADMIN"),(m,b)->service.updateOffering(b)));
+  r.register("COURSE_ADMIN_ENROLL_STUDENT",write(AdminEnrollStudentCommand.class,Set.of("ADMIN"),(m,b)->service.adminEnrollStudent(b)));
  }
  private <B extends Serializable> MessageHandler read(Class<B> type,Set<String> roles,BiFunction<Message,B,? extends Serializable> fn){return boundary(type,roles,false,fn);}
  private <B extends Serializable> MessageHandler write(Class<B> type,Set<String> roles,BiFunction<Message,B,? extends Serializable> fn){return boundary(type,roles,true,fn);}

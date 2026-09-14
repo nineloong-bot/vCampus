@@ -15,11 +15,24 @@ public interface CourseStudentGateway {
         throw new IllegalStateException("Active-student lookup is not configured");
     }
 
+    /** Resolves an active student by the student number entered by an administrator. */
+    default StudentEnrollmentEligibility findActiveByStudentNumber(String studentNumber) {
+        throw new IllegalStateException("Student-number lookup is not configured");
+    }
+
     /** Adapts the two read-only student-module queries to the course boundary. */
     static CourseStudentGateway of(Function<String, StudentEnrollmentEligibility> eligibility,
                                    Predicate<String> activeStudentExists) {
+        return of(eligibility, activeStudentExists, number -> null);
+    }
+
+    /** Adapts all read-only student-module queries needed by course enrollment. */
+    static CourseStudentGateway of(Function<String, StudentEnrollmentEligibility> eligibility,
+                                   Predicate<String> activeStudentExists,
+                                   Function<String, StudentEnrollmentEligibility> studentNumberLookup) {
         Objects.requireNonNull(eligibility);
         Objects.requireNonNull(activeStudentExists);
+        Objects.requireNonNull(studentNumberLookup);
         return new CourseStudentGateway() {
             @Override public StudentEnrollmentEligibility getEnrollmentEligibility(String userId) {
                 return eligibility.apply(userId);
@@ -27,6 +40,10 @@ public interface CourseStudentGateway {
 
             @Override public boolean existsActiveStudent(String studentId) {
                 return activeStudentExists.test(studentId);
+            }
+
+            @Override public StudentEnrollmentEligibility findActiveByStudentNumber(String studentNumber) {
+                return studentNumberLookup.apply(studentNumber);
             }
         };
     }

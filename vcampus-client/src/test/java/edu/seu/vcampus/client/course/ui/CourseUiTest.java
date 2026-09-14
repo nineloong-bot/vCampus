@@ -2377,7 +2377,7 @@ class CourseUiTest {
         SwingUtilities.invokeAndWait(() -> button(dialog, "保存修改").doClick());
         flushEdt(2);
         assertThat(submitted.get()).isEqualTo(new UpdateOfferingCommand(
-                "offering-7", "term-legacy", "course-legacy", "teacher-legacy", "01班", 40, "OPEN", 7,
+                "offering-7", "term-legacy", "course-legacy", "teacher-legacy", "01班", 40, 40, "OPEN", 7,
                 List.of(new CreateOfferingCommand.ScheduleInput("MONDAY", 1, 2, 1, 16, "教一-101"),
                         new CreateOfferingCommand.ScheduleInput("THURSDAY", 5, 6, 2, 15, "教二-301"))));
         SwingUtilities.invokeAndWait(dialog::dispose);

@@ -3,23 +3,23 @@
     "login": "TESTADMIN",
     "password": "Test12345",
     "role": "SUPER_ADMIN",
-    "name": "全模块测试管理员",
-    "scenario": "管理全部测试数据",
+    "name": "平台管理员",
+    "scenario": "管理全部校园数据",
     "first_change": "否"
   },
   {
     "login": "USER_ADMIN_2",
     "password": "Test12345",
     "role": "USER_ADMIN",
-    "name": "用户模块测试管理员",
-    "scenario": "权限调整、交换与停用测试",
+    "name": "用户平台主管",
+    "scenario": "权限调整、交换与停用场景",
     "first_change": "否"
   },
   {
     "login": "TESTTEACHER001",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师001",
+    "name": "任课教师001",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -27,7 +27,7 @@
     "login": "TESTTEACHER002",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师002",
+    "name": "任课教师002",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -35,7 +35,7 @@
     "login": "TESTTEACHER003",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师003",
+    "name": "任课教师003",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -43,7 +43,7 @@
     "login": "TESTTEACHER004",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师004",
+    "name": "任课教师004",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -51,7 +51,7 @@
     "login": "TESTTEACHER005",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师005",
+    "name": "任课教师005",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -59,7 +59,7 @@
     "login": "TESTTEACHER006",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师006",
+    "name": "任课教师006",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -67,7 +67,7 @@
     "login": "TESTTEACHER007",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师007",
+    "name": "任课教师007",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -75,7 +75,7 @@
     "login": "TESTTEACHER008",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师008",
+    "name": "任课教师008",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -83,7 +83,7 @@
     "login": "TESTTEACHER009",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师009",
+    "name": "任课教师009",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -91,7 +91,7 @@
     "login": "TESTTEACHER010",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师010",
+    "name": "任课教师010",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -99,7 +99,7 @@
     "login": "TESTTEACHER011",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师011",
+    "name": "任课教师011",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -107,7 +107,7 @@
     "login": "TESTTEACHER012",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师012",
+    "name": "任课教师012",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -115,7 +115,7 @@
     "login": "TESTTEACHER013",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师013",
+    "name": "任课教师013",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -123,7 +123,7 @@
     "login": "TESTTEACHER014",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师014",
+    "name": "任课教师014",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -131,7 +131,7 @@
     "login": "TESTTEACHER015",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师015",
+    "name": "任课教师015",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -139,7 +139,7 @@
     "login": "TESTTEACHER016",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师016",
+    "name": "任课教师016",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -147,7 +147,7 @@
     "login": "TESTTEACHER017",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师017",
+    "name": "任课教师017",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -155,7 +155,7 @@
     "login": "TESTTEACHER018",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师018",
+    "name": "任课教师018",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -163,7 +163,7 @@
     "login": "TESTTEACHER019",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师019",
+    "name": "任课教师019",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -171,7 +171,7 @@
     "login": "TESTTEACHER020",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师020",
+    "name": "任课教师020",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -179,7 +179,7 @@
     "login": "TESTTEACHER021",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师021",
+    "name": "任课教师021",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -187,7 +187,7 @@
     "login": "TESTTEACHER022",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师022",
+    "name": "任课教师022",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -195,7 +195,7 @@
     "login": "TESTTEACHER023",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师023",
+    "name": "任课教师023",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -203,7 +203,7 @@
     "login": "TESTTEACHER024",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师024",
+    "name": "任课教师024",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -211,7 +211,7 @@
     "login": "TESTTEACHER025",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师025",
+    "name": "任课教师025",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -219,7 +219,7 @@
     "login": "TESTTEACHER026",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师026",
+    "name": "任课教师026",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -227,7 +227,7 @@
     "login": "TESTTEACHER027",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师027",
+    "name": "任课教师027",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -235,7 +235,7 @@
     "login": "TESTTEACHER028",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师028",
+    "name": "任课教师028",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -243,7 +243,7 @@
     "login": "TESTTEACHER029",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师029",
+    "name": "任课教师029",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -251,7 +251,7 @@
     "login": "TESTTEACHER030",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师030",
+    "name": "任课教师030",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -259,7 +259,7 @@
     "login": "TESTTEACHER031",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师031",
+    "name": "任课教师031",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -267,7 +267,7 @@
     "login": "TESTTEACHER032",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师032",
+    "name": "任课教师032",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -275,7 +275,7 @@
     "login": "TESTTEACHER033",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师033",
+    "name": "任课教师033",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -283,7 +283,7 @@
     "login": "TESTTEACHER034",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师034",
+    "name": "任课教师034",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -291,7 +291,7 @@
     "login": "TESTTEACHER035",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师035",
+    "name": "任课教师035",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -299,7 +299,7 @@
     "login": "TESTTEACHER036",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师036",
+    "name": "任课教师036",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -307,7 +307,7 @@
     "login": "TESTTEACHER037",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师037",
+    "name": "任课教师037",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -315,7 +315,7 @@
     "login": "TESTTEACHER038",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师038",
+    "name": "任课教师038",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -323,7 +323,7 @@
     "login": "TESTTEACHER039",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师039",
+    "name": "任课教师039",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -331,7 +331,7 @@
     "login": "TESTTEACHER040",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师040",
+    "name": "任课教师040",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -339,7 +339,7 @@
     "login": "TESTTEACHER041",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师041",
+    "name": "任课教师041",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -347,7 +347,7 @@
     "login": "TESTTEACHER042",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师042",
+    "name": "任课教师042",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -355,7 +355,7 @@
     "login": "TESTTEACHER043",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师043",
+    "name": "任课教师043",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -363,7 +363,7 @@
     "login": "TESTTEACHER044",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师044",
+    "name": "任课教师044",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -371,7 +371,7 @@
     "login": "TESTTEACHER045",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师045",
+    "name": "任课教师045",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -379,7 +379,7 @@
     "login": "TESTTEACHER046",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师046",
+    "name": "任课教师046",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -387,7 +387,7 @@
     "login": "TESTTEACHER047",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师047",
+    "name": "任课教师047",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -395,7 +395,7 @@
     "login": "TESTTEACHER048",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师048",
+    "name": "任课教师048",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -403,7 +403,7 @@
     "login": "TESTTEACHER049",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师049",
+    "name": "任课教师049",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },
@@ -411,7 +411,7 @@
     "login": "TESTTEACHER050",
     "password": "Test12345",
     "role": "TEACHER",
-    "name": "测试教师050",
+    "name": "任课教师050",
     "scenario": "课程管理、图书借阅、普通买家",
     "first_change": "否"
   },

@@ -11,9 +11,9 @@ def generate(add, now):
         prefix = f'978990{i:06}'
         check = (10-sum(int(c)*(1 if j%2==0 else 3) for j,c in enumerate(prefix))%10)%10
         add('tblBook', bookId=f'bulk-book-{i:04}', isbn=prefix+str(check),
-            title=f'{category}{titles[(i-1)%5]}·测试卷{i:03}', author=f'测试编写组{(i-1)%30+1:02}',
-            publisher='校园测试出版社', publishDate=date(2020+i%6,1,1), category=category,
-            description='合成资料，用于检索、分页、馆藏管理和借阅测试。', isActive=i<=490, rowVersion=0)
+            title=f'{category}{titles[(i-1)%5]}·第{i:03}卷', author=f'校园编写组{(i-1)%30+1:02}',
+            publisher='东南大学出版社', publishDate=date(2020+i%6,1,1), category=category,
+            description='校园馆藏资料，供课程学习与专题阅读使用。', isActive=i<=490, rowVersion=0)
         for j in range(1, 5):
             # 每本保留至少两册可借；每条当前借阅对应唯一馆藏。
             loan_state = None

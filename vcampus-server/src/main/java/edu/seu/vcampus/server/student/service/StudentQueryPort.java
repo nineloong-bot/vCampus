@@ -4,5 +4,6 @@ import edu.seu.vcampus.common.student.StudentIdentity;
 public interface StudentQueryPort {
     StudentIdentity findByUserId(String userId);
     StudentEligibility getEnrollmentEligibility(String userId);
+    StudentEligibility getEnrollmentEligibilityByStudentNumber(String studentNumber);
     boolean existsActiveStudent(String studentId);
 }

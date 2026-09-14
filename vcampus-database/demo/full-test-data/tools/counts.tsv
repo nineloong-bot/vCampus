@@ -11,6 +11,7 @@ tblTrainingPlanCourse	4800
 tblTrainingPlanPrerequisite	320
 tblCourseOffering	290
 tblCourseSchedule	290
+tblCourseRetakeQuota	290
 tblEnrollment	2720
 tblCourseAttempt	100
 tblEnrollmentAdjustment	20

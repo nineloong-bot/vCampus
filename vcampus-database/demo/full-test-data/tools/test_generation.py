@@ -5,7 +5,9 @@ from datetime import datetime
 from unittest.mock import patch
 
 import courses
+import library
 import people
+import shop
 
 
 class GenerationTest(unittest.TestCase):
@@ -58,6 +60,53 @@ class GenerationTest(unittest.TestCase):
         self.assertEqual(catalog_codes, plan_codes)
         self.assertGreaterEqual(len(rows["tblCourseOffering"]), 290)
         self.assertGreater(len(rows["tblTrainingPlanPrerequisite"]), 0)
+
+    def test_every_offering_has_five_independent_retake_seats(self):
+        rows = self.capture(courses.generate)
+        quotas = {row["offeringId"]: row for row in rows["tblCourseRetakeQuota"]}
+        normal_counts = Counter(row["offeringId"] for row in rows["tblEnrollment"]
+                                if row["enrollmentStatus"] == "ACTIVE"
+                                and row["enrollmentType"] == "NORMAL")
+        retake_counts = Counter(row["offeringId"] for row in rows["tblEnrollment"]
+                                if row["enrollmentStatus"] == "ACTIVE"
+                                and row["enrollmentType"] == "RETAKE")
+
+        self.assertEqual(len(rows["tblCourseOffering"]), len(quotas))
+        self.assertEqual({5}, {row["capacity"] for row in quotas.values()})
+        self.assertTrue(all(row["enrolledCount"] <= 5 for row in quotas.values()))
+        for offering in rows["tblCourseOffering"]:
+            self.assertEqual(normal_counts[offering["offeringId"]], offering["enrolledCount"])
+            self.assertEqual(retake_counts[offering["offeringId"]],
+                             quotas[offering["offeringId"]]["enrolledCount"])
+
+    def test_course_display_data_does_not_contain_test_marker(self):
+        rows = self.capture(courses.generate)
+        visible_fields = {
+            "tblCourse": ("courseName", "description"),
+            "tblCourseOffering": ("className",),
+            "tblCourseSchedule": ("classroom",),
+            "tblCourseSelectionPhase": ("displayTitle",),
+        }
+
+        for table, fields in visible_fields.items():
+            for row in rows[table]:
+                for field in fields:
+                    self.assertNotIn("测试", row[field])
+
+    def test_all_generated_database_text_omits_test_marker(self):
+        rows = defaultdict(list)
+        add = lambda table, **fields: rows[table].append(fields)
+        now = datetime(2026, 9, 7, 12)
+        fast_password = dict(passwordHash="hash", passwordSalt="salt", passwordIterations=1)
+        with patch.object(people, "credentials", return_value=fast_password):
+            people.generate(add, now)
+        courses.generate(add, now)
+        library.generate(add, now)
+        shop.generate(add, now)
+
+        visible_values = [value for table in rows.values() for row in table
+                          for value in row.values() if isinstance(value, str)]
+        self.assertFalse([value for value in visible_values if "测试" in value])
 
     def test_active_normal_enrollments_follow_each_students_current_plan_term(self):
         rows = self.capture(courses.generate)

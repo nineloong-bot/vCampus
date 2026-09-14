@@ -84,6 +84,10 @@ public final class StudentRepository {
         return find(connection, "s.userId = ?", userId);
     }
 
+    public Optional<Student> findByStudentNumber(Connection connection, String studentNumber) {
+        return find(connection, "s.studentNumber = ?", studentNumber);
+    }
+
     public List<Student> findAll(Connection connection) {
         String sql = "SELECT s.*, c.majorId FROM tblStudent s INNER JOIN tblClass c ON s.classId = c.classId ORDER BY s.studentNumber";
         try (var statement = connection.prepareStatement(sql); var result = statement.executeQuery()) {

@@ -25,20 +25,20 @@ final class StudentCourseRowPanel extends JPanel {
         setFocusable(true);
         getAccessibleContext().setAccessibleName("展开课程 " + course.courseCode());
 
-        JPanel row = new JPanel(new GridBagLayout());
+        JPanel row = new JPanel(new GridLayout(1, 7));
         row.setOpaque(false);
         row.setBorder(BorderFactory.createEmptyBorder(
                 UiSpacing.MD, UiSpacing.MD, UiSpacing.MD, UiSpacing.MD));
-        addCell(row, course.courseCode(), 0, 1.05);
-        addCell(row, course.courseName(), 1, 1.45);
-        addCell(row, course.teachingClasses().size() + " 个", 2, .75);
+        addCell(row, course.courseCode(), 0);
+        addCell(row, course.courseName(), 1);
+        addCell(row, course.teachingClasses().size() + " 个", 2);
         addCell(row, nature(course.courseNature())
-                + (course.retakeCourse() ? " · 重修" : ""), 3, .9);
-        addCell(row, course.offeringUnit(), 4, 1.45);
-        addCell(row, course.credit().stripTrailingZeros().toPlainString(), 5, .55);
+                + (course.retakeCourse() ? " · 重修" : ""), 3);
+        addCell(row, course.offeringUnit(), 4);
+        addCell(row, course.credit().stripTrailingZeros().toPlainString(), 5);
         indicator.setFont(UiTypography.PAGE_TITLE);
         indicator.setHorizontalAlignment(SwingConstants.CENTER);
-        row.add(indicator, constraints(6, .25));
+        row.add(indicator);
         installMouseToggle(row);
         add(row, BorderLayout.NORTH);
 
@@ -91,21 +91,11 @@ final class StudentCourseRowPanel extends JPanel {
         }
     }
 
-    private static void addCell(JPanel row, String text, int column, double weight) {
+    private static void addCell(JPanel row, String text, int column) {
         JLabel label = new JLabel(text);
         label.setFont(column == 0 || column == 1 ? UiTypography.BODY_BOLD : UiTypography.BODY);
         label.setForeground(UiColors.TEXT_PRIMARY);
-        row.add(label, constraints(column, weight));
-    }
-
-    private static GridBagConstraints constraints(int column, double weight) {
-        GridBagConstraints c = new GridBagConstraints();
-        c.gridx = column;
-        c.weightx = weight;
-        c.fill = GridBagConstraints.HORIZONTAL;
-        c.anchor = GridBagConstraints.WEST;
-        c.insets = new Insets(0, 6, 0, 6);
-        return c;
+        row.add(label);
     }
 
     private static String nature(String value) {

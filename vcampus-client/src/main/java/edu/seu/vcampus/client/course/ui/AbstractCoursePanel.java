@@ -117,8 +117,10 @@ abstract class AbstractCoursePanel extends JPanel {
         panel.add(breadcrumbTitle);
         panel.add(Box.createVerticalStrut(UiSpacing.SM));
         panel.add(pageTitle);
-        panel.add(Box.createVerticalStrut(UiSpacing.SM));
-        panel.add(label(description, UiTypography.BODY, UiColors.TEXT_SECONDARY));
+        if (description != null && !description.isBlank()) {
+            panel.add(Box.createVerticalStrut(UiSpacing.SM));
+            panel.add(label(description, UiTypography.BODY, UiColors.TEXT_SECONDARY));
+        }
         return panel;
     }
 

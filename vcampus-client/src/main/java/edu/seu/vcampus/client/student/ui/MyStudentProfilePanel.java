@@ -27,9 +27,10 @@ public final class MyStudentProfilePanel extends JPanel {
     private final ClientConnection connection;
     private final AtomicLong generation = new AtomicLong();
     private final Map<String, JLabel> values = new LinkedHashMap<>();
+    private final StudentProfileStatusView statuses = new StudentProfileStatusView();
     private volatile boolean active;
     private StudentProfileWorkspace workspace;
-    private JLabel statusLabel, errorLabel, applicationStatus;
+    private JLabel errorLabel;
     private JButton refreshButton, personalEdit, academicEdit, exportButton, submitButton;
 
     public MyStudentProfilePanel(StudentClientService students, ClientConnection connection) {
@@ -43,8 +44,7 @@ public final class MyStudentProfilePanel extends JPanel {
         JPanel top = new JPanel(new BorderLayout(UiSpacing.SPACE_3, 0)); top.setOpaque(false);
         JPanel titleBox = new JPanel(); titleBox.setOpaque(false); titleBox.setLayout(new BoxLayout(titleBox, BoxLayout.Y_AXIS));
         JLabel title = text("我的学籍档案", UiTypography.PAGE_TITLE, UiColors.TEXT_PRIMARY);
-        statusLabel = text("正在加载", UiTypography.CAPTION, UiColors.TEXT_SECONDARY); statusLabel.setName("student.profile.status");
-        titleBox.add(title); titleBox.add(Box.createVerticalStrut(UiSpacing.SPACE_1)); titleBox.add(statusLabel); top.add(titleBox);
+        titleBox.add(title); titleBox.add(statuses.loadingGap()); titleBox.add(statuses.loadingLabel()); top.add(titleBox);
         refreshButton = new JButton("刷新"); refreshButton.setName("student.profile.refresh");
         refreshButton.getAccessibleContext().setAccessibleName("刷新学籍档案"); refreshButton.addActionListener(e -> refreshProfile());
         top.add(refreshButton, BorderLayout.EAST); add(top, BorderLayout.NORTH);
@@ -64,10 +64,8 @@ public final class MyStudentProfilePanel extends JPanel {
 
         JPanel footer = new JPanel(new BorderLayout(UiSpacing.SPACE_3, UiSpacing.SPACE_2)); footer.setOpaque(false);
         JPanel messages = new JPanel(); messages.setOpaque(false); messages.setLayout(new BoxLayout(messages, BoxLayout.Y_AXIS));
-        applicationStatus = text("尚无修改申请", UiTypography.CAPTION, UiColors.TEXT_SECONDARY);
-        applicationStatus.setName("student.profile.application.status");
         errorLabel = text(" ", UiTypography.CAPTION, UiColors.ERROR_FG); errorLabel.setName("student.profile.error");
-        messages.add(applicationStatus); messages.add(errorLabel); footer.add(messages, BorderLayout.NORTH);
+        messages.add(statuses.applicationLabel()); messages.add(errorLabel); footer.add(messages, BorderLayout.NORTH);
         JPanel actions = new JPanel(new BorderLayout()); actions.setOpaque(false);
         exportButton = action("导出基本信息 PDF", "student.profile.export"); exportButton.addActionListener(e -> exportPdf());
         submitButton = action("提交审核", "student.profile.submit"); submitButton.addActionListener(e -> submitOrWithdraw());
@@ -129,16 +127,16 @@ public final class MyStudentProfilePanel extends JPanel {
         }));
     }
 
-    private void loading() { statusLabel.setText("正在加载"); errorLabel.setText(" "); refreshButton.setEnabled(false); setControls(false); }
-    private void failure(String message) { statusLabel.setText("加载失败"); errorLabel.setText(message); refreshButton.setEnabled(true); setControls(false); }
+    private void loading() { statuses.loading(); errorLabel.setText(" "); refreshButton.setEnabled(false); setControls(false); }
+    private void failure(String message) { statuses.failure(); errorLabel.setText(message); refreshButton.setEnabled(true); setControls(false); }
     private void render(StudentProfileWorkspace value) {
         workspace = value; StudentProfileData formal = value.formalProfile(); StudentProfileApplicationView app = value.application();
         boolean draftVisible = app != null && (app.status() == StudentProfileApplicationStatus.DRAFT
                 || app.status() == StudentProfileApplicationStatus.PENDING);
         StudentPersonalProfile personal = draftVisible ? app.personal() : formal.personal();
         AttendanceMode attendance = draftVisible ? app.attendanceMode() : formal.academic().attendanceMode();
-        renderCore(formal, personal); renderAcademic(formal.academic(), attendance); renderApplication(app);
-        statusLabel.setText("已加载"); errorLabel.setText(" "); refreshButton.setEnabled(true);
+        renderCore(formal, personal); renderAcademic(formal.academic(), attendance); statuses.showApplication(app);
+        statuses.loaded(); errorLabel.setText(" "); refreshButton.setEnabled(true);
         boolean connected = connection.state() == ConnectionState.CONNECTED;
         boolean pending = app != null && app.status() == StudentProfileApplicationStatus.PENDING;
         personalEdit.setEnabled(connected); academicEdit.setEnabled(connected);
@@ -174,17 +172,6 @@ public final class MyStudentProfilePanel extends JPanel {
         put("educationName", a.educationName()); put("expectedGraduationDate", a.expectedGraduationDate());
         put("graduationDate", a.graduationDate()); put("studentSource", a.studentSource());
         put("graduateStudyMode", a.graduateStudyMode()); put("counselorName", a.counselorName()); put("counselorContact", a.counselorContact());
-    }
-
-    private void renderApplication(StudentProfileApplicationView app) {
-        if (app == null) { applicationStatus.setText("尚无修改申请"); return; }
-        String value = switch (app.status()) {
-            case DRAFT -> "已暂存，尚未提交审核";
-            case PENDING -> "审核中：资料已锁定，管理员处理后方可再次编辑";
-            case APPROVED -> "最近申请已通过";
-            case REJECTED -> "已驳回：" + filled(app.reviewComment());
-        };
-        applicationStatus.setText(value);
     }
 
     private void editPersonal() {

@@ -23,21 +23,21 @@ def generate(add, now):
         accounts.append(dict(login=login, password=PASSWORD, role=role, name=name,
                              scenario=scenario, first_change='是' if initial else '否'))
 
-    user('bulk-admin-001', 'TESTADMIN', 'SUPER_ADMIN', '全模块测试管理员', '管理全部测试数据')
+    user('bulk-admin-001', 'TESTADMIN', 'SUPER_ADMIN', '平台管理员', '管理全部校园数据')
     user('bulk-user-admin-002', 'USER_ADMIN_2', 'USER_ADMIN',
-         '用户模块测试管理员', '权限调整、交换与停用测试')
+         '用户平台主管', '权限调整、交换与停用场景')
     for i in range(1, 51):
-        user(f'bulk-teacher-{i:03}', f'TESTTEACHER{i:03}', 'TEACHER', f'测试教师{i:03}',
+        user(f'bulk-teacher-{i:03}', f'TESTTEACHER{i:03}', 'TEACHER', f'任课教师{i:03}',
              '课程管理、图书借阅、普通买家')
     departments = ['计算机', '数学', '外国语', '经济管理', '艺术设计']
     majors = ['软件工程', '计算机科学', '数学应用', '统计学', '英语', '日语',
               '经济学', '管理学', '视觉传达', '产品设计']
     for i, name in enumerate(departments, 1):
         add('tblDepartment', departmentId=f'bulk-dept-{i:02}', departmentCode=f'TEST{i:02}',
-            departmentName=f'{name}学院（测试）', isActive=True, rowVersion=0)
+            departmentName=f'{name}学院', isActive=True, rowVersion=0)
     for i, name in enumerate(majors, 1):
         add('tblMajor', majorId=f'bulk-major-{i:02}', departmentId=f'bulk-dept-{(i+1)//2:02}',
-            majorCode=str(800+i), majorName=f'{name}（测试）', isActive=True, rowVersion=0)
+            majorCode=str(800+i), majorName=name, isActive=True, rowVersion=0)
         for cohort in range(2023, 2027):
             add('tblClass', classId=f'bulk-class-{i:02}-{cohort}',
                 majorId=f'bulk-major-{i:02}', classCode=f'{800+i}-{cohort}-01',

@@ -50,17 +50,22 @@ final class AdjustmentEnrollmentRules {
 
     void requireTargetAllowed(Connection c, List<Enrollment> active, Offering target,
                               String ignoredEnrollmentId, String enrollmentType) {
+        requireNoDuplicateOrConflict(c, active, target, ignoredEnrollmentId);
+        boolean full = "RETAKE".equals(enrollmentType)
+                ? repository.findRetakeQuota(c, target.offeringId()).enrolledCount()
+                    >= repository.findRetakeQuota(c, target.offeringId()).capacity()
+                : target.enrolledCount() >= target.capacity();
+        if (full) throw new OfferingFullException();
+    }
+
+    void requireNoDuplicateOrConflict(Connection c, List<Enrollment> active, Offering target,
+                                      String ignoredEnrollmentId) {
         for (Enrollment enrollment : active) {
             if (enrollment.enrollmentId().equals(ignoredEnrollmentId)) continue;
             Offering selected = repository.requireOffering(c, enrollment.offeringId());
             if (target.courseId().equals(selected.courseId())) throw new DuplicateEnrollmentException();
             if (schedulesConflict(c, selected.offeringId(), target.offeringId())) throw new ScheduleConflictException();
         }
-        boolean full = "RETAKE".equals(enrollmentType)
-                ? repository.findRetakeQuota(c, target.offeringId()).enrolledCount()
-                    >= repository.findRetakeQuota(c, target.offeringId()).capacity()
-                : target.enrolledCount() >= target.capacity();
-        if (full) throw new OfferingFullException();
     }
 
     private boolean schedulesConflict(Connection c, String selectedId, String targetId) {

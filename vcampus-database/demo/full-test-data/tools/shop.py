@@ -23,8 +23,8 @@ def generate(add, now):
         reviewed = status in ("APPROVED", "REJECTED")
         record("tblSellerApplication", applicationId=f"bulk-application-{n:03d}",
                applicantUserId=f"bulk-student-user-{n:04d}", shopName=name,
-               description=f"校园{category}测试商店", category=category,
-               contact=f"shop{n:03d}@example.invalid", applicationStatement="用于校园商城综合测试",
+               description=f"校园{category}精选商店", category=category,
+               contact=f"shop{n:03d}@example.invalid", applicationStatement="为师生提供校园生活用品",
                applicationStatus=status, reviewReason="材料完整，审核通过" if n <= 30 else
                ("经营说明待完善" if status == "REJECTED" else None),
                reviewerUserId="bulk-admin-001" if reviewed else None,
@@ -35,10 +35,10 @@ def generate(add, now):
         suspended = n > 27
         shops.append(record("tblShop", shopId=f"bulk-shop-{n:03d}",
                             ownerUserId=f"bulk-student-user-{n:04d}", shopName=name,
-                            normalizedShopName=name.lower(), description=f"校园{category}测试商店",
+                            normalizedShopName=name.lower(), description=f"校园{category}精选商店",
                             category=category, contact=f"shop{n:03d}@example.invalid",
                             shopStatus="SUSPENDED" if suspended else "ACTIVE",
-                            suspensionReason="测试暂停营业状态" if suspended else None,
+                            suspensionReason="店铺资料复核中" if suspended else None,
                             suspendedByUserId="bulk-admin-001" if suspended else None,
                             suspendedAt=now - timedelta(days=1) if suspended else None,
                             rowVersion=int(suspended), createdAt=now - timedelta(days=59), updatedAt=now))
@@ -47,10 +47,10 @@ def generate(add, now):
         shop = shops[(n - 1) // 20]
         local = (n - 1) % 20 + 1
         status = "ACTIVE" if local <= 14 else "DRAFT" if local <= 17 else "INACTIVE"
-        name = f"{shop['category']}测试商品{n:04d}"
+        name = f"{shop['category']}商品{n:04d}"
         product = record("tblProduct", productId=f"bulk-product-{n:04d}", shopId=shop["shopId"],
                          productName=name, normalizedProductName=name.lower(), category=shop["category"],
-                         description=f"综合测试商品，编号{n:04d}", coverImageUrl=None,
+                         description=f"校园精选商品，编号{n:04d}", coverImageUrl=None,
                          productStatus=status, salesCount=0, rowVersion=0,
                          createdAt=now - timedelta(days=50), updatedAt=now)
         products[product["productId"]] = product
