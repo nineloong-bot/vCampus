@@ -245,7 +245,8 @@ public final class ServerMain {
                     snapshot.permissions());
         };
         return new TrainingPlanHandlers(planService, gradeService, authorization,
-                new DeduplicatingStudentWriteExecutor(deduplicator));
+                new DeduplicatingStudentWriteExecutor(deduplicator),
+                new StudentCollegeScopeAuthorizationService(transactions));
     }
 
     private static void shutdown(SocketServer server) {

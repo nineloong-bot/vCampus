@@ -72,5 +72,43 @@ public final class StudentCollegeScopeAuthorizationService {
         if (!allowed) forbidden();
     }
 
+    /** Rejects unless the major belongs to the trusted department. */
+    public void requireMajorAccess(Connection connection, String departmentId, String majorId) {
+        requireMatch(connection,
+                "SELECT COUNT(*) FROM tblMajor WHERE majorId=? AND departmentId=?",
+                majorId, departmentId);
+    }
+
+    /** Rejects unless the class belongs to a major in the trusted department. */
+    public void requireClassAccess(Connection connection, String departmentId, String classId) {
+        requireMatch(connection, """
+                SELECT COUNT(*) FROM tblClass c INNER JOIN tblMajor m ON c.majorId=m.majorId
+                WHERE c.classId=? AND m.departmentId=?
+                """, classId, departmentId);
+    }
+
+    /** Rejects unless the training plan belongs to a major in the trusted department. */
+    public void requirePlanAccess(Connection connection, String departmentId, String planId) {
+        requireMatch(connection, """
+                SELECT COUNT(*) FROM tblTrainingPlan p INNER JOIN tblMajor m ON p.majorId=m.majorId
+                WHERE p.planId=? AND m.departmentId=?
+                """, planId, departmentId);
+    }
+
+    private static void requireMatch(Connection connection, String sql, String entityId,
+            String departmentId) {
+        if (connection == null || entityId == null || departmentId == null) forbidden();
+        try (var statement = connection.prepareStatement(sql)) {
+            statement.setString(1, entityId);
+            statement.setString(2, departmentId);
+            try (var result = statement.executeQuery()) {
+                result.next();
+                if (result.getLong(1) != 1) forbidden();
+            }
+        } catch (SQLException error) {
+            throw new PersistenceException("Student college entity scope lookup failed", error);
+        }
+    }
+
     private static void forbidden() { throw new IllegalArgumentException("COMMON_FORBIDDEN"); }
 }

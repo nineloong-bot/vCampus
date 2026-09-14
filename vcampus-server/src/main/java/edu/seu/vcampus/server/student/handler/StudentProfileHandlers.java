@@ -7,6 +7,7 @@ import edu.seu.vcampus.common.student.*;
 import edu.seu.vcampus.server.routing.MessageHandler;
 import edu.seu.vcampus.server.routing.MessageRouter;
 import edu.seu.vcampus.server.student.pdf.StudentProfilePdfGenerator;
+import edu.seu.vcampus.server.student.security.StudentCollegeScopeAuthorizationService;
 import edu.seu.vcampus.server.student.service.StudentProfileApplicationException;
 import edu.seu.vcampus.server.student.service.StudentProfileService;
 
@@ -22,15 +23,17 @@ public final class StudentProfileHandlers {
     private final StudentProfilePdfGenerator pdfs;
     private final StudentAuthorizationPort authorization;
     private final StudentWriteExecutor writes;
+    private final StudentCollegeScopeAuthorizationService collegeScope;
 
     /** Creates profile handlers. */
     public StudentProfileHandlers(StudentProfileService profiles,
             StudentProfilePdfGenerator pdfs, StudentAuthorizationPort authorization,
-            StudentWriteExecutor writes) {
+            StudentWriteExecutor writes, StudentCollegeScopeAuthorizationService collegeScope) {
         this.profiles = Objects.requireNonNull(profiles);
         this.pdfs = pdfs;
         this.authorization = Objects.requireNonNull(authorization);
         this.writes = Objects.requireNonNull(writes);
+        this.collegeScope = collegeScope;
     }
 
     /** Registers profile routes. */
@@ -57,21 +60,22 @@ public final class StudentProfileHandlers {
                         profiles.getWorkspace(principal(message).userId()).formalProfile(),
                         Instant.now()))));
         router.register("STUDENT_PROFILE_REVIEW_LIST", typed(StudentProfileReviewQuery.class,
-                (message, body) -> admin(message, () -> profiles.listPending(body))));
+                (message, body) -> scoped(message, departmentId ->
+                        profiles.listPending(body, departmentId))));
         router.register("STUDENT_PROFILE_REVIEW_GET", typed(EntityIdRequest.class,
-                (message, body) -> admin(message,
-                        () -> profiles.getApplication(body.entityId()))));
+                (message, body) -> scoped(message, departmentId ->
+                        profiles.getApplication(body.entityId(), departmentId))));
         router.register("STUDENT_PROFILE_APPROVE", typed(ReviewStudentProfileCommand.class,
-                (message, body) -> write(message, () -> admin(message,
-                        () -> profiles.approve(body.applicationId(), principal(message).userId(),
-                                body.reviewComment())))));
+                (message, body) -> write(message, () -> scoped(message, departmentId ->
+                        profiles.approve(body.applicationId(), principal(message).userId(),
+                                body.reviewComment(), departmentId)))));
         router.register("STUDENT_PROFILE_REJECT", typed(ReviewStudentProfileCommand.class,
-                (message, body) -> write(message, () -> admin(message,
-                        () -> profiles.reject(body.applicationId(), principal(message).userId(),
-                                body.reviewComment())))));
+                (message, body) -> write(message, () -> scoped(message, departmentId ->
+                        profiles.reject(body.applicationId(), principal(message).userId(),
+                                body.reviewComment(), departmentId)))));
         router.register("STUDENT_GET_PROFILE", typed(EntityIdRequest.class,
-                (message, body) -> admin(message,
-                        () -> profiles.getProfileByStudentId(body.entityId()))));
+                (message, body) -> scoped(message, departmentId ->
+                        profiles.getProfileByStudentId(body.entityId(), departmentId))));
     }
 
     private ResponseBody<? extends Serializable> write(Message message,
@@ -84,11 +88,16 @@ public final class StudentProfileHandlers {
         return principal(message).hasRole("STUDENT") ? success(action.get()) : forbidden();
     }
 
-    private ResponseBody<? extends Serializable> admin(Message message,
-            java.util.function.Supplier<? extends Serializable> action) {
+    private ResponseBody<? extends Serializable> scoped(Message message,
+            java.util.function.Function<String, ? extends Serializable> action) {
         StudentPrincipal actor = principal(message);
-        return actor.hasRole("ADMIN") || actor.hasRole("STUDENT_ADMIN")
-                ? success(action.get()) : forbidden();
+        if (actor.hasRole("ADMIN")) return success(action.apply(null));
+        if (!actor.hasRole("COLLEGE_ADMIN") || collegeScope == null) return forbidden();
+        try { return success(action.apply(collegeScope.requireActiveDepartment(actor.userId()))); }
+        catch (IllegalArgumentException error) {
+            return "COMMON_FORBIDDEN".equals(error.getMessage()) ? forbidden()
+                    : ResponseBody.failure("COMMON_INVALID_REQUEST", error.getMessage(), null);
+        }
     }
 
     private StudentPrincipal principal(Message message) {

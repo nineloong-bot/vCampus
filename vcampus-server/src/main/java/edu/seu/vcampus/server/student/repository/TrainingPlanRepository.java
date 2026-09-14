@@ -91,6 +91,12 @@ public final class TrainingPlanRepository {
 
     public List<TrainingPlanSummary> search(Connection connection, String majorId,
             Integer enrollmentYear, int offset, int limit) {
+        return search(connection, majorId, enrollmentYear, offset, limit, null);
+    }
+
+    /** Searches training plans restricted to a trusted department. */
+    public List<TrainingPlanSummary> search(Connection connection, String majorId,
+            Integer enrollmentYear, int offset, int limit, String departmentId) {
         StringBuilder sql = new StringBuilder(
                 "SELECT p.planId, p.majorId, m.majorName, d.departmentName, p.enrollmentYear, "
                 + "p.planName, p.minElectiveCount, p.minElectiveCredits, p.isActive, p.rowVersion, "
@@ -102,6 +108,10 @@ public final class TrainingPlanRepository {
                 + "FROM (tblTrainingPlan p INNER JOIN tblMajor m ON p.majorId = m.majorId) "
                 + "INNER JOIN tblDepartment d ON m.departmentId = d.departmentId WHERE 1=1");
         List<Object> params = new ArrayList<>();
+        if (departmentId != null) {
+            sql.append(" AND m.departmentId = ?");
+            params.add(departmentId);
+        }
         if (majorId != null && !majorId.isBlank()) {
             sql.append(" AND p.majorId = ?");
             params.add(majorId);
@@ -132,9 +142,20 @@ public final class TrainingPlanRepository {
     }
 
     public int countSearch(Connection connection, String majorId, Integer enrollmentYear) {
+        return countSearch(connection, majorId, enrollmentYear, null);
+    }
+
+    /** Counts matching training plans restricted to a trusted department. */
+    public int countSearch(Connection connection, String majorId, Integer enrollmentYear,
+            String departmentId) {
         StringBuilder sql = new StringBuilder(
-                "SELECT COUNT(*) FROM tblTrainingPlan p WHERE 1=1");
+                "SELECT COUNT(*) FROM tblTrainingPlan p INNER JOIN tblMajor m "
+                        + "ON p.majorId=m.majorId WHERE 1=1");
         List<Object> params = new ArrayList<>();
+        if (departmentId != null) {
+            sql.append(" AND m.departmentId = ?");
+            params.add(departmentId);
+        }
         if (majorId != null && !majorId.isBlank()) {
             sql.append(" AND p.majorId = ?");
             params.add(majorId);

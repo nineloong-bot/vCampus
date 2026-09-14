@@ -6,22 +6,16 @@ import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.student.*;
 import edu.seu.vcampus.server.routing.MessageHandler;
 import edu.seu.vcampus.server.routing.MessageRouter;
-import edu.seu.vcampus.server.routing.RequestContext;
 import edu.seu.vcampus.server.student.service.StudentAdmissionService;
 import edu.seu.vcampus.server.student.service.StudentOrganizationQuery;
 import edu.seu.vcampus.server.student.service.StudentService;
-import edu.seu.vcampus.server.student.service.StudentAdmissionException;
 import edu.seu.vcampus.server.student.service.StudentProfileService;
-import edu.seu.vcampus.server.student.numbering.StudentNumberingException;
-import edu.seu.vcampus.server.student.repository.OrganizationHierarchyException;
 import edu.seu.vcampus.server.student.pdf.StudentProfilePdfGenerator;
 import edu.seu.vcampus.server.student.security.StudentCollegeScopeAuthorizationService;
 
 import java.io.Serializable;
 import java.util.List;
-import java.util.ArrayList;
 import java.util.Objects;
-import java.util.ConcurrentModificationException;
 import java.util.function.BiFunction;
 
 /** Registers the ten student commands and enforces their authorization boundary. */
@@ -42,11 +36,9 @@ public final class StudentHandlers {
             "STUDENT_PROFILE_APPROVE", "STUDENT_PROFILE_REJECT",
             "STUDENT_GET_PROFILE");
 
-    private final StudentAdmissionService admissions;
     private final StudentService students;
-    private final StudentOrganizationQuery organizations;
     private final StudentAuthorizationPort authorization;
-    private final StudentWriteExecutor writes;
+    private final StudentAcademicAdministrationHandlers academicHandlers;
     private final StudentRecordHandlers recordHandlers;
     private final StudentProfileHandlers profileHandlers;
 
@@ -81,89 +73,31 @@ public final class StudentHandlers {
             StudentWriteExecutor writes, StudentProfileService profiles,
             StudentProfilePdfGenerator pdfs,
             StudentCollegeScopeAuthorizationService collegeScope) {
-        this.admissions = Objects.requireNonNull(admissions);
         this.students = Objects.requireNonNull(students);
-        this.organizations = Objects.requireNonNull(organizations);
         this.authorization = Objects.requireNonNull(authorization);
-        this.writes = Objects.requireNonNull(writes);
+        this.academicHandlers = new StudentAcademicAdministrationHandlers(admissions,
+                organizations, authorization, writes, collegeScope);
         this.recordHandlers = new StudentRecordHandlers(students, authorization, writes,
                 collegeScope);
         this.profileHandlers = profiles == null ? null
-                : new StudentProfileHandlers(profiles, pdfs, authorization, writes);
+                : new StudentProfileHandlers(profiles, pdfs, authorization, writes, collegeScope);
     }
 
     public void register(MessageRouter router) {
-        router.register("STUDENT_CREATE", typed(CreateStudentAdmissionCommand.class, (message, body) -> {
-            StudentPrincipal principal = principal(message);
-            if (!principal.hasPermission("STUDENT_WRITE")) return forbidden();
-            return success(admissions.admit(body, context(message, principal)));
-        }));
-        router.register("STUDENT_CREATE_MANUAL", typed(CreateStudentManualCommand.class,
-                (message, body) -> strictAdmin(message, () -> admissions.createManual(
-                        body, context(message, principal(message))))));
-        router.register("STUDENT_BATCH_IMPORT", typed(BatchImportCommand.class,
-                (message, body) -> strictAdmin(message, () -> admissions.batchImport(
-                        body, context(message, principal(message))))));
+        academicHandlers.register(router);
         router.register("STUDENT_GET_CURRENT", typed(EmptyRequest.class, (message, body) -> {
             StudentPrincipal principal = principal(message);
             if (!principal.hasRole("STUDENT") && !principal.hasRole("ADMIN")) return forbidden();
             return success(students.getCurrentStudent(principal.userId()));
         }));
         recordHandlers.register(router);
-        router.register("STUDENT_LIST_DEPARTMENTS", typed(ActiveOnlyQuery.class,
-                (message, body) -> authenticated(message,
-                        () -> new ArrayList<>(organizations.listDepartments(body.activeOnly())))));
-        router.register("STUDENT_LIST_MAJORS", typed(OrganizationChildrenQuery.class,
-                (message, body) -> authenticated(message,
-                        () -> new ArrayList<>(organizations.listMajors(body.parentId(), body.activeOnly())))));
-        router.register("STUDENT_LIST_CLASSES", typed(OrganizationChildrenQuery.class,
-                (message, body) -> authenticated(message,
-                        () -> new ArrayList<>(organizations.listClasses(body.parentId(), body.activeOnly())))));
-        router.register("STUDENT_SAVE_DEPARTMENT", typed(SaveDepartmentCommand.class,
-                (message, body) -> write(message, () -> admin(message,
-                        () -> organizations.saveDepartment(body)))));
-        router.register("STUDENT_SAVE_MAJOR", typed(SaveMajorCommand.class,
-                (message, body) -> write(message, () -> admin(message,
-                        () -> organizations.saveMajor(body)))));
-        router.register("STUDENT_SAVE_CLASS", typed(SaveClassCommand.class,
-                (message, body) -> write(message, () -> admin(message,
-                        () -> organizations.saveClass(body)))));
         if (profileHandlers != null) profileHandlers.register(router);
-    }
-
-    private ResponseBody<? extends Serializable> write(Message message,
-            java.util.function.Supplier<ResponseBody<? extends Serializable>> action) {
-        return writes.execute(message, principal(message), action);
-    }
-
-    private ResponseBody<? extends Serializable> admin(Message message,
-            java.util.function.Supplier<? extends Serializable> action) {
-        StudentPrincipal principal = principal(message);
-        return principal.hasRole("ADMIN") || principal.hasPermission("STUDENT_WRITE")
-                ? success(action.get()) : forbidden();
-    }
-
-    private ResponseBody<? extends Serializable> strictAdmin(Message message,
-            java.util.function.Supplier<? extends Serializable> action) {
-        StudentPrincipal principal = principal(message);
-        return principal.hasRole("ADMIN") || principal.hasRole("STUDENT_ADMIN")
-                ? success(action.get()) : forbidden();
-    }
-
-    private ResponseBody<? extends Serializable> authenticated(Message message,
-            java.util.function.Supplier<? extends Serializable> action) {
-        principal(message);
-        return success(action.get());
     }
 
     private StudentPrincipal principal(Message message) {
         StudentPrincipal principal = authorization.authenticate(message.sessionToken());
         if (principal == null) throw new IllegalArgumentException("Invalid session");
         return principal;
-    }
-
-    private static RequestContext context(Message message, StudentPrincipal principal) {
-        return new RequestContext(message.requestId(), principal.userId(), "socket");
     }
 
     private static <T extends Serializable> MessageHandler typed(Class<T> type,
@@ -173,16 +107,6 @@ public final class StudentHandlers {
                 return ResponseBody.failure("COMMON_INVALID_REQUEST", "请求体类型错误", null);
             try {
                 return action.apply(message, type.cast(message.body()));
-            } catch (ConcurrentModificationException error) {
-                return ResponseBody.failure("COMMON_CONCURRENT_MODIFICATION", "数据已被修改，请刷新", null);
-            } catch (StudentAdmissionException error) {
-                return ResponseBody.failure(error.code(), error.getMessage(), null);
-            } catch (StudentNumberingException error) {
-                return ResponseBody.failure(error.code(), error.getMessage(), null);
-            } catch (OrganizationHierarchyException error) {
-                return ResponseBody.failure("STUDENT_ORGANIZATION_HAS_ACTIVE_CHILDREN", error.getMessage(), null);
-            } catch (UnsupportedOperationException error) {
-                return ResponseBody.failure("COMMON_NOT_SUPPORTED", error.getMessage(), null);
             } catch (IllegalArgumentException error) {
                 return ResponseBody.failure("COMMON_INVALID_REQUEST", error.getMessage(), null);
             }

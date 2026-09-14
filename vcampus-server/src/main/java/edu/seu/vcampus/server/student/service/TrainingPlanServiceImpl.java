@@ -39,9 +39,15 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
 
     @Override
     public TrainingPlanDetailView getPlan(String planId) {
+        return getPlan(planId, null);
+    }
+
+    @Override
+    public TrainingPlanDetailView getPlan(String planId, String departmentId) {
         return transactions.inTransaction(connection -> {
             TrainingPlan plan = plans.findById(connection, planId)
                     .orElseThrow(() -> new TrainingPlanException("TRAINING_PLAN_NOT_FOUND", "培养方案不存在"));
+            requireMajor(connection, plan.majorId(), departmentId);
             return detailView(connection, plan);
         });
     }
@@ -57,19 +63,32 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
 
     @Override
     public PageResult<TrainingPlanSummary> searchPlans(TrainingPlanQuery query) {
+        return searchPlans(query, null);
+    }
+
+    @Override
+    public PageResult<TrainingPlanSummary> searchPlans(TrainingPlanQuery query,
+            String departmentId) {
         if (query.page() < 1 || query.pageSize() < 1 || query.pageSize() > 100)
             throw new IllegalArgumentException("Invalid page");
         int offset = (query.page() - 1) * query.pageSize();
         return transactions.inTransaction(connection -> {
             List<TrainingPlanSummary> items = plans.search(connection, query.majorId(),
-                    query.enrollmentYear(), offset, query.pageSize());
-            int total = plans.countSearch(connection, query.majorId(), query.enrollmentYear());
+                    query.enrollmentYear(), offset, query.pageSize(), departmentId);
+            int total = plans.countSearch(connection, query.majorId(), query.enrollmentYear(),
+                    departmentId);
             return new PageResult<>(items, query.page(), query.pageSize(), total);
         });
     }
 
     @Override
     public TrainingPlanDetailView savePlan(SaveTrainingPlanCommand command, String operatorUserId) {
+        return savePlan(command, operatorUserId, null);
+    }
+
+    @Override
+    public TrainingPlanDetailView savePlan(SaveTrainingPlanCommand command, String operatorUserId,
+            String departmentId) {
         Objects.requireNonNull(command.majorId());
         Objects.requireNonNull(command.planName());
         if (command.minElectiveCount() < 0)
@@ -81,6 +100,7 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
                 () -> transactions.inTransaction(connection -> {
             organizations.findMajor(connection, command.majorId())
                     .orElseThrow(() -> new TrainingPlanException("TRAINING_PLAN_MAJOR_NOT_FOUND", "专业不存在"));
+            requireMajor(connection, command.majorId(), departmentId);
             Instant now = Instant.now();
             if (command.planId() == null || command.planId().isBlank()) {
                 plans.findByMajorAndYear(connection, command.majorId(), command.enrollmentYear())
@@ -98,6 +118,7 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
             } else {
                 TrainingPlan existing = plans.findById(connection, command.planId())
                         .orElseThrow(() -> new TrainingPlanException("TRAINING_PLAN_NOT_FOUND", "培养方案不存在"));
+                requireMajor(connection, existing.majorId(), departmentId);
                 TrainingPlan updated = new TrainingPlan(existing.planId(), existing.majorId(),
                         existing.enrollmentYear(), command.planName(),
                         command.minElectiveCount(), command.minElectiveCredits(),
@@ -111,11 +132,18 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
     @Override
     public TrainingPlanCourseView saveCourse(SaveTrainingPlanCourseCommand command,
             String operatorUserId) {
+        return saveCourse(command, operatorUserId, null);
+    }
+
+    @Override
+    public TrainingPlanCourseView saveCourse(SaveTrainingPlanCourseCommand command,
+            String operatorUserId, String departmentId) {
         validateCourse(command.planId(), command.courseCode(), command.courseName(),
                 command.credits(), command.courseType(), command.semester());
         return transactions.inTransaction(connection -> {
-            plans.findById(connection, command.planId())
+            TrainingPlan plan = plans.findById(connection, command.planId())
                     .orElseThrow(() -> new TrainingPlanException("TRAINING_PLAN_NOT_FOUND", "培养方案不存在"));
+            requireMajor(connection, plan.majorId(), departmentId);
             Instant now = Instant.now();
             if (command.planCourseId() == null || command.planCourseId().isBlank()) {
                 String id = UUID.randomUUID().toString();
@@ -139,9 +167,16 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
 
     @Override
     public void removeCourse(String planCourseId, String operatorUserId) {
+        removeCourse(planCourseId, operatorUserId, null);
+    }
+
+    @Override
+    public void removeCourse(String planCourseId, String operatorUserId, String departmentId) {
         transactions.inTransaction(connection -> {
-            plans.findCourseById(connection, planCourseId)
+            TrainingPlanCourse course = plans.findCourseById(connection, planCourseId)
                     .orElseThrow(() -> new TrainingPlanException("TRAINING_PLAN_COURSE_NOT_FOUND", "课程不存在"));
+            TrainingPlan plan = plans.findById(connection, course.planId()).orElseThrow();
+            requireMajor(connection, plan.majorId(), departmentId);
             plans.deleteCourse(connection, planCourseId);
             return null;
         });
@@ -150,13 +185,20 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
     @Override
     public List<TrainingPlanCourseView> importCourses(ImportTrainingPlanCoursesCommand command,
             String operatorUserId) {
+        return importCourses(command, operatorUserId, null);
+    }
+
+    @Override
+    public List<TrainingPlanCourseView> importCourses(ImportTrainingPlanCoursesCommand command,
+            String operatorUserId, String departmentId) {
         Objects.requireNonNull(command.planId());
         Objects.requireNonNull(command.courses());
         command.courses().forEach(entry -> validateCourse(command.planId(), entry.courseCode(),
                 entry.courseName(), entry.credits(), entry.courseType(), entry.semester()));
         return transactions.inTransaction(connection -> {
-            plans.findById(connection, command.planId())
+            TrainingPlan plan = plans.findById(connection, command.planId())
                     .orElseThrow(() -> new TrainingPlanException("TRAINING_PLAN_NOT_FOUND", "培养方案不存在"));
+            requireMajor(connection, plan.majorId(), departmentId);
             Instant now = Instant.now();
             return command.courses().stream().map(entry -> {
                 String id = UUID.randomUUID().toString();
@@ -201,6 +243,13 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
         return new TrainingPlanCourseView(course.planCourseId(), course.courseCode(),
                 course.courseName(), course.credits(), course.courseType(),
                 course.semester(), course.active(), course.rowVersion());
+    }
+
+    private void requireMajor(java.sql.Connection connection, String majorId,
+            String departmentId) {
+        if (departmentId != null && organizations.findMajor(connection, majorId)
+                .filter(major -> departmentId.equals(major.departmentId())).isEmpty())
+            throw new IllegalArgumentException("COMMON_FORBIDDEN");
     }
 
     private void validateCourse(String planId, String courseCode, String courseName,

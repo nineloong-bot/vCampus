@@ -67,5 +67,26 @@ class StudentCollegeScopeAuthorizationServiceTest {
             return null;
         });
     }
+
+    @Test void validatesMajorClassAndPlanAgainstTrustedDepartment(){
+        transactions.inTransaction(connection->{
+            assertThatCode(()->authorization.requireMajorAccess(connection,
+                    "00000000-0000-0000-0000-000000000101",
+                    "00000000-0000-0000-0000-000000000102")).doesNotThrowAnyException();
+            assertThatCode(()->authorization.requireClassAccess(connection,
+                    "00000000-0000-0000-0000-000000000101",
+                    "00000000-0000-0000-0000-000000000103")).doesNotThrowAnyException();
+            assertThatCode(()->authorization.requirePlanAccess(connection,
+                    "00000000-0000-0000-0000-000000000101",
+                    "00000000-0000-0000-0000-000000000301")).doesNotThrowAnyException();
+            assertThatThrownBy(()->authorization.requireMajorAccess(connection,
+                    "00000000-0000-0000-0000-000000000101",
+                    "00000000-0000-0000-0000-000000000113")).hasMessage("COMMON_FORBIDDEN");
+            assertThatThrownBy(()->authorization.requireClassAccess(connection,
+                    "00000000-0000-0000-0000-000000000101",
+                    "00000000-0000-0000-0000-000000000115")).hasMessage("COMMON_FORBIDDEN");
+            return null;
+        });
+    }
     private static Path directory(String child){Path current=Path.of("").toAbsolutePath();return(current.getFileName().toString().equals("vcampus-server")?current.resolve("../vcampus-database"):current.resolve("vcampus-database")).resolve(child).normalize();}
 }

@@ -74,12 +74,18 @@ public final class StudentAdmissionCoordinator implements StudentAdmissionServic
 
     @Override
     public StudentAdmissionResult admit(CreateStudentAdmissionCommand command, RequestContext request) {
+        return admit(command, request, null);
+    }
+
+    @Override
+    public StudentAdmissionResult admit(CreateStudentAdmissionCommand command,
+            RequestContext request, String trustedDepartmentId) {
         Objects.requireNonNull(command, "command");
         Objects.requireNonNull(request, "request");
         var replay = deduplicator.replayCompleted(request.requestId());
         if (replay.isPresent()) return replayResult(replay.get());
         ValidatedAdmission initial = transactions.inTransaction(connection ->
-                validate(connection, command));
+                validate(connection, command, trustedDepartmentId));
         List<ResourceKey> sequenceLocks = List.of(
                 new ResourceKey("NUMBER_SEQUENCE", "CAMPUS_CARD_GLOBAL"),
                 new ResourceKey("NUMBER_SEQUENCE", initial.sequenceKey()));
@@ -88,12 +94,18 @@ public final class StudentAdmissionCoordinator implements StudentAdmissionServic
             if (lockedReplay.isPresent()) return replayResult(lockedReplay.get());
             return transactions.inTransaction(connection -> admitInTransaction(
                     new TransactionContext(connection, request.userId(), request.clientInstanceId()),
-                    command, request));
+                    command, request, trustedDepartmentId));
         });
     }
 
     @Override
     public StudentAdmissionResult createManual(CreateStudentManualCommand raw, RequestContext request) {
+        return createManual(raw, request, null);
+    }
+
+    @Override
+    public StudentAdmissionResult createManual(CreateStudentManualCommand raw,
+            RequestContext request, String trustedDepartmentId) {
         Objects.requireNonNull(raw, "command");
         Objects.requireNonNull(request, "request");
         CreateStudentManualCommand command = StudentFieldValidator.normalizeManual(raw);
@@ -112,12 +124,18 @@ public final class StudentAdmissionCoordinator implements StudentAdmissionServic
             if (lockedReplay.isPresent()) return replayResult(lockedReplay.get());
             return transactions.inTransaction(connection -> createManualInTransaction(
                     new TransactionContext(connection, request.userId(), request.clientInstanceId()),
-                    command, request));
+                    command, request, trustedDepartmentId));
         });
     }
 
     @Override
     public BatchImportResult batchImport(BatchImportCommand command, RequestContext request) {
+        return batchImport(command, request, null);
+    }
+
+    @Override
+    public BatchImportResult batchImport(BatchImportCommand command, RequestContext request,
+            String trustedDepartmentId) {
         Objects.requireNonNull(command, "command");
         Objects.requireNonNull(request, "request");
         if (command.classIds() == null || command.classIds().isEmpty())
@@ -132,16 +150,18 @@ public final class StudentAdmissionCoordinator implements StudentAdmissionServic
         }
         return transactions.inTransaction(connection -> batchImportInTransaction(
                 new TransactionContext(connection, request.userId(), request.clientInstanceId()),
-                command, request));
+                command, request, trustedDepartmentId));
     }
 
     private BatchImportResult batchImportInTransaction(TransactionContext tx,
-            BatchImportCommand command, RequestContext request) throws Exception {
+            BatchImportCommand command, RequestContext request,
+            String trustedDepartmentId) throws Exception {
         Major major = organizations.findMajor(tx.connection(), command.majorId())
                 .orElseThrow(() -> new StudentAdmissionException(
                         "STUDENT_ORGANIZATION_MISMATCH", "专业不存在"));
         if (!major.active())
             throw new StudentAdmissionException("STUDENT_CLASS_INACTIVE", "专业已停用");
+        requireDepartment(major, trustedDepartmentId);
         List<StudentClass> classes = new ArrayList<>();
         for (String classId : command.classIds()) {
             StudentClass sc = organizations.findClass(tx.connection(), classId)
@@ -189,10 +209,12 @@ public final class StudentAdmissionCoordinator implements StudentAdmissionServic
     }
 
     private StudentAdmissionResult createManualInTransaction(TransactionContext tx,
-            CreateStudentManualCommand command, RequestContext request) throws Exception {
+            CreateStudentManualCommand command, RequestContext request,
+            String trustedDepartmentId) throws Exception {
         var replay = deduplicator.replayCompleted(tx, request.requestId());
         if (replay.isPresent()) return replayResult(replay.get());
         ValidatedManual validated = validateManualOrganization(tx.connection(), command);
+        requireDepartment(validated.major(), trustedDepartmentId);
         if (students.existsByStudentNumber(tx.connection(), command.studentNumber())) {
             throw new StudentAdmissionException("STUDENT_NUMBER_DUPLICATE", "学号已被使用");
         }
@@ -227,12 +249,13 @@ public final class StudentAdmissionCoordinator implements StudentAdmissionServic
     }
 
     private StudentAdmissionResult admitInTransaction(TransactionContext tx,
-            CreateStudentAdmissionCommand command, RequestContext request) throws Exception {
+            CreateStudentAdmissionCommand command, RequestContext request,
+            String trustedDepartmentId) throws Exception {
         var replay = deduplicator.replayCompleted(tx, request.requestId());
         if (replay.isPresent()) return replayResult(replay.get());
         Message requestMessage = new Message(request.requestId(), MessageType.REQUEST, COMMAND,
                 null, command, System.currentTimeMillis());
-        ValidatedAdmission validated = validate(tx.connection(), command);
+        ValidatedAdmission validated = validate(tx.connection(), command, trustedDepartmentId);
         String campusCard = campusCards.next(tx, command.studentType(), command.enrollmentYear());
         String studentNumber = studentNumbers.next(tx, validated.major().majorCode(),
                 command.enrollmentYear(), validated.studentClass().classNumber());
@@ -288,7 +311,7 @@ public final class StudentAdmissionCoordinator implements StudentAdmissionServic
     }
 
     private ValidatedAdmission validate(java.sql.Connection connection,
-            CreateStudentAdmissionCommand command) {
+            CreateStudentAdmissionCommand command, String trustedDepartmentId) {
         Objects.requireNonNull(command.studentType(), "studentType");
         Major major = organizations.findMajor(connection, command.majorId()).orElseThrow(() ->
                 new StudentAdmissionException("STUDENT_ORGANIZATION_MISMATCH", "Major not found"));
@@ -299,6 +322,7 @@ public final class StudentAdmissionCoordinator implements StudentAdmissionServic
         if (!department.active() || !major.active() || !studentClass.active()) {
             throw new StudentAdmissionException("STUDENT_CLASS_INACTIVE", "Organization is inactive");
         }
+        requireDepartment(major, trustedDepartmentId);
         if (!studentClass.majorId().equals(major.majorId())
                 || studentClass.enrollmentYear() != command.enrollmentYear()) {
             throw new StudentAdmissionException("STUDENT_ORGANIZATION_MISMATCH",
@@ -308,6 +332,11 @@ public final class StudentAdmissionCoordinator implements StudentAdmissionServic
                 + String.format("%02d", command.enrollmentYear() % 100) + ":"
                 + studentClass.classNumber();
         return new ValidatedAdmission(major, studentClass, key);
+    }
+
+    private static void requireDepartment(Major major, String trustedDepartmentId) {
+        if (trustedDepartmentId != null && !trustedDepartmentId.equals(major.departmentId()))
+            throw new IllegalArgumentException("COMMON_FORBIDDEN");
     }
 
     private ValidatedManual validateManualOrganization(java.sql.Connection connection,

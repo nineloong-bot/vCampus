@@ -10,6 +10,7 @@ import edu.seu.vcampus.server.routing.MessageRouter;
 import edu.seu.vcampus.server.student.repository.TrainingPlanException;
 import edu.seu.vcampus.server.student.service.StudentGradeService;
 import edu.seu.vcampus.server.student.service.TrainingPlanService;
+import edu.seu.vcampus.server.student.security.StudentCollegeScopeAuthorizationService;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -33,46 +34,60 @@ public final class TrainingPlanHandlers {
     private final StudentGradeService gradeService;
     private final StudentAuthorizationPort authorization;
     private final StudentWriteExecutor writes;
+    private final StudentCollegeScopeAuthorizationService collegeScope;
 
     public TrainingPlanHandlers(TrainingPlanService planService,
             StudentGradeService gradeService, StudentAuthorizationPort authorization,
             StudentWriteExecutor writes) {
+        this(planService, gradeService, authorization, writes, null);
+    }
+
+    /** Creates handlers with live college-scope resolution. */
+    public TrainingPlanHandlers(TrainingPlanService planService,
+            StudentGradeService gradeService, StudentAuthorizationPort authorization,
+            StudentWriteExecutor writes, StudentCollegeScopeAuthorizationService collegeScope) {
         this.planService = Objects.requireNonNull(planService);
         this.gradeService = Objects.requireNonNull(gradeService);
         this.authorization = Objects.requireNonNull(authorization);
         this.writes = Objects.requireNonNull(writes);
+        this.collegeScope = collegeScope;
     }
 
     public void register(MessageRouter router) {
         router.register("TRAINING_PLAN_SAVE", typed(SaveTrainingPlanCommand.class,
-                (message, body) -> write(message, () -> admin(message,
-                        () -> planService.savePlan(body, principal(message).userId())))));
+                (message, body) -> write(message, () -> admin(message, departmentId ->
+                        planService.savePlan(body, principal(message).userId(), departmentId)))));
         router.register("TRAINING_PLAN_GET", typed(EntityIdRequest.class,
-                (message, body) -> admin(message,
-                        () -> planService.getPlan(body.entityId()))));
+                (message, body) -> admin(message, departmentId ->
+                        planService.getPlan(body.entityId(), departmentId))));
         router.register("TRAINING_PLAN_LIST", typed(TrainingPlanQuery.class,
-                (message, body) -> admin(message, () -> planService.searchPlans(body))));
+                (message, body) -> admin(message, departmentId ->
+                        planService.searchPlans(body, departmentId))));
         router.register("TRAINING_PLAN_SAVE_COURSE", typed(SaveTrainingPlanCourseCommand.class,
-                (message, body) -> write(message, () -> admin(message,
-                        () -> planService.saveCourse(body, principal(message).userId())))));
+                (message, body) -> write(message, () -> admin(message, departmentId ->
+                        planService.saveCourse(body, principal(message).userId(), departmentId)))));
         router.register("TRAINING_PLAN_REMOVE_COURSE", typed(EntityIdRequest.class,
-                (message, body) -> write(message, () -> admin(message,
-                        () -> { planService.removeCourse(body.entityId(), principal(message).userId()); return edu.seu.vcampus.common.protocol.EmptyResponse.INSTANCE; }))));
+                (message, body) -> write(message, () -> admin(message, departmentId -> {
+                    planService.removeCourse(body.entityId(), principal(message).userId(), departmentId);
+                    return edu.seu.vcampus.common.protocol.EmptyResponse.INSTANCE;
+                }))));
         router.register("TRAINING_PLAN_IMPORT_COURSES", typed(ImportTrainingPlanCoursesCommand.class,
-                (message, body) -> write(message, () -> admin(message,
-                        () -> new ArrayList<>(planService.importCourses(body, principal(message).userId()))))));
+                (message, body) -> write(message, () -> admin(message, departmentId ->
+                        new ArrayList<>(planService.importCourses(body,
+                                principal(message).userId(), departmentId))))));
         router.register("TRAINING_PLAN_GET_MY", typed(EmptyRequest.class,
                 (message, body) -> student(message,
                         () -> planService.getMyPlan(principal(message).userId()))));
         router.register("GRADE_RECORD", typed(RecordStudentGradeCommand.class,
-                (message, body) -> write(message, () -> admin(message,
-                        () -> gradeService.recordGrade(body, principal(message).userId())))));
+                (message, body) -> write(message, () -> admin(message, departmentId ->
+                        gradeService.recordGrade(body, principal(message).userId(), departmentId)))));
         router.register("GRADE_BATCH_RECORD", typed(BatchRecordGradesCommand.class,
-                (message, body) -> write(message, () -> admin(message,
-                        () -> new ArrayList<>(gradeService.batchRecordGrades(body, principal(message).userId()))))));
+                (message, body) -> write(message, () -> admin(message, departmentId ->
+                        new ArrayList<>(gradeService.batchRecordGrades(body,
+                                principal(message).userId(), departmentId))))));
         router.register("GRADE_LIST_BY_STUDENT", typed(EntityIdRequest.class,
-                (message, body) -> admin(message,
-                        () -> gradeService.getTranscriptByStudentId(body.entityId()))));
+                (message, body) -> admin(message, departmentId ->
+                        gradeService.getTranscriptByStudentId(body.entityId(), departmentId))));
         router.register("GRADE_GET_MY", typed(EmptyRequest.class,
                 (message, body) -> student(message,
                         () -> gradeService.getMyTranscript(principal(message).userId()))));
@@ -100,9 +115,12 @@ public final class TrainingPlanHandlers {
     }
 
     private ResponseBody<? extends Serializable> admin(Message message,
-            java.util.function.Supplier<? extends Serializable> action) {
+            java.util.function.Function<String, ? extends Serializable> action) {
         StudentPrincipal p = principal(message);
-        return p.hasRole("STUDENT_ADMIN") ? success(action.get()) : forbidden();
+        if (p.hasRole("ADMIN")) return success(action.apply(null));
+        if (!p.hasRole("COLLEGE_ADMIN") || collegeScope == null) return forbidden();
+        try { return success(action.apply(collegeScope.requireActiveDepartment(p.userId()))); }
+        catch (IllegalArgumentException error) { return forbidden(); }
     }
 
     private ResponseBody<? extends Serializable> student(Message message,

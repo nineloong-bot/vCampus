@@ -79,4 +79,17 @@ class TrainingPlanServiceImplTest {
                                 new BigDecimal("-1.0"), CourseType.REQUIRED, 1))), "admin"));
         assertThat(service.getPlan(plan.planId()).courses()).isEmpty();
     }
+
+    @Test
+    void collegeCannotCreateOrReadPlanOutsideItsDepartment() {
+        var command = new SaveTrainingPlanCommand(null, "major-1", 2024,
+                "2024级培养方案", 2, new BigDecimal("10.0"), true, 0);
+        assertThatIllegalArgumentException().isThrownBy(() ->
+                service.savePlan(command, "admin", "department-else"))
+                .withMessage("COMMON_FORBIDDEN");
+        var plan = service.savePlan(command, "admin", "department-1");
+        assertThatIllegalArgumentException().isThrownBy(() ->
+                service.getPlan(plan.planId(), "department-else"))
+                .withMessage("COMMON_FORBIDDEN");
+    }
 }

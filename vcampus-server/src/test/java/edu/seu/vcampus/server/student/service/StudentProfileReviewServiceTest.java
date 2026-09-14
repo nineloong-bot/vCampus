@@ -101,6 +101,22 @@ class StudentProfileReviewServiceTest {
     }
 
     @Test
+    void profileReviewIsLimitedToTrustedDepartment() {
+        var draft = service.saveAttendanceDraft("user-1",
+                new SaveStudentAttendanceDraftCommand(AttendanceMode.OTHER, 0));
+        var pending = service.submit("user-1",
+                new SubmitStudentProfileCommand(draft.application().applicationVersion()));
+
+        assertThat(service.listPending(new edu.seu.vcampus.common.student.StudentProfileReviewQuery(
+                1, 20), "department-else").total()).isZero();
+        assertThat(service.listPending(new edu.seu.vcampus.common.student.StudentProfileReviewQuery(
+                1, 20), "department-1").total()).isEqualTo(1);
+        assertThatThrownBy(() -> service.approve(pending.application().applicationId(),
+                "admin-1", "通过", "department-else"))
+                .hasMessage("COMMON_FORBIDDEN");
+    }
+
+    @Test
     void invalidPersonalDraftIsRejectedAtTheServiceBoundary() throws Exception {
         var invalid = new StudentPersonalProfile(null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null, null, null,
