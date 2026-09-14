@@ -34,6 +34,7 @@ public final class LibraryWorkspacePanel extends JPanel {
             detail.setAfterMutation(this::refreshAll);
             search.connectDetail(detail);
             JSplitPane catalog = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, search, detail);
+            search.setMinimumSize(new Dimension(320, 0)); detail.setMinimumSize(new Dimension(280, 0));
             catalog.setResizeWeight(0.58); catalog.setDividerLocation(0.58);
             catalog.setDividerSize(8); catalog.setBorder(BorderFactory.createEmptyBorder());
             catalog.setBackground(LibraryPalette.PAGE);

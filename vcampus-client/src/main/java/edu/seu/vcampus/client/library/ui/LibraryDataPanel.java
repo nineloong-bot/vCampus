@@ -83,6 +83,14 @@ class LibraryDataPanel extends JPanel {
         add(results, BorderLayout.CENTER);
     }
 
+    protected final void setColumnWidths(int... widths) {
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        for (int index = 0; index < widths.length; index++) {
+            var column = table.getColumnModel().getColumn(index);
+            column.setMinWidth(widths[index]); column.setPreferredWidth(widths[index]);
+        }
+    }
+
     protected final long beginRequest() { return lifecycle.incrementAndGet(); }
     protected final boolean accepts(long request) { return active && lifecycle.get() == request; }
     protected final long beginMutation() { beginRequest(); return mutationLifecycle.get(); }
