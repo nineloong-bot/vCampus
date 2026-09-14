@@ -86,10 +86,50 @@ public final class StudentRepository {
 
     public List<Student> findAll(Connection connection) {
         String sql = "SELECT s.*, c.majorId FROM tblStudent s INNER JOIN tblClass c ON s.classId = c.classId ORDER BY s.studentNumber";
-        try (var statement = connection.prepareStatement(sql); var result = statement.executeQuery()) {
-            List<Student> values = new ArrayList<>();
-            while (result.next()) values.add(map(result));
-            return List.copyOf(values);
+        return list(connection, sql, null);
+    }
+
+    /** Lists students whose current class and major belong to the trusted department. */
+    public List<Student> findAll(Connection connection, String departmentId) {
+        String sql = """
+                SELECT s.*, c.majorId
+                FROM (tblStudent s INNER JOIN tblClass c ON s.classId=c.classId)
+                INNER JOIN tblMajor m ON c.majorId=m.majorId
+                WHERE m.departmentId=?
+                ORDER BY s.studentNumber
+                """;
+        return list(connection, sql, departmentId);
+    }
+
+    /** Returns whether the student's current class belongs to the trusted department. */
+    public boolean belongsToDepartment(Connection connection, String studentId,
+            String departmentId) {
+        String sql = """
+                SELECT COUNT(*)
+                FROM (tblStudent s INNER JOIN tblClass c ON s.classId=c.classId)
+                INNER JOIN tblMajor m ON c.majorId=m.majorId
+                WHERE s.studentId=? AND m.departmentId=?
+                """;
+        try (var statement = connection.prepareStatement(sql)) {
+            statement.setString(1, studentId);
+            statement.setString(2, departmentId);
+            try (var result = statement.executeQuery()) {
+                result.next();
+                return result.getLong(1) == 1;
+            }
+        } catch (SQLException error) {
+            throw new OrganizationPersistenceException("Cannot check student department", error);
+        }
+    }
+
+    private List<Student> list(Connection connection, String sql, String departmentId) {
+        try (var statement = connection.prepareStatement(sql)) {
+            if (departmentId != null) statement.setString(1, departmentId);
+            try (var result = statement.executeQuery()) {
+                List<Student> values = new ArrayList<>();
+                while (result.next()) values.add(map(result));
+                return List.copyOf(values);
+            }
         } catch (SQLException error) { throw new OrganizationPersistenceException("Cannot list students", error); }
     }
 

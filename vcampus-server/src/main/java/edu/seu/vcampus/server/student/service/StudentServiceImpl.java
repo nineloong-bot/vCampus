@@ -39,7 +39,12 @@ public final class StudentServiceImpl implements StudentService, StudentQueryPor
     }
 
     @Override public StudentView getStudent(String studentId) {
-        return transactions.inTransaction(connection -> view(connection, requireById(connection, studentId)));
+        return getStudent(studentId, null);
+    }
+
+    @Override public StudentView getStudent(String studentId, String trustedDepartmentId) {
+        return transactions.inTransaction(connection ->
+                view(connection, requireById(connection, studentId, trustedDepartmentId)));
     }
 
     @Override public StudentView getCurrentStudent(String userId) {
@@ -48,14 +53,22 @@ public final class StudentServiceImpl implements StudentService, StudentQueryPor
     }
 
     @Override public PageResult<StudentSummary> searchStudents(StudentSearchQuery query) {
+        return searchStudents(query, null);
+    }
+
+    @Override public PageResult<StudentSummary> searchStudents(StudentSearchQuery query,
+            String trustedDepartmentId) {
         if (query.page() < 1 || query.pageSize() < 1 || query.pageSize() > 100)
             throw new IllegalArgumentException("Invalid page");
         String keyword = blankToNull(query.keyword());
-        var matches = transactions.inTransaction(students::findAll).stream()
+        var candidates = transactions.inTransaction(connection -> trustedDepartmentId == null
+                ? students.findAll(connection) : students.findAll(connection, trustedDepartmentId));
+        var matches = candidates.stream()
                 .filter(s -> keyword == null || s.studentName().contains(keyword)
                         || s.studentNumber().contains(keyword)
                         || loginId(s.userId()).contains(keyword))
-                .filter(s -> query.departmentId() == null || query.departmentId().equals(
+                .filter(s -> trustedDepartmentId != null || query.departmentId() == null
+                        || query.departmentId().equals(
                         transactions.inTransaction(connection -> organizations.findMajor(connection,
                                 s.majorId()).map(value -> value.departmentId()).orElse(null))))
                 .filter(s -> query.majorId() == null || query.majorId().equals(s.majorId()))
@@ -70,8 +83,13 @@ public final class StudentServiceImpl implements StudentService, StudentQueryPor
     }
 
     @Override public StudentView updateContact(UpdateStudentContactCommand command) {
+        return updateContact(command, null);
+    }
+
+    @Override public StudentView updateContact(UpdateStudentContactCommand command,
+            String trustedDepartmentId) {
         return withStudent(command.studentId(), () -> transactions.inTransaction(connection -> {
-            requireById(connection, command.studentId());
+            requireById(connection, command.studentId(), trustedDepartmentId);
             students.updateContact(connection, command.studentId(), normalizeEmail(command.email()),
                     blankToNull(command.phone()), command.expectedVersion(), Instant.now());
             return view(connection, requireById(connection, command.studentId()));
@@ -83,10 +101,15 @@ public final class StudentServiceImpl implements StudentService, StudentQueryPor
     }
 
     @Override public StudentView changeStatus(ChangeStudentStatusCommand command, String auditUserId) {
+        return changeStatus(command, auditUserId, null);
+    }
+
+    @Override public StudentView changeStatus(ChangeStudentStatusCommand command, String auditUserId,
+            String trustedDepartmentId) {
         Objects.requireNonNull(command.status()); Objects.requireNonNull(command.effectiveDate());
         requireReason(command.reason());
         return withStudent(command.studentId(), () -> transactions.inTransaction(connection -> {
-            Student before = requireById(connection, command.studentId());
+            Student before = requireById(connection, command.studentId(), trustedDepartmentId);
             if (!validTransition(before.status(), command.status())) {
                 throw new StudentAdmissionException("STUDENT_STATUS_TRANSITION_INVALID",
                         "Invalid student status transition");
@@ -105,13 +128,18 @@ public final class StudentServiceImpl implements StudentService, StudentQueryPor
     }
 
     @Override public StudentView updateStudentInfo(UpdateStudentInfoCommand command, String auditUserId) {
+        return updateStudentInfo(command, auditUserId, null);
+    }
+
+    @Override public StudentView updateStudentInfo(UpdateStudentInfoCommand command, String auditUserId,
+            String trustedDepartmentId) {
         String studentNumber = normalizeStudentNumber(command.studentNumber());
         Objects.requireNonNull(command.classId());
         Objects.requireNonNull(command.status());
         Objects.requireNonNull(command.effectiveDate());
         requireReason(command.reason());
         return withStudent(command.studentId(), () -> transactions.inTransaction(connection -> {
-            Student before = requireById(connection, command.studentId());
+            Student before = requireById(connection, command.studentId(), trustedDepartmentId);
             var target = organizations.findClass(connection, command.classId())
                     .filter(value -> value.active() || before.classId().equals(value.classId()))
                     .orElseThrow(() -> new StudentAdmissionException(
@@ -153,6 +181,11 @@ public final class StudentServiceImpl implements StudentService, StudentQueryPor
 
     @Override public StudentView updateStudentAcademic(UpdateStudentAcademicCommand command,
             String auditUserId) {
+        return updateStudentAcademic(command, auditUserId, null);
+    }
+
+    @Override public StudentView updateStudentAcademic(UpdateStudentAcademicCommand command,
+            String auditUserId, String trustedDepartmentId) {
         String studentNumber = normalizeStudentNumber(command.studentNumber());
         Objects.requireNonNull(command.classId());
         Objects.requireNonNull(command.status());
@@ -160,7 +193,7 @@ public final class StudentServiceImpl implements StudentService, StudentQueryPor
         Objects.requireNonNull(command.effectiveDate());
         requireReason(command.reason());
         return withStudent(command.studentId(), () -> transactions.inTransaction(connection -> {
-            Student before = requireById(connection, command.studentId());
+            Student before = requireById(connection, command.studentId(), trustedDepartmentId);
             var target = organizations.findClass(connection, command.classId())
                     .filter(value -> value.active() || before.classId().equals(value.classId()))
                     .orElseThrow(() -> new StudentAdmissionException(
@@ -215,6 +248,11 @@ public final class StudentServiceImpl implements StudentService, StudentQueryPor
 
     @Override public StudentView updateEnrollment(UpdateStudentEnrollmentCommand command,
             String auditUserId) {
+        return updateEnrollment(command, auditUserId, null);
+    }
+
+    @Override public StudentView updateEnrollment(UpdateStudentEnrollmentCommand command,
+            String auditUserId, String trustedDepartmentId) {
         Objects.requireNonNull(command.effectiveDate()); requireReason(command.reason());
         var target = transactions.inTransaction(connection -> organizations.findClass(connection, command.classId())
                 .filter(value -> value.active()).orElseThrow(() -> new StudentAdmissionException(
@@ -226,7 +264,7 @@ public final class StudentServiceImpl implements StudentService, StudentQueryPor
                 + String.format("%02d", target.enrollmentYear() % 100) + ":" + target.classNumber();
         return locks.withLocks(List.of(new ResourceKey("NUMBER_SEQUENCE", sequenceKey),
                 new ResourceKey("STUDENT", command.studentId())), () -> transactions.inTransaction(connection -> {
-            Student before = requireById(connection, command.studentId());
+            Student before = requireById(connection, command.studentId(), trustedDepartmentId);
             requireSameMajor(before, target.majorId());
             String nextNumber = new AccessStudentNumberGenerator(new NumberSequenceRepository()).next(
                     new TransactionContext(connection, auditUserId, "student-service"), major.majorCode(),
@@ -268,14 +306,29 @@ public final class StudentServiceImpl implements StudentService, StudentQueryPor
     }
 
     @Override public List<StudentChangeView> listChanges(String studentId) {
+        return listChanges(studentId, null);
+    }
+
+    @Override public List<StudentChangeView> listChanges(String studentId,
+            String trustedDepartmentId) {
         return transactions.inTransaction(connection -> {
-            requireById(connection, studentId);
+            requireById(connection, studentId, trustedDepartmentId);
             return changes.listByStudentId(connection, studentId);
         });
     }
 
     private Student requireById(java.sql.Connection connection, String studentId) {
         return students.findById(connection, studentId).orElseThrow(StudentNotFoundException::new);
+    }
+
+    private Student requireById(java.sql.Connection connection, String studentId,
+            String trustedDepartmentId) {
+        Student student = requireById(connection, studentId);
+        if (trustedDepartmentId != null
+                && !students.belongsToDepartment(connection, studentId, trustedDepartmentId)) {
+            throw new IllegalArgumentException("COMMON_FORBIDDEN");
+        }
+        return student;
     }
 
     private StudentView view(java.sql.Connection connection, Student student) {

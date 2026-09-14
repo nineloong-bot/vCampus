@@ -11,12 +11,11 @@ import edu.seu.vcampus.server.student.service.StudentAdmissionService;
 import edu.seu.vcampus.server.student.service.StudentOrganizationQuery;
 import edu.seu.vcampus.server.student.service.StudentService;
 import edu.seu.vcampus.server.student.service.StudentAdmissionException;
-import edu.seu.vcampus.server.student.service.StudentNotFoundException;
-import edu.seu.vcampus.server.student.service.StudentProfileApplicationException;
 import edu.seu.vcampus.server.student.service.StudentProfileService;
 import edu.seu.vcampus.server.student.numbering.StudentNumberingException;
 import edu.seu.vcampus.server.student.repository.OrganizationHierarchyException;
 import edu.seu.vcampus.server.student.pdf.StudentProfilePdfGenerator;
+import edu.seu.vcampus.server.student.security.StudentCollegeScopeAuthorizationService;
 
 import java.io.Serializable;
 import java.util.List;
@@ -48,38 +47,49 @@ public final class StudentHandlers {
     private final StudentOrganizationQuery organizations;
     private final StudentAuthorizationPort authorization;
     private final StudentWriteExecutor writes;
-    private final StudentProfileService profiles;
-    private final StudentProfilePdfGenerator pdfs;
+    private final StudentRecordHandlers recordHandlers;
+    private final StudentProfileHandlers profileHandlers;
 
     StudentHandlers(StudentAdmissionService admissions, StudentService students,
             StudentOrganizationQuery organizations, StudentAuthorizationPort authorization) {
         this(admissions, students, organizations, authorization,
-                (request, principal, action) -> action.get(), null);
+                (request, principal, action) -> action.get(), null, null, null);
     }
 
     public StudentHandlers(StudentAdmissionService admissions, StudentService students,
             StudentOrganizationQuery organizations, StudentAuthorizationPort authorization,
             StudentWriteExecutor writes) {
-        this(admissions, students, organizations, authorization, writes, null, null);
+        this(admissions, students, organizations, authorization, writes, null, null, null);
     }
 
     public StudentHandlers(StudentAdmissionService admissions, StudentService students,
             StudentOrganizationQuery organizations, StudentAuthorizationPort authorization,
             StudentWriteExecutor writes, StudentProfileService profiles) {
-        this(admissions, students, organizations, authorization, writes, profiles, null);
+        this(admissions, students, organizations, authorization, writes, profiles, null, null);
     }
 
     public StudentHandlers(StudentAdmissionService admissions, StudentService students,
             StudentOrganizationQuery organizations, StudentAuthorizationPort authorization,
             StudentWriteExecutor writes, StudentProfileService profiles,
             StudentProfilePdfGenerator pdfs) {
+        this(admissions, students, organizations, authorization, writes, profiles, pdfs, null);
+    }
+
+    /** Creates handlers with server-resolved college scope enforcement. */
+    public StudentHandlers(StudentAdmissionService admissions, StudentService students,
+            StudentOrganizationQuery organizations, StudentAuthorizationPort authorization,
+            StudentWriteExecutor writes, StudentProfileService profiles,
+            StudentProfilePdfGenerator pdfs,
+            StudentCollegeScopeAuthorizationService collegeScope) {
         this.admissions = Objects.requireNonNull(admissions);
         this.students = Objects.requireNonNull(students);
         this.organizations = Objects.requireNonNull(organizations);
         this.authorization = Objects.requireNonNull(authorization);
         this.writes = Objects.requireNonNull(writes);
-        this.profiles = profiles;
-        this.pdfs = pdfs;
+        this.recordHandlers = new StudentRecordHandlers(students, authorization, writes,
+                collegeScope);
+        this.profileHandlers = profiles == null ? null
+                : new StudentProfileHandlers(profiles, pdfs, authorization, writes);
     }
 
     public void register(MessageRouter router) {
@@ -99,34 +109,7 @@ public final class StudentHandlers {
             if (!principal.hasRole("STUDENT") && !principal.hasRole("ADMIN")) return forbidden();
             return success(students.getCurrentStudent(principal.userId()));
         }));
-        router.register("STUDENT_GET", typed(EntityIdRequest.class, (message, body) -> {
-            StudentPrincipal principal = principal(message);
-            if (!isStaff(principal)) return forbidden();
-            StudentView value = students.getStudent(body.entityId());
-            return success(principal.hasRole("TEACHER") ? withoutContact(value) : value);
-        }));
-        router.register("STUDENT_SEARCH", typed(StudentSearchQuery.class, (message, body) -> {
-            StudentPrincipal principal = principal(message);
-            return isStaff(principal) ? success(students.searchStudents(body)) : forbidden();
-        }));
-        router.register("STUDENT_UPDATE_CONTACT", typed(UpdateStudentContactCommand.class,
-                (message, body) -> write(message, () -> updateContact(message, body))));
-        router.register("STUDENT_UPDATE_ENROLLMENT", typed(UpdateStudentEnrollmentCommand.class,
-                (message, body) -> write(message,
-                        () -> admin(message, () -> students.updateEnrollment(body,
-                                principal(message).userId())))));
-        router.register("STUDENT_CHANGE_STATUS", typed(ChangeStudentStatusCommand.class,
-                (message, body) -> write(message,
-                        () -> admin(message, () -> students.changeStatus(body,
-                                principal(message).userId())))));
-        router.register("STUDENT_UPDATE_INFO", typed(UpdateStudentInfoCommand.class,
-                (message, body) -> write(message,
-                        () -> admin(message, () -> students.updateStudentInfo(body,
-                                principal(message).userId())))));
-        router.register("STUDENT_UPDATE_ACADEMIC", typed(UpdateStudentAcademicCommand.class,
-                (message, body) -> write(message,
-                        () -> admin(message, () -> students.updateStudentAcademic(body,
-                                principal(message).userId())))));
+        recordHandlers.register(router);
         router.register("STUDENT_LIST_DEPARTMENTS", typed(ActiveOnlyQuery.class,
                 (message, body) -> authenticated(message,
                         () -> new ArrayList<>(organizations.listDepartments(body.activeOnly())))));
@@ -136,9 +119,6 @@ public final class StudentHandlers {
         router.register("STUDENT_LIST_CLASSES", typed(OrganizationChildrenQuery.class,
                 (message, body) -> authenticated(message,
                         () -> new ArrayList<>(organizations.listClasses(body.parentId(), body.activeOnly())))));
-        router.register("STUDENT_GET_CHANGES", typed(EntityIdRequest.class, (message, body) -> {
-            return strictAdmin(message, () -> new ArrayList<>(students.listChanges(body.entityId())));
-        }));
         router.register("STUDENT_SAVE_DEPARTMENT", typed(SaveDepartmentCommand.class,
                 (message, body) -> write(message, () -> admin(message,
                         () -> organizations.saveDepartment(body)))));
@@ -148,56 +128,7 @@ public final class StudentHandlers {
         router.register("STUDENT_SAVE_CLASS", typed(SaveClassCommand.class,
                 (message, body) -> write(message, () -> admin(message,
                         () -> organizations.saveClass(body)))));
-        if (profiles != null) registerProfiles(router);
-    }
-
-    private void registerProfiles(MessageRouter router) {
-        router.register("STUDENT_PROFILE_GET_WORKSPACE", typed(EmptyRequest.class,
-                (message, body) -> student(message,
-                        () -> profiles.getWorkspace(principal(message).userId()))));
-        router.register("STUDENT_PROFILE_SAVE_PERSONAL_DRAFT",
-                typed(SaveStudentPersonalDraftCommand.class, (message, body) -> write(message,
-                        () -> student(message, () -> profiles.savePersonalDraft(
-                                principal(message).userId(), body)))));
-        router.register("STUDENT_PROFILE_SAVE_ATTENDANCE_DRAFT",
-                typed(SaveStudentAttendanceDraftCommand.class, (message, body) -> write(message,
-                        () -> student(message, () -> profiles.saveAttendanceDraft(
-                                principal(message).userId(), body)))));
-        router.register("STUDENT_PROFILE_SUBMIT", typed(SubmitStudentProfileCommand.class,
-                (message, body) -> write(message, () -> student(message,
-                        () -> profiles.submit(principal(message).userId(), body)))));
-        router.register("STUDENT_PROFILE_WITHDRAW", typed(WithdrawStudentProfileCommand.class,
-                (message, body) -> write(message, () -> student(message,
-                        () -> profiles.withdraw(principal(message).userId(), body)))));
-        if (pdfs != null) router.register("STUDENT_PROFILE_EXPORT_PDF", typed(EmptyRequest.class,
-                (message, body) -> student(message, () -> pdfs.generate(
-                        profiles.getWorkspace(principal(message).userId()).formalProfile(),
-                        java.time.Instant.now()))));
-        router.register("STUDENT_PROFILE_REVIEW_LIST", typed(StudentProfileReviewQuery.class,
-                (message, body) -> admin(message, () -> profiles.listPending(body))));
-        router.register("STUDENT_PROFILE_REVIEW_GET", typed(EntityIdRequest.class,
-                (message, body) -> admin(message,
-                        () -> profiles.getApplication(body.entityId()))));
-        router.register("STUDENT_PROFILE_APPROVE", typed(ReviewStudentProfileCommand.class,
-                (message, body) -> write(message, () -> admin(message,
-                        () -> profiles.approve(body.applicationId(), principal(message).userId(),
-                                body.reviewComment())))));
-        router.register("STUDENT_PROFILE_REJECT", typed(ReviewStudentProfileCommand.class,
-                (message, body) -> write(message, () -> admin(message,
-                        () -> profiles.reject(body.applicationId(), principal(message).userId(),
-                                body.reviewComment())))));
-        router.register("STUDENT_GET_PROFILE", typed(EntityIdRequest.class,
-                (message, body) -> strictAdmin(message,
-                        () -> profiles.getProfileByStudentId(body.entityId()))));
-    }
-
-    private ResponseBody<? extends Serializable> updateContact(Message message,
-            UpdateStudentContactCommand body) {
-        StudentPrincipal principal = principal(message);
-        var student = students.getStudent(body.studentId());
-        return principal.hasRole("ADMIN") || principal.hasRole("STUDENT_ADMIN")
-                || principal.userId().equals(student.userId())
-                ? success(students.updateContact(body)) : forbidden();
+        if (profileHandlers != null) profileHandlers.register(router);
     }
 
     private ResponseBody<? extends Serializable> write(Message message,
@@ -210,12 +141,6 @@ public final class StudentHandlers {
         StudentPrincipal principal = principal(message);
         return principal.hasRole("ADMIN") || principal.hasPermission("STUDENT_WRITE")
                 ? success(action.get()) : forbidden();
-    }
-
-    private ResponseBody<? extends Serializable> student(Message message,
-            java.util.function.Supplier<? extends Serializable> action) {
-        StudentPrincipal principal = principal(message);
-        return principal.hasRole("STUDENT") ? success(action.get()) : forbidden();
     }
 
     private ResponseBody<? extends Serializable> strictAdmin(Message message,
@@ -237,19 +162,6 @@ public final class StudentHandlers {
         return principal;
     }
 
-    private static boolean isStaff(StudentPrincipal principal) {
-        return principal.hasRole("TEACHER") || principal.hasRole("ADMIN")
-                || principal.hasRole("STUDENT_ADMIN");
-    }
-
-    private static StudentView withoutContact(StudentView value) {
-        return new StudentView(value.studentId(), value.userId(), value.campusCardNumber(),
-                value.studentNumber(), value.studentType(), value.studentName(), value.gender(),
-                null, null, value.majorId(), value.classId(), value.enrollmentDate(),
-                value.status(), value.rowVersion(), value.departmentName(), value.majorName(),
-                value.className());
-    }
-
     private static RequestContext context(Message message, StudentPrincipal principal) {
         return new RequestContext(message.requestId(), principal.userId(), "socket");
     }
@@ -263,11 +175,7 @@ public final class StudentHandlers {
                 return action.apply(message, type.cast(message.body()));
             } catch (ConcurrentModificationException error) {
                 return ResponseBody.failure("COMMON_CONCURRENT_MODIFICATION", "数据已被修改，请刷新", null);
-            } catch (StudentNotFoundException error) {
-                return ResponseBody.failure("STUDENT_NOT_FOUND", "学生不存在", null);
             } catch (StudentAdmissionException error) {
-                return ResponseBody.failure(error.code(), error.getMessage(), null);
-            } catch (StudentProfileApplicationException error) {
                 return ResponseBody.failure(error.code(), error.getMessage(), null);
             } catch (StudentNumberingException error) {
                 return ResponseBody.failure(error.code(), error.getMessage(), null);

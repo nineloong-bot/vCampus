@@ -37,6 +37,7 @@ import edu.seu.vcampus.server.student.repository.StudentRepository;
 import edu.seu.vcampus.server.student.repository.StudentProfileApplicationRepository;
 import edu.seu.vcampus.server.student.repository.StudentGradeRepository;
 import edu.seu.vcampus.server.student.repository.TrainingPlanRepository;
+import edu.seu.vcampus.server.student.security.StudentCollegeScopeAuthorizationService;
 import edu.seu.vcampus.server.student.service.StudentAdmissionCoordinator;
 import edu.seu.vcampus.server.student.service.StudentOrganizationAdminService;
 import edu.seu.vcampus.server.student.service.StudentServiceImpl;
@@ -189,7 +190,8 @@ public final class ServerMain {
         return new StudentHandlers(admissions, service,
                 new StudentOrganizationAdminService(transactions, locks, organizations),
                 authorization, new DeduplicatingStudentWriteExecutor(deduplicator), profiles,
-                new StudentProfilePdfService());
+                new StudentProfilePdfService(),
+                new StudentCollegeScopeAuthorizationService(transactions));
     }
 
     private static MajorTransferHandlers createTransferHandlers(

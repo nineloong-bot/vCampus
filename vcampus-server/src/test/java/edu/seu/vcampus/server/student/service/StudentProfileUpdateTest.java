@@ -53,6 +53,17 @@ class StudentProfileUpdateTest {
     }
 
     @Test
+    void collegeScopedMutationRejectsStudentFromAnotherDepartment() throws Exception {
+        assertThatThrownBy(() -> service.updateContact(new UpdateStudentContactCommand(
+                "student-1", "new@seu.edu.cn", null, 0), "department-else"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("COMMON_FORBIDDEN");
+        assertThat(service.updateContact(new UpdateStudentContactCommand(
+                "student-1", "new@seu.edu.cn", null, 0), "department-1").email())
+                .isEqualTo("new@seu.edu.cn");
+    }
+
+    @Test
     void staleStatusUpdateDoesNotWriteChangeHistory() throws Exception {
         assertThatThrownBy(() -> service.changeStatus(new ChangeStudentStatusCommand(
                 "student-1", StudentStatus.SUSPENDED, LocalDate.now(), "休学", 9)))
