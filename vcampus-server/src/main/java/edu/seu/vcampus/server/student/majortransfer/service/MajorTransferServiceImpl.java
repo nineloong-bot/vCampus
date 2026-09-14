@@ -567,6 +567,52 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
     }
 
     @Override
+    public MajorTransferImportResult importScores(String adminUserId,
+                                                   ImportMajorTransferScoresCommand command) {
+        return locks.withLocks(List.of(new ResourceKey("TRANSFER_OPTION", command.optionId())), () ->
+                transactions.inTransaction(connection -> {
+                    MajorTransferRepository.OptionRow option =
+                            repository.findOption(connection, command.optionId())
+                                    .orElseThrow(() -> error("TRANSFER_OPTION_NOT_FOUND", "选项不存在"));
+                    int total = command.entries().size();
+                    int success = 0;
+                    var failures = new java.util.ArrayList<MajorTransferImportResult.Failure>();
+                    for (var entry : command.entries()) {
+                        try {
+                            MajorTransferRepository.ApplicationRow app =
+                                    repository.findApplication(connection, entry.applicationId())
+                                            .orElseThrow(() -> error("TRANSFER_APPLICATION_NOT_FOUND", "申请不存在"));
+                            if (app.status() != QUALIFIED) {
+                                failures.add(new MajorTransferImportResult.Failure(
+                                        entry.applicationId(), "申请状态不允许录入成绩"));
+                                continue;
+                            }
+                            Double written = entry.writtenScore() != null
+                                    ? entry.writtenScore().doubleValue() : null;
+                            Double interview = entry.interviewScore() != null
+                                    ? entry.interviewScore().doubleValue() : null;
+                            validateScore(written, option.writtenWeightPct());
+                            validateScore(interview, option.interviewWeightPct());
+                            Double fs = finalScore(written, interview,
+                                    option.writtenWeightPct(), option.interviewWeightPct());
+                            requireChanged(repository.recordScores(connection, entry.applicationId(),
+                                    written, interview, fs, app.applicationVersion(), Instant.now()));
+                            repository.insertReview(connection, new MajorTransferRepository.ReviewRow(
+                                    UUID.randomUUID().toString(), app.applicationId(),
+                                    MajorTransferReviewStage.ASSESSMENT,
+                                    MajorTransferDecision.APPROVE, adminUserId,
+                                    "批量导入成绩，综合成绩：" + fs, null, null, null, Instant.now()));
+                            success++;
+                        } catch (Exception e) {
+                            failures.add(new MajorTransferImportResult.Failure(
+                                    entry.applicationId(), e.getMessage()));
+                        }
+                    }
+                    return new MajorTransferImportResult(total, success, failures.size(), failures);
+                }));
+    }
+
+    @Override
     public MajorTransferRankingView generateProposal(String adminUserId,
                                                        GenerateMajorTransferProposalCommand command) {
         return locks.withLocks(List.of(new ResourceKey("TRANSFER_OPTION", command.optionId())), () ->

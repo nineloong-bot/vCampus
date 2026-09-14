@@ -53,6 +53,8 @@ public interface MajorTransferService {
 
     MajorTransferApplicationView recordScore(String adminUserId, RecordMajorTransferScoreCommand command);
 
+    MajorTransferImportResult importScores(String adminUserId, ImportMajorTransferScoresCommand command);
+
     MajorTransferRankingView generateProposal(String adminUserId, GenerateMajorTransferProposalCommand command);
 
     // ── Admin: final approval and execution ──

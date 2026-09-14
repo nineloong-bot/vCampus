@@ -44,6 +44,25 @@ public final class MajorTransferCollegeAuthorizationService {
         requireScope(administratorUserId, applicationId, Scope.TARGET);
     }
 
+    /** Checks the administrator's department matches the target department of an option. */
+    public void requireTargetApprovalForOption(String administratorUserId, String optionId) {
+        if (administratorUserId == null || optionId == null) forbidden();
+        boolean allowed = transactions.inTransaction(connection -> {
+            String departmentId = findActiveDepartmentId(connection, administratorUserId);
+            String sql = "SELECT targetDepartmentId FROM tblMajorTransferOption WHERE optionId=?";
+            try (var statement = connection.prepareStatement(sql)) {
+                statement.setString(1, optionId);
+                try (var result = statement.executeQuery()) {
+                    if (!result.next()) forbidden();
+                    return departmentId.equals(result.getString(1));
+                }
+            } catch (SQLException error) {
+                throw new PersistenceException("Major-transfer option scope lookup failed", error);
+            }
+        });
+        if (!allowed) forbidden();
+    }
+
     /** Returns the administrator's one active college, or rejects invalid/inactive bindings. */
     public String findActiveDepartmentId(String administratorUserId) {
         return transactions.inTransaction(connection ->

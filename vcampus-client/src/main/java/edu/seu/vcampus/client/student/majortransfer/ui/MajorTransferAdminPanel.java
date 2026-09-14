@@ -304,6 +304,15 @@ public final class MajorTransferAdminPanel extends JPanel {
                     score.addActionListener(e -> showScoreDialog(app));
                     actionsPanel.add(score);
                 }
+                if (mode == TransferAdminMode.COLLEGE_APPROVAL && app.targetApprovalAllowed()) {
+                    JButton score = new JButton("录入成绩");
+                    score.setName("recordScoreButton");
+                    score.addActionListener(e -> showScoreDialog(app));
+                    actionsPanel.add(score);
+                    JButton importBtn = new JButton("批量导入成绩");
+                    importBtn.addActionListener(e -> showImportScoresDialog(app.optionId()));
+                    actionsPanel.add(importBtn);
+                }
             }
             case ASSESSED -> {
                 detailHint.setText("可生成拟录取名单");
@@ -317,6 +326,12 @@ public final class MajorTransferAdminPanel extends JPanel {
                 detailHint.setText("可进行终审");
                 if (mode == TransferAdminMode.CENTRAL_MANAGEMENT) {
                     JButton fin = new JButton("终审通过");
+                    fin.addActionListener(e -> finalizeApp(app));
+                    actionsPanel.add(fin);
+                }
+                if (mode == TransferAdminMode.COLLEGE_APPROVAL && app.targetApprovalAllowed()) {
+                    JButton fin = new JButton("终审通过");
+                    fin.setName("finalizeButton");
                     fin.addActionListener(e -> finalizeApp(app));
                     actionsPanel.add(fin);
                 }
@@ -461,6 +476,117 @@ public final class MajorTransferAdminPanel extends JPanel {
                 }));
             } catch (NumberFormatException e) { JOptionPane.showMessageDialog(this, "成绩请输入数字"); }
         }
+    }
+
+    private void showImportScoresDialog(String optionId) {
+        if (optionId == null) {
+            JOptionPane.showMessageDialog(this, "无法确定目标专业选项");
+            return;
+        }
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("选择成绩文件（CSV 或 Excel）");
+        chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
+                "成绩文件 (*.csv, *.xlsx)", "csv", "xlsx"));
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) return;
+        java.io.File file = chooser.getSelectedFile();
+        try {
+            var entries = parseScoreFile(file);
+            if (entries.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "文件中未找到有效成绩数据");
+                return;
+            }
+            int confirm = JOptionPane.showConfirmDialog(this,
+                    "即将导入 " + entries.size() + " 条成绩记录，是否继续？",
+                    "确认导入", JOptionPane.YES_NO_OPTION);
+            if (confirm != JOptionPane.YES_OPTION) return;
+            var cmd = new ImportMajorTransferScoresCommand(optionId, entries, 0);
+            errorLabel.setText("正在导入...");
+            students.importTransferScores(cmd).whenComplete((r, e) ->
+                    SwingUtilities.invokeLater(() -> {
+                        if (r != null && r.success()) {
+                            var result = r.data();
+                            String msg = "导入完成：成功 " + result.successCount()
+                                    + " 条，失败 " + result.failureCount() + " 条";
+                            if (!result.failures().isEmpty()) {
+                                msg += "\n失败详情：\n";
+                                for (var f : result.failures())
+                                    msg += "  " + f.applicationId() + ": " + f.reason() + "\n";
+                            }
+                            JOptionPane.showMessageDialog(this, msg);
+                            loadApplications();
+                        } else {
+                            errorLabel.setText(responseMessage(r, "导入失败"));
+                        }
+                    }));
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "文件解析失败：" + ex.getMessage());
+        }
+    }
+
+    private static java.util.List<ImportMajorTransferScoresCommand.ScoreEntry> parseScoreFile(
+            java.io.File file) throws Exception {
+        String name = file.getName().toLowerCase();
+        if (name.endsWith(".csv")) return parseCsv(file);
+        if (name.endsWith(".xlsx")) return parseExcel(file);
+        throw new IllegalArgumentException("不支持的文件格式，请使用 .csv 或 .xlsx");
+    }
+
+    private static java.util.List<ImportMajorTransferScoresCommand.ScoreEntry> parseCsv(
+            java.io.File file) throws Exception {
+        var entries = new java.util.ArrayList<ImportMajorTransferScoresCommand.ScoreEntry>();
+        try (var reader = java.nio.file.Files.newBufferedReader(file.toPath())) {
+            String header = reader.readLine(); // skip header
+            if (header == null) return entries;
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (line.isBlank()) continue;
+                String[] parts = line.split(",");
+                if (parts.length < 1 || parts[0].isBlank()) continue;
+                String appId = parts[0].trim();
+                BigDecimal w = parts.length > 1 && !parts[1].isBlank()
+                        ? new BigDecimal(parts[1].trim()) : null;
+                BigDecimal i = parts.length > 2 && !parts[2].isBlank()
+                        ? new BigDecimal(parts[2].trim()) : null;
+                entries.add(new ImportMajorTransferScoresCommand.ScoreEntry(appId, w, i));
+            }
+        }
+        return entries;
+    }
+
+    private static java.util.List<ImportMajorTransferScoresCommand.ScoreEntry> parseExcel(
+            java.io.File file) throws Exception {
+        var entries = new java.util.ArrayList<ImportMajorTransferScoresCommand.ScoreEntry>();
+        try (var wb = org.apache.poi.ss.usermodel.WorkbookFactory.create(file)) {
+            var sheet = wb.getSheetAt(0);
+            for (int r = 1; r <= sheet.getLastRowNum(); r++) {
+                var row = sheet.getRow(r);
+                if (row == null) continue;
+                String appId = cellString(row.getCell(0));
+                if (appId.isBlank()) continue;
+                BigDecimal w = cellDecimal(row.getCell(1));
+                BigDecimal i = cellDecimal(row.getCell(2));
+                entries.add(new ImportMajorTransferScoresCommand.ScoreEntry(appId, w, i));
+            }
+        }
+        return entries;
+    }
+
+    private static String cellString(org.apache.poi.ss.usermodel.Cell cell) {
+        if (cell == null) return "";
+        cell.setCellType(org.apache.poi.ss.usermodel.CellType.STRING);
+        return cell.getStringCellValue().trim();
+    }
+
+    private static BigDecimal cellDecimal(org.apache.poi.ss.usermodel.Cell cell) {
+        if (cell == null) return null;
+        return switch (cell.getCellType()) {
+            case NUMERIC -> BigDecimal.valueOf(cell.getNumericCellValue());
+            case STRING -> {
+                String s = cell.getStringCellValue().trim();
+                yield s.isEmpty() ? null : new BigDecimal(s);
+            }
+            default -> null;
+        };
     }
 
     private void showExecuteDialog(MajorTransferApplicationView app) {

@@ -41,6 +41,7 @@ public final class MajorTransferHandlers {
             "MAJOR_TRANSFER_REVIEW_SOURCE",
             "MAJOR_TRANSFER_REVIEW_QUALIFICATION",
             "MAJOR_TRANSFER_RECORD_SCORE",
+            "MAJOR_TRANSFER_IMPORT_SCORES",
             "MAJOR_TRANSFER_GENERATE_PROPOSAL",
             "MAJOR_TRANSFER_FINALIZE",
             "MAJOR_TRANSFER_EXECUTE",
@@ -127,15 +128,25 @@ public final class MajorTransferHandlers {
                                         principal(message).userId(), body))));
         router.register("MAJOR_TRANSFER_RECORD_SCORE",
                 typed(RecordMajorTransferScoreCommand.class,
-                        (message, body) -> centralWrite(message,
+                        (message, body) -> collegeWrite(message,
+                                () -> collegeAuthorization.requireTargetApproval(
+                                        principal(message).userId(), body.applicationId()),
                                 () -> service.recordScore(principal(message).userId(), body))));
+        router.register("MAJOR_TRANSFER_IMPORT_SCORES",
+                typed(ImportMajorTransferScoresCommand.class,
+                        (message, body) -> collegeWrite(message,
+                                () -> collegeAuthorization.requireTargetApprovalForOption(
+                                        principal(message).userId(), body.optionId()),
+                                () -> service.importScores(principal(message).userId(), body))));
         router.register("MAJOR_TRANSFER_GENERATE_PROPOSAL",
                 typed(GenerateMajorTransferProposalCommand.class,
                         (message, body) -> centralWrite(message,
                                 () -> service.generateProposal(principal(message).userId(), body))));
         router.register("MAJOR_TRANSFER_FINALIZE", typed(FinalizeMajorTransferCommand.class,
-                (message, body) -> centralWrite(message,
-                        () -> service.finalizeProposal(principal(message).userId(), body))));
+                (message, body) -> collegeWrite(message,
+                                () -> collegeAuthorization.requireTargetApproval(
+                                        principal(message).userId(), body.applicationId()),
+                                () -> service.finalizeProposal(principal(message).userId(), body))));
         router.register("MAJOR_TRANSFER_EXECUTE", typed(ExecuteMajorTransferCommand.class,
                 (message, body) -> centralWrite(message,
                         () -> service.execute(principal(message).userId(), body))));

@@ -9,6 +9,9 @@ import edu.seu.vcampus.common.student.majortransfer.MajorTransferApplicationQuer
 import edu.seu.vcampus.common.student.majortransfer.ReviewMajorTransferQualificationCommand;
 import edu.seu.vcampus.common.student.majortransfer.ReviewMajorTransferSourceCommand;
 import edu.seu.vcampus.common.student.majortransfer.SaveMajorTransferBatchCommand;
+import edu.seu.vcampus.common.student.majortransfer.RecordMajorTransferScoreCommand;
+import edu.seu.vcampus.common.student.majortransfer.FinalizeMajorTransferCommand;
+import java.math.BigDecimal;
 import edu.seu.vcampus.server.routing.ClientContext;
 import edu.seu.vcampus.server.routing.MessageRouter;
 import edu.seu.vcampus.server.student.handler.StudentPrincipal;
@@ -107,6 +110,52 @@ class MajorTransferRoleAuthorizationTest {
         assertThat(result.success()).isTrue();
         verify(fixture.service).listApplicationsForCollege(query, "managed-department");
         verify(fixture.service, never()).listApplications(query);
+    }
+
+    @Test
+    void collegeAdministratorCanRecordScoreWithTargetScope() {
+        Fixture fixture = fixture("COLLEGE_ADMIN");
+        var command = new RecordMajorTransferScoreCommand(APPLICATION, BigDecimal.valueOf(85), BigDecimal.valueOf(90), 0);
+
+        var result = fixture.route("MAJOR_TRANSFER_RECORD_SCORE", command);
+
+        assertThat(result.success()).isTrue();
+        verify(fixture.scope).requireTargetApproval("operator", APPLICATION);
+        verify(fixture.service).recordScore("operator", command);
+    }
+
+    @Test
+    void collegeAdministratorCanFinalizeWithTargetScope() {
+        Fixture fixture = fixture("COLLEGE_ADMIN");
+        var command = new FinalizeMajorTransferCommand(APPLICATION, 0);
+
+        var result = fixture.route("MAJOR_TRANSFER_FINALIZE", command);
+
+        assertThat(result.success()).isTrue();
+        verify(fixture.scope).requireTargetApproval("operator", APPLICATION);
+        verify(fixture.service).finalizeProposal("operator", command);
+    }
+
+    @Test
+    void studentAdministratorCannotRecordScore() {
+        Fixture fixture = fixture("STUDENT_ADMIN");
+        var command = new RecordMajorTransferScoreCommand(APPLICATION, BigDecimal.valueOf(85), BigDecimal.valueOf(90), 0);
+
+        var result = fixture.route("MAJOR_TRANSFER_RECORD_SCORE", command);
+
+        assertThat(result.code()).isEqualTo("COMMON_FORBIDDEN");
+        verify(fixture.service, never()).recordScore(anyString(), any());
+    }
+
+    @Test
+    void studentAdministratorCannotFinalize() {
+        Fixture fixture = fixture("STUDENT_ADMIN");
+        var command = new FinalizeMajorTransferCommand(APPLICATION, 0);
+
+        var result = fixture.route("MAJOR_TRANSFER_FINALIZE", command);
+
+        assertThat(result.code()).isEqualTo("COMMON_FORBIDDEN");
+        verify(fixture.service, never()).finalizeProposal(anyString(), any());
     }
 
     private static ReviewMajorTransferSourceCommand sourceReview() {
