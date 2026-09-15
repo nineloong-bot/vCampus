@@ -30,7 +30,7 @@ class MajorTransferUiRegressionTest {
         SwingUtilities.invokeAndWait(() -> {
             var panel = new MyMajorTransferPanel(client(), connection);
             try {
-                var method = MyMajorTransferPanel.class.getDeclaredMethod("render", MajorTransferWorkspace.class);
+                var method = declaredRender();
                 method.setAccessible(true); method.invoke(panel, workspace());
             } catch (ReflectiveOperationException error) { throw new AssertionError(error); }
             var combo = (JComboBox<?>) find(panel, "major-transfer.student.target-major");
@@ -54,6 +54,18 @@ class MajorTransferUiRegressionTest {
                 assertThat(panel.getComponents()).isNotEmpty();
             });
         }
+    }
+
+    /** Locates render in the panel or any of its segment superclasses. */
+    private static java.lang.reflect.Method declaredRender() throws NoSuchMethodException {
+        for (Class<?> type = MyMajorTransferPanel.class; type != null; type = type.getSuperclass()) {
+            try {
+                return type.getDeclaredMethod("render", MajorTransferWorkspace.class);
+            } catch (NoSuchMethodException ignored) {
+                // render now lives in a segment superclass; keep walking up
+            }
+        }
+        throw new NoSuchMethodException("render");
     }
 
     private static Component find(Container root, String name) {
