@@ -64,12 +64,6 @@ public final class BookDetailPanel extends LibraryDataPanel {
     }
 
     private void confirmBorrow() {
-        int row = table.getSelectedRow();
-        if (row < 0 || row >= copies.size()) {
-            LibraryFeedback.borrowWarning(this, status, "请先选择一个可借副本"); return;
-        }
-        BookCopyView copy = copies.get(table.convertRowIndexToModel(row));
-        Window owner = SwingUtilities.getWindowAncestor(this);
-        new LoanActionDialog(owner, "借阅", "馆藏条码 " + copy.barcode(), this::borrowSelected).setVisible(true);
+        borrowSelected();
     }
 }

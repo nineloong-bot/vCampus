@@ -48,6 +48,7 @@ public final class UserManagementPanel extends JPanel {
         @Override public boolean isCellEditable(int row, int column) { return false; }
     };
     private final JTable table = new JTable(model);
+    private final UserDetailPanel detailPanel = new UserDetailPanel();
     private List<UserSummary> rows = List.of();
     private int page;
     private boolean busy;
@@ -60,16 +61,25 @@ public final class UserManagementPanel extends JPanel {
         this.permissions = Set.copyOf(permissions);
         setBackground(UiColors.BACKGROUND_PAGE); setBorder(UiBorders.pageInset());
         setName("page.userManagement");
-        add(heading(), BorderLayout.NORTH);
         table.setName("users.table"); table.setRowHeight(34);
         table.getAccessibleContext().setAccessibleName("账户查询结果");
-        add(new JScrollPane(table), BorderLayout.CENTER);
-        add(actions(), BorderLayout.SOUTH);
+        JPanel leftPanel = new JPanel(new BorderLayout(0, UiSpacing.SPACE_3));
+        leftPanel.setOpaque(false);
+        leftPanel.add(heading(), BorderLayout.NORTH);
+        leftPanel.add(new JScrollPane(table), BorderLayout.CENTER);
+        leftPanel.add(actions(), BorderLayout.SOUTH);
+        javax.swing.JSplitPane split = new javax.swing.JSplitPane(
+                javax.swing.JSplitPane.HORIZONTAL_SPLIT, leftPanel, detailPanel);
+        split.setDividerSize(6); split.setResizeWeight(0.58);
+        split.setOneTouchExpandable(true); split.setBorder(null); split.setOpaque(false);
+        add(split, BorderLayout.CENTER);
         search.addActionListener(event -> { page = 0; load(); });
         changeStatus.addActionListener(event -> changeStatus());
         resetPassword.addActionListener(event -> confirmPasswordReset());
-        table.getSelectionModel().addListSelectionListener(
-                event -> updateActionAvailability());
+        table.getSelectionModel().addListSelectionListener(event -> {
+            updateActionAvailability();
+            detailPanel.showUser(selectedRow());
+        });
         resetPassword.setVisible(false);
         updateActionAvailability();
         load();
@@ -127,6 +137,7 @@ public final class UserManagementPanel extends JPanel {
         rows = List.copyOf(result.items());
         for (UserSummary row : rows) model.addRow(new Object[]{row.loginId(),
                 roleName(row.role()), statusName(row.accountStatus()), row.lastLoginAt(), row.rowVersion()});
+        detailPanel.clear();
         state.setText(successMessage != null ? successMessage
                 : result.total() == 0 ? "未找到符合条件的账户"
                 : "共 " + result.total() + " 条");

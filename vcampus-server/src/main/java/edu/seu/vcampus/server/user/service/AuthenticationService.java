@@ -64,9 +64,9 @@ final class AuthenticationService {
         Objects.requireNonNull(context, "context");
         char[] password = command.password();
         try {
-            String loginId = normalize(command.loginId());
+            String loginId = LoginAliasResolver.resolve(normalize(command.loginId()));
             UserAccount known = transactions.inTransaction(connection ->
-                    users.findByNormalizedLoginId(connection, loginId).orElse(null));
+                    StudentLoginAccountResolver.resolveAccount(connection, users, loginId).orElse(null));
             if (known == null) {
                 RuntimeException error = loginFailure(unknownAttempts.recordFailure(loginId));
                 auditWriter.failure(null, "USER_LOGIN", null, error, context.clientAddress());
