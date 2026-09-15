@@ -40,7 +40,8 @@ class TrainingPlanServiceImplTest {
                 statement.execute("CREATE TABLE tblTrainingPlanCourse ("
                         + "planCourseId VARCHAR(36) PRIMARY KEY, planId VARCHAR(36) NOT NULL, "
                         + "courseCode VARCHAR(16) NOT NULL, courseName VARCHAR(64) NOT NULL, "
-                        + "credits DECIMAL(4,1) NOT NULL, courseType VARCHAR(16) NOT NULL, "
+                        + "credits DECIMAL(4,1) NOT NULL, totalHours LONG, "
+                        + "courseType VARCHAR(16) NOT NULL, "
                         + "semester LONG NOT NULL, isActive BOOLEAN NOT NULL, rowVersion LONG NOT NULL, "
                         + "createdAt DATETIME NOT NULL, updatedAt DATETIME NOT NULL, "
                         + "courseId VARCHAR(36), offeringDepartmentId VARCHAR(36), "
@@ -116,6 +117,21 @@ class TrainingPlanServiceImplTest {
 
         assertThat(plan.minElectiveCount()).isEqualTo(3);
         assertThat(service.getPlan(plan.planId()).minElectiveCount()).isEqualTo(3);
+    }
+
+    @Test
+    void courseHoursSurviveSaveAndPlanDetailReload() {
+        var plan = service.savePlan(new SaveTrainingPlanCommand(null, "major-1", 2024,
+                "2024级培养方案", 3, new BigDecimal("18.0"), true, 0), "admin");
+        var command = new SaveTrainingPlanCourseCommand(plan.planId(), null, "CS102",
+                "数据结构", new BigDecimal("3.0"), 48, CourseType.REQUIRED, 2,
+                true, 0, null, "department-1", "计算机学院", null);
+
+        var saved = service.saveCourse(command, "admin");
+        var reloaded = service.getPlan(plan.planId()).courses().getFirst();
+
+        assertThat(saved.totalHours()).isEqualTo(48);
+        assertThat(reloaded.totalHours()).isEqualTo(48);
     }
 
     @Test

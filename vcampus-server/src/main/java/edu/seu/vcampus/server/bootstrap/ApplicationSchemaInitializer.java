@@ -107,6 +107,8 @@ public final class ApplicationSchemaInitializer {
         AccessSchemaEvolution.ensureColumn(connections, "tblTrainingPlanCourse", "offeringDepartmentId", "VARCHAR(36)");
         AccessSchemaEvolution.ensureColumn(connections, "tblTrainingPlanCourse", "offeringDepartmentName", "VARCHAR(128)");
         AccessSchemaEvolution.ensureColumn(connections, "tblTrainingPlanCourse", "allocatedQuota", "LONG");
+        AccessSchemaEvolution.ensureColumn(connections, "tblTrainingPlanCourse", "totalHours", "LONG");
+        backfillTrainingPlanCourseHours(connections);
         installSchema(connections, schema("035_course_pool.sql"));
         installSchema(connections, schema("040_library.sql"));
         try (Connection connection = connections.open()) { LibraryPenaltySchema.initialize(connection); }
@@ -119,6 +121,15 @@ public final class ApplicationSchemaInitializer {
         installSeeds(connections, seed("035_course_pool_demo.sql"));
         installSeeds(connections, seed("040_library_policy.sql"));
         installSeeds(connections, seed("060_unified_demo_data.sql"));
+    }
+
+    private static void backfillTrainingPlanCourseHours(ConnectionProvider connections)
+            throws SQLException {
+        try (Connection connection = connections.open(); var statement = connection.createStatement()) {
+            statement.executeUpdate("UPDATE tblTrainingPlanCourse pc INNER JOIN tblCourse c "
+                    + "ON pc.courseId=c.courseId SET pc.totalHours=c.totalHours "
+                    + "WHERE pc.totalHours IS NULL");
+        }
     }
 
     private Path schema(String name) throws IOException {

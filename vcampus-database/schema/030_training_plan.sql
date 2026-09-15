@@ -24,6 +24,7 @@ CREATE TABLE tblTrainingPlanCourse (
     courseCode VARCHAR(16) NOT NULL,
     courseName VARCHAR(64) NOT NULL,
     credits DECIMAL(4,1) NOT NULL,
+    totalHours LONG,
     courseType VARCHAR(32) NOT NULL,
     semester LONG NOT NULL,
     courseNature VARCHAR(16),

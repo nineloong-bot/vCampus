@@ -12,6 +12,7 @@ public record TrainingPlanCourse(
         String courseCode,
         String courseName,
         BigDecimal credits,
+        int totalHours,
         CourseType courseType,
         int semester,
         boolean active,
@@ -35,7 +36,7 @@ public record TrainingPlanCourse(
             long rowVersion,
             Instant createdAt,
             Instant updatedAt) {
-        this(planCourseId, planId, courseCode, courseName, credits, courseType, semester, active,
+        this(planCourseId, planId, courseCode, courseName, credits, 0, courseType, semester, active,
                 rowVersion, createdAt, updatedAt, null, null, null, null);
     }
 }

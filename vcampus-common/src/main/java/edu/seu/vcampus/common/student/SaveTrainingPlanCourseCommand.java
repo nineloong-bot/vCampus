@@ -10,6 +10,7 @@ public record SaveTrainingPlanCourseCommand(
         String courseCode,
         String courseName,
         BigDecimal credits,
+        int totalHours,
         CourseType courseType,
         int semester,
         boolean isActive,
@@ -29,7 +30,7 @@ public record SaveTrainingPlanCourseCommand(
             int semester,
             boolean isActive,
             long expectedVersion) {
-        this(planId, planCourseId, courseCode, courseName, credits, courseType, semester, isActive, expectedVersion,
+        this(planId, planCourseId, courseCode, courseName, credits, 0, courseType, semester, isActive, expectedVersion,
                 null, null, null, null);
     }
 }

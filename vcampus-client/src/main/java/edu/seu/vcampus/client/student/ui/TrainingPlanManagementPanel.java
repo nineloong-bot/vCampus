@@ -31,7 +31,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
     private final JPanel workspaceCardPanel = new JPanel(workspaceCardLayout);
     private javax.swing.border.TitledBorder courseBorder;
     private javax.swing.border.TitledBorder planBorder;
-    private JTextField courseCodeField, courseNameField, courseCreditsField;
+    private JTextField courseCodeField, courseNameField, courseCreditsField, courseHoursField;
     private JComboBox<CourseType> courseTypeBox;
     private JComboBox<String> courseSemesterBox;
     private JLabel courseMsgLabel;
@@ -137,6 +137,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
         courseCodeField = new JTextField(12);
         courseNameField = new JTextField(12);
         courseCreditsField = new JTextField("2", 5);
+        courseHoursField = new JTextField("32", 5);
 
         courseTypeBox = new JComboBox<>(CourseType.values());
         courseTypeBox.setRenderer(new DefaultListCellRenderer() {
@@ -167,6 +168,10 @@ public final class TrainingPlanManagementPanel extends JPanel {
         r++;
         c.gridx = 0; c.gridy = r; c.weightx = 0; courseFields.add(new JLabel("学分:"), c);
         c.gridx = 1; c.gridy = r; c.weightx = 1; courseFields.add(courseCreditsField, c);
+
+        r++;
+        c.gridx = 0; c.gridy = r; c.weightx = 0; courseFields.add(new JLabel("总学时:"), c);
+        c.gridx = 1; c.gridy = r; c.weightx = 1; courseFields.add(courseHoursField, c);
 
         r++;
         c.gridx = 0; c.gridy = r; c.weightx = 0; courseFields.add(new JLabel("类型:"), c);
@@ -373,7 +378,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
             @Override public void changedUpdate(DocumentEvent event) { workspaceDirty = true; }
         };
         for (JTextField field : List.of(planNameField, minCountField, minCreditsField,
-                courseCodeField, courseNameField, courseCreditsField)) {
+                courseCodeField, courseNameField, courseCreditsField, courseHoursField)) {
             field.getDocument().addDocumentListener(listener);
         }
         courseTypeBox.addActionListener(event -> workspaceDirty = true);
@@ -396,6 +401,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
         courseCodeField.setText(isEdit ? existing.courseCode() : "");
         courseNameField.setText(isEdit ? existing.courseName() : "");
         courseCreditsField.setText(isEdit ? existing.credits().toPlainString() : "2");
+        courseHoursField.setText(isEdit ? String.valueOf(existing.totalHours()) : "32");
         courseTypeBox.setSelectedItem(isEdit ? existing.courseType() : CourseType.REQUIRED);
         courseSemesterBox.setSelectedIndex(isEdit ? Math.max(0, existing.semester() - 1) : 0);
         courseMsgLabel.setText(" ");
@@ -426,6 +432,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
         String code = courseCodeField.getText().trim();
         String name = courseNameField.getText().trim();
         String creditsStr = courseCreditsField.getText().trim();
+        String hoursStr = courseHoursField.getText().trim();
         if (code.isEmpty() || name.isEmpty()) {
             courseMsgLabel.setText("课程代码和名称不能为空");
             return;
@@ -441,12 +448,23 @@ public final class TrainingPlanManagementPanel extends JPanel {
             courseMsgLabel.setText("学分格式无效");
             return;
         }
+        int totalHours;
+        try {
+            totalHours = Integer.parseInt(hoursStr);
+            if (totalHours <= 0) {
+                courseMsgLabel.setText("总学时必须大于0");
+                return;
+            }
+        } catch (NumberFormatException ex) {
+            courseMsgLabel.setText("总学时格式无效");
+            return;
+        }
         CourseType type = (CourseType) courseTypeBox.getSelectedItem();
         int semester = courseSemesterBox.getSelectedIndex() + 1;
         SaveTrainingPlanCourseCommand cmd = new SaveTrainingPlanCourseCommand(
                 currentPlan.planId(),
                 editingCourse != null ? editingCourse.planCourseId() : null,
-                code, name, credits, type, semester, true,
+                code, name, credits, totalHours, type, semester, true,
                 editingCourse != null ? editingCourse.rowVersion() : 0,
                 editingCourse != null ? editingCourse.courseId() : null,
                 editingCourse != null ? editingCourse.offeringDepartmentId() : null,
@@ -830,7 +848,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
             int semester = semBox.getSelectedIndex() + 1;
             SaveTrainingPlanCourseCommand cmd = new SaveTrainingPlanCourseCommand(
                     currentPlan.planId(), null, course.courseCode(), course.courseName(),
-                    course.credits(), type, semester, true, 0,
+                    course.credits(), course.totalHours(), type, semester, true, 0,
                     course.courseId(), course.departmentId(), course.departmentName(), null);
             students.saveTrainingPlanCourse(cmd).thenAccept(res -> SwingUtilities.invokeLater(() -> {
                 if (res.success()) {

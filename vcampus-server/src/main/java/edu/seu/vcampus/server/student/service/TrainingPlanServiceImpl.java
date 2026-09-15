@@ -167,7 +167,7 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
                 String id = UUID.randomUUID().toString();
                 TrainingPlanCourse course = new TrainingPlanCourse(id, command.planId(),
                         command.courseCode(), command.courseName(), command.credits(),
-                        command.courseType(), command.semester(), command.isActive(), 0, now, now,
+                        command.totalHours(), command.courseType(), command.semester(), command.isActive(), 0, now, now,
                         command.courseId(), command.offeringDepartmentId(), command.offeringDepartmentName(), command.allocatedQuota());
                 plans.insertCourse(connection, course);
                 return courseView(course);
@@ -182,7 +182,7 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
                         existing.planCourseId());
                 TrainingPlanCourse updated = new TrainingPlanCourse(existing.planCourseId(),
                         existing.planId(), command.courseCode(), command.courseName(),
-                        command.credits(), command.courseType(), command.semester(),
+                        command.credits(), command.totalHours(), command.courseType(), command.semester(),
                         command.isActive(), existing.rowVersion(), existing.createdAt(), now,
                         command.courseId() != null ? command.courseId() : existing.courseId(),
                         command.offeringDepartmentId() != null ? command.offeringDepartmentId() : existing.offeringDepartmentId(),
@@ -284,7 +284,7 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
 
     private TrainingPlanCourseView courseView(TrainingPlanCourse course) {
         return new TrainingPlanCourseView(course.planCourseId(), course.courseCode(),
-                course.courseName(), course.credits(), course.courseType(),
+                course.courseName(), course.credits(), course.totalHours(), course.courseType(),
                 course.semester(), course.active(), course.rowVersion(),
                 course.courseId(), course.offeringDepartmentId(), course.offeringDepartmentName(),
                 course.allocatedQuota());
@@ -431,9 +431,12 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
                         .anyMatch(c -> c.courseCode().equalsIgnoreCase(app.courseCode()));
                 if (!exists) {
                     String planCourseId = UUID.randomUUID().toString();
+                    int totalHours = coursePool.findById(connection, app.courseId())
+                            .map(edu.seu.vcampus.server.student.domain.CoursePoolItem::totalHours)
+                            .orElse(0);
                     TrainingPlanCourse course = new TrainingPlanCourse(
                             planCourseId, app.targetPlanId(), app.courseCode(), app.courseName(),
-                            app.credits(), CourseType.CROSS_DISCIPLINARY, app.semester(),
+                            app.credits(), totalHours, CourseType.CROSS_DISCIPLINARY, app.semester(),
                             true, 0, now, now,
                             app.courseId(), app.offeringDepartmentId(), app.offeringDepartmentName(), quota);
                     plans.insertCourse(connection, course);
