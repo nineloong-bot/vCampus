@@ -22,6 +22,12 @@ final class LibraryHandlerErrorMapper {
     }
 
     private static String code(RuntimeException error) {
+        if (error instanceof edu.seu.vcampus.server.wallet.service.WalletException) {
+            return switch (error.getMessage()) {
+                case "WALLET_INSUFFICIENT_BALANCE", "WALLET_RETRY_REQUIRED", "WALLET_IDEMPOTENCY_CONFLICT" -> error.getMessage();
+                default -> "COMMON_INTERNAL_ERROR";
+            };
+        }
         if (error instanceof CopyUnavailableException) return "LIBRARY_COPY_UNAVAILABLE";
         if (error instanceof CopyHasActiveLoanException) return "LIBRARY_COPY_HAS_ACTIVE_LOAN";
         if (error instanceof InactiveBookException) return "LIBRARY_BOOK_INACTIVE";
@@ -52,6 +58,9 @@ final class LibraryHandlerErrorMapper {
 
     private static String message(String code) {
         return switch (code) {
+            case "WALLET_INSUFFICIENT_BALANCE" -> "钱包余额不足，请到商店的我的钱包充值后重新缴纳，罚款仍为待缴";
+            case "WALLET_RETRY_REQUIRED" -> "钱包余额已变化，请刷新后重新缴纳";
+            case "WALLET_IDEMPOTENCY_CONFLICT" -> "罚款记录与缴费收据不一致，请联系管理员核实";
             case "LIBRARY_COPY_UNAVAILABLE" -> "该馆藏副本当前不可借，请刷新后重试";
             case "LIBRARY_COPY_HAS_ACTIVE_LOAN" -> "该副本仍有有效借阅，请到借阅管理中办理归还或标记遗失";
             case "LIBRARY_BOOK_INACTIVE" -> "该书目已停用，不能新增副本、借阅或续借";

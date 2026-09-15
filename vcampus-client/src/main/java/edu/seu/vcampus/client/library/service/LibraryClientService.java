@@ -57,6 +57,21 @@ public final class LibraryClientService {
         return request("LIBRARY_GET_MY_LOAN_HISTORY", query);
     }
 
+    /** Loads the signed-in borrower's finalized fines and wallet payment state. */
+    public CompletableFuture<PageResult<LibraryFineView>> getMyFines(LibraryFineQuery query) {
+        return request("LIBRARY_GET_MY_FINES", query);
+    }
+
+    /** Loads all fine records for an authorized library administrator. */
+    public CompletableFuture<PageResult<LibraryFineView>> getAllFines(LibraryFineQuery query) {
+        return request("LIBRARY_GET_ALL_FINES", query);
+    }
+
+    /** Confirms payment of a loan's server-calculated fine from the shared wallet. */
+    public CompletableFuture<edu.seu.vcampus.common.wallet.WalletOperationResult> payFine(String loanId) {
+        return request("LIBRARY_PAY_FINE", loanId);
+    }
+
     public CompletableFuture<BookView> createBook(CreateBookCommand command) {
         return request("LIBRARY_CREATE_BOOK", command);
     }

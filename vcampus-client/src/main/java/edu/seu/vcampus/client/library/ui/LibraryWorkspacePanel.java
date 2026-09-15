@@ -35,6 +35,7 @@ public final class LibraryWorkspacePanel extends JPanel {
             detail.setAfterMutation(this::refreshAll);
             search.connectDetail(detail);
             JSplitPane catalog = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, search, detail);
+            search.setMinimumSize(new Dimension(320, 0)); detail.setMinimumSize(new Dimension(280, 0));
             catalog.setResizeWeight(0.58); catalog.setDividerLocation(0.58);
             catalog.setDividerSize(8); catalog.setBorder(BorderFactory.createEmptyBorder());
             catalog.setBackground(LibraryPalette.PAGE);
@@ -47,6 +48,8 @@ public final class LibraryWorkspacePanel extends JPanel {
                 LoanHistoryPanel history = new LoanHistoryPanel(service);
                 addTab("当前借阅", currentLoans, currentLoans::refresh);
                 addTab("借阅历史", history, history::refresh);
+                LibraryFinePanel fines = new LibraryFinePanel(service, false);
+                addTab("罚款缴纳", fines, fines::refresh);
             }
         }
         if (mayManageLibrary) {
@@ -57,25 +60,16 @@ public final class LibraryWorkspacePanel extends JPanel {
             books.connectCopies(copies);
             books.setAfterMutation(this::refreshAll);
             copies.setAfterMutation(this::refreshAll);
-
-            CardLayout rightLayout = new CardLayout();
-            JPanel rightPane = new JPanel(rightLayout);
-            rightPane.add(copies, "copies");
-            BookFormCardPanel bookForm = new BookFormCardPanel(
-                    cmd -> { books.create(cmd); rightLayout.show(rightPane, "copies"); },
-                    cmd -> { books.update(cmd); rightLayout.show(rightPane, "copies"); },
-                    () -> rightLayout.show(rightPane, "copies"));
-            rightPane.add(bookForm, "bookForm");
-            books.connectRightCards(rightPane, rightLayout, bookForm);
-
-            JSplitPane management = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, books, rightPane);
+            JSplitPane management = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, books, copies);
             management.setResizeWeight(0.52); management.setDividerLocation(0.52);
             management.setDividerSize(8); management.setBorder(BorderFactory.createEmptyBorder());
-            books.setMinimumSize(new Dimension(280, 0)); rightPane.setMinimumSize(new Dimension(280, 0));
+            books.setMinimumSize(new Dimension(280, 0)); copies.setMinimumSize(new Dimension(280, 0));
             addTab("图书管理", management, books::refresh);
             addTab("借阅管理", loans, loans::refresh);
             LibraryPolicyPanel settings = new LibraryPolicyPanel(service);
             addTab("借阅策略设置", settings, settings::refreshStatus);
+            LibraryFinePanel fines = new LibraryFinePanel(service, true);
+            addTab("罚款记录", fines, fines::refresh);
         }
         tabs.addChangeListener(event -> refreshSelected());
         JButton refresh = new JButton("刷新当前页");
