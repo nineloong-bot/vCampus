@@ -85,7 +85,6 @@ final class UnifiedModuleRegistry {
                                        SessionRegistry sessions, AuthorizationService authorization,
                                        RequestDeduplicator deduplicator, Clock clock) {
         registerLibrary(router, transactions, locks, authorization, deduplicator, clock);
-        registerShop(router, transactions, locks, sessions, authorization, deduplicator, clock);
     }
 
     static StudentQueryPort registerStudent(MessageRouter router, TransactionManager transactions,

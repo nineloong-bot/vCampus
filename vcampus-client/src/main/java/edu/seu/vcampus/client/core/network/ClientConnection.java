@@ -70,10 +70,16 @@ public final class ClientConnection implements Closeable,
     /** Sends a request and returns a future completed by the matching response. */
     public <T extends Serializable> CompletableFuture<ResponseBody<T>> send(
             String command, Serializable body, Duration timeout) {
+        return send(command, body, timeout, UUID.randomUUID().toString());
+    }
+
+    /** Retries a logical request with the same identity to preserve server deduplication. */
+    public <T extends Serializable> CompletableFuture<ResponseBody<T>> send(
+            String command, Serializable body, Duration timeout, String requestId) {
         if (state != ConnectionState.CONNECTED) {
             return CompletableFuture.failedFuture(new IllegalStateException("Not connected"));
         }
-        String requestId = UUID.randomUUID().toString();
+        Objects.requireNonNull(requestId, "requestId");
         CompletableFuture<Message> response = pending.register(requestId, timeout);
         Message request = new Message(requestId, MessageType.REQUEST, command,
                 sessionToken, body, System.currentTimeMillis());

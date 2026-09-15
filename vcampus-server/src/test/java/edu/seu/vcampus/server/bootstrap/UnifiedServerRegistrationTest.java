@@ -28,7 +28,9 @@ class UnifiedServerRegistrationTest {
         assertThat(runtime.router().isRegistered("PLATFORM_MODULE_ADMIN_LIST")).isTrue();
         assertThat(runtime.router().isRegistered("COURSE_SEARCH_OFFERINGS")).isTrue();
         assertThat(runtime.router().isRegistered("LIBRARY_SEARCH_BOOKS")).isTrue();
-        assertThat(runtime.router().isRegistered("SHOP_HOME")).isTrue();
+        assertThat(runtime.router().isRegistered("SHOP2_CATALOG_LIST")).isTrue();
+        assertThat(runtime.router().isRegistered("WALLET_GET_BALANCE")).isTrue();
+        assertThat(runtime.router().isRegistered("SHOP_HOME")).isFalse();
     }
 
     private static Path databaseRoot() {
