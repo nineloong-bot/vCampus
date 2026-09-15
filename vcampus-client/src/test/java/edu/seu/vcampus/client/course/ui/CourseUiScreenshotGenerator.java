@@ -71,7 +71,6 @@ public final class CourseUiScreenshotGenerator {
 
             administratorEditor[0] = new OfferingEditorDialog(
                     null, CourseUiGateway.preview(), null, () -> { });
-            administratorEditor[0].pack();
         });
 
         // Completed preview futures publish their UI state through invokeLater.
@@ -107,7 +106,7 @@ public final class CourseUiScreenshotGenerator {
                 capture(administrator[0], output.resolve("integrated-admin-selection-phase.png"),
                         WINDOW_WIDTH, WINDOW_HEIGHT);
                 Dimension editorSize = administratorEditor[0].getSize();
-                capture(administratorEditor[0],
+                captureComponent(administratorEditor[0],
                         output.resolve("integrated-admin-offering-editor.png"),
                         editorSize.width, editorSize.height);
             } catch (Exception error) {
@@ -143,6 +142,20 @@ public final class CourseUiScreenshotGenerator {
         Graphics2D graphics = image.createGraphics();
         try {
             content.printAll(graphics);
+        } finally {
+            graphics.dispose();
+        }
+        ImageIO.write(image, "png", target.toFile());
+    }
+
+    private static void captureComponent(JComponent component, Path target, int width, int height)
+            throws Exception {
+        component.setSize(width, height);
+        component.doLayout();
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        Graphics2D graphics = image.createGraphics();
+        try {
+            component.printAll(graphics);
         } finally {
             graphics.dispose();
         }
