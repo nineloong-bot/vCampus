@@ -11,6 +11,8 @@ import edu.seu.vcampus.common.course.AdjustmentAuditQuery;
 import edu.seu.vcampus.common.course.AdjustmentAuditView;
 import edu.seu.vcampus.common.course.CourseCatalogQuery;
 import edu.seu.vcampus.common.course.CourseView;
+import edu.seu.vcampus.common.course.CurriculumCourseCandidate;
+import edu.seu.vcampus.common.course.CurriculumCourseCandidateQuery;
 import edu.seu.vcampus.common.course.TermView;
 import edu.seu.vcampus.common.course.ImportCourseOutcomesCommand;
 import edu.seu.vcampus.common.course.CreateCourseCommand;
@@ -56,6 +58,7 @@ public interface CourseUiGateway {
     default CompletableFuture<EnrollmentView> enrollRetake(RetakeCommand command) { return unsupported(); }
     default CompletableFuture<PageResult<AdjustmentAuditView>> searchAdjustmentAudits(AdjustmentAuditQuery query) { return unsupported(); }
     default CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery query) { return unsupported(); }
+    default CompletableFuture<PageResult<CurriculumCourseCandidate>> searchCurriculumCandidates(CurriculumCourseCandidateQuery query) { return unsupported(); }
     default CompletableFuture<PageResult<UserSummary>> searchTeachers(String keyword) { return unsupported(); }
     default CompletableFuture<Optional<UserSummary>> resolveTeacher(String userId) { return unsupported(); }
     default CompletableFuture<List<TermView>> listTerms() { return unsupported(); }
@@ -174,6 +177,13 @@ public interface CourseUiGateway {
                         new CourseView("c2", "B09G0011", "数字图像处理", new java.math.BigDecimal("3.0"), 56,
                                 "2024级计算机科学与技术培养方案", true, 1, java.time.Instant.parse("2026-08-20T00:00:00Z"), java.time.Instant.parse("2026-08-27T00:00:00Z")));
                 return CompletableFuture.completedFuture(new PageResult<>(courses, 0, query.pageSize(), courses.size()));
+            }
+            public CompletableFuture<PageResult<CurriculumCourseCandidate>> searchCurriculumCandidates(
+                    CurriculumCourseCandidateQuery query) {
+                List<CurriculumCourseCandidate> courses = List.of(new CurriculumCourseCandidate(
+                        "pc1", "B09D0012", "数据库原理", new java.math.BigDecimal("3.0"), 56,
+                        "REQUIRED", "d1", "计算机科学与工程学院", false, null));
+                return CompletableFuture.completedFuture(new PageResult<>(courses, 0, query.pageSize(), 1));
             }
             public CompletableFuture<PageResult<UserSummary>> searchTeachers(String keyword) {
                 List<UserSummary> teachers = List.of(

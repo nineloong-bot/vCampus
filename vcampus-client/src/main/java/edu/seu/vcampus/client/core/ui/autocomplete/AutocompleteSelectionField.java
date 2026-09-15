@@ -15,6 +15,7 @@ import java.awt.event.ActionEvent;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 /** Text field that resolves a visible label to a stable server-side identifier. */
 public final class AutocompleteSelectionField extends JPanel {
@@ -28,6 +29,7 @@ public final class AutocompleteSelectionField extends JPanel {
     private AutocompleteChoice selection;
     private long requestSequence;
     private boolean programmaticChange;
+    private Consumer<AutocompleteChoice> selectionListener = ignored -> { };
 
     /** Creates a field using a 250 millisecond Swing debounce timer. */
     public AutocompleteSelectionField(SuggestionLoader loader) {
@@ -72,6 +74,11 @@ public final class AutocompleteSelectionField extends JPanel {
         debouncer.cancel();
         suggestions.dismiss();
         status.setText(" ");
+    }
+
+    /** Observes choices accepted by mouse or keyboard. */
+    public void onSelection(Consumer<AutocompleteChoice> listener) {
+        selectionListener = Objects.requireNonNull(listener, "listener");
     }
 
     /** Returns the editable text component for labels and accessibility metadata. */
@@ -143,6 +150,7 @@ public final class AutocompleteSelectionField extends JPanel {
 
     private void acceptSelection(AutocompleteChoice selected) {
         setSelection(selected.id(), selected.label());
+        selectionListener.accept(selected);
     }
 
     private static void onEdt(Runnable action) {

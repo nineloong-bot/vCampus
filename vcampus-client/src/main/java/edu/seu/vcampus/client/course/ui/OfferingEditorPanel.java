@@ -52,10 +52,9 @@ public final class OfferingEditorPanel implements EmbeddedEditor {
         status.getAccessibleContext().setAccessibleName("教学班状态");
         root.setOpaque(false);
         root.setBorder(BorderFactory.createEmptyBorder(UiSpacing.LG, UiSpacing.LG, UiSpacing.LG, UiSpacing.LG));
-        root.add(form(), BorderLayout.CENTER);
         save = AbstractCoursePanel.primary(existing == null ? "创建教学班" : "保存修改");
         save.addActionListener(event -> submit());
-        root.add(actions(), BorderLayout.SOUTH);
+        root.add(CourseEditorCard.create(form(), actions()), BorderLayout.CENTER);
         if (existing == null) schedules.addDefaultRow(); else fill(existing);
         initial = existing == null ? snapshot() : new Snapshot(existing.courseId(),
                 existing.teacherUserId(), existing.className(), existing.capacity(),

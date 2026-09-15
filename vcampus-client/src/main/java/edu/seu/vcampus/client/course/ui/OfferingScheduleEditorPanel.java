@@ -8,6 +8,8 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JPanel;
+import javax.swing.BorderFactory;
+import edu.seu.vcampus.client.core.ui.theme.UiColors;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.util.ArrayList;
@@ -21,6 +23,9 @@ public final class OfferingScheduleEditorPanel extends JPanel {
     public OfferingScheduleEditorPanel() {
         super(new BorderLayout(0, UiSpacing.SM));
         setOpaque(false);
+        setName("offering-schedule-card");
+        setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(UiColors.BORDER_DEFAULT),
+                BorderFactory.createEmptyBorder(UiSpacing.SM, UiSpacing.SM, UiSpacing.SM, UiSpacing.SM)));
         rowsPanel.setOpaque(false);
         rowsPanel.setLayout(new BoxLayout(rowsPanel, BoxLayout.Y_AXIS));
         add(rowsPanel, BorderLayout.CENTER);

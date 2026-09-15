@@ -42,13 +42,13 @@ public final class TermEditorPanel implements EmbeddedEditor {
         season.getAccessibleContext().setAccessibleName("培养方案学期");
         status.getAccessibleContext().setAccessibleName("学期状态");
         start.addChangeListener(event -> { if (existing == null) year.setValue(date(start).getYear()); });
-        root.add(form(), BorderLayout.CENTER);
         save = AbstractCoursePanel.primary(existing == null ? "创建学期" : "保存修改");
         save.addActionListener(event -> submit());
-        root.add(actions(), BorderLayout.SOUTH);
+        root.add(CourseEditorCard.create(form(), actions()), BorderLayout.CENTER);
         if (existing != null) fill(existing); else season.setSelectedItem(AcademicSeason.AUTUMN);
         initial = snapshot();
         root.setMinimumSize(new Dimension(520, 360));
+        root.setPreferredSize(new Dimension(540, 520));
     }
 
     @Override public JComponent component() { return root; }

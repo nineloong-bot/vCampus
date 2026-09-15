@@ -2,6 +2,7 @@ package edu.seu.vcampus.client.core.ui.editor;
 
 import javax.swing.JComponent;
 import javax.swing.JPanel;
+import javax.swing.JSplitPane;
 import java.awt.BorderLayout;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
@@ -36,9 +37,9 @@ public final class EmbeddedEditorHost extends JPanel {
         if (editor != null && editor.isDirty() && !confirmation.confirm(this)) return false;
         if (editor != null) detachEditor();
         editor = next;
-        removeAll();
-        add(next.component(), BorderLayout.CENTER);
         placement = resolvePlacement();
+        removeAll();
+        showWorkspace(next.component());
         generation++;
         next.onOpened();
         revalidate();
@@ -99,7 +100,12 @@ public final class EmbeddedEditorHost extends JPanel {
 
     void setAvailableWidthForTest(int width) {
         widthOverride = width;
-        if (editor != null) placement = resolvePlacement();
+        if (editor != null) {
+            placement = resolvePlacement();
+            removeAll();
+            showWorkspace(editor.component());
+            revalidate();
+        }
     }
 
     private void closeEditor() {
@@ -123,6 +129,18 @@ public final class EmbeddedEditorHost extends JPanel {
         int available = widthOverride >= 0 ? widthOverride : getWidth();
         return available <= 0 || available >= RIGHT_PLACEMENT_WIDTH
                 ? EditorPlacement.RIGHT : EditorPlacement.BOTTOM;
+    }
+
+    private void showWorkspace(JComponent editorComponent) {
+        int orientation = placement == EditorPlacement.RIGHT
+                ? JSplitPane.HORIZONTAL_SPLIT : JSplitPane.VERTICAL_SPLIT;
+        JSplitPane split = new JSplitPane(orientation, list, editorComponent);
+        split.setName("embedded-editor-split");
+        split.setBorder(null);
+        split.setContinuousLayout(true);
+        split.setResizeWeight(placement == EditorPlacement.RIGHT ? 0.58 : 0.56);
+        split.setDividerSize(8);
+        add(split, BorderLayout.CENTER);
     }
 
 }

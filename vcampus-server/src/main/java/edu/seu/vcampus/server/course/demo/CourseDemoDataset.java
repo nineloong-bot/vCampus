@@ -1,9 +1,7 @@
 package edu.seu.vcampus.server.course.demo;
 
 import edu.seu.vcampus.common.course.*;
-import edu.seu.vcampus.server.course.repository.*;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
-import edu.seu.vcampus.server.persistence.TransactionManager;
 import edu.seu.vcampus.server.course.service.CourseService;
 
 import java.math.BigDecimal;
@@ -63,44 +61,16 @@ public final class CourseDemoDataset {
         for (CourseView course : service.searchCatalog(new CourseCatalogQuery("", null, 0, 100)).items()) {
             catalog.put(course.courseCode(), course);
         }
+        CourseDemoCurriculumSeeder.installDefinitions(connections, ITEMS);
         for (Item item : ITEMS) {
             catalog.computeIfAbsent(item.code(), ignored -> service.createCourse(new CreateCourseCommand(
                     item.code(), item.name(), item.credit(), Math.max(16, item.credit().intValue() * 16),
-                    "来源：2024级计算机科学与技术本科专业培养方案", true)));
+                    "来源：2024级计算机科学与技术本科专业培养方案", true,
+                    "pc-" + item.code())));
         }
-        installCurriculum(connections, catalog);
+        CourseDemoCurriculumSeeder.linkCatalogAndPrerequisites(connections, catalog, ITEMS);
         installCurrentOfferings(service, term, catalog, teacherId);
         installRetakeHistory(service, term, passedStudentId, retakeStudentId);
-    }
-
-    private static void installCurriculum(ConnectionProvider connections, Map<String, CourseView> catalog) {
-        new TransactionManager(connections).inTransaction(connection -> {
-            CurriculumRepository repository = new AccessCurriculumRepository();
-            if (repository.findPublishedPlan(connection, MAJOR, COHORT).isPresent()) return null;
-            String planId = "curriculum-cs-2024";
-            repository.insertPlan(connection, new CurriculumPlan(planId, MAJOR, COHORT,
-                    "2024级计算机科学与技术本科专业培养方案", 1, "PUBLISHED"));
-            for (Item item : ITEMS) {
-                repository.insertCourse(connection, new CurriculumCourse("pc-" + item.code(), planId,
-                        catalog.get(item.code()).courseId(), item.year(), item.season(), item.nature(),
-                        item.category(), UNIT));
-            }
-            Map<String, Set<String>> edges = Map.of(
-                    "BJSL0031", Set.of("BJSL0021"),
-                    "BJSL0061", Set.of("BJSL0031"),
-                    "BJSL0071", Set.of("BJSL0051"),
-                    "BJSL0082", Set.of("BJSL0071"),
-                    "B09T0011", Set.of("BJSL0061"),
-                    "B09D0012", Set.of("BJSL0061"),
-                    "B09N0014", Set.of("BJSL0082"),
-                    "B09S0061", Set.of("B09D0012"));
-            CurriculumGraphValidator.validate(edges);
-            for (var edge : edges.entrySet()) for (String required : edge.getValue()) {
-                repository.insertPrerequisite(connection, "edge-" + edge.getKey() + "-" + required,
-                        planId, catalog.get(edge.getKey()).courseId(), catalog.get(required).courseId());
-            }
-            return null;
-        });
     }
 
     private static void installCurrentOfferings(CourseService service, TermView term,
@@ -169,6 +139,6 @@ public final class CourseDemoDataset {
         return new Item(code, name, new BigDecimal(credit), year, season, nature, category);
     }
 
-    private record Item(String code, String name, BigDecimal credit, int year,
-                        AcademicSeason season, String nature, String category) {}
+    record Item(String code, String name, BigDecimal credit, int year,
+                AcademicSeason season, String nature, String category) {}
 }

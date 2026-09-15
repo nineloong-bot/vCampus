@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JSplitPane;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -12,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class EmbeddedEditorHostTest {
     @Test
-    void startsClosedAndReplacesListWithEditor() {
+    void startsClosedAndKeepsListBesideCompactEditor() {
         JPanel list = new JPanel();
         AtomicBoolean confirm = new AtomicBoolean(false);
         EmbeddedEditorHost host = new EmbeddedEditorHost(list, owner -> confirm.get());
@@ -25,11 +26,17 @@ class EmbeddedEditorHostTest {
         host.setAvailableWidthForTest(1400);
         host.showEditor(editor);
         assertThat(host.getComponentCount()).isEqualTo(1);
-        assertThat(host.getComponent(0)).isSameAs(editor.component());
+        JSplitPane split = (JSplitPane) host.getComponent(0);
+        assertThat(split.getOrientation()).isEqualTo(JSplitPane.HORIZONTAL_SPLIT);
+        assertThat(split.getLeftComponent()).isSameAs(list);
+        assertThat(split.getRightComponent()).isSameAs(editor.component());
         assertThat(editor.opened).isEqualTo(1);
 
         host.setAvailableWidthForTest(900);
-        assertThat(host.getComponent(0)).isSameAs(editor.component());
+        split = (JSplitPane) host.getComponent(0);
+        assertThat(split.getOrientation()).isEqualTo(JSplitPane.VERTICAL_SPLIT);
+        assertThat(split.getTopComponent()).isSameAs(list);
+        assertThat(split.getBottomComponent()).isSameAs(editor.component());
         assertThat(editor.opened).isEqualTo(1);
 
         assertThat(host.requestClose()).isFalse();
@@ -43,7 +50,7 @@ class EmbeddedEditorHostTest {
     }
 
     @Test
-    void wideEditorAlsoReplacesListAndDirtyReplacementNeedsConfirmation() {
+    void wideEditorAppearsBelowListAndDirtyReplacementNeedsConfirmation() {
         JPanel list = new JPanel();
         AtomicBoolean confirm = new AtomicBoolean(false);
         EmbeddedEditorHost host = new EmbeddedEditorHost(list, owner -> confirm.get());
@@ -60,7 +67,10 @@ class EmbeddedEditorHostTest {
 
         confirm.set(true);
         assertThat(host.showEditor(wide)).isTrue();
-        assertThat(host.getComponent(0)).isSameAs(wide.component());
+        JSplitPane split = (JSplitPane) host.getComponent(0);
+        assertThat(split.getOrientation()).isEqualTo(JSplitPane.VERTICAL_SPLIT);
+        assertThat(split.getTopComponent()).isSameAs(list);
+        assertThat(split.getBottomComponent()).isSameAs(wide.component());
         assertThat(first.closed).isEqualTo(1);
         assertThat(wide.opened).isEqualTo(1);
         assertThat(host.isCurrent(firstGeneration)).isFalse();

@@ -28,6 +28,8 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
     private final Set<String> ownedOptions = new HashSet<>();
     private final MajorTransferCollegeActions collegeActions;
     private EmbeddedEditorHost editorHost;
+    private long batchRequest;
+    private long detailRequest;
 
     /** Creates the college-scoped transfer workspace. */
     public MajorTransferCollegeProcessingPanel(StudentClientService students) {
@@ -55,6 +57,8 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
         JButton refresh = new JButton("刷新");
         refresh.addActionListener(event -> refresh());
         toolbar.add(new JLabel("批次："));
+        batches.setRenderer(new MajorTransferBatchChoiceRenderer());
+        batches.setPreferredSize(new Dimension(360, batches.getPreferredSize().height));
         toolbar.add(batches);
         toolbar.add(option);
         toolbar.add(refresh);
@@ -79,12 +83,8 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
         detail.setLineWrap(true);
         detail.setWrapStyleWord(true);
         attachments.setLayout(new BoxLayout(attachments, BoxLayout.Y_AXIS));
-        JPanel detailArea = new JPanel(new BorderLayout());
-        detailArea.add(new JScrollPane(detail), BorderLayout.CENTER);
-        detailArea.add(attachments, BorderLayout.SOUTH);
-        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
-                new JScrollPane(applications), detailArea);
-        split.setResizeWeight(0.4);
+        MajorTransferCollegeWorkspaceView split = new MajorTransferCollegeWorkspaceView(
+                applications, detail, attachments);
         JPanel bottom = new JPanel(new BorderLayout());
         bottom.add(actions, BorderLayout.CENTER);
         bottom.add(status, BorderLayout.SOUTH);
@@ -120,11 +120,15 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
 
     private void loadSelectedBatch() {
         MajorTransferBatchView batch = (MajorTransferBatchView) batches.getSelectedItem();
+        long request = ++batchRequest;
         model.clear();
         ownedOptions.clear();
+        detail.setText("请选择一条转专业申请查看详情");
+        actions.removeAll();
         if (batch == null) return;
         students.listTransferOptions(batch.batchId()).whenComplete((response, failure) ->
                 SwingUtilities.invokeLater(() -> {
+                    if (request != batchRequest) return;
                     if (response != null && response.success()) {
                         response.data().forEach(option -> ownedOptions.add(option.optionId()));
                     }
@@ -133,8 +137,10 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
     }
 
     private void loadApplications(String batchId) {
+        long request = batchRequest;
         students.listTransferApplications(new MajorTransferApplicationQuery(batchId, null, null))
                 .whenComplete((response, failure) -> SwingUtilities.invokeLater(() -> {
+                    if (request != batchRequest) return;
                     model.clear();
                     if (response != null && response.success()) response.data().forEach(model::addElement);
                     else status.setText(message(response, "申请加载失败"));
@@ -144,8 +150,10 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
     private void loadDetail() {
         MajorTransferApplicationView selected = applications.getSelectedValue();
         if (selected == null) return;
+        long request = ++detailRequest;
         students.getTransferApplication(selected.applicationId()).whenComplete((response, failure) ->
                 SwingUtilities.invokeLater(() -> {
+                    if (request != detailRequest) return;
                     if (response != null && response.success()) renderDetail(response.data());
                     else status.setText(message(response, "申请加载失败"));
                 }));

@@ -23,6 +23,9 @@ public interface CourseService {
     default SelectionPhaseView updateSelectionPhase(UpdateSelectionPhaseCommand command) { throw new UnsupportedOperationException(); }
     default SelectionPhaseView changeSelectionPhaseStatus(ChangeSelectionPhaseStatusCommand command) { throw new UnsupportedOperationException(); }
     PageResult<CourseView> searchCatalog(CourseCatalogQuery query);
+    /** Searches catalog definitions approved in active training plans. */
+    default PageResult<CurriculumCourseCandidate> searchCurriculumCandidates(
+            CurriculumCourseCandidateQuery query) { throw new UnsupportedOperationException(); }
     PageResult<AdjustmentAuditView> searchAdjustmentAudits(AdjustmentAuditQuery query);
     TermPhaseView getTermPhase(String termId);
     CourseView createCourse(CreateCourseCommand command);

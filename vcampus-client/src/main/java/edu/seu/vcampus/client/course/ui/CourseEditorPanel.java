@@ -7,7 +7,6 @@ import edu.seu.vcampus.common.course.*;
 
 import javax.swing.*;
 import java.awt.*;
-import java.math.BigDecimal;
 import java.util.Objects;
 
 /** Page-embedded form for creating or updating one catalog course. */
@@ -18,11 +17,8 @@ public final class CourseEditorPanel implements EmbeddedEditor {
     private final CourseView existing;
     private final Runnable saved;
     private final Runnable cancelled;
-    private final JTextField code = field("课程代码");
-    private final JTextField name = field("课程名称");
-    private final JSpinner credit = spinner(new BigDecimalModel(), "学分");
-    private final JSpinner hours = spinner(new SpinnerNumberModel(32, 1, 1000, 1), "总学时");
-    private final JTextArea description = new JTextArea(4, 28);
+    private final CurriculumCourseEditorFields curriculum;
+    private final JTextArea description = new JTextArea(3, 22);
     private final JCheckBox active = new JCheckBox("启用课程", true);
     private final JLabel error = label(" ", UiColors.ACCENT);
     private final JButton save;
@@ -34,15 +30,16 @@ public final class CourseEditorPanel implements EmbeddedEditor {
         this.existing = existing;
         this.saved = Objects.requireNonNull(saved, "saved");
         this.cancelled = Objects.requireNonNull(cancelled, "cancelled");
+        curriculum = new CurriculumCourseEditorFields(gateway);
         root.setBackground(UiColors.BACKGROUND_PAGE);
         root.setBorder(BorderFactory.createEmptyBorder(UiSpacing.LG, UiSpacing.LG, UiSpacing.LG, UiSpacing.LG));
-        root.add(form(), BorderLayout.CENTER);
         save = AbstractCoursePanel.primary(existing == null ? "创建课程" : "保存修改");
         save.addActionListener(event -> submit());
-        root.add(actions(), BorderLayout.SOUTH);
+        root.add(CourseEditorCard.create(form(), actions()), BorderLayout.CENTER);
         if (existing != null) fill(existing);
         initial = snapshot();
-        root.setMinimumSize(new Dimension(400, 420));
+        root.setMinimumSize(new Dimension(430, 420));
+        root.setPreferredSize(new Dimension(500, 560));
     }
 
     @Override public JComponent component() { return root; }
@@ -53,10 +50,7 @@ public final class CourseEditorPanel implements EmbeddedEditor {
 
     private JPanel form() {
         JPanel panel = vertical();
-        panel.add(row("课程代码（必填）", code));
-        panel.add(row("课程名称（必填）", name));
-        panel.add(row("学分（必填）", credit));
-        panel.add(row("总学时（必填）", hours));
+        panel.add(curriculum.component());
         panel.add(AbstractCoursePanel.label("课程简介", UiTypography.BODY, UiColors.TEXT_PRIMARY));
         description.setFont(UiTypography.BODY);
         description.setLineWrap(true);
@@ -88,11 +82,16 @@ public final class CourseEditorPanel implements EmbeddedEditor {
         java.util.concurrent.CompletableFuture<CourseView> request;
         try {
             Snapshot value = snapshot().validated();
-            request = existing == null
-                    ? gateway.createCourse(new CreateCourseCommand(value.code, value.name, value.credit,
-                    value.hours, value.description, value.active))
-                    : gateway.updateCourse(new UpdateCourseCommand(existing.courseId(), value.code, value.name,
-                    value.credit, value.hours, value.description, value.active, existing.rowVersion()));
+            if (existing == null) {
+                CurriculumCourseCandidate source = curriculum.requireSelection();
+                request = gateway.createCourse(new CreateCourseCommand(source.courseCode(), source.courseName(),
+                        source.credits(), source.totalHours(), value.description, value.active,
+                        source.planCourseId()));
+            } else {
+                request = gateway.updateCourse(new UpdateCourseCommand(existing.courseId(), existing.courseCode(),
+                        existing.courseName(), existing.credit(), existing.totalHours(), value.description,
+                        value.active, existing.rowVersion()));
+            }
         } catch (IllegalArgumentException invalid) {
             error.setText(invalid.getMessage());
             return;
@@ -109,13 +108,13 @@ public final class CourseEditorPanel implements EmbeddedEditor {
     }
 
     private void fill(CourseView value) {
-        code.setText(value.courseCode()); name.setText(value.courseName()); credit.setValue(value.credit());
-        hours.setValue(value.totalHours()); description.setText(value.description()); active.setSelected(value.active());
+        curriculum.showExisting(value.courseCode(), value.courseName(), value.credit().toPlainString(),
+                value.totalHours(), value.departmentName());
+        description.setText(value.description()); active.setSelected(value.active());
     }
 
     private Snapshot snapshot() {
-        return new Snapshot(code.getText().trim(), name.getText().trim(), decimal((Number) credit.getValue()),
-                ((Number) hours.getValue()).intValue(), description.getText().trim(), active.isSelected());
+        return new Snapshot(description.getText().trim(), active.isSelected());
     }
 
     private JPanel row(String text, Component input) {
@@ -126,19 +125,7 @@ public final class CourseEditorPanel implements EmbeddedEditor {
     }
 
     private static JPanel vertical() { JPanel panel = new JPanel(); panel.setOpaque(false); panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS)); return panel; }
-    private static JTextField field(String name) { JTextField field = new JTextField(); field.getAccessibleContext().setAccessibleName(name); field.setMaximumSize(new Dimension(Integer.MAX_VALUE, UiDimensions.CONTROL_HEIGHT)); return field; }
-    private static JSpinner spinner(SpinnerNumberModel model, String name) { JSpinner spinner = new JSpinner(model); spinner.getAccessibleContext().setAccessibleName(name); spinner.setMaximumSize(new Dimension(Integer.MAX_VALUE, UiDimensions.CONTROL_HEIGHT)); return spinner; }
     private static JLabel label(String text, Color color) { return AbstractCoursePanel.label(text, UiTypography.BODY, color); }
-    private static BigDecimal decimal(Number value) { return value instanceof BigDecimal number ? number : new BigDecimal(value.toString()); }
 
-    private record Snapshot(String code, String name, BigDecimal credit, int hours, String description, boolean active) {
-        Snapshot validated() { if (code.isBlank()) throw new IllegalArgumentException("请输入课程代码"); if (name.isBlank()) throw new IllegalArgumentException("请输入课程名称"); return this; }
-    }
-
-    private static final class BigDecimalModel extends SpinnerNumberModel {
-        BigDecimalModel() { super(new BigDecimal("1.0"), new BigDecimal("0.5"), new BigDecimal("20.0"), new BigDecimal("0.5")); }
-        @Override public Object getNextValue() { return step(new BigDecimal("0.5")); }
-        @Override public Object getPreviousValue() { return step(new BigDecimal("-0.5")); }
-        private Object step(BigDecimal amount) { BigDecimal value = decimal(getNumber()).add(amount); return value.compareTo((BigDecimal)getMinimum()) < 0 || value.compareTo((BigDecimal)getMaximum()) > 0 ? null : value; }
-    }
+    private record Snapshot(String description, boolean active) { Snapshot validated() { return this; } }
 }

@@ -13,6 +13,8 @@ import edu.seu.vcampus.common.course.AdjustmentAuditQuery;
 import edu.seu.vcampus.common.course.AdjustmentAuditView;
 import edu.seu.vcampus.common.course.CourseCatalogQuery;
 import edu.seu.vcampus.common.course.CourseView;
+import edu.seu.vcampus.common.course.CurriculumCourseCandidate;
+import edu.seu.vcampus.common.course.CurriculumCourseCandidateQuery;
 import edu.seu.vcampus.common.course.TermView;
 import edu.seu.vcampus.common.course.ImportCourseOutcomesCommand;
 import edu.seu.vcampus.common.course.CreateCourseCommand;
@@ -86,6 +88,7 @@ public final class CourseClientGateway implements CourseUiGateway {
     public CompletableFuture<EnrollmentView> enrollRetake(RetakeCommand command) { return client.enrollRetake(command); }
     public CompletableFuture<PageResult<AdjustmentAuditView>> searchAdjustmentAudits(AdjustmentAuditQuery query) { return client.searchAdjustmentAudits(query); }
     public CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery query) { return client.searchCatalog(query); }
+    public CompletableFuture<PageResult<CurriculumCourseCandidate>> searchCurriculumCandidates(CurriculumCourseCandidateQuery query) { return client.searchCurriculumCandidates(query); }
     public CompletableFuture<PageResult<UserSummary>> searchTeachers(String keyword) {
         if (users == null) {
             return CompletableFuture.failedFuture(new IllegalStateException("User client is not connected"));

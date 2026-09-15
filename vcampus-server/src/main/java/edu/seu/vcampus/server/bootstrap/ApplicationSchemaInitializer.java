@@ -125,10 +125,21 @@ public final class ApplicationSchemaInitializer {
 
     private static void backfillTrainingPlanCourseHours(ConnectionProvider connections)
             throws SQLException {
-        try (Connection connection = connections.open(); var statement = connection.createStatement()) {
-            statement.executeUpdate("UPDATE tblTrainingPlanCourse pc INNER JOIN tblCourse c "
-                    + "ON pc.courseId=c.courseId SET pc.totalHours=c.totalHours "
-                    + "WHERE pc.totalHours IS NULL");
+        try (Connection connection = connections.open();
+             var select = connection.prepareStatement("SELECT pc.planCourseId,c.totalHours "
+                     + "FROM tblTrainingPlanCourse pc,tblCourse c "
+                     + "WHERE pc.courseId=c.courseId AND pc.totalHours IS NULL");
+             var update = connection.prepareStatement(
+                     "UPDATE tblTrainingPlanCourse SET totalHours=? WHERE planCourseId=?");
+             var rows = select.executeQuery()) {
+            boolean pending = false;
+            while (rows.next()) {
+                update.setInt(1, rows.getInt("totalHours"));
+                update.setString(2, rows.getString("planCourseId"));
+                update.addBatch();
+                pending = true;
+            }
+            if (pending) update.executeBatch();
         }
     }
 
