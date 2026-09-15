@@ -22,7 +22,7 @@ class OfferingManagementWorkspaceTest {
         onEdt(() -> button(panel, "新建教学班").doClick());
         assertThat(host.isEditorOpen()).isTrue();
         assertThat(host.currentPlacement()).isEqualTo(EditorPlacement.BOTTOM);
-        onEdt(host::completeAndClose);
+        onEdt(() -> { host.completeAndClose(); });
 
         JTable table = descendants(panel).stream().filter(JTable.class::isInstance).map(JTable.class::cast)
                 .findFirst().orElseThrow();

@@ -17,7 +17,19 @@ class SelectionPhaseEditorPanelTest {
     void savesTitleBeforeStatusUsingReturnedVersion() throws Exception {
         AtomicReference<UpdateSelectionPhaseCommand> update = new AtomicReference<>();
         AtomicReference<ChangeSelectionPhaseStatusCommand> status = new AtomicReference<>();
+        CourseUiGateway base = CourseUiGateway.preview();
         CourseUiGateway gateway = new CourseUiGateway() {
+            @Override public CompletableFuture<edu.seu.vcampus.common.paging.PageResult<OfferingSummary>>
+                    searchOfferings(OfferingSearchQuery query) { return base.searchOfferings(query); }
+            @Override public CompletableFuture<List<EnrollmentView>> currentEnrollments() {
+                return base.currentEnrollments();
+            }
+            @Override public CompletableFuture<List<ScheduleItem>> currentSchedule() {
+                return base.currentSchedule();
+            }
+            @Override public CompletableFuture<EnrollmentView> enroll(EnrollCommand command) {
+                return base.enroll(command);
+            }
             @Override public CompletableFuture<SelectionPhaseView> updateSelectionPhase(
                     UpdateSelectionPhaseCommand command) {
                 update.set(command);
