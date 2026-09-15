@@ -10,6 +10,7 @@ import java.util.Properties;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the server config contract. */
 class ServerConfigTest {
     private final Path baseDirectory = Path.of("target", "config-test").toAbsolutePath();
 

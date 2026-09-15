@@ -4,6 +4,9 @@ package edu.seu.vcampus.server.course.domain;
 public final class EnrollmentVersionMismatchException extends CourseConcurrentModificationException {
     public static final String CODE = CourseConcurrentModificationException.CODE;
 
+    /**
+     * Creates a enrollment version mismatch exception with its required collaborators.
+     */
     public EnrollmentVersionMismatchException() {
         super();
     }

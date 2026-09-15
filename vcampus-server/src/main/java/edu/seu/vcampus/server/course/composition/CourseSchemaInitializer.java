@@ -26,6 +26,10 @@ public final class CourseSchemaInitializer {
             "(?is)^\\s*CREATE\\s+(?:UNIQUE\\s+)?INDEX\\s+([A-Za-z0-9_]+)\\s+ON\\s+([A-Za-z0-9_]+)");
     private final Path schemaFile;
 
+    /**
+     * Creates a course schema initializer with its required collaborators.
+     * @param schemaFile the schema file
+     */
     public CourseSchemaInitializer(Path schemaFile) {
         this.schemaFile = Objects.requireNonNull(schemaFile).toAbsolutePath().normalize();
     }

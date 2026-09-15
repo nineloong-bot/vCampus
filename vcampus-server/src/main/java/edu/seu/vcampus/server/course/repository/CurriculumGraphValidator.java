@@ -11,6 +11,11 @@ import java.util.TreeSet;
 public final class CurriculumGraphValidator {
     private CurriculumGraphValidator() {}
 
+    /**
+     * Performs the validate operation.
+     * @param prerequisites the prerequisites
+     * @return the operation result
+     */
     public static List<String> validate(Map<String, ? extends Set<String>> prerequisites) {
         Map<String, State> states = new HashMap<>();
         List<String> ordered = new ArrayList<>();
@@ -36,5 +41,6 @@ public final class CurriculumGraphValidator {
         ordered.add(node);
     }
 
+    /** Defines supported state values. */
     private enum State { VISITING, DONE }
 }

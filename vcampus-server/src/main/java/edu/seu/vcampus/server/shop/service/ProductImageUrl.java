@@ -7,6 +7,7 @@ import edu.seu.vcampus.common.shop.ShopCoverPresets;
 
 import java.net.URI;
 
+/** Provides product image url behavior. */
 final class ProductImageUrl {
     private static final int MAX_LENGTH = 2048;
 

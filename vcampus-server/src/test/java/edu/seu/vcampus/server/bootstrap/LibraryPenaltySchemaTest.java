@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.sql.DriverManager;
 import static org.assertj.core.api.Assertions.*;
 
+/** Verifies the library penalty schema contract. */
 class LibraryPenaltySchemaTest {
     @Test void resumesAnUpgradeInterruptedAfterRoleColumnWasAdded() throws Exception {
         var file = Files.createTempDirectory("library-penalty-retry-").resolve("old.accdb");

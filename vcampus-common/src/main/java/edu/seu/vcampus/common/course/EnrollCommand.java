@@ -5,6 +5,10 @@ import java.io.Serializable;
 import java.util.Objects;
 
 /** Requests normal enrollment in one teaching offering. */
+/**
+ * Carries immutable enroll command data.
+ * @param offeringId the offering identifier
+ */
 public record EnrollCommand(String offeringId) implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;

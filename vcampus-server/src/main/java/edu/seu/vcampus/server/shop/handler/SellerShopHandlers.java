@@ -18,6 +18,14 @@ import java.util.Objects;
 
 /** Registers seller application commands. */
 public final class SellerShopHandlers {
+    /**
+     * Creates a seller shop handlers with its required collaborators.
+     * @param router the router
+     * @param users the users
+     * @param deduplicator the deduplicator
+     * @param applications the applications
+     * @param log the log
+     */
     public SellerShopHandlers(MessageRouter router, ShopUserPort users,
             RequestDeduplicator deduplicator, SellerApplicationService applications,
             ShopBusinessLogger log) {
@@ -32,6 +40,17 @@ public final class SellerShopHandlers {
                 applications::submitApplication));
     }
 
+    /**
+     * Creates a seller shop handlers with its required collaborators.
+     * @param router the router
+     * @param users the users
+     * @param deduplicator the deduplicator
+     * @param applications the applications
+     * @param sellers the sellers
+     * @param products the products
+     * @param orders the orders
+     * @param log the log
+     */
     public SellerShopHandlers(MessageRouter router, ShopUserPort users,
             RequestDeduplicator deduplicator, SellerApplicationService applications,
             SellerService sellers, ProductService products, SellerOrderService orders,

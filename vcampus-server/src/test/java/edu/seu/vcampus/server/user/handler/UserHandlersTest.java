@@ -44,6 +44,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the user handlers contract. */
 class UserHandlersTest {
     private static final ClientContext CONTEXT = new ClientContext("connection", "127.0.0.1");
     private final UserService users = new StubUsers();
@@ -382,6 +383,7 @@ class UserHandlersTest {
         };
     }
 
+    /** Provides stub users behavior. */
     private static class StubUsers implements UserService {
         private static final UserView VIEW = new UserView("user", "USER", UserRole.ADMIN,
                 AccountStatus.ACTIVE, false, null, 0, LocalDateTime.MIN, LocalDateTime.MIN);
@@ -419,6 +421,7 @@ class UserHandlersTest {
         }
     }
 
+    /** Provides tracking authorization behavior. */
     private static final class TrackingAuthorization implements AuthorizationPort {
         private String permission;
         private int sessionCalls;
@@ -435,6 +438,7 @@ class UserHandlersTest {
         }
     }
 
+    /** Provides rejecting authorization behavior. */
     private static final class RejectingAuthorization implements AuthorizationPort {
         private int calls;
 

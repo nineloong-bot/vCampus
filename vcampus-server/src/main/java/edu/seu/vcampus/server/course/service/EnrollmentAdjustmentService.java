@@ -223,8 +223,10 @@ final class EnrollmentAdjustmentService {
     private ResourceKey studentKey(String id) { return new ResourceKey("STUDENT", id); }
     private ResourceKey offeringKey(String id) { return new ResourceKey("OFFERING", id); }
 
+    /** Provides actor behavior. */
     private record Actor(String userId, String studentId) { }
 
+    /** Provides source reference behavior. */
     private static final class SourceReference {
         private String offeringId;
     }

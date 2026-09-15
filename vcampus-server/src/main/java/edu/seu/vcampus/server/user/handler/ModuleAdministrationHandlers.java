@@ -157,6 +157,7 @@ public final class ModuleAdministrationHandlers {
         return UserHandlerErrorMapper.failure(error, message);
     }
 
+    /** Defines the governance action contract. */
     @FunctionalInterface
     private interface GovernanceAction<T> {
         void run(String actorUserId, T command);

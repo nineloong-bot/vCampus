@@ -9,6 +9,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the course admin dto contract. */
 class CourseAdminDtoTest {
     @Test void rejectsInvalidOfferingStatusAndScheduleRanges() {
         assertThatThrownBy(() -> offering("UNKNOWN", List.of())).isInstanceOf(IllegalArgumentException.class);

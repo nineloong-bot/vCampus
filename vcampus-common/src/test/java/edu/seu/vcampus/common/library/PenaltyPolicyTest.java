@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import static org.assertj.core.api.Assertions.*;
 
+/** Verifies the penalty policy contract. */
 class PenaltyPolicyTest {
     private final PenaltyPolicy policy = PenaltyPolicy.defaults();
     private final Instant due = Instant.parse("2026-08-01T08:00:00Z");

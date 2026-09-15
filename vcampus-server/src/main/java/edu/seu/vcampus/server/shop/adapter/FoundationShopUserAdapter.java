@@ -18,6 +18,11 @@ public final class FoundationShopUserAdapter implements ShopUserPort {
     private final AuthorizationPort authorization;
     private final Predicate<String> restrictedSessions;
 
+    /**
+     * Creates a foundation shop user adapter with its required collaborators.
+     * @param authorization the authorization
+     * @param restrictedSessions the restricted sessions
+     */
     public FoundationShopUserAdapter(
             AuthorizationPort authorization, Predicate<String> restrictedSessions) {
         this.authorization = Objects.requireNonNull(authorization, "authorization");

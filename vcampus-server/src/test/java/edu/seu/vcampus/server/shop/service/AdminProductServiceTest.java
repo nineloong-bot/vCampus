@@ -22,6 +22,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the admin product service contract. */
 class AdminProductServiceTest {
     private ShopTestDatabase database;
     private AdminProductService products;

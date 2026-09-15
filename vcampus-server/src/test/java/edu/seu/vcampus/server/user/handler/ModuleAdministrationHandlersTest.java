@@ -106,6 +106,7 @@ class ModuleAdministrationHandlersTest {
                 "token", body, 0), CONTEXT);
     }
 
+    /** Provides counting authorization behavior. */
     private static final class CountingAuthorization implements AuthorizationPort {
         private final UserRole role;
         private int calls;

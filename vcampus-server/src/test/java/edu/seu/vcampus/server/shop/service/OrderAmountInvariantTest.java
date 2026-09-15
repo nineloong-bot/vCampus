@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the order amount invariant contract. */
 class OrderAmountInvariantTest extends CheckoutServiceTestSupport {
     @Test
     void groupAmountEqualsOrdersAndOrderItems() {

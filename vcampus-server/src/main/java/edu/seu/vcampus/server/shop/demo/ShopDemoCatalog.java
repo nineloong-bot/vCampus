@@ -94,6 +94,16 @@ public final class ShopDemoCatalog {
     /** A product and all of its sellable SKU fixtures. */
     public record ProductSeed(String id, String shopId, String name, String category,
             String description, long salesCount, List<SkuSeed> skus) {
+        /**
+         * Creates a product seed with its required collaborators.
+         * @param id the id
+         * @param shopId the shop identifier
+         * @param name the name
+         * @param category the category
+         * @param description the description
+         * @param salesCount the sales count
+         * @param skus the skus
+         */
         public ProductSeed {
             skus = List.copyOf(skus);
         }

@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import static org.assertj.core.api.Assertions.*;
 
+/** Verifies the penalty settlement contract. */
 class PenaltySettlementTest {
     @Test void readerCanDeclareMinorDamageAndReturnUsesCurrentConfiguredFine() throws Exception {
         var fixture = new LibraryServiceFixture(); fixture.seedCopies(1);

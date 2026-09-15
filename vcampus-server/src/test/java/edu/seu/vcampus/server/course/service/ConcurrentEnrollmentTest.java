@@ -39,6 +39,7 @@ import java.util.function.Function;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the concurrent enrollment contract. */
 class ConcurrentEnrollmentTest {
     private static final Instant NOW = Instant.parse("2026-08-10T00:00:00Z");
 
@@ -208,6 +209,7 @@ class ConcurrentEnrollmentTest {
         return Path.of("..", "vcampus-database", "schema", "030_course.sql");
     }
 
+    /** Provides outcome behavior. */
     private record Outcome<T>(T value, Throwable failure) {
         static <T> Outcome<T> success(T value) {
             return new Outcome<>(value, null);
@@ -223,6 +225,7 @@ class ConcurrentEnrollmentTest {
     }
 }
 
+/** Provides course test config behavior. */
 final class CourseTestConfig {
     private CourseTestConfig() {
     }

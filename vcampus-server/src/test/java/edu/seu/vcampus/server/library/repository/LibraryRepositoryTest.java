@@ -25,6 +25,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the library repository contract. */
 class LibraryRepositoryTest {
     private ConnectionProvider connections;
     private BookRepository books;

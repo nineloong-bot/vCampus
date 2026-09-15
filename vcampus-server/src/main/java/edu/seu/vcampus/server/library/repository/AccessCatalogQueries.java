@@ -15,6 +15,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
+/** Provides access catalog queries behavior. */
 final class AccessCatalogQueries {
     private AccessCatalogQueries() {
     }

@@ -29,6 +29,7 @@ import static edu.seu.vcampus.common.user.UserRole.STUDENT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the user account provisioning port contract. */
 class UserAccountProvisioningPortTest {
     private static final String ADMIN_ID = "00000000-0000-0000-0000-000000000001";
     private TransactionManager transactions;
@@ -212,6 +213,7 @@ class UserAccountProvisioningPortTest {
         }
     }
 
+    /** Provides injected admission failure behavior. */
     private static final class InjectedAdmissionFailure extends RuntimeException {
     }
 }

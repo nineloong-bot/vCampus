@@ -5,6 +5,18 @@ import java.time.Instant;
 import java.util.Objects;
 
 /** Command to create or update a major-transfer batch. */
+/**
+ * Carries immutable save major transfer batch command data.
+ * @param batchId the batch identifier
+ * @param batchName the batch name
+ * @param status the status
+ * @param applicationStart the application start
+ * @param applicationEnd the application end
+ * @param publicityStart the publicity start
+ * @param publicityEnd the publicity end
+ * @param effectiveDate the effective date
+ * @param expectedVersion the expected version
+ */
 public record SaveMajorTransferBatchCommand(
         String batchId,
         String batchName,
@@ -16,6 +28,18 @@ public record SaveMajorTransferBatchCommand(
         Instant effectiveDate,
         long expectedVersion
 ) implements Serializable {
+    /**
+     * Validates and creates a save major transfer batch command.
+     * @param batchId the batch id
+     * @param batchName the batch name
+     * @param status the status
+     * @param applicationStart the application start
+     * @param applicationEnd the application end
+     * @param publicityStart the publicity start
+     * @param publicityEnd the publicity end
+     * @param effectiveDate the effective date
+     * @param expectedVersion the expected version
+     */
     public SaveMajorTransferBatchCommand {
         Objects.requireNonNull(batchName, "batchName");
         Objects.requireNonNull(status, "status");

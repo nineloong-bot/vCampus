@@ -4,14 +4,14 @@ import java.io.Serializable;
 
 /** Lifecycle status of a major-transfer application. */
 public enum MajorTransferStatus implements Serializable {
-    DRAFT,
-    SUBMITTED,
-    SOURCE_APPROVED,
-    QUALIFIED,
-    ASSESSED,
-    PENDING_EFFECTIVE,
-    EFFECTIVE,
-    REJECTED,
-    CANCELLED,
-    EXECUTION_FAILED
+    /** Represents draft. */ DRAFT,
+    /** Represents submitted. */ SUBMITTED,
+    /** Represents source approved. */ SOURCE_APPROVED,
+    /** Represents qualified. */ QUALIFIED,
+    /** Represents assessed. */ ASSESSED,
+    /** Represents pending effective. */ PENDING_EFFECTIVE,
+    /** Represents effective. */ EFFECTIVE,
+    /** Represents rejected. */ REJECTED,
+    /** Represents cancelled. */ CANCELLED,
+    /** Represents execution failed. */ EXECUTION_FAILED
 }

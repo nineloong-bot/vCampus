@@ -11,6 +11,7 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
+/** Provides student college administration queries behavior. */
 final class StudentCollegeAdministrationQueries {
     List<StudentCollegeAdministratorView> listAdministrators(Connection connection) {
         String sql = """

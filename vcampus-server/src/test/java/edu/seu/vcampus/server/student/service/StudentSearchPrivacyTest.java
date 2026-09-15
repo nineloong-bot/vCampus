@@ -16,6 +16,7 @@ import java.util.Arrays;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the student search privacy contract. */
 class StudentSearchPrivacyTest {
     @Test
     void teacherSearchReturnsRestrictedSummaryWithoutContactFields() throws Exception {

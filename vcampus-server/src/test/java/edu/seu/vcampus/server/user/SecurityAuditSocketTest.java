@@ -37,6 +37,7 @@ import java.util.concurrent.Future;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the security audit socket contract. */
 class SecurityAuditSocketTest {
     private SocketServer server;
     private ExecutorService executor;

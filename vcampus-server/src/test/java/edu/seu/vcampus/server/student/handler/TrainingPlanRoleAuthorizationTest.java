@@ -20,6 +20,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.eq;
 
+/** Verifies the training plan role authorization contract. */
 class TrainingPlanRoleAuthorizationTest {
     @Test
     void collegeAdministratorManagesScopedPlansButStudentAdministratorCannot() {

@@ -22,6 +22,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 
+/** Provides payment service test support behavior. */
 abstract class PaymentServiceTestSupport {
     protected static final Instant CHECKOUT_TIME = Instant.parse("2026-08-28T10:00:00Z");
     protected ShopTestDatabase database;

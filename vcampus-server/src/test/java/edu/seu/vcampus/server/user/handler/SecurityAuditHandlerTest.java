@@ -25,6 +25,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/** Verifies the security audit handler contract. */
 class SecurityAuditHandlerTest {
     private static final ClientContext CONTEXT =
             new ClientContext("connection", "127.0.0.1");

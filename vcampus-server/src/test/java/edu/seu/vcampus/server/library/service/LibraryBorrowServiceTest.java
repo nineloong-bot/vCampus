@@ -13,6 +13,7 @@ import java.sql.SQLException;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the library borrow service contract. */
 class LibraryBorrowServiceTest {
     private LibraryServiceFixture fixture;
 

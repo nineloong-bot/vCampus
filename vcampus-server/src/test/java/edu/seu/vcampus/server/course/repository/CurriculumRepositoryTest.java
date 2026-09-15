@@ -18,6 +18,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the curriculum repository contract. */
 class CurriculumRepositoryTest {
     private Connection connection;
     private CurriculumRepository repository;

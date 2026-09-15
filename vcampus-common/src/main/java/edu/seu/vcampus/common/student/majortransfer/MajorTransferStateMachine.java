@@ -21,7 +21,11 @@ public final class MajorTransferStateMachine {
     private MajorTransferStateMachine() {
     }
 
-    /** Throws {@link IllegalStateException} if the transition is not allowed. */
+    /**
+     * Throws {@link IllegalStateException} if the transition is not allowed.
+     * @param from current status
+     * @param to requested status
+     */
     public static void requireTransition(MajorTransferStatus from, MajorTransferStatus to) {
         Set<MajorTransferStatus> targets = ALLOWED.get(from);
         if (targets == null || !targets.contains(to)) {
@@ -30,22 +34,38 @@ public final class MajorTransferStateMachine {
         }
     }
 
-    /** Returns true when the student may edit draft fields (application is in DRAFT). */
+    /**
+     * Tests whether the student may edit draft fields.
+     * @param status current application status
+     * @return whether editing is allowed
+     */
     public static boolean studentMayEdit(MajorTransferStatus status) {
         return status == DRAFT;
     }
 
-    /** Returns true when the student may submit the application. */
+    /**
+     * Tests whether the student may submit the application.
+     * @param status current application status
+     * @return whether submission is allowed
+     */
     public static boolean studentMaySubmit(MajorTransferStatus status) {
         return status == DRAFT;
     }
 
-    /** Returns true when the student may withdraw (only SUBMITTED before source review). */
+    /**
+     * Tests whether the student may withdraw before source review.
+     * @param status current application status
+     * @return whether withdrawal is allowed
+     */
     public static boolean studentMayWithdraw(MajorTransferStatus status) {
         return status == SUBMITTED;
     }
 
-    /** Returns true when an administrator may cancel the application. */
+    /**
+     * Tests whether an administrator may cancel the application.
+     * @param status current application status
+     * @return whether cancellation is allowed
+     */
     public static boolean adminMayCancel(MajorTransferStatus status) {
         return switch (status) {
             case SOURCE_APPROVED, QUALIFIED, ASSESSED, PENDING_EFFECTIVE -> true;

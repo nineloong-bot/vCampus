@@ -32,6 +32,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the shop auth demo database contract. */
 class ShopAuthDemoDatabaseTest {
     @TempDir
     Path temp;
@@ -519,11 +520,13 @@ class ShopAuthDemoDatabaseTest {
         }
     }
 
+    /** Provides payment attempt mapping behavior. */
     private record PaymentAttemptMapping(String attemptId, String paymentId,
             String orderGroupId, String orderId, String paymentChannel,
             String attemptChannel) {
     }
 
+    /** Provides order fixture snapshot behavior. */
     private record OrderFixtureSnapshot(String orderGroupId, String buyerUserId,
             String groupStatus, String groupAmount, String orderId, String orderStatus,
             String orderAmount, Instant paidAt) {

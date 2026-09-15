@@ -35,6 +35,18 @@ powershell -ExecutionPolicy Bypass -File vcampus-database/demo/full-test-data/bu
 mvn clean verify
 ```
 
+课程验收前应使用唯一的交付构建命令：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File vcampus-distribution/scripts/build-course-deliverables.ps1
+```
+
+该脚本串行执行完整验证和聚合 JavaDoc，并刷新
+`vcampus-distribution/lib/vCampusClient.jar`、
+`vcampus-distribution/lib/vCampusServer.jar` 与
+`vcampus-distribution/docs/apidocs/index.html`。项目保留 Java 21；这是相对于课程
+Java 8 兼容要求的已确认例外。
+
 发行文件输出到 `vcampus-distribution/lib`。已知验证问题见 [密码显示功能验证记录](docs/testing/2026-09-07-password-visibility-manual-test.md)。
 
 ## 项目目录

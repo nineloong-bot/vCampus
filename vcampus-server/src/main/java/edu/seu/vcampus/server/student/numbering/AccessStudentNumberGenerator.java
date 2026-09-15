@@ -10,6 +10,10 @@ import java.util.Objects;
 public final class AccessStudentNumberGenerator implements StudentNumberGenerator {
     private final NumberSequenceRepository sequences;
 
+    /**
+     * Creates a access student number generator with its required collaborators.
+     * @param sequences the sequences
+     */
     public AccessStudentNumberGenerator(NumberSequenceRepository sequences) {
         this.sequences = Objects.requireNonNull(sequences, "sequences");
     }

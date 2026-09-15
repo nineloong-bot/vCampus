@@ -32,6 +32,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the application runtime contract. */
 class ApplicationRuntimeTest {
     private static final ClientContext CONTEXT = new ClientContext("connection", "127.0.0.1");
 
@@ -189,6 +190,7 @@ class ApplicationRuntimeTest {
         return Files.exists(root) ? root : Path.of("..", "vcampus-database");
     }
 
+    /** Provides mutable clock behavior. */
     private static final class MutableClock extends Clock {
         private Instant instant = Instant.parse("2026-08-30T00:00:00Z");
 

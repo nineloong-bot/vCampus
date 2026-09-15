@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+/** Provides library service fixture behavior. */
 final class LibraryServiceFixture {
     static final Instant NOW = Instant.parse("2026-08-28T08:00:00Z");
 

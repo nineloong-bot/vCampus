@@ -18,6 +18,7 @@ import java.time.Instant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the shop service contract. */
 class ShopServiceTest {
     private ShopTestDatabase database;
     private TransactionManager transactions;

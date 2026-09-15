@@ -11,6 +11,7 @@ import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the course query port contract. */
 class CourseQueryPortTest {
     @TempDir Path directory;
 

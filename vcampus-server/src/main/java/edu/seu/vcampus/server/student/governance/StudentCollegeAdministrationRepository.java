@@ -6,6 +6,7 @@ import edu.seu.vcampus.common.student.governance.StudentCollegeAdministratorView
 import java.sql.Connection;
 import java.util.List;
 
+/** Defines the student college administration repository contract. */
 interface StudentCollegeAdministrationRepository {
     List<StudentCollegeAdministratorView> listAdministrators(Connection connection);
     List<DepartmentView> listDepartments(Connection connection);

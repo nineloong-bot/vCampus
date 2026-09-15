@@ -35,6 +35,14 @@ public final class ShopAdminService {
     private final Clock clock;
     private final ShopBusinessLogger businessLogger;
 
+    /**
+     * Creates a shop admin service with its required collaborators.
+     * @param repository the repository
+     * @param users the users
+     * @param transactions the transactions
+     * @param locks the locks
+     * @param clock the clock
+     */
     public ShopAdminService(ShopRepository repository, ShopUserPort users,
             TransactionManager transactions, ResourceLockManager locks, Clock clock) {
         this(repository, users, transactions, locks, clock, new ShopBusinessLogger());
@@ -51,6 +59,12 @@ public final class ShopAdminService {
         this.businessLogger = Objects.requireNonNull(businessLogger, "businessLogger");
     }
 
+    /**
+     * Performs the search applications operation.
+     * @param sessionToken the session token
+     * @param query the query
+     * @return the operation result
+     */
     public PageResult<SellerApplicationView> searchApplications(String sessionToken,
             SellerApplicationQuery query) {
         requireAdministrator(sessionToken);
@@ -60,11 +74,23 @@ public final class ShopAdminService {
                 page.page(), page.pageSize(), page.total());
     }
 
+    /**
+     * Performs the search shops operation.
+     * @param sessionToken the session token
+     * @param query the query
+     * @return the operation result
+     */
     public PageResult<ShopAdminSummary> searchShops(String sessionToken, ShopAdminQuery query) {
         requireAdministrator(sessionToken);
         return transactions.inTransaction(connection -> repository.searchShops(connection, query));
     }
 
+    /**
+     * Performs the review application operation.
+     * @param sessionToken the session token
+     * @param command the command
+     * @return the operation result
+     */
     public SellerApplicationView reviewApplication(String sessionToken,
             ReviewSellerApplicationCommand command) {
         Objects.requireNonNull(command, "command");
@@ -124,6 +150,11 @@ public final class ShopAdminService {
                 }));
     }
 
+    /**
+     * Performs the suspend shop operation.
+     * @param sessionToken the session token
+     * @param command the command
+     */
     public void suspendShop(String sessionToken, SuspendShopCommand command) {
         Objects.requireNonNull(command, "command");
         ShopUser administrator = requireAdministrator(sessionToken);
@@ -132,6 +163,11 @@ public final class ShopAdminService {
                 command.reason().strip(), administrator.userId(), command.expectedVersion());
     }
 
+    /**
+     * Performs the resume shop operation.
+     * @param sessionToken the session token
+     * @param command the command
+     */
     public void resumeShop(String sessionToken, ResumeShopCommand command) {
         Objects.requireNonNull(command, "command");
         ShopUser administrator = requireAdministrator(sessionToken);

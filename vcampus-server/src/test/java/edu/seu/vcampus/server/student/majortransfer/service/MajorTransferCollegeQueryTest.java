@@ -22,6 +22,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
+/** Verifies the major transfer college query contract. */
 class MajorTransferCollegeQueryTest {
     private static final String OPEN_BATCH = "00000000-0000-0000-0000-000000001001";
     private static final String MATH = "00000000-0000-0000-0000-000000000111";

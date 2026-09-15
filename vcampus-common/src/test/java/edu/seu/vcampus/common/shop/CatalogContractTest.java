@@ -12,6 +12,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the catalog contract contract. */
 class CatalogContractTest {
     @Test
     void exposesExactlyFiveCategories() {

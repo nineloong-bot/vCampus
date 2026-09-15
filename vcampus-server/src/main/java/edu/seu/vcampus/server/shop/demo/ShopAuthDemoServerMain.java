@@ -14,6 +14,11 @@ public final class ShopAuthDemoServerMain {
     private ShopAuthDemoServerMain() {
     }
 
+    /**
+     * Performs the main operation.
+     * @param args the args
+     * @throws Exception when the operation cannot be completed
+     */
     public static void main(String[] args) throws Exception {
         Path database = Path.of(args.length > 0 ? args[0] : DEFAULT_DATABASE.toString())
                 .toAbsolutePath().normalize();

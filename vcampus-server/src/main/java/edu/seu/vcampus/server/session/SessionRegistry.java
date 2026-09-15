@@ -177,6 +177,7 @@ public final class SessionRegistry {
         }
     }
 
+    /** Provides session behavior. */
     private static final class Session {
         private final SessionSnapshot snapshot;
         private volatile Instant lastTouched;

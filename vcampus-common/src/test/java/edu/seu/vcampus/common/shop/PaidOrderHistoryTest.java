@@ -15,6 +15,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the paid order history contract. */
 class PaidOrderHistoryTest {
     private static final Instant PAID_AT = Instant.parse("2026-08-30T08:00:00Z");
 

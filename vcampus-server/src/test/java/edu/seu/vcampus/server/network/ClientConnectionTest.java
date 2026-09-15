@@ -13,6 +13,7 @@ import java.util.concurrent.Executors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the client connection contract. */
 class ClientConnectionTest {
     @Test
     void concurrentSendsProduceTwoIntactMessages() throws Exception {

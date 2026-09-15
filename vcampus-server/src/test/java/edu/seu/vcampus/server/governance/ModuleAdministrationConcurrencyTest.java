@@ -14,6 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+/** Verifies the module administration concurrency contract. */
 class ModuleAdministrationConcurrencyTest {
     @Test void simultaneousMovesToDifferentModulesCannotEmptyTheirSourceModule() throws Exception {
         // A controlled persistence boundary allows both reads to see the same count

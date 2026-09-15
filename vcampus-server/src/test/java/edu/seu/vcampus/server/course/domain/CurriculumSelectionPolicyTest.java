@@ -20,6 +20,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the curriculum selection policy contract. */
 class CurriculumSelectionPolicyTest {
     private static final String STUDENT_ID = "00000000-0000-0000-0000-000000000404";
     private Connection connection;

@@ -10,6 +10,7 @@ import java.time.Clock;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the unified server registration contract. */
 class UnifiedServerRegistrationTest {
     @Test
     void registersEveryCampusModuleOnOneRouter() throws Exception {

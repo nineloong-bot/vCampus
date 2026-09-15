@@ -47,6 +47,7 @@ import static edu.seu.vcampus.common.user.AccountStatus.ACTIVE;
 import static edu.seu.vcampus.common.user.UserRole.ADMIN;
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the user login socket demo contract. */
 class UserLoginSocketDemoTest {
     private static final String LOGIN_ID = "DEMO_ADMIN";
     private SocketServer server;

@@ -19,6 +19,12 @@ public final class StudentOrganizationAdminService implements StudentOrganizatio
     private final ResourceLockManager locks;
     private final OrganizationRepository organizations;
 
+    /**
+     * Creates a student organization admin service with its required collaborators.
+     * @param transactions the transactions
+     * @param locks the locks
+     * @param organizations the organizations
+     */
     public StudentOrganizationAdminService(TransactionManager transactions,
             ResourceLockManager locks, OrganizationRepository organizations) {
         this.transactions = Objects.requireNonNull(transactions);
@@ -26,6 +32,11 @@ public final class StudentOrganizationAdminService implements StudentOrganizatio
         this.organizations = Objects.requireNonNull(organizations);
     }
 
+    /**
+     * Performs the save department operation.
+     * @param command the command
+     * @return the operation result
+     */
     public DepartmentView saveDepartment(SaveDepartmentCommand command) {
         String id = blank(command.departmentId()) ? UUID.randomUUID().toString() : command.departmentId();
         return locks.withLocks(List.of(new ResourceKey("DEPARTMENT", id)), () ->
@@ -38,6 +49,11 @@ public final class StudentOrganizationAdminService implements StudentOrganizatio
                 }));
     }
 
+    /**
+     * Performs the save major operation.
+     * @param command the command
+     * @return the operation result
+     */
     public MajorView saveMajor(SaveMajorCommand command) {
         return saveMajor(command, null);
     }
@@ -62,6 +78,11 @@ public final class StudentOrganizationAdminService implements StudentOrganizatio
                 }));
     }
 
+    /**
+     * Performs the save class operation.
+     * @param command the command
+     * @return the operation result
+     */
     public ClassView saveClass(SaveClassCommand command) {
         return saveClass(command, null);
     }
@@ -94,6 +115,12 @@ public final class StudentOrganizationAdminService implements StudentOrganizatio
                 .stream().map(StudentOrganizationAdminService::view).toList());
     }
     @Override public List<MajorView> listMajors(String departmentId) { return listMajors(departmentId, true); }
+    /**
+     * Performs the list majors operation.
+     * @param departmentId the department identifier
+     * @param activeOnly the active only
+     * @return the operation result
+     */
     public List<MajorView> listMajors(String departmentId, boolean activeOnly) {
         return transactions.inTransaction(connection -> organizations.listMajors(connection, departmentId, activeOnly)
                 .stream().map(StudentOrganizationAdminService::view).toList());
@@ -103,6 +130,12 @@ public final class StudentOrganizationAdminService implements StudentOrganizatio
         return listMajors(trustedDepartmentId, activeOnly);
     }
     @Override public List<ClassView> listClasses(String majorId) { return listClasses(majorId, true); }
+    /**
+     * Performs the list classes operation.
+     * @param majorId the major identifier
+     * @param activeOnly the active only
+     * @return the operation result
+     */
     public List<ClassView> listClasses(String majorId, boolean activeOnly) {
         return transactions.inTransaction(connection -> organizations.listClasses(connection, majorId, activeOnly)
                 .stream().map(StudentOrganizationAdminService::view).toList());

@@ -5,6 +5,13 @@ import java.io.Serializable;
 import java.util.List;
 
 /** Result of a bulk score import operation. */
+/**
+ * Carries immutable major transfer import result data.
+ * @param totalEntries the total entries
+ * @param successCount the success count
+ * @param failureCount the failure count
+ * @param failures the failures
+ */
 public record MajorTransferImportResult(
         int totalEntries,
         int successCount,
@@ -14,7 +21,12 @@ public record MajorTransferImportResult(
     @Serial
     private static final long serialVersionUID = 1L;
 
-    public record Failure(
+    /**
+ * Carries immutable failure data.
+ * @param applicationId the application identifier
+ * @param reason the reason
+ */
+public record Failure(
             String applicationId,
             String reason
     ) implements Serializable { }

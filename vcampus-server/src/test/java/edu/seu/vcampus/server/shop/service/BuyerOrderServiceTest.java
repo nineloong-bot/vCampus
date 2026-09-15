@@ -15,6 +15,7 @@ import java.time.Instant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the buyer order service contract. */
 class BuyerOrderServiceTest {
     private ShopTestDatabase database;
     private TransactionManager transactions;

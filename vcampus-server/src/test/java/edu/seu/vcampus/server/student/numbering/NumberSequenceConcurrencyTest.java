@@ -21,6 +21,7 @@ import java.util.concurrent.Executors;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the number sequence concurrency contract. */
 class NumberSequenceConcurrencyTest {
     private StudentAccessTestDatabase database;
     private AccessCampusCardNumberGenerator campusCards;
@@ -100,6 +101,7 @@ class NumberSequenceConcurrencyTest {
         assertThat(database.sequenceValue("CAMPUS_CARD_GLOBAL")).isZero();
     }
 
+    /** Provides allocated numbers behavior. */
     private record AllocatedNumbers(String campusCard, String studentNumber) {
     }
 }

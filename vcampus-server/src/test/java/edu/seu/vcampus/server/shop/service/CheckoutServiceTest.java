@@ -13,6 +13,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the checkout service contract. */
 class CheckoutServiceTest extends CheckoutServiceTestSupport {
     @Test
     void selectedCheckoutRemovesOnlySelectedCartItems() {

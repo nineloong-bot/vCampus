@@ -319,6 +319,7 @@ public final class ShopAuthDemoDatabase {
         };
     }
 
+    /** Provides demo order seed behavior. */
     private record DemoOrderSeed(String groupId, String orderId, String orderNumber,
             String itemId, String paymentId, String paymentNumber, String attemptId,
             String buyerId, String productId, String skuId, int quantity,

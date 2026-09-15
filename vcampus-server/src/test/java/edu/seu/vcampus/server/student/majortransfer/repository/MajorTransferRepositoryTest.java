@@ -21,6 +21,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.*;
 
+/** Verifies the major transfer repository contract. */
 class MajorTransferRepositoryTest {
     private StudentAccessTestDatabase database;
     private MajorTransferRepository repository;

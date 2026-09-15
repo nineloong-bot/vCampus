@@ -30,6 +30,7 @@ import static edu.seu.vcampus.common.user.UserRole.STUDENT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the login lockout contract. */
 class LoginLockoutTest {
     private MutableClock clock;
     private UserService service;
@@ -221,6 +222,7 @@ class LoginLockoutTest {
         }
     }
 
+    /** Provides mutable clock behavior. */
     private static final class MutableClock extends Clock {
         private Instant instant = Instant.EPOCH;
 

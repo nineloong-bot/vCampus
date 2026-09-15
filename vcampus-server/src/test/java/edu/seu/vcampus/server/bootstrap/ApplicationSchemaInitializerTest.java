@@ -15,6 +15,7 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the application schema initializer contract. */
 class ApplicationSchemaInitializerTest {
     @Test
     void upgradesExistingStudentSchemaWithLatestMajorFields() throws Exception {

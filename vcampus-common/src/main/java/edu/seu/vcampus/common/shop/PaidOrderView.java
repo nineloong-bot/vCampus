@@ -6,9 +6,31 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Carries immutable paid order view data.
+ * @param orderId the order identifier
+ * @param orderNumber the order number
+ * @param shopId the shop identifier
+ * @param shopName the shop name
+ * @param totalAmount the total amount
+ * @param paidAt the paid at
+ * @param status the status
+ * @param items the items
+ */
 public record PaidOrderView(String orderId, String orderNumber, String shopId,
         String shopName, BigDecimal totalAmount, Instant paidAt, OrderStatus status,
         List<PaidOrderItemView> items) implements Serializable {
+    /**
+     * Validates and creates a paid order view.
+     * @param orderId the order id
+     * @param orderNumber the order number
+     * @param shopId the shop id
+     * @param shopName the shop name
+     * @param totalAmount the total amount
+     * @param paidAt the paid at
+     * @param status the status
+     * @param items the items
+     */
     public PaidOrderView {
         Objects.requireNonNull(orderId, "orderId");
         Objects.requireNonNull(orderNumber, "orderNumber");

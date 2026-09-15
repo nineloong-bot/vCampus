@@ -5,6 +5,16 @@ import java.util.Locale;
 /** Major metadata including the three-character student-number prefix. */
 public record Major(String majorId, String departmentId, String majorCode,
                     String majorName, String grades, boolean active, long rowVersion) {
+    /**
+     * Creates a major with its required collaborators.
+     * @param majorId the major identifier
+     * @param departmentId the department identifier
+     * @param majorCode the major code
+     * @param majorName the major name
+     * @param grades the grades
+     * @param active the active
+     * @param rowVersion the row version
+     */
     public Major {
         requireText(majorId, "majorId");
         requireText(departmentId, "departmentId");

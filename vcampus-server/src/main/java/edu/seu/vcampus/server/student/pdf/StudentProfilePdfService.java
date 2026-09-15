@@ -114,8 +114,10 @@ public final class StudentProfilePdfService implements StudentProfilePdfGenerato
         return value == null ? "未填写" : value.replaceAll("[\\\\/:*?\"<>|]", "_");
     }
 
+    /** Provides field behavior. */
     private record Field(String label, String value) { }
 
+    /** Provides renderer behavior. */
     private static final class Renderer {
         private final PDDocument document;
         private final PDFont font;

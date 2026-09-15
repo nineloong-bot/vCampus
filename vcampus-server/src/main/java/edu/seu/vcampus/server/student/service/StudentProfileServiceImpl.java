@@ -27,6 +27,15 @@ public final class StudentProfileServiceImpl implements StudentProfileService {
     private final StudentChangeRepository changes;
     private final UserQueryPort users;
 
+    /**
+     * Creates a student profile service impl with its required collaborators.
+     * @param transactions the transactions
+     * @param locks the locks
+     * @param students the students
+     * @param applications the applications
+     * @param changes the changes
+     * @param users the users
+     */
     public StudentProfileServiceImpl(TransactionManager transactions, ResourceLockManager locks,
             StudentRepository students, StudentProfileApplicationRepository applications,
             StudentChangeRepository changes, UserQueryPort users) {
@@ -290,5 +299,6 @@ public final class StudentProfileServiceImpl implements StudentProfileService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
+    /** Provides draft values behavior. */
     private record DraftValues(StudentPersonalProfile personal, AttendanceMode attendanceMode) { }
 }

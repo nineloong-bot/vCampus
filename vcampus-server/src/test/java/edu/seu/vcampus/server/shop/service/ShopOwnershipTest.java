@@ -23,6 +23,7 @@ import java.time.ZoneOffset;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the shop ownership contract. */
 class ShopOwnershipTest {
     private ShopTestDatabase database;
     private SellerApplicationService applications;

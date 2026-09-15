@@ -6,6 +6,11 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /** Public request for applying for a teacher account without choosing a role. */
+/**
+ * Carries immutable teacher account application command data.
+ * @param loginId the login identifier
+ * @param password the password
+ */
 public record TeacherAccountApplicationCommand(
         String loginId,
         char[] password) implements Serializable {
@@ -20,7 +25,10 @@ public record TeacherAccountApplicationCommand(
         Arrays.fill(submittedPassword, '\0');
     }
 
-    /** Returns a defensive copy of the password. */
+    /**
+     * Returns a defensive copy of the password.
+     * @return copied password
+     */
     @Override public char[] password() { return password.clone(); }
 
     /** Clears the password retained by this request; repeated calls are harmless. */

@@ -16,6 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
+/** Verifies the transaction manager contract. */
 class TransactionManagerTest {
     private ConnectionProvider provider;
     private TransactionManager manager;

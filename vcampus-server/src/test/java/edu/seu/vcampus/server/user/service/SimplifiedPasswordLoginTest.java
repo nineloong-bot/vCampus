@@ -24,6 +24,7 @@ import static edu.seu.vcampus.common.user.AccountStatus.ACTIVE;
 import static edu.seu.vcampus.common.user.UserRole.ADMIN;
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the simplified password login contract. */
 class SimplifiedPasswordLoginTest {
     private TransactionManager transactions;
     private UserService service;

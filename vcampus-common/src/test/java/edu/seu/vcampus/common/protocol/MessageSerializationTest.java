@@ -11,6 +11,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the message serialization contract. */
 class MessageSerializationTest {
     @Test
     void roundTripsMessageAndTypedResponse() throws Exception {

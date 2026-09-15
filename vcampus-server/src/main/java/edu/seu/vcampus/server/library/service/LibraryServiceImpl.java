@@ -27,6 +27,17 @@ public final class LibraryServiceImpl implements LibraryService {
     private final Supplier<String> idGenerator;
     private final LibraryReadAdminOperations operations;
 
+    /**
+     * Creates a library service impl with its required collaborators.
+     * @param identities the identities
+     * @param books the books
+     * @param loans the loans
+     * @param policies the policies
+     * @param transactions the transactions
+     * @param locks the locks
+     * @param clock the clock
+     * @param idGenerator the id generator
+     */
     public LibraryServiceImpl(LibraryIdentityPort identities, BookRepository books,
             LoanRepository loans, LibraryPolicyRepository policies,
             TransactionManager transactions, ResourceLockManager locks, Clock clock,

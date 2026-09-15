@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the shop cover presets contract. */
 class ShopCoverPresetsTest {
     @Test
     void exposesFourUniqueBuiltinCoversForEveryShopCategory() {

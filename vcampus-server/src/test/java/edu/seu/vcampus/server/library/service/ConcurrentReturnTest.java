@@ -17,6 +17,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the concurrent return contract. */
 class ConcurrentReturnTest {
     @Test
     void onlyOneOfTwoDifferentReturnRequestsSucceeds() throws Exception {
@@ -98,6 +99,7 @@ class ConcurrentReturnTest {
         } catch (Throwable error) { return new Outcome(null, error); }
     }
 
+    /** Provides outcome behavior. */
     private record Outcome(LoanView value, Throwable error) {
         boolean success() {
             return error == null;

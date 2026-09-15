@@ -20,6 +20,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+/** Provides major transfer handler support behavior. */
 final class MajorTransferHandlerSupport {
     final MajorTransferService service;
     final MajorTransferCollegeAuthorizationService scope;

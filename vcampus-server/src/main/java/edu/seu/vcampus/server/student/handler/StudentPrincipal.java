@@ -4,6 +4,12 @@ import java.util.Set;
 
 /** Authenticated identity used by the student command boundary. */
 public record StudentPrincipal(String userId, Set<String> roles, Set<String> permissions) {
+    /**
+     * Creates a student principal with its required collaborators.
+     * @param userId the user identifier
+     * @param roles the roles
+     * @param permissions the permissions
+     */
     public StudentPrincipal {
         roles = Set.copyOf(roles);
         permissions = Set.copyOf(permissions);

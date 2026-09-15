@@ -44,6 +44,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the adjustment rule coverage contract. */
 class AdjustmentRuleCoverageTest {
     private static final Instant NOW = Instant.parse("2026-08-10T00:00:00Z");
     private CourseRepository repository;

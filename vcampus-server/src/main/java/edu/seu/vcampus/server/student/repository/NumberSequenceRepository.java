@@ -11,11 +11,24 @@ import java.util.Optional;
 
 /** Reads and advances persistent numbering sequences inside caller-owned transactions. */
 public final class NumberSequenceRepository {
+    /**
+     * Performs the require operation.
+     * @param connection the connection
+     * @param key the key
+     * @return the operation result
+     */
     public NumberSequence require(Connection connection, String key) {
         return find(connection, key).orElseThrow(() ->
                 new OrganizationPersistenceException("Missing number sequence " + key, null));
     }
 
+    /**
+     * Performs the get or create operation.
+     * @param connection the connection
+     * @param key the key
+     * @param maxValue the max value
+     * @return the operation result
+     */
     public NumberSequence getOrCreate(Connection connection, String key, int maxValue) {
         Optional<NumberSequence> existing = find(connection, key);
         if (existing.isPresent()) {
@@ -33,6 +46,12 @@ public final class NumberSequenceRepository {
         }
     }
 
+    /**
+     * Performs the advance operation.
+     * @param connection the connection
+     * @param current the current
+     * @return the operation result
+     */
     public NumberSequence advance(Connection connection, NumberSequence current) {
         NumberSequence next = current.incremented();
         String sql = "UPDATE tblNumberSequence SET currentValue = ?, rowVersion = ?, updatedAt = ? WHERE sequenceKey = ? AND rowVersion = ?";

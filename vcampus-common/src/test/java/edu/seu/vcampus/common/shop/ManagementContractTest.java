@@ -10,6 +10,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the management contract contract. */
 class ManagementContractTest {
     @Test
     void managementQueriesAndAdminCommandsRoundTrip() throws Exception {

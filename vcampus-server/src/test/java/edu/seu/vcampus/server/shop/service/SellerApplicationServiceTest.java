@@ -32,6 +32,7 @@ import java.util.concurrent.Future;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the seller application service contract. */
 class SellerApplicationServiceTest {
     private ShopTestDatabase database;
     private ShopRepository repository;
@@ -237,5 +238,6 @@ class SellerApplicationServiceTest {
         }
     }
 
+    /** Provides outcome behavior. */
     private record Outcome(boolean success) { }
 }

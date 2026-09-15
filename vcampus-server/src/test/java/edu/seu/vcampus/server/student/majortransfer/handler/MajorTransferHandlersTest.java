@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+/** Verifies the major transfer handlers contract. */
 class MajorTransferHandlersTest {
     @Test void nonAdminCannotDownloadMaterialsOrReplayAdminWrites() {
         var service = mock(MajorTransferService.class);

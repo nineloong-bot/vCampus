@@ -23,6 +23,20 @@ public record TrainingPlanCourse(
         String offeringDepartmentName,
         Integer allocatedQuota) {
 
+    /**
+     * Creates a training plan course with its required collaborators.
+     * @param planCourseId the plan course identifier
+     * @param planId the plan identifier
+     * @param courseCode the course code
+     * @param courseName the course name
+     * @param credits the credits
+     * @param courseType the course type
+     * @param semester the semester
+     * @param active the active
+     * @param rowVersion the row version
+     * @param createdAt the created at
+     * @param updatedAt the updated at
+     */
     public TrainingPlanCourse(
             String planCourseId,
             String planId,

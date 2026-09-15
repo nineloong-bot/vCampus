@@ -7,6 +7,7 @@ import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the unified distribution configuration contract. */
 class UnifiedDistributionConfigurationTest {
     @Test
     void packagedLaunchersUseUnifiedRuntimeDatabaseAndAllSchemas() throws Exception {

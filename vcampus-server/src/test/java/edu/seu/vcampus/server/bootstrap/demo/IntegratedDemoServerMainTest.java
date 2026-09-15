@@ -40,6 +40,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the integrated demo server main contract. */
 class IntegratedDemoServerMainTest {
     private static final String DEMO_PASSWORD = "DemoPassword7";
     private static final ClientContext CONTEXT = new ClientContext("demo-test", "127.0.0.1");
@@ -290,6 +291,7 @@ class IntegratedDemoServerMainTest {
         return DriverManager.getConnection("jdbc:ucanaccess://" + database);
     }
 
+    /** Provides demo snapshot behavior. */
     private record DemoSnapshot(List<String> userIds, List<String> termIds,
                                 List<String> courseIds, List<String> offeringIds,
                                 List<String> attemptIds) { }

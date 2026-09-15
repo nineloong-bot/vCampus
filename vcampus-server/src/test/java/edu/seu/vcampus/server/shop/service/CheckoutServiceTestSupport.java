@@ -21,6 +21,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 
+/** Provides checkout service test support behavior. */
 abstract class CheckoutServiceTestSupport {
     private ShopTestDatabase database;
     protected FakeShopUserPort users;

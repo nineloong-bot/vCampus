@@ -40,6 +40,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
+/** Verifies the adjustment failure audit contract. */
 class AdjustmentFailureAuditTest {
     private static final Instant NOW = Instant.parse("2026-08-10T00:00:00Z");
     private CourseRepository repository;

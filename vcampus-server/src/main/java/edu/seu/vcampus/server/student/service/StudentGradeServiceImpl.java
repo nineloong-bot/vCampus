@@ -24,6 +24,14 @@ public final class StudentGradeServiceImpl implements StudentGradeService {
     private final TrainingPlanRepository plans;
     private final StudentRepository students;
 
+    /**
+     * Creates a student grade service impl with its required collaborators.
+     * @param transactions the transactions
+     * @param locks the locks
+     * @param grades the grades
+     * @param plans the plans
+     * @param students the students
+     */
     public StudentGradeServiceImpl(TransactionManager transactions, ResourceLockManager locks,
             StudentGradeRepository grades, TrainingPlanRepository plans,
             StudentRepository students) {

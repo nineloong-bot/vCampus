@@ -6,6 +6,12 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /** Public login request that protects its mutable password value. */
+/**
+ * Carries immutable login command data.
+ * @param loginId the login identifier
+ * @param password the password
+ * @param clientInstanceId the client instance identifier
+ */
 public record LoginCommand(
         String loginId,
         char[] password,
@@ -22,7 +28,10 @@ public record LoginCommand(
         Arrays.fill(submittedPassword, '\0');
     }
 
-    /** Returns a defensive copy of the password. */
+    /**
+     * Returns a defensive copy of the password.
+     * @return copied password
+     */
     @Override
     public char[] password() {
         return password.clone();

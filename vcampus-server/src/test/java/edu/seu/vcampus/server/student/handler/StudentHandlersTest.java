@@ -24,6 +24,7 @@ import static org.mockito.Mockito.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the student handlers contract. */
 class StudentHandlersTest {
     @Test
     void studentAdministratorCannotSearchConcreteStudentRecords() {

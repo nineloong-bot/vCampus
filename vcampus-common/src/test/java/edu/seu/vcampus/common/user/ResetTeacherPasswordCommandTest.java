@@ -7,6 +7,7 @@ import java.io.Serializable;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the reset teacher password command contract. */
 class ResetTeacherPasswordCommandTest {
     @Test
     void carriesOnlyTeacherIdentityAndOptimisticLockVersion() {

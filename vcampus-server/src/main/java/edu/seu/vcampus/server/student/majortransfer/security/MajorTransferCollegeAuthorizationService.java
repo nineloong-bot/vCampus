@@ -13,14 +13,28 @@ import static edu.seu.vcampus.common.student.majortransfer.MajorTransferStatus.D
 public final class MajorTransferCollegeAuthorizationService {
     private final TransactionManager transactions;
 
+    /**
+     * Creates a major transfer college authorization service with its required collaborators.
+     * @param transactions the transactions
+     */
     public MajorTransferCollegeAuthorizationService(TransactionManager transactions) {
         this.transactions = Objects.requireNonNull(transactions, "transactions");
     }
 
+    /**
+     * Performs the require can read operation.
+     * @param administratorUserId the administrator user identifier
+     * @param applicationId the application identifier
+     */
     public void requireCanRead(String administratorUserId, String applicationId) {
         requireScope(administratorUserId, applicationId, Scope.EITHER);
     }
 
+    /**
+     * Performs the require can read attachment operation.
+     * @param administratorUserId the administrator user identifier
+     * @param attachmentId the attachment identifier
+     */
     public void requireCanReadAttachment(String administratorUserId, String attachmentId) {
         if (administratorUserId == null || attachmentId == null) forbidden();
         String applicationId = transactions.inTransaction(connection -> {
@@ -38,10 +52,20 @@ public final class MajorTransferCollegeAuthorizationService {
         requireCanRead(administratorUserId, applicationId);
     }
 
+    /**
+     * Performs the require source approval operation.
+     * @param administratorUserId the administrator user identifier
+     * @param applicationId the application identifier
+     */
     public void requireSourceApproval(String administratorUserId, String applicationId) {
         requireScope(administratorUserId, applicationId, Scope.SOURCE);
     }
 
+    /**
+     * Performs the require target approval operation.
+     * @param administratorUserId the administrator user identifier
+     * @param applicationId the application identifier
+     */
     public void requireTargetApproval(String administratorUserId, String applicationId) {
         requireScope(administratorUserId, applicationId, Scope.TARGET);
     }
@@ -133,7 +157,9 @@ public final class MajorTransferCollegeAuthorizationService {
         throw new IllegalArgumentException("COMMON_FORBIDDEN");
     }
 
+    /** Defines supported scope values. */
     private enum Scope { SOURCE, TARGET, EITHER }
 
+    /** Provides departments behavior. */
     private record Departments(String source, String target, boolean draft) { }
 }

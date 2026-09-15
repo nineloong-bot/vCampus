@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the reservation recovery contract. */
 class ReservationRecoveryTest extends PaymentServiceTestSupport {
     @Test
     void restartRecoveryExpiresPendingPaymentOnlyOnce() {

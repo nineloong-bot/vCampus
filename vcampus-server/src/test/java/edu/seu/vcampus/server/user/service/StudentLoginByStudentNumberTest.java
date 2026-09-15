@@ -25,6 +25,7 @@ import static edu.seu.vcampus.common.user.UserRole.STUDENT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the student login by student number contract. */
 class StudentLoginByStudentNumberTest {
     private TransactionManager transactions;
     private UserService service;

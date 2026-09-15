@@ -17,11 +17,23 @@ public final class CurriculumSelectionPolicy {
     private final CurriculumRepository curricula;
     private final CourseRepository courses;
 
+    /**
+     * Creates a curriculum selection policy with its required collaborators.
+     * @param curricula the curricula
+     * @param courses the courses
+     */
     public CurriculumSelectionPolicy(CurriculumRepository curricula, CourseRepository courses) {
         this.curricula = curricula;
         this.courses = courses;
     }
 
+    /**
+     * Performs the resolve operation.
+     * @param connection the connection
+     * @param student the student
+     * @param term the term
+     * @return the operation result
+     */
     public CandidateSet resolve(Connection connection, StudentEnrollmentEligibility student, Term term) {
         if (student == null || !student.hasCurriculumContext()) return CandidateSet.legacyMode();
         var plan = curricula.findPublishedPlan(connection, student.majorCode(), student.cohortYear())
@@ -51,12 +63,17 @@ public final class CurriculumSelectionPolicy {
         return new CandidateSet(false, Map.copyOf(allowed), Set.copyOf(retakes));
     }
 
+    /** Provides candidate set behavior. */
     public record CandidateSet(boolean legacy, Map<String, CurriculumCourse> courses,
                                Set<String> retakeCourseIds) {
         private static CandidateSet legacyMode() { return new CandidateSet(true, Map.of(), Set.of()); }
         public boolean allows(String courseId) { return legacy || courses.containsKey(courseId); }
         public boolean isRetake(String courseId) { return retakeCourseIds.contains(courseId); }
         public CurriculumCourse metadata(String courseId) { return courses.get(courseId); }
+        /**
+         * Performs the require allowed operation.
+         * @param courseId the course identifier
+         */
         public void requireAllowed(String courseId) {
             if (!allows(courseId)) throw new CurriculumCourseUnavailableException();
         }

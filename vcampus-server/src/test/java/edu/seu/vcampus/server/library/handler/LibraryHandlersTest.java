@@ -34,6 +34,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.doAnswer;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/** Verifies the library handlers contract. */
 class LibraryHandlersTest {
     private final LibraryService service = mock(LibraryService.class);
     private final LibraryAccessPort access = mock(LibraryAccessPort.class);

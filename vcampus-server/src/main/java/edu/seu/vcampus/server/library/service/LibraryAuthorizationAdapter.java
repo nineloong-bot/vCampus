@@ -11,6 +11,10 @@ public final class LibraryAuthorizationAdapter
         implements LibraryIdentityPort, LibraryAccessPort {
     private final AuthorizationPort authorization;
 
+    /**
+     * Creates a library authorization adapter with its required collaborators.
+     * @param authorization the authorization
+     */
     public LibraryAuthorizationAdapter(AuthorizationPort authorization) {
         this.authorization = Objects.requireNonNull(authorization, "authorization");
     }

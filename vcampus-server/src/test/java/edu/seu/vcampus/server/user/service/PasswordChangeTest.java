@@ -45,6 +45,7 @@ import static edu.seu.vcampus.common.user.UserRole.STUDENT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the password change contract. */
 class PasswordChangeTest {
     private UserService service;
     private SessionRegistry sessions;
@@ -214,6 +215,7 @@ class PasswordChangeTest {
         }
     }
 
+    /** Provides coordinating lock manager behavior. */
     private static final class CoordinatingLockManager implements ResourceLockManager {
         private final AtomicBoolean pauseFirstLock = new AtomicBoolean(true);
         private final CountDownLatch authenticated = new CountDownLatch(1);

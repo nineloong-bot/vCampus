@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the shop demo contract. */
 class ShopDemoTest {
     @TempDir
     Path directory;

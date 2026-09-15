@@ -6,6 +6,7 @@ import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the student field validator contract. */
 class StudentFieldValidatorTest {
     private static final LocalDate TODAY = LocalDate.of(2026, 9, 3);
 

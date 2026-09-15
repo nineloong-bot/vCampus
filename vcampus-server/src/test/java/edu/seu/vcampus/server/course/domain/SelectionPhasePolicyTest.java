@@ -18,6 +18,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the selection phase policy contract. */
 class SelectionPhasePolicyTest {
     private Connection connection;
     private CourseRepository repository;

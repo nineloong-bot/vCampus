@@ -39,6 +39,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the concurrent adjustment contract. */
 class ConcurrentAdjustmentTest {
     private static final Instant NOW = Instant.parse("2026-08-10T00:00:00Z");
     private CourseRepository repository;
@@ -231,6 +232,8 @@ class ConcurrentAdjustmentTest {
         return new TransactionManager(connections).inTransaction(work);
     }
     private static Path schema() { return Path.of("..", "vcampus-database", "schema", "030_course.sql"); }
+    /** Provides named action behavior. */
     private record NamedAction(String name, Callable<EnrollmentView> callable) { }
+    /** Provides outcome behavior. */
     private record Outcome(String action, EnrollmentView result, Throwable failure) { boolean succeeded() { return failure == null; } }
 }

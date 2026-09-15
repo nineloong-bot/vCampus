@@ -18,10 +18,39 @@ public interface CourseRepository {
     /** Replaces a term when its optimistic-lock version matches. */
     Term updateTerm(Connection connection, Term term, long expectedVersion);
 
+    /**
+     * Performs the insert selection phase operation.
+     * @param connection the connection
+     * @param phase the phase
+     * @return the operation result
+     */
     SelectionPhase insertSelectionPhase(Connection connection, SelectionPhase phase);
+    /**
+     * Performs the require selection phase operation.
+     * @param connection the connection
+     * @param phaseId the phase identifier
+     * @return the operation result
+     */
     SelectionPhase requireSelectionPhase(Connection connection, String phaseId);
+    /**
+     * Performs the find selection phases operation.
+     * @param connection the connection
+     * @return the operation result
+     */
     List<SelectionPhase> findSelectionPhases(Connection connection);
+    /**
+     * Performs the find open selection phase operation.
+     * @param connection the connection
+     * @return the operation result
+     */
     Optional<SelectionPhase> findOpenSelectionPhase(Connection connection);
+    /**
+     * Performs the update selection phase operation.
+     * @param connection the connection
+     * @param phase the phase
+     * @param expectedVersion the expected version
+     * @return the operation result
+     */
     SelectionPhase updateSelectionPhase(Connection connection, SelectionPhase phase, long expectedVersion);
 
     /** Inserts a catalog course with an initial version and audit timestamps. */
@@ -105,6 +134,11 @@ public interface CourseRepository {
 
     /** Lists a student's adjustment audit rows, newest first. */
     List<EnrollmentAdjustment> findAdjustmentsByStudent(Connection connection, String studentId);
+    /**
+     * Performs the find adjustments operation.
+     * @param connection the connection
+     * @return the operation result
+     */
     List<EnrollmentAdjustment> findAdjustments(Connection connection);
 
     /** Inserts an imported outcome unless its source reference was already processed. */
@@ -119,5 +153,12 @@ public interface CourseRepository {
 
     /** Determines whether a student has at least one imported failed outcome for a course. */
     boolean existsFailedAttempt(Connection connection, String studentId, String courseId);
+    /**
+     * Performs the exists passed attempt operation.
+     * @param connection the connection
+     * @param studentId the student identifier
+     * @param courseId the course identifier
+     * @return the operation result
+     */
     boolean existsPassedAttempt(Connection connection, String studentId, String courseId);
 }

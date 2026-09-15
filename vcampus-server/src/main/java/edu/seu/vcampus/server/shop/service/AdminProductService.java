@@ -26,6 +26,15 @@ public final class AdminProductService {
     private final Clock clock;
     private final ShopBusinessLogger log;
 
+    /**
+     * Creates a admin product service with its required collaborators.
+     * @param repository the repository
+     * @param users the users
+     * @param transactions the transactions
+     * @param locks the locks
+     * @param clock the clock
+     * @param log the log
+     */
     public AdminProductService(ShopRepository repository, ShopUserPort users,
             TransactionManager transactions, ResourceLockManager locks, Clock clock,
             ShopBusinessLogger log) {
@@ -37,6 +46,12 @@ public final class AdminProductService {
         this.log = Objects.requireNonNull(log, "log");
     }
 
+    /**
+     * Performs the search products operation.
+     * @param sessionToken the session token
+     * @param query the query
+     * @return the operation result
+     */
     public PageResult<ProductManagementSummary> searchProducts(String sessionToken,
             ProductManagementQuery query) {
         users.requireAdministrator(sessionToken);
@@ -47,6 +62,12 @@ public final class AdminProductService {
         });
     }
 
+    /**
+     * Performs the get product operation.
+     * @param sessionToken the session token
+     * @param request the request
+     * @return the operation result
+     */
     public ProductView getProduct(String sessionToken, AdminProductRef request) {
         users.requireAdministrator(sessionToken);
         Objects.requireNonNull(request, "request");
@@ -56,6 +77,12 @@ public final class AdminProductService {
         });
     }
 
+    /**
+     * Performs the create product operation.
+     * @param sessionToken the session token
+     * @param request the request
+     * @return the operation result
+     */
     public ProductView createProduct(String sessionToken, AdminCreateProductCommand request) {
         var actor = users.requireAdministrator(sessionToken);
         Objects.requireNonNull(request, "request");
@@ -83,6 +110,12 @@ public final class AdminProductService {
                 }));
     }
 
+    /**
+     * Performs the update product operation.
+     * @param sessionToken the session token
+     * @param request the request
+     * @return the operation result
+     */
     public ProductView updateProduct(String sessionToken, AdminUpdateProductCommand request) {
         var actor = users.requireAdministrator(sessionToken);
         Objects.requireNonNull(request, "request");
@@ -136,6 +169,11 @@ public final class AdminProductService {
                 }));
     }
 
+    /**
+     * Performs the change status operation.
+     * @param sessionToken the session token
+     * @param request the request
+     */
     public void changeStatus(String sessionToken, AdminChangeProductStatusCommand request) {
         var actor = users.requireAdministrator(sessionToken);
         Objects.requireNonNull(request, "request");

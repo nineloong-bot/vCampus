@@ -56,18 +56,45 @@ public final class StudentHandlers {
                 (request, principal, action) -> action.get(), null, null, null);
     }
 
+    /**
+     * Creates a student handlers with its required collaborators.
+     * @param admissions the admissions
+     * @param students the students
+     * @param organizations the organizations
+     * @param authorization the authorization
+     * @param writes the writes
+     */
     public StudentHandlers(StudentAdmissionService admissions, StudentService students,
             StudentOrganizationQuery organizations, StudentAuthorizationPort authorization,
             StudentWriteExecutor writes) {
         this(admissions, students, organizations, authorization, writes, null, null, null);
     }
 
+    /**
+     * Creates a student handlers with its required collaborators.
+     * @param admissions the admissions
+     * @param students the students
+     * @param organizations the organizations
+     * @param authorization the authorization
+     * @param writes the writes
+     * @param profiles the profiles
+     */
     public StudentHandlers(StudentAdmissionService admissions, StudentService students,
             StudentOrganizationQuery organizations, StudentAuthorizationPort authorization,
             StudentWriteExecutor writes, StudentProfileService profiles) {
         this(admissions, students, organizations, authorization, writes, profiles, null, null);
     }
 
+    /**
+     * Creates a student handlers with its required collaborators.
+     * @param admissions the admissions
+     * @param students the students
+     * @param organizations the organizations
+     * @param authorization the authorization
+     * @param writes the writes
+     * @param profiles the profiles
+     * @param pdfs the pdfs
+     */
     public StudentHandlers(StudentAdmissionService admissions, StudentService students,
             StudentOrganizationQuery organizations, StudentAuthorizationPort authorization,
             StudentWriteExecutor writes, StudentProfileService profiles,
@@ -91,6 +118,10 @@ public final class StudentHandlers {
                 : new StudentProfileHandlers(profiles, pdfs, authorization, writes, collegeScope);
     }
 
+    /**
+     * Performs the register operation.
+     * @param router the router
+     */
     public void register(MessageRouter router) {
         academicHandlers.register(router);
         router.register("STUDENT_GET_CURRENT", typed(EmptyRequest.class, (message, body) -> {

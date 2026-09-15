@@ -11,6 +11,10 @@ public final class AccessCampusCardNumberGenerator implements CampusCardNumberGe
     public static final String GLOBAL_SEQUENCE_KEY = "CAMPUS_CARD_GLOBAL";
     private final NumberSequenceRepository sequences;
 
+    /**
+     * Creates a access campus card number generator with its required collaborators.
+     * @param sequences the sequences
+     */
     public AccessCampusCardNumberGenerator(NumberSequenceRepository sequences) {
         this.sequences = Objects.requireNonNull(sequences, "sequences");
     }

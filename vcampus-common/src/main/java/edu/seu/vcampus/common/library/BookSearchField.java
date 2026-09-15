@@ -4,5 +4,5 @@ import java.io.Serializable;
 
 /** Book metadata field matched by a keyword search. */
 public enum BookSearchField implements Serializable {
-    ANY, TITLE, AUTHOR, ISBN, CATEGORY, PUBLISHER
+    /** Represents any. */ ANY, /** Represents title. */ TITLE, /** Represents author. */ AUTHOR, /** Represents isbn. */ ISBN, /** Represents category. */ CATEGORY, /** Represents publisher. */ PUBLISHER
 }

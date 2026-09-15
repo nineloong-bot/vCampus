@@ -2,12 +2,27 @@ package edu.seu.vcampus.common.shop;
 
 /** User-facing length limits shared by seller-application clients and services. */
 public final class SellerApplicationLimits {
-    public static final int SHOP_NAME = 50;
-    public static final int CONTACT = 50;
-    public static final int APPLICATION_STATEMENT = 500;
+    /**
+ * Defines a public contract value.
+ */
+public static final int SHOP_NAME = 50;
+    /**
+ * Defines a public contract value.
+ */
+public static final int CONTACT = 50;
+    /**
+ * Defines a public contract value.
+ */
+public static final int APPLICATION_STATEMENT = 500;
 
     private SellerApplicationLimits() { }
 
+    /**
+     * Performs the validate operation.
+     * @param shopName the shop name
+     * @param contact the contact
+     * @param applicationStatement the application statement
+     */
     public static void validate(String shopName, String contact, String applicationStatement) {
         requireWithin(shopName, SHOP_NAME, "店铺名称");
         requireWithin(contact, CONTACT, "联系方式");

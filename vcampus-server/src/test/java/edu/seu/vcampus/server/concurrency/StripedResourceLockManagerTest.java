@@ -9,6 +9,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the striped resource lock manager contract. */
 class StripedResourceLockManagerTest {
     @Test
     void serializesActionsForSameResource() throws Exception {

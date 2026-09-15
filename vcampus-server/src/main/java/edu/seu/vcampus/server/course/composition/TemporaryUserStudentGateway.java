@@ -13,6 +13,11 @@ public final class TemporaryUserStudentGateway {
     private TemporaryUserStudentGateway() {
     }
 
+    /**
+     * Performs the create operation.
+     * @param users the users
+     * @return the operation result
+     */
     public static CourseStudentGateway create(UserQueryPort users) {
         return create(users, null, null);
     }

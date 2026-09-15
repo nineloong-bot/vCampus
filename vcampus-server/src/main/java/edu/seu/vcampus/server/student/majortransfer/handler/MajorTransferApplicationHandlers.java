@@ -11,6 +11,7 @@ import java.util.ArrayList;
 
 import static edu.seu.vcampus.server.student.majortransfer.handler.MajorTransferHandlerSupport.typed;
 
+/** Provides major transfer application handlers behavior. */
 final class MajorTransferApplicationHandlers {
     private final MajorTransferHandlerSupport support;
 

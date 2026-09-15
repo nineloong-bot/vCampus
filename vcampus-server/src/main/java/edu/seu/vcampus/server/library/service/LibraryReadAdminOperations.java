@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+/** Provides library read admin operations behavior. */
 final class LibraryReadAdminOperations {
     private final LibraryIdentityPort identities;
     private final BookRepository books;

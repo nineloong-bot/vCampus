@@ -13,6 +13,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the course selection dto contract. */
 class CourseSelectionDtoTest {
     @Test
     void phaseCommandsValidateAndRoundTrip() throws Exception {

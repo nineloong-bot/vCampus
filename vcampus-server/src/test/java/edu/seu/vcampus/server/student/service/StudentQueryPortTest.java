@@ -13,6 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.lang.reflect.RecordComponent;
 import java.util.Arrays;
 
+/** Verifies the student query port contract. */
 class StudentQueryPortTest {
     @org.junit.jupiter.api.Test
     void identityPortExposesNoContactDetails() throws Exception {

@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the student write identifierempotency contract. */
 class StudentWriteIdempotencyTest {
     @Test
     void duplicateWriteRequestExecutesBusinessActionOnce() throws Exception {

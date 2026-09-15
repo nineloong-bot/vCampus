@@ -25,6 +25,14 @@ public final class CartService {
     private final ResourceLockManager locks;
     private final Clock clock;
 
+    /**
+     * Creates a cart service with its required collaborators.
+     * @param repository the repository
+     * @param users the users
+     * @param transactions the transactions
+     * @param locks the locks
+     * @param clock the clock
+     */
     public CartService(ShopRepository repository, ShopUserPort users,
             TransactionManager transactions, ResourceLockManager locks, Clock clock) {
         this.repository = Objects.requireNonNull(repository, "repository");
@@ -34,11 +42,22 @@ public final class CartService {
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
+    /**
+     * Performs the get cart operation.
+     * @param sessionToken the session token
+     * @return the operation result
+     */
     public CartView getCart(String sessionToken) {
         ShopUser actor = requireBuyer(sessionToken);
         return transactions.inTransaction(connection -> repository.loadCart(connection, actor.userId()));
     }
 
+    /**
+     * Performs the add to cart operation.
+     * @param sessionToken the session token
+     * @param command the command
+     * @return the operation result
+     */
     public CartView addToCart(String sessionToken, AddCartItemCommand command) {
         Objects.requireNonNull(command, "command");
         requirePositive(command.quantity());
@@ -68,6 +87,12 @@ public final class CartService {
                 }));
     }
 
+    /**
+     * Performs the update cart item operation.
+     * @param sessionToken the session token
+     * @param command the command
+     * @return the operation result
+     */
     public CartView updateCartItem(String sessionToken, UpdateCartItemCommand command) {
         Objects.requireNonNull(command, "command");
         requirePositive(command.quantity());
@@ -93,6 +118,12 @@ public final class CartService {
                 }));
     }
 
+    /**
+     * Performs the remove cart item operation.
+     * @param sessionToken the session token
+     * @param cartItemId the cart item identifier
+     * @return the operation result
+     */
     public CartView removeCartItem(String sessionToken, String cartItemId) {
         SellerApplicationService.requireId(cartItemId, "cartItemId");
         ShopUser actor = requireBuyer(sessionToken);

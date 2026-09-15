@@ -19,13 +19,27 @@ public final class ShopCoverPresets {
             preset("other/digital-1", "其他", "数码用品"), preset("other/sports-1", "其他", "运动用品"),
             preset("other/gift-1", "其他", "礼品"), preset("other/general-1", "其他", "通用商品"));
 
-    public static List<ShopCoverPreset> all() { return ALL; }
+    /**
+ * Returns the all result.
+ * @return the computed result
+ */
+public static List<ShopCoverPreset> all() { return ALL; }
 
+    /**
+     * Returns the for category result.
+     * @param category the category
+     * @return the computed result
+     */
     public static List<ShopCoverPreset> forCategory(String category) {
         String supported = ShopCategories.requireSupported(category);
         return ALL.stream().filter(value -> value.category().equals(supported)).toList();
     }
 
+    /**
+     * Returns the find result.
+     * @param id the id
+     * @return the computed result
+     */
     public static Optional<ShopCoverPreset> find(String id) {
         return ALL.stream().filter(value -> value.id().equals(id)).findFirst();
     }

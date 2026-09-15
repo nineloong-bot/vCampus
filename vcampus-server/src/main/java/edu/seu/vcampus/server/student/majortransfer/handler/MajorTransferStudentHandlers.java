@@ -10,6 +10,7 @@ import edu.seu.vcampus.server.routing.MessageRouter;
 
 import static edu.seu.vcampus.server.student.majortransfer.handler.MajorTransferHandlerSupport.typed;
 
+/** Provides major transfer student handlers behavior. */
 final class MajorTransferStudentHandlers {
     private final MajorTransferHandlerSupport support;
 

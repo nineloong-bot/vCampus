@@ -29,6 +29,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the admin user operations contract. */
 class AdminUserOperationsTest {
     private static final String ADMIN_ID = "00000000-0000-0000-0000-000000000001";
     private static final ClientContext ADMIN_CONTEXT =

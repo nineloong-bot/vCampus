@@ -16,6 +16,12 @@ public final class SellerOrderService {
     private final ShopUserPort users;
     private final TransactionManager transactions;
 
+    /**
+     * Creates a seller order service with its required collaborators.
+     * @param repository the repository
+     * @param users the users
+     * @param transactions the transactions
+     */
     public SellerOrderService(ShopRepository repository, ShopUserPort users,
             TransactionManager transactions) {
         this.repository = Objects.requireNonNull(repository, "repository");
@@ -23,6 +29,12 @@ public final class SellerOrderService {
         this.transactions = Objects.requireNonNull(transactions, "transactions");
     }
 
+    /**
+     * Performs the get owned orders operation.
+     * @param sessionToken the session token
+     * @param query the query
+     * @return the operation result
+     */
     public SellerOrderHistory getOwnedOrders(String sessionToken, SellerOrderQuery query) {
         Objects.requireNonNull(query, "query");
         var actor = users.requireUser(sessionToken);

@@ -14,6 +14,7 @@ import java.nio.file.Path;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the course demo server main contract. */
 class CourseDemoServerMainTest {
     @TempDir Path directory;
 

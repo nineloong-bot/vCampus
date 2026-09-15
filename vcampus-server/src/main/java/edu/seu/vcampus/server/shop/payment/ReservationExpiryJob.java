@@ -17,6 +17,12 @@ public final class ReservationExpiryJob {
     private final ResourceLockManager locks;
     private final Clock clock;
 
+    /**
+     * Creates a reservation expiry job with its required collaborators.
+     * @param transactions the transactions
+     * @param locks the locks
+     * @param clock the clock
+     */
     public ReservationExpiryJob(TransactionManager transactions,
             ResourceLockManager locks, Clock clock) {
         this.transactions = Objects.requireNonNull(transactions, "transactions");
@@ -24,6 +30,10 @@ public final class ReservationExpiryJob {
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
+    /**
+     * Performs the expire pending payments operation.
+     * @return the operation result
+     */
     public int expirePendingPayments() {
         Instant now = clock.instant();
         List<String> candidates = transactions.inTransaction(connection -> {

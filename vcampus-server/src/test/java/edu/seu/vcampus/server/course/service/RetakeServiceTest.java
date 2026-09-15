@@ -57,6 +57,7 @@ import java.util.function.Function;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the retake service contract. */
 class RetakeServiceTest {
     private static final Instant NOW = Instant.parse("2026-08-10T00:00:00Z");
     private static final String TOKEN = "student-token";
@@ -685,6 +686,7 @@ class RetakeServiceTest {
         }
     }
 
+    /** Provides outcome behavior. */
     private record Outcome<T>(T value, Throwable failure) {
         boolean success() { return failure == null; }
     }

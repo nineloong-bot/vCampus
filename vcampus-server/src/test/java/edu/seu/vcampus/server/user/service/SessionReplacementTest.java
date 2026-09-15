@@ -32,6 +32,7 @@ import static edu.seu.vcampus.common.user.UserRole.STUDENT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the session replacement contract. */
 class SessionReplacementTest {
     private TransactionManager transactions;
     private UserRepository users;
@@ -183,6 +184,7 @@ class SessionReplacementTest {
         }
     }
 
+    /** Provides replacement audit failure repository behavior. */
     private static final class ReplacementAuditFailureRepository implements AuditRepository {
         private final AuditRepository delegate = new AccessAuditRepository();
 

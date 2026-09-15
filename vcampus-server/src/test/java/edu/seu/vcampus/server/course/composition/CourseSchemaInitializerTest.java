@@ -15,6 +15,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the course schema initializer contract. */
 class CourseSchemaInitializerTest {
     @Test
     void createsAllCourseTablesAndCanRunAgain() throws Exception {

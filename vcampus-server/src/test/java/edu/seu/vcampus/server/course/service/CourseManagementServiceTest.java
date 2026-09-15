@@ -26,6 +26,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the course management service contract. */
 class CourseManagementServiceTest {
     private static final Instant NOW = Instant.parse("2026-08-10T00:00:00Z");
     private ConnectionProvider connections;

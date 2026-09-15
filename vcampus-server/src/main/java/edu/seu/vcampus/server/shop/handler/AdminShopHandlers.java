@@ -18,6 +18,14 @@ import java.util.Objects;
 
 /** Registers administrative application and shop-status commands. */
 public final class AdminShopHandlers {
+    /**
+     * Creates a admin shop handlers with its required collaborators.
+     * @param router the router
+     * @param users the users
+     * @param deduplicator the deduplicator
+     * @param admin the admin
+     * @param log the log
+     */
     public AdminShopHandlers(MessageRouter router, ShopUserPort users,
             RequestDeduplicator deduplicator, ShopAdminService admin,
             ShopBusinessLogger log) {
@@ -42,6 +50,15 @@ public final class AdminShopHandlers {
                 }));
     }
 
+    /**
+     * Creates a admin shop handlers with its required collaborators.
+     * @param router the router
+     * @param users the users
+     * @param deduplicator the deduplicator
+     * @param admin the admin
+     * @param products the products
+     * @param log the log
+     */
     public AdminShopHandlers(MessageRouter router, ShopUserPort users,
             RequestDeduplicator deduplicator, ShopAdminService admin,
             AdminProductService products, ShopBusinessLogger log) {

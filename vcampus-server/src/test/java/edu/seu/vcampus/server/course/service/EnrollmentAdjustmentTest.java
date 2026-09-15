@@ -49,6 +49,7 @@ import java.util.function.Supplier;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the enrollment adjustment contract. */
 class EnrollmentAdjustmentTest {
     private static final Instant NOW = Instant.parse("2026-08-10T00:00:00Z");
     private static final String TOKEN = "student-token";

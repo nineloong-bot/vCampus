@@ -4,5 +4,9 @@ package edu.seu.vcampus.server.student.service;
 @FunctionalInterface
 public interface AdmissionFailureInjector {
     AdmissionFailureInjector NONE = point -> { };
+    /**
+     * Performs the reached operation.
+     * @param point the point
+     */
     void reached(AdmissionFailurePoint point);
 }

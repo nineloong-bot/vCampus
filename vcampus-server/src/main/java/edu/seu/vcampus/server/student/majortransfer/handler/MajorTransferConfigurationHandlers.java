@@ -13,6 +13,7 @@ import java.util.ArrayList;
 
 import static edu.seu.vcampus.server.student.majortransfer.handler.MajorTransferHandlerSupport.typed;
 
+/** Provides major transfer configuration handlers behavior. */
 final class MajorTransferConfigurationHandlers {
     private final MajorTransferHandlerSupport support;
 

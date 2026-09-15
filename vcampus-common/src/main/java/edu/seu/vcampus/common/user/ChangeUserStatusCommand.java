@@ -5,6 +5,13 @@ import java.io.Serializable;
 import java.util.Objects;
 
 /** Requests an account lifecycle transition guarded by the current row version. */
+/**
+ * Carries immutable change user status command data.
+ * @param userId the user identifier
+ * @param newStatus the new status
+ * @param reason the reason
+ * @param expectedVersion the expected version
+ */
 public record ChangeUserStatusCommand(String userId, AccountStatus newStatus,
                                       String reason, long expectedVersion) implements Serializable {
     @Serial

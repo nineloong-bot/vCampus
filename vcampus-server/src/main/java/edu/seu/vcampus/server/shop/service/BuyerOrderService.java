@@ -11,11 +11,21 @@ public final class BuyerOrderService {
     private final ShopRepository repository;
     private final TransactionManager transactions;
 
+    /**
+     * Creates a buyer order service with its required collaborators.
+     * @param repository the repository
+     * @param transactions the transactions
+     */
     public BuyerOrderService(ShopRepository repository, TransactionManager transactions) {
         this.repository = Objects.requireNonNull(repository, "repository");
         this.transactions = Objects.requireNonNull(transactions, "transactions");
     }
 
+    /**
+     * Performs the get paid orders operation.
+     * @param buyerUserId the buyer user identifier
+     * @return the operation result
+     */
     public PaidOrderHistory getPaidOrders(String buyerUserId) {
         Objects.requireNonNull(buyerUserId, "buyerUserId");
         if (buyerUserId.isBlank()) {

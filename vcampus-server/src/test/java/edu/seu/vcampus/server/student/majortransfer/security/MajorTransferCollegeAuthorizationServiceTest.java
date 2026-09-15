@@ -14,6 +14,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the major transfer college authorization service contract. */
 class MajorTransferCollegeAuthorizationServiceTest {
     private static final String CS_ADMIN = "00000000-0000-0000-0000-000000000202";
     private static final String MATH_ADMIN = "00000000-0000-0000-0000-000000000203";

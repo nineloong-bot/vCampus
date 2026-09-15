@@ -17,6 +17,7 @@ import java.time.Instant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the student grade service scope contract. */
 class StudentGradeServiceScopeTest {
     @Test
     void gradeReadsAndWritesStayInsideTrustedDepartment() throws Exception {

@@ -17,6 +17,7 @@ import java.util.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the course handlers contract. */
 class CourseHandlersTest {
     private final StubService service = new StubService();
     private final CourseAuthorizationGateway auth = token -> switch (token) {
@@ -232,6 +233,7 @@ class CourseHandlersTest {
         };
     }
 
+    /** Provides stub service behavior. */
     private static final class StubService implements CourseService {
         private static final Instant TIME = Instant.parse("2026-08-10T00:00:00Z");
         final List<TermView> termListResult = List.of(term("term-list"));

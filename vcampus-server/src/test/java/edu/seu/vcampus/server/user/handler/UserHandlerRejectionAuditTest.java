@@ -33,6 +33,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the user handler rejection audit contract. */
 class UserHandlerRejectionAuditTest {
     private static final ClientContext CONTEXT =
             new ClientContext("connection", "10.0.0.7");
@@ -154,8 +155,10 @@ class UserHandlerRejectionAuditTest {
         }
     }
 
+    /** Provides audit row behavior. */
     private record AuditRow(String actor, String target, String result, String address) { }
 
+    /** Provides rejecting authorization behavior. */
     private static final class RejectingAuthorization implements AuthorizationPort {
         @Override public UserIdentity requireSession(String token) {
             throw new AssertionError("authorization must not run for this request");
@@ -165,6 +168,7 @@ class UserHandlerRejectionAuditTest {
         }
     }
 
+    /** Provides expired authorization behavior. */
     private static final class ExpiredAuthorization implements AuthorizationPort {
         @Override public UserIdentity requireSession(String token) {
             throw new SessionExpiredException();
@@ -174,6 +178,7 @@ class UserHandlerRejectionAuditTest {
         }
     }
 
+    /** Provides forbidden authorization behavior. */
     private static final class ForbiddenAuthorization implements AuthorizationPort {
         @Override public UserIdentity requireSession(String token) {
             throw new AssertionError("permission denial must short-circuit identity lookup");

@@ -23,6 +23,7 @@ import java.util.ConcurrentModificationException;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the student profile update contract. */
 class StudentProfileUpdateTest {
     private StudentAccessTestDatabase database;
     private StudentService service;

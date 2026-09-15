@@ -10,6 +10,7 @@ import java.util.concurrent.Executors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the payment expiry race contract. */
 class PaymentExpiryRaceTest extends PaymentServiceTestSupport {
     @Test
     void successAndExpiryRaceHasExactlyOneInventoryOutcome() throws Exception {

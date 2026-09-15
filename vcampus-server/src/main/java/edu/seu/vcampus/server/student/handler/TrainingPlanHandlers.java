@@ -40,6 +40,13 @@ public final class TrainingPlanHandlers {
     private final StudentWriteExecutor writes;
     private final StudentCollegeScopeAuthorizationService collegeScope;
 
+    /**
+     * Creates a training plan handlers with its required collaborators.
+     * @param planService the plan service
+     * @param gradeService the grade service
+     * @param authorization the authorization
+     * @param writes the writes
+     */
     public TrainingPlanHandlers(TrainingPlanService planService,
             StudentGradeService gradeService, StudentAuthorizationPort authorization,
             StudentWriteExecutor writes) {
@@ -57,6 +64,10 @@ public final class TrainingPlanHandlers {
         this.collegeScope = collegeScope;
     }
 
+    /**
+     * Performs the register operation.
+     * @param router the router
+     */
     public void register(MessageRouter router) {
         router.register("TRAINING_PLAN_SAVE", typed(SaveTrainingPlanCommand.class,
                 (message, body) -> write(message, () -> admin(message, departmentId ->

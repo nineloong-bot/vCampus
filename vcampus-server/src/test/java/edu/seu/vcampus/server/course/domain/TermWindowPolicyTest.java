@@ -16,6 +16,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
+/** Verifies the term window policy contract. */
 class TermWindowPolicyTest {
     private static final Instant ENROLLMENT_START = Instant.parse("2026-08-01T00:00:00Z");
     private static final Instant ENROLLMENT_END = Instant.parse("2026-08-10T00:00:00Z");

@@ -8,6 +8,7 @@ import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the student change history contract. */
 class StudentChangeHistoryTest {
     @Test
     void returnsNewestChangeFirstWithCompleteAuditData() throws Exception {

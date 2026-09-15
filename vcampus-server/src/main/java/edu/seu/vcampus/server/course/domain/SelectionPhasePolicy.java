@@ -12,28 +12,55 @@ import java.util.Set;
 public final class SelectionPhasePolicy {
     private final CourseRepository repository;
 
+    /**
+     * Creates a selection phase policy with its required collaborators.
+     * @param repository the repository
+     */
     public SelectionPhasePolicy(CourseRepository repository) {
         this.repository = Objects.requireNonNull(repository, "repository");
     }
 
+    /**
+     * Performs the current operation.
+     * @param connection the connection
+     * @return the operation result
+     */
     public Optional<SelectionPhase> current(Connection connection) {
         Optional<SelectionPhase> current = repository.findOpenSelectionPhase(connection);
         current.ifPresent(this::requireKnownOpenPhase);
         return current;
     }
 
+    /**
+     * Performs the require enrollment open operation.
+     * @param connection the connection
+     * @param termId the term identifier
+     * @return the operation result
+     */
     public SelectionPhase requireEnrollmentOpen(Connection connection, String termId) {
         SelectionPhase phase = requireCurrentActiveTerm(connection, termId, new EnrollmentClosedException());
         if (!"OPEN".equals(phase.phaseStatus()) || !"ENROLLMENT".equals(phase.phaseType())) throw new EnrollmentClosedException();
         return phase;
     }
 
+    /**
+     * Performs the require adjustment open operation.
+     * @param connection the connection
+     * @param termId the term identifier
+     * @return the operation result
+     */
     public SelectionPhase requireAdjustmentOpen(Connection connection, String termId) {
         SelectionPhase phase = requireCurrentActiveTerm(connection, termId, new AdjustmentClosedException());
         if (!"OPEN".equals(phase.phaseStatus()) || !"ADJUSTMENT".equals(phase.phaseType())) throw new AdjustmentClosedException();
         return phase;
     }
 
+    /**
+     * Performs the require drop open operation.
+     * @param connection the connection
+     * @param termId the term identifier
+     * @return the operation result
+     */
     public SelectionPhase requireDropOpen(Connection connection, String termId) {
         SelectionPhase phase = requireCurrentActiveTerm(connection, termId, new DropClosedException());
         if (!"OPEN".equals(phase.phaseStatus())) throw new DropClosedException();

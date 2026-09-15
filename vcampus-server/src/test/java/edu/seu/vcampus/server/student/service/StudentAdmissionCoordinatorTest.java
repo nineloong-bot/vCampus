@@ -33,6 +33,7 @@ import java.time.LocalDate;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the student admission coordinator contract. */
 class StudentAdmissionCoordinatorTest {
     private StudentAccessTestDatabase database;
     private StudentAdmissionCoordinator coordinator;

@@ -12,6 +12,7 @@ import edu.seu.vcampus.server.user.service.UserQueryPort;
 import java.sql.Connection;
 import java.util.Optional;
 
+/** Provides student fixtures behavior. */
 final class StudentFixtures {
     static void insertOrganization(Connection connection, AccessOrganizationRepository organizations) {
         organizations.insertDepartment(connection,

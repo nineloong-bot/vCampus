@@ -17,6 +17,7 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the temporary user student gateway contract. */
 class TemporaryUserStudentGatewayTest {
     @Test
     void mapsAnActiveStudentUserIdToTheTemporaryStudentId() {

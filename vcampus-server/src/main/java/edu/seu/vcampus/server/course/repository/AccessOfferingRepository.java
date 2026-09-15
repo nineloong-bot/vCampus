@@ -127,6 +127,7 @@ final class AccessOfferingRepository {
         }
     }
 
+    /** Provides search sql behavior. */
     private record SearchSql(String fromWhere, List<Object> parameters) {
     }
 }

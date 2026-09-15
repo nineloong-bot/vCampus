@@ -47,6 +47,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
+/** Verifies the buyer shop handlers contract. */
 class BuyerShopHandlersTest {
     private final MessageRouter router = new MessageRouter(Map.of());
     private final ShopUserPort users = mock(ShopUserPort.class);

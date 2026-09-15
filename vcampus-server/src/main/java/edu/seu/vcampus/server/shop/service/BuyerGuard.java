@@ -8,6 +8,11 @@ import edu.seu.vcampus.server.shop.port.ShopUserKind;
 public final class BuyerGuard {
     private BuyerGuard() { }
 
+    /**
+     * Performs the require buyer operation.
+     * @param user the user
+     * @return the operation result
+     */
     public static ShopUser requireBuyer(ShopUser user) {
         if (!user.active() || user.kind() == ShopUserKind.ADMINISTRATOR) {
             throw SellerApplicationService.error(ShopErrorCode.SHOP_BUYER_FORBIDDEN,
@@ -16,6 +21,11 @@ public final class BuyerGuard {
         return user;
     }
 
+    /**
+     * Performs the require different owner operation.
+     * @param buyerId the buyer identifier
+     * @param ownerUserId the owner user identifier
+     */
     public static void requireDifferentOwner(String buyerId, String ownerUserId) {
         if (buyerId.equals(ownerUserId)) {
             throw SellerApplicationService.error(ShopErrorCode.SHOP_SELF_PURCHASE_FORBIDDEN,

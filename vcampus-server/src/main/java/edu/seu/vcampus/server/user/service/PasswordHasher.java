@@ -19,6 +19,11 @@ public final class PasswordHasher {
     public PasswordHasher() {
     }
 
+    /**
+     * Performs the hash operation.
+     * @param password the password
+     * @return the operation result
+     */
     public PasswordHash hash(char[] password) {
         byte[] salt = new byte[SALT_BYTES];
         random.nextBytes(salt);

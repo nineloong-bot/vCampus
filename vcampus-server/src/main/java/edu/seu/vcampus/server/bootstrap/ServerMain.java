@@ -185,6 +185,7 @@ public final class ServerMain {
         }
     }
 
+    /** Provides server runtime behavior. */
     private record ServerRuntime(UserService users, AuthorizationService authorization,
                                  RequestDeduplicator deduplicator,
                                  SecurityAuditHandler auditHandler,

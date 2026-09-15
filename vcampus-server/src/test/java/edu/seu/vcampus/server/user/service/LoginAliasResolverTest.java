@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the login alias resolver contract. */
 class LoginAliasResolverTest {
     @Test
     void resolvesShortLoginsToCanonicalAccounts() {

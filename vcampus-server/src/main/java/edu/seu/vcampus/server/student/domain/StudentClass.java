@@ -4,6 +4,17 @@ package edu.seu.vcampus.server.student.domain;
 public record StudentClass(String classId, String majorId, String classCode,
                            String className, int enrollmentYear, int classNumber,
                            boolean active, long rowVersion) {
+    /**
+     * Creates a student class with its required collaborators.
+     * @param classId the class identifier
+     * @param majorId the major identifier
+     * @param classCode the class code
+     * @param className the class name
+     * @param enrollmentYear the enrollment year
+     * @param classNumber the class number
+     * @param active the active
+     * @param rowVersion the row version
+     */
     public StudentClass {
         requireText(classId, "classId");
         requireText(majorId, "majorId");

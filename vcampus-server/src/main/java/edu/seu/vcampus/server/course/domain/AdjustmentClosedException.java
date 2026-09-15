@@ -4,6 +4,9 @@ package edu.seu.vcampus.server.course.domain;
 public final class AdjustmentClosedException extends CourseRuleException {
     public static final String CODE = "COURSE_ADJUSTMENT_NOT_OPEN";
 
+    /**
+     * Creates a adjustment closed exception with its required collaborators.
+     */
     public AdjustmentClosedException() {
         super(CODE, CODE + ": adjustment window is not open");
     }

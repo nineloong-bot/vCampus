@@ -37,6 +37,11 @@ public final class ShopDemo {
     private ShopDemo() {
     }
 
+    /**
+     * Performs the main operation.
+     * @param args the args
+     * @throws Exception when the operation cannot be completed
+     */
     public static void main(String[] args) throws Exception {
         Path database = Path.of(args.length > 0
                 ? args[0] : "vcampus-database/demo/vcampus-shop-demo.accdb");
@@ -52,6 +57,13 @@ public final class ShopDemo {
         System.out.println("Payment status: " + result.paymentStatus());
     }
 
+    /**
+     * Performs the run operation.
+     * @param databasePath the database path
+     * @param schemaDirectory the schema directory
+     * @return the operation result
+     * @throws Exception when the operation cannot be completed
+     */
     public static ShopDemoResult run(Path databasePath, Path schemaDirectory) throws Exception {
         Path database = databasePath.toAbsolutePath().normalize();
         Path schemas = schemaDirectory.toAbsolutePath().normalize();

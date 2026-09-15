@@ -7,6 +7,11 @@ import java.util.List;
 import java.util.Objects;
 
 /** Immutable data required to govern college-administrator assignments. */
+/**
+ * Carries immutable student college administration snapshot data.
+ * @param administrators the administrators
+ * @param departments the departments
+ */
 public record StudentCollegeAdministrationSnapshot(
         List<StudentCollegeAdministratorView> administrators,
         List<DepartmentView> departments

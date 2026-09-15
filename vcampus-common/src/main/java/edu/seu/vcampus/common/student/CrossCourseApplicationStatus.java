@@ -4,7 +4,7 @@ import java.io.Serializable;
 
 /** Status of a cross-disciplinary course application. */
 public enum CrossCourseApplicationStatus implements Serializable {
-    PENDING,
-    APPROVED,
-    REJECTED
+    /** Represents pending. */ PENDING,
+    /** Represents approved. */ APPROVED,
+    /** Represents rejected. */ REJECTED
 }

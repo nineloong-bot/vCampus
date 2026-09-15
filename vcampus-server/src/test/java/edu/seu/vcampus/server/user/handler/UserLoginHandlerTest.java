@@ -21,6 +21,7 @@ import java.util.ConcurrentModificationException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the user login handler contract. */
 class UserLoginHandlerTest {
     private static final ClientContext CONTEXT =
             new ClientContext("connection", "127.0.0.1");
@@ -112,6 +113,7 @@ class UserLoginHandlerTest {
         return handler.handle(message, CONTEXT);
     }
 
+    /** Provides throwing login service behavior. */
     private static class ThrowingLoginService implements UserService {
         private final RuntimeException failure;
 
@@ -165,6 +167,7 @@ class UserLoginHandlerTest {
         }
     }
 
+    /** Provides successful login service behavior. */
     private static final class SuccessfulLoginService extends ThrowingLoginService {
         private SuccessfulLoginService() {
             super(new UnsupportedOperationException());

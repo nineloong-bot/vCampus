@@ -12,6 +12,7 @@ import java.time.Duration;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the server main session configuration contract. */
 class ServerMainSessionConfigurationTest {
     @Test
     void userRuntimeUsesTheConfiguredNonDefaultSessionTimeout() throws Exception {

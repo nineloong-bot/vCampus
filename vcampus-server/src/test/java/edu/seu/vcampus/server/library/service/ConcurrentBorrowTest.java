@@ -17,6 +17,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the concurrent borrow contract. */
 class ConcurrentBorrowTest {
     private LibraryServiceFixture fixture;
 
@@ -110,6 +111,7 @@ class ConcurrentBorrowTest {
         }
     }
 
+    /** Provides outcome behavior. */
     private record Outcome(Object value, Throwable error) {
         boolean success() {
             return error == null;

@@ -4,6 +4,14 @@ import java.io.Serial;
 import java.io.Serializable;
 
 /** Filters and zero-based paging parameters for account searches. */
+/**
+ * Carries immutable user search query data.
+ * @param keyword the keyword
+ * @param role the role
+ * @param status the status
+ * @param page the page
+ * @param pageSize the page size
+ */
 public record UserSearchQuery(
         String keyword,
         UserRole role,

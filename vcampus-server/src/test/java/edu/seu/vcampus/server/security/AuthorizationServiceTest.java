@@ -15,6 +15,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the authorization service contract. */
 class AuthorizationServiceTest {
     @Test
     void restrictedSessionRejectsBusinessPermissionButAllowsSessionLookup() {
@@ -84,6 +85,7 @@ class AuthorizationServiceTest {
         assertThat(snapshot.clientInstanceId()).isEqualTo("client-42");
     }
 
+    /** Provides mutable clock behavior. */
     private static final class MutableClock extends Clock {
         private Instant instant = Instant.EPOCH;
         @Override public ZoneOffset getZone() { return ZoneOffset.UTC; }

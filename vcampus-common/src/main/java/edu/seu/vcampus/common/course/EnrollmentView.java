@@ -5,6 +5,17 @@ import java.io.Serializable;
 import java.time.Instant;
 
 /** Serializable enrollment result returned to course clients. */
+/**
+ * Carries immutable enrollment view data.
+ * @param enrollmentId the enrollment identifier
+ * @param offeringId the offering identifier
+ * @param studentId the student identifier
+ * @param enrollmentType the enrollment type
+ * @param enrollmentStatus the enrollment status
+ * @param enrolledAt the enrolled at
+ * @param droppedAt the dropped at
+ * @param rowVersion the row version
+ */
 public record EnrollmentView(
         String enrollmentId,
         String offeringId,

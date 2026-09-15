@@ -9,6 +9,12 @@ import java.util.Objects;
  * Servers retain the type and command name for binary compatibility but reject every
  * request without changing account data.
  */
+/**
+ * Carries immutable update user role command data.
+ * @param userId the user identifier
+ * @param newRole the new role
+ * @param expectedVersion the expected version
+ */
 public record UpdateUserRoleCommand(String userId, UserRole newRole,
                                     long expectedVersion) implements Serializable {
     @Serial

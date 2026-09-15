@@ -10,6 +10,7 @@ import java.time.ZoneOffset;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the overdue maintenance job contract. */
 class OverdueMaintenanceJobTest {
     @Test
     void marksOnlyNewlyOverdueLoansAndIsIdempotent() throws Exception {

@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the student admission concurrency contract. */
 class StudentAdmissionConcurrencyTest {
     @Test
     @Timeout(value = 60, unit = TimeUnit.SECONDS)

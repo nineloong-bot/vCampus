@@ -5,6 +5,14 @@ import java.io.Serializable;
 import java.util.Map;
 
 /** Safe, serializable error information returned to a client. */
+/**
+ * Carries immutable error detail data.
+ * @param code the code
+ * @param message the message
+ * @param fieldErrors the field errors
+ * @param traceId the trace identifier
+ * @param retryable the retryable
+ */
 public record ErrorDetail(
         String code,
         String message,

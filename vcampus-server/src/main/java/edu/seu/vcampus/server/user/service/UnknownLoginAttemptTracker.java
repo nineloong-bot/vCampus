@@ -45,5 +45,6 @@ final class UnknownLoginAttemptTracker {
         return result.get();
     }
 
+    /** Provides attempt state behavior. */
     private record AttemptState(int failures, Instant expiresAt, Instant lockedUntil) { }
 }

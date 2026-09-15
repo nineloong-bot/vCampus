@@ -52,6 +52,7 @@ import java.util.function.Supplier;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the course enrollment service contract. */
 class CourseEnrollmentServiceTest {
     private static final Instant NOW = Instant.parse("2026-08-10T00:00:00Z");
     private static final String TOKEN = "student-token";
@@ -486,6 +487,7 @@ class CourseEnrollmentServiceTest {
         return Path.of("..", "vcampus-database", "schema", "030_course.sql");
     }
 
+    /** Provides reject nested connection provider behavior. */
     private static final class RejectNestedConnectionProvider implements ConnectionProvider {
         private final ConnectionProvider delegate;
         private final AtomicBoolean inUse = new AtomicBoolean();
@@ -526,6 +528,7 @@ class CourseEnrollmentServiceTest {
         }
     }
 
+    /** Provides advancing clock behavior. */
     private static final class AdvancingClock extends Clock {
         private final Instant first;
         private final Instant later;

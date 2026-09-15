@@ -35,6 +35,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/** Verifies the major transfer role authorization contract. */
 class MajorTransferRoleAuthorizationTest {
     private static final String APPLICATION = "application-1";
 
@@ -266,6 +267,7 @@ class MajorTransferRoleAuthorizationTest {
         return new Fixture(router, service, scope);
     }
 
+    /** Provides fixture behavior. */
     private record Fixture(MessageRouter router, MajorTransferService service,
                            MajorTransferCollegeAuthorizationService scope) {
         private edu.seu.vcampus.common.protocol.ResponseBody<?> route(

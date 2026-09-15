@@ -26,6 +26,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
+/** Verifies the admin shop handlers contract. */
 class AdminShopHandlersTest {
     @Test
     void routesAdministrativeSearchWithSessionToken() {

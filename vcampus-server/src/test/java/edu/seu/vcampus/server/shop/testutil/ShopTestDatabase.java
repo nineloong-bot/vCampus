@@ -9,10 +9,15 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 
+/** Provides shop test database behavior. */
 public final class ShopTestDatabase implements AutoCloseable {
     private final Path directory;
     private final Path database;
 
+    /**
+     * Creates a shop test database with its required collaborators.
+     * @throws Exception when the operation cannot be completed
+     */
     public ShopTestDatabase() throws Exception {
         directory = Files.createTempDirectory("vcampus-shop-");
         database = directory.resolve("shop.accdb");
@@ -35,6 +40,10 @@ public final class ShopTestDatabase implements AutoCloseable {
         }
     }
 
+    /**
+     * Performs the connections operation.
+     * @return the operation result
+     */
     public ConnectionProvider connections() {
         return this::open;
     }

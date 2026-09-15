@@ -13,6 +13,12 @@ import java.util.List;
 
 /** Writes immutable student change history inside caller-owned transactions. */
 public final class StudentChangeRepository {
+    /**
+     * Performs the list by student identifier operation.
+     * @param connection the connection
+     * @param studentId the student identifier
+     * @return the operation result
+     */
     public List<StudentChangeView> listByStudentId(Connection connection, String studentId) {
         String sql = "SELECT changeId, studentId, changeType, oldValue, newValue, reason, operatorUserId, effectiveDate, createdAt FROM tblStudentChange WHERE studentId = ? ORDER BY createdAt DESC";
         try (var statement = connection.prepareStatement(sql)) {
@@ -34,6 +40,16 @@ public final class StudentChangeRepository {
             throw new OrganizationPersistenceException("Cannot read student changes", error);
         }
     }
+    /**
+     * Performs the insert admission operation.
+     * @param connection the connection
+     * @param changeId the change identifier
+     * @param studentId the student identifier
+     * @param newValue the new value
+     * @param operatorUserId the operator user identifier
+     * @param effectiveDate the effective date
+     * @param createdAt the created at
+     */
     public void insertAdmission(Connection connection, String changeId, String studentId,
             String newValue, String operatorUserId, LocalDate effectiveDate, Instant createdAt) {
         String sql = "INSERT INTO tblStudentChange (changeId, studentId, changeType, oldValue, newValue, reason, operatorUserId, effectiveDate, createdAt) VALUES (?, ?, 'ADMISSION', NULL, ?, ?, ?, ?, ?)";
@@ -51,6 +67,19 @@ public final class StudentChangeRepository {
         }
     }
 
+    /**
+     * Performs the insert change operation.
+     * @param connection the connection
+     * @param changeId the change identifier
+     * @param studentId the student identifier
+     * @param changeType the change type
+     * @param oldValue the old value
+     * @param newValue the new value
+     * @param reason the reason
+     * @param operatorUserId the operator user identifier
+     * @param effectiveDate the effective date
+     * @param createdAt the created at
+     */
     public void insertChange(Connection connection, String changeId, String studentId,
             String changeType, String oldValue, String newValue, String reason,
             String operatorUserId, LocalDate effectiveDate, Instant createdAt) {

@@ -9,6 +9,7 @@ import java.util.concurrent.Executors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the concurrent cart update contract. */
 class ConcurrentCartUpdateTest extends CartServiceTestSupport {
     @Test
     void concurrentAddsPreserveEveryQuantityIncrement() throws Exception {

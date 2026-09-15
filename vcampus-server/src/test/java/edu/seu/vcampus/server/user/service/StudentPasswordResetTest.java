@@ -37,6 +37,7 @@ import java.util.function.Supplier;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the student password reset contract. */
 class StudentPasswordResetTest {
     private static final String ADMIN_ID = "00000000-0000-0000-0000-000000000001";
     private static final ClientContext ADMIN_CONTEXT =
@@ -233,6 +234,7 @@ class StudentPasswordResetTest {
         }
     }
 
+    /** Provides coordinating user lock manager behavior. */
     private static final class CoordinatingUserLockManager implements ResourceLockManager {
         private final ReentrantLock lock = new ReentrantLock(true);
         private final CountDownLatch firstHolder = new CountDownLatch(1);

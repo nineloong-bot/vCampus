@@ -6,6 +6,11 @@ import java.util.Arrays;
 import java.util.Objects;
 
 /** Password-change request that copies and clears caller-owned password arrays. */
+/**
+ * Carries immutable change password command data.
+ * @param oldPassword the old password
+ * @param newPassword the new password
+ */
 public record ChangePasswordCommand(char[] oldPassword, char[] newPassword) implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
@@ -16,10 +21,16 @@ public record ChangePasswordCommand(char[] oldPassword, char[] newPassword) impl
         newPassword = copyAndClear(Objects.requireNonNull(newPassword, "newPassword"));
     }
 
-    /** Returns a defensive copy of the previous password. */
+    /**
+     * Returns a defensive copy of the previous password.
+     * @return copied previous password
+     */
     @Override public char[] oldPassword() { return oldPassword.clone(); }
 
-    /** Returns a defensive copy of the replacement password. */
+    /**
+     * Returns a defensive copy of the replacement password.
+     * @return copied replacement password
+     */
     @Override public char[] newPassword() { return newPassword.clone(); }
 
     /** Clears both passwords retained by this request; repeated calls are harmless. */

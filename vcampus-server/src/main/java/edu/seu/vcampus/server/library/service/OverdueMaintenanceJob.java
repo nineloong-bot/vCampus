@@ -12,6 +12,12 @@ public final class OverdueMaintenanceJob {
     private final TransactionManager transactions;
     private final Clock clock;
 
+    /**
+     * Creates a overdue maintenance job with its required collaborators.
+     * @param loans the loans
+     * @param transactions the transactions
+     * @param clock the clock
+     */
     public OverdueMaintenanceJob(LoanRepository loans, TransactionManager transactions,
             Clock clock) {
         this.loans = Objects.requireNonNull(loans, "loans");
@@ -19,6 +25,10 @@ public final class OverdueMaintenanceJob {
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
+    /**
+     * Performs the run once operation.
+     * @return the operation result
+     */
     public int runOnce() {
         return transactions.inTransaction(connection ->
                 loans.markOverdue(connection, clock.instant()));

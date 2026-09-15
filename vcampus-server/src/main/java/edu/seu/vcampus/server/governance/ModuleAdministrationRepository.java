@@ -19,6 +19,7 @@ interface ModuleAdministrationRepository {
     void updateRoleAndStatus(Connection connection, String userId, UserRole role,
                              AccountStatus status, long expectedVersion);
 
+    /** Provides administrator account behavior. */
     record AdministratorAccount(
             String userId, String loginId, UserRole role,
             AccountStatus status, long rowVersion) { }

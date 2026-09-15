@@ -45,6 +45,10 @@ public final class CourseDemoServerMain {
 
     private CourseDemoServerMain() { }
 
+    /**
+     * Performs the main operation.
+     * @param args the args
+     */
     public static void main(String[] args) {
         Path config = Path.of(args.length == 0 ? "config/course-demo.properties" : args[0])
                 .toAbsolutePath().normalize();
@@ -68,6 +72,14 @@ public final class CourseDemoServerMain {
         }
     }
 
+    /**
+     * Performs the prepare operation.
+     * @param databasePath the database path
+     * @param schemaPath the schema path
+     * @param phase the phase
+     * @return the operation result
+     * @throws Exception when the operation cannot be completed
+     */
     public static DemoRuntime prepare(Path databasePath, Path schemaPath, String phase) throws Exception {
         Files.createDirectories(databasePath.toAbsolutePath().normalize().getParent());
         String url = "jdbc:ucanaccess://" + databasePath.toAbsolutePath().normalize()
@@ -170,5 +182,6 @@ public final class CourseDemoServerMain {
         catch (Exception ignored) { }
     }
 
+    /** Provides demo runtime behavior. */
     public record DemoRuntime(MessageRouter router, CourseService service, ConnectionProvider connections) { }
 }

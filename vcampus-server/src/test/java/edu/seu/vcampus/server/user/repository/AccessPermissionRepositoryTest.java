@@ -20,6 +20,7 @@ import static edu.seu.vcampus.common.user.UserRole.SUPER_ADMIN;
 import static edu.seu.vcampus.common.user.UserRole.USER_ADMIN;
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the access permission repository contract. */
 class AccessPermissionRepositoryTest {
     private TransactionManager transactions;
     private PermissionRepository permissions;

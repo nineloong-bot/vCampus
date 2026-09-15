@@ -24,6 +24,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the student college administration service contract. */
 class StudentCollegeAdministrationServiceTest {
     private static final String ACTOR = "00000000-0000-0000-0000-000000000201";
     private static final String CS = "00000000-0000-0000-0000-000000000101";

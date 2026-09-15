@@ -13,6 +13,10 @@ import java.util.UUID;
 public final class StudentAccessTestDatabase {
     private final ConnectionProvider provider;
 
+    /**
+     * Creates a student access test database with its required collaborators.
+     * @throws Exception when the operation cannot be completed
+     */
     public StudentAccessTestDatabase() throws Exception {
         Path testData = Path.of("target", "test-data");
         Files.createDirectories(testData);
@@ -50,14 +54,29 @@ public final class StudentAccessTestDatabase {
         }
     }
 
+    /**
+     * Performs the provider operation.
+     * @return the operation result
+     */
     public ConnectionProvider provider() {
         return provider;
     }
 
+    /**
+     * Performs the transactions operation.
+     * @return the operation result
+     */
     public TransactionManager transactions() {
         return new TransactionManager(provider);
     }
 
+    /**
+     * Performs the set sequence operation.
+     * @param key the key
+     * @param currentValue the current value
+     * @param maxValue the max value
+     * @throws Exception when the operation cannot be completed
+     */
     public void setSequence(String key, int currentValue, int maxValue) throws Exception {
         try (Connection connection = provider.open()) {
             try (var delete = connection.prepareStatement(
@@ -75,6 +94,12 @@ public final class StudentAccessTestDatabase {
         }
     }
 
+    /**
+     * Performs the sequence value operation.
+     * @param key the key
+     * @return the operation result
+     * @throws Exception when the operation cannot be completed
+     */
     public int sequenceValue(String key) throws Exception {
         try (Connection connection = provider.open();
              var statement = connection.prepareStatement(
@@ -89,6 +114,12 @@ public final class StudentAccessTestDatabase {
         }
     }
 
+    /**
+     * Performs the count operation.
+     * @param table the table
+     * @return the operation result
+     * @throws Exception when the operation cannot be completed
+     */
     public int count(String table) throws Exception {
         if (!table.matches("tbl[A-Za-z]+")) throw new IllegalArgumentException("Invalid table");
         try (Connection connection = provider.open();
@@ -99,6 +130,12 @@ public final class StudentAccessTestDatabase {
         }
     }
 
+    /**
+     * Performs the string value operation.
+     * @param sql the sql
+     * @return the operation result
+     * @throws Exception when the operation cannot be completed
+     */
     public String stringValue(String sql) throws Exception {
         try (Connection connection = provider.open();
              var statement = connection.createStatement();

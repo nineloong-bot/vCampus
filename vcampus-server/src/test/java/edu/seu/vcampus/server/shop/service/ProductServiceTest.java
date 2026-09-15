@@ -33,6 +33,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the product service contract. */
 class ProductServiceTest {
     private ShopTestDatabase database;
     private SellerApplicationService applications;

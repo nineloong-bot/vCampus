@@ -6,6 +6,7 @@ import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the shop auth demo server main contract. */
 class ShopAuthDemoServerMainTest {
     @Test
     void defaultsToTheUnifiedApplicationPort() {

@@ -28,6 +28,7 @@ import static edu.seu.vcampus.common.user.UserRole.TEACHER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the access user repository contract. */
 class AccessUserRepositoryTest {
     private TransactionManager transactions;
     private UserRepository repository;

@@ -13,6 +13,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the student account provisioning failure audit contract. */
 class StudentAccountProvisioningFailureAuditTest {
     private static final String ADMIN_ID = "00000000-0000-0000-0000-000000000001";
     private TransactionManager transactions;

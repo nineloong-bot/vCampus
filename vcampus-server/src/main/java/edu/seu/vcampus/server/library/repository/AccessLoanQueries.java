@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
+/** Provides access loan queries behavior. */
 final class AccessLoanQueries {
     private static final String SELECT_JOINED = "SELECT l.*, c.bookId, c.barcode, b.title, "
             + "u.loginId FROM ((tblBookLoan l INNER JOIN tblBookCopy c ON l.copyId = c.copyId) "

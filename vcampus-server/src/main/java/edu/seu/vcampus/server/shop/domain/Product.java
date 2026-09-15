@@ -4,6 +4,7 @@ import edu.seu.vcampus.common.shop.ProductStatus;
 
 import java.time.Instant;
 
+/** Provides product behavior. */
 public record Product(String productId, String shopId, String productName,
         String normalizedProductName, String category, String description, String coverImageUrl,
         ProductStatus status,

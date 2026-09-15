@@ -46,6 +46,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the user handler authorization deduplication contract. */
 class UserHandlerAuthorizationDeduplicationTest {
     private static final ClientContext CONTEXT =
             new ClientContext("connection-7", "127.0.0.1");
@@ -177,6 +178,7 @@ class UserHandlerAuthorizationDeduplicationTest {
         }
     }
 
+    /** Provides allow all authorization behavior. */
     private static final class AllowAllAuthorization implements AuthorizationPort {
         private static final UserIdentity ADMIN = new UserIdentity(
                 "admin", "USER_ADMIN", UserRole.USER_ADMIN, AccountStatus.ACTIVE);
@@ -184,6 +186,7 @@ class UserHandlerAuthorizationDeduplicationTest {
         @Override public void requirePermission(String token, String permission) { }
     }
 
+    /** Provides denying authorization behavior. */
     private static final class DenyingAuthorization implements AuthorizationPort {
         private int permissionCalls;
         @Override public UserIdentity requireSession(String token) { throw new AssertionError(); }
@@ -193,6 +196,7 @@ class UserHandlerAuthorizationDeduplicationTest {
         }
     }
 
+    /** Provides expired authorization behavior. */
     private static final class ExpiredAuthorization implements AuthorizationPort {
         private int sessionCalls;
         @Override public UserIdentity requireSession(String token) {
@@ -204,6 +208,7 @@ class UserHandlerAuthorizationDeduplicationTest {
         }
     }
 
+    /** Provides counting users behavior. */
     private static final class CountingUsers implements UserService {
         private static final UserView VIEW = new UserView("target", "TARGET", UserRole.STUDENT,
                 AccountStatus.ACTIVE, false, null, 1, LocalDateTime.MIN, LocalDateTime.MIN);

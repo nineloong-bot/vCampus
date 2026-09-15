@@ -10,6 +10,7 @@ import java.util.Arrays;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the student profile contract contract. */
 class StudentProfileContractTest {
     @Test
     void attendanceModesExposeExactlyTheFourApprovedLabels() {
@@ -32,6 +33,7 @@ class StudentProfileContractTest {
         }
     }
 
+    /** Provides student profile fixtures behavior. */
     private static final class StudentProfileFixtures {
         private static StudentProfileWorkspace workspace() {
             StudentView core = new StudentView("student-1", "user-1", "213230001",

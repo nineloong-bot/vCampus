@@ -4,9 +4,9 @@ import java.io.Serializable;
 
 /** Ordered review stages in the major-transfer workflow. */
 public enum MajorTransferReviewStage implements Serializable {
-    SOURCE_REVIEW,
-    QUALIFICATION_REVIEW,
-    ASSESSMENT,
-    FINAL_APPROVAL,
-    EXECUTION
+    /** Represents source review. */ SOURCE_REVIEW,
+    /** Represents qualification review. */ QUALIFICATION_REVIEW,
+    /** Represents assessment. */ ASSESSMENT,
+    /** Represents final approval. */ FINAL_APPROVAL,
+    /** Represents execution. */ EXECUTION
 }

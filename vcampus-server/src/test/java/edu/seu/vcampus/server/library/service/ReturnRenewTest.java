@@ -15,6 +15,7 @@ import java.time.temporal.ChronoUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the return renew contract. */
 class ReturnRenewTest {
     private LibraryServiceFixture fixture;
     private LibraryService service;

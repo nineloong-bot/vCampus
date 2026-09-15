@@ -18,6 +18,12 @@ public final class LibraryHandlers {
     private LibraryHandlers() {
     }
 
+    /**
+     * Performs the register operation.
+     * @param router the router
+     * @param service the service
+     * @param access the access
+     */
     public static void register(MessageRouter router, LibraryService service,
             LibraryAccessPort access) {
         register(router, service, access, null);
@@ -120,6 +126,7 @@ public final class LibraryHandlers {
         return type.cast(body);
     }
 
+    /** Defines the admin action contract. */
     @FunctionalInterface
     private interface AdminAction<T, R> {
         R apply(String sessionToken, T body);

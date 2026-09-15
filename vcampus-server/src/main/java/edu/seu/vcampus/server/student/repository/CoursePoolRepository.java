@@ -11,8 +11,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+/** Provides course pool repository behavior. */
 public final class CoursePoolRepository {
 
+    /**
+     * Performs the list courses operation.
+     * @param connection the connection
+     * @param departmentId the department identifier
+     * @param keyword the keyword
+     * @return the operation result
+     */
     public List<CoursePoolItem> listCourses(Connection connection, String departmentId, String keyword) {
         StringBuilder sql = new StringBuilder("SELECT courseId, courseCode, courseName, departmentId, departmentName, "
                 + "credit, totalHours, description, isActive, rowVersion, createdAt, updatedAt "
@@ -46,6 +54,12 @@ public final class CoursePoolRepository {
         }
     }
 
+    /**
+     * Performs the find by identifier operation.
+     * @param connection the connection
+     * @param courseId the course identifier
+     * @return the operation result
+     */
     public Optional<CoursePoolItem> findById(Connection connection, String courseId) {
         String sql = "SELECT courseId, courseCode, courseName, departmentId, departmentName, "
                 + "credit, totalHours, description, isActive, rowVersion, createdAt, updatedAt "
@@ -60,6 +74,12 @@ public final class CoursePoolRepository {
         }
     }
 
+    /**
+     * Performs the find by code operation.
+     * @param connection the connection
+     * @param courseCode the course code
+     * @return the operation result
+     */
     public Optional<CoursePoolItem> findByCode(Connection connection, String courseCode) {
         String sql = "SELECT courseId, courseCode, courseName, departmentId, departmentName, "
                 + "credit, totalHours, description, isActive, rowVersion, createdAt, updatedAt "
@@ -74,6 +94,11 @@ public final class CoursePoolRepository {
         }
     }
 
+    /**
+     * Performs the insert operation.
+     * @param connection the connection
+     * @param item the item
+     */
     public void insert(Connection connection, CoursePoolItem item) {
         String sql = "INSERT INTO tblCourse (courseId, courseCode, courseName, departmentId, departmentName, "
                 + "credit, totalHours, description, isActive, rowVersion, createdAt, updatedAt) "

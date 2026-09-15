@@ -15,6 +15,13 @@ import java.util.Optional;
 /** Stores student grades inside caller-owned transactions. */
 public final class StudentGradeRepository {
 
+    /**
+     * Performs the find by student and course operation.
+     * @param connection the connection
+     * @param studentId the student identifier
+     * @param planCourseId the plan course identifier
+     * @return the operation result
+     */
     public Optional<StudentGrade> findByStudentAndCourse(Connection connection,
             String studentId, String planCourseId) {
         String sql = "SELECT gradeId, studentId, planCourseId, result, recordedSemester, "
@@ -31,6 +38,11 @@ public final class StudentGradeRepository {
         }
     }
 
+    /**
+     * Performs the insert operation.
+     * @param connection the connection
+     * @param grade the grade
+     */
     public void insert(Connection connection, StudentGrade grade) {
         String sql = "INSERT INTO tblStudentGrade (gradeId, studentId, planCourseId, result, "
                 + "recordedSemester, operatorUserId, rowVersion, createdAt, updatedAt) "
@@ -51,6 +63,12 @@ public final class StudentGradeRepository {
         }
     }
 
+    /**
+     * Performs the update operation.
+     * @param connection the connection
+     * @param grade the grade
+     * @param expectedVersion the expected version
+     */
     public void update(Connection connection, StudentGrade grade, long expectedVersion) {
         String sql = "UPDATE tblStudentGrade SET result=?, recordedSemester=?, "
                 + "operatorUserId=?, rowVersion=rowVersion+1, updatedAt=? "
@@ -69,6 +87,12 @@ public final class StudentGradeRepository {
         }
     }
 
+    /**
+     * Performs the list by student operation.
+     * @param connection the connection
+     * @param studentId the student identifier
+     * @return the operation result
+     */
     public List<StudentGradeView> listByStudent(Connection connection, String studentId) {
         String sql = "SELECT g.gradeId, g.studentId, g.planCourseId, c.courseCode, c.courseName, "
                 + "c.credits, c.courseType, c.semester, g.result, g.recordedSemester, g.rowVersion "

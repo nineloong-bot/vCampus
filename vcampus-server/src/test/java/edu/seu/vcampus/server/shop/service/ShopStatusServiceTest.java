@@ -31,6 +31,7 @@ import java.time.ZoneOffset;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the shop status service contract. */
 class ShopStatusServiceTest {
     private ShopTestDatabase database;
     private SellerApplicationService sellerApplications;

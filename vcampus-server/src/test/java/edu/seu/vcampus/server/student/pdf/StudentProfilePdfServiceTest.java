@@ -14,6 +14,7 @@ import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the student profile pdf service contract. */
 class StudentProfilePdfServiceTest {
     @Test
     void pdfContainsApprovedChineseProfileAndNeverDraftValues() throws Exception {

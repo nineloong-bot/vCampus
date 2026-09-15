@@ -10,6 +10,7 @@ import java.util.concurrent.Executors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the concurrent checkout contract. */
 class ConcurrentCheckoutTest extends CheckoutServiceTestSupport {
     @Test
     void fiveUnitsCannotBeOversoldByTwentyCheckouts() throws Exception {

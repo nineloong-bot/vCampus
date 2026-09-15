@@ -4,6 +4,9 @@ package edu.seu.vcampus.server.course.domain;
 public final class DropClosedException extends CourseRuleException {
     public static final String CODE = "COURSE_DROP_NOT_OPEN";
 
+    /**
+     * Creates a drop closed exception with its required collaborators.
+     */
     public DropClosedException() {
         super(CODE, CODE + ": drop window is not open");
     }

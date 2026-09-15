@@ -10,6 +10,7 @@ import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the seller application contract contract. */
 class SellerApplicationContractTest {
     @Test
     void draftCarriesApplicationStatementThroughSerialization() throws Exception {

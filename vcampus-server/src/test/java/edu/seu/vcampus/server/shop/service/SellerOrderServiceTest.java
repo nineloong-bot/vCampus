@@ -16,6 +16,7 @@ import java.time.ZoneOffset;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the seller order service contract. */
 class SellerOrderServiceTest {
     private ShopTestDatabase database;
 

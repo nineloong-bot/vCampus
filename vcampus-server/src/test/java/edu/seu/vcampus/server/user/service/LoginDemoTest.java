@@ -27,6 +27,7 @@ import static edu.seu.vcampus.common.user.UserRole.ADMIN;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the login demo contract. */
 class LoginDemoTest {
     private static final String LOGIN_ID = "DEMO_ADMIN";
     private TransactionManager transactions;

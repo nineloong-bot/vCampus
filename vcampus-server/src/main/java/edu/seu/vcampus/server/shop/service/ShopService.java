@@ -29,22 +29,42 @@ public final class ShopService {
     private final ShopRepository repository;
     private final TransactionManager transactions;
 
+    /**
+     * Creates a shop service with its required collaborators.
+     * @param repository the repository
+     * @param transactions the transactions
+     */
     public ShopService(ShopRepository repository, TransactionManager transactions) {
         this.repository = Objects.requireNonNull(repository, "repository");
         this.transactions = Objects.requireNonNull(transactions, "transactions");
     }
 
+    /**
+     * Performs the get home products operation.
+     * @param query the query
+     * @return the operation result
+     */
     public PageResult<ProductSummary> getHomeProducts(HomeProductQuery query) {
         Objects.requireNonNull(query, "query");
         return searchProducts(new ProductSearchQuery(null, null, query.minPrice(), query.maxPrice(),
                 ProductSortMode.SALES_DESC, query.pageNumber(), query.pageSize()));
     }
 
+    /**
+     * Performs the search products operation.
+     * @param query the query
+     * @return the operation result
+     */
     public PageResult<ProductSummary> searchProducts(ProductSearchQuery query) {
         validate(query.minPrice(), query.maxPrice(), query.pageNumber(), query.pageSize());
         return transactions.inTransaction(connection -> repository.searchCatalog(connection, query, null));
     }
 
+    /**
+     * Performs the get product operation.
+     * @param productId the product identifier
+     * @return the operation result
+     */
     public ProductDetail getProduct(String productId) {
         SellerApplicationService.requireId(productId, "productId");
         return transactions.inTransaction(connection -> {
@@ -65,11 +85,21 @@ public final class ShopService {
         });
     }
 
+    /**
+     * Performs the get shop operation.
+     * @param shopId the shop identifier
+     * @return the operation result
+     */
     public ShopDetail getShop(String shopId) {
         SellerApplicationService.requireId(shopId, "shopId");
         return transactions.inTransaction(connection -> toDetail(requireVisibleShop(connection, shopId)));
     }
 
+    /**
+     * Performs the get shop products operation.
+     * @param query the query
+     * @return the operation result
+     */
     public PageResult<ProductSummary> getShopProducts(ShopProductQuery query) {
         Objects.requireNonNull(query, "query");
         SellerApplicationService.requireId(query.shopId(), "shopId");

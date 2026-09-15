@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import static edu.seu.vcampus.common.student.majortransfer.MajorTransferStatus.*;
 import static org.assertj.core.api.Assertions.*;
 
+/** Verifies the major transfer state machine contract. */
 class MajorTransferStateMachineTest {
 
     @Test

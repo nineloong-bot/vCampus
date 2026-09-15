@@ -14,6 +14,7 @@ import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
 
+/** Provides cart service test support behavior. */
 abstract class CartServiceTestSupport {
     private ShopTestDatabase database;
     private CartService service;

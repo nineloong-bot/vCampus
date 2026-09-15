@@ -28,6 +28,7 @@ import java.time.Instant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
+/** Verifies the access shop repository contract. */
 class AccessShopRepositoryTest {
     private ShopTestDatabase database;
     private TransactionManager transactions;

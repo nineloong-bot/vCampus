@@ -12,6 +12,7 @@ import java.util.Locale;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
+/** Verifies the distribution demo scripts contract. */
 class DistributionDemoScriptsTest {
     @TempDir
     Path temporaryDirectory;

@@ -9,6 +9,11 @@ import java.util.Objects;
  * This contract carries only the target student and optimistic-lock version;
  * it never carries a password, hash, salt, token, or client address.
  */
+/**
+ * Carries immutable reset student password command data.
+ * @param targetUserId the target user identifier
+ * @param expectedRowVersion the expected row version
+ */
 public record ResetStudentPasswordCommand(
         String targetUserId,
         long expectedRowVersion

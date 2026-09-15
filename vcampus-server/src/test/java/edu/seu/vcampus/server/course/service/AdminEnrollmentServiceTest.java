@@ -33,6 +33,7 @@ import edu.seu.vcampus.server.course.repository.Enrollment;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import edu.seu.vcampus.server.persistence.TransactionManager;
 
+/** Verifies the admin enrollment service contract. */
 class AdminEnrollmentServiceTest {
     private static final Instant NOW = Instant.parse("2026-09-14T08:00:00Z");
     private CourseService service;

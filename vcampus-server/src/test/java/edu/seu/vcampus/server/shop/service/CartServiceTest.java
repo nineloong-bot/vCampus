@@ -23,6 +23,7 @@ import java.time.ZoneOffset;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the cart service contract. */
 class CartServiceTest {
     private ShopTestDatabase database;
     private FakeShopUserPort users;

@@ -18,6 +18,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+/** Verifies the foundation shop user adapter contract. */
 class FoundationShopUserAdapterTest {
     private final AuthorizationPort authorization = mock(AuthorizationPort.class);
     private final Predicate<String> restrictedSessions = "restricted-token"::equals;

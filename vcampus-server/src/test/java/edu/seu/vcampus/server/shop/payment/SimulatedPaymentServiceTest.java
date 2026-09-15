@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the simulated payment service contract. */
 class SimulatedPaymentServiceTest extends PaymentServiceTestSupport {
     @Test
     void administratorCannotAttemptPayment() {

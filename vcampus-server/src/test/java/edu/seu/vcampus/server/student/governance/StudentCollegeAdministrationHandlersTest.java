@@ -26,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
+/** Verifies the student college administration handlers contract. */
 class StudentCollegeAdministrationHandlersTest {
     private static final ClientContext CONTEXT =
             new ClientContext("connection", "127.0.0.1");
@@ -114,6 +115,7 @@ class StudentCollegeAdministrationHandlersTest {
         return new Message(requestId, MessageType.REQUEST, command, "token", body, 0);
     }
 
+    /** Provides fixed authorization behavior. */
     private record FixedAuthorization(UserRole role) implements AuthorizationPort {
         @Override public UserIdentity requireSession(String token) {
             return new UserIdentity("actor", "ACTOR", role, AccountStatus.ACTIVE);

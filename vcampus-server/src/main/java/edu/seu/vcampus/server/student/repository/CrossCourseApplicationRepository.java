@@ -13,8 +13,14 @@ import java.util.ConcurrentModificationException;
 import java.util.List;
 import java.util.Optional;
 
+/** Provides cross course application repository behavior. */
 public final class CrossCourseApplicationRepository {
 
+    /**
+     * Performs the insert operation.
+     * @param connection the connection
+     * @param app the app
+     */
     public void insert(Connection connection, CrossCourseApplication app) {
         String sql = "INSERT INTO tblCrossCourseApplication ("
                 + "applicationId, courseId, courseCode, courseName, credits, "
@@ -58,6 +64,12 @@ public final class CrossCourseApplicationRepository {
         }
     }
 
+    /**
+     * Performs the update operation.
+     * @param connection the connection
+     * @param app the app
+     * @param expectedVersion the expected version
+     */
     public void update(Connection connection, CrossCourseApplication app, long expectedVersion) {
         String sql = "UPDATE tblCrossCourseApplication SET "
                 + "allocatedQuota=?, reviewerUserId=?, reviewComment=?, reviewedAt=?, "
@@ -82,6 +94,12 @@ public final class CrossCourseApplicationRepository {
         }
     }
 
+    /**
+     * Performs the find by identifier operation.
+     * @param connection the connection
+     * @param applicationId the application identifier
+     * @return the operation result
+     */
     public Optional<CrossCourseApplication> findById(Connection connection, String applicationId) {
         String sql = "SELECT applicationId, courseId, courseCode, courseName, credits, "
                 + "offeringDepartmentId, offeringDepartmentName, "
@@ -101,6 +119,14 @@ public final class CrossCourseApplicationRepository {
         }
     }
 
+    /**
+     * Performs the list operation.
+     * @param connection the connection
+     * @param offeringDepartmentId the offering department identifier
+     * @param targetDepartmentId the target department identifier
+     * @param status the status
+     * @return the operation result
+     */
     public List<CrossCourseApplication> list(Connection connection,
             String offeringDepartmentId, String targetDepartmentId, CrossCourseApplicationStatus status) {
         StringBuilder sql = new StringBuilder("SELECT applicationId, courseId, courseCode, courseName, credits, "

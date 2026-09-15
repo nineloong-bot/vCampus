@@ -15,6 +15,7 @@ import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the server main library registration contract. */
 class ServerMainLibraryRegistrationTest {
     @TempDir
     Path temporaryDirectory;

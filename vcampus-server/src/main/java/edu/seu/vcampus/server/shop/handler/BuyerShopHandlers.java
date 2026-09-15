@@ -45,6 +45,18 @@ public final class BuyerShopHandlers {
     private final SimulatedPaymentService payment;
     private final ShopBusinessLogger businessLog;
 
+    /**
+     * Creates a buyer shop handlers with its required collaborators.
+     * @param router the router
+     * @param users the users
+     * @param deduplicator the deduplicator
+     * @param shop the shop
+     * @param cart the cart
+     * @param checkout the checkout
+     * @param orders the orders
+     * @param payment the payment
+     * @param businessLog the business log
+     */
     public BuyerShopHandlers(MessageRouter router, ShopUserPort users,
             RequestDeduplicator deduplicator, ShopService shop, CartService cart,
             CheckoutService checkout, BuyerOrderService orders, SimulatedPaymentService payment,

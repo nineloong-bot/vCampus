@@ -11,6 +11,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the student number generator contract. */
 class StudentNumberGeneratorTest {
     private StudentAccessTestDatabase database;
     private StudentNumberGenerator generator;

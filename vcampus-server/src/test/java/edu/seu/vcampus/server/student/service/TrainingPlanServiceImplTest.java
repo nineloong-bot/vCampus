@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the training plan service impl contract. */
 class TrainingPlanServiceImplTest {
     private StudentAccessTestDatabase database;
     private TrainingPlanServiceImpl service;

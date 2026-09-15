@@ -12,6 +12,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the seeded student dataset contract. */
 class SeededStudentDatasetTest {
     @Test void releaseSeedContainsSearchableStudentsAcrossClassesAndStatuses() throws Exception {
         Path database = Path.of("target", "test-data", UUID.randomUUID() + ".accdb");

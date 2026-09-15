@@ -14,6 +14,7 @@ import java.io.Serializable;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
+/** Provides shop handler support behavior. */
 final class ShopHandlerSupport {
     private final ShopUserPort users;
     private final RequestDeduplicator deduplicator;

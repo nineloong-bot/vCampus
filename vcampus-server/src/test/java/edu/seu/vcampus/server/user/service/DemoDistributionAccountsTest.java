@@ -11,6 +11,7 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the demo distribution accounts contract. */
 class DemoDistributionAccountsTest {
     @Test
     void distributionDatabaseContainsAllVerifiedCourseDemoAccounts() throws Exception {
@@ -98,5 +99,6 @@ class DemoDistributionAccountsTest {
         return new Expected(role, false, "Test12345".toCharArray());
     }
 
+    /** Provides expected behavior. */
     private record Expected(String role, boolean mustChangePassword, char[] password) { }
 }

@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the library authorization adapter contract. */
 class LibraryAuthorizationAdapterTest {
     @Test
     void derivesBorrowerIdentityFromTheAuthenticatedSession() {

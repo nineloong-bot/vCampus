@@ -23,6 +23,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
 
+/** Verifies the major transfer student workflow contract. */
 class MajorTransferStudentWorkflowTest {
     private StudentAccessTestDatabase database;
     private MajorTransferServiceImpl service;

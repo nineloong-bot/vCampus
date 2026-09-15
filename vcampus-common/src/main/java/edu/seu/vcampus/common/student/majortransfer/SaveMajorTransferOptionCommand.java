@@ -4,6 +4,23 @@ import java.io.Serializable;
 import java.util.Objects;
 
 /** Command to create or update a major-transfer option within a batch. */
+/**
+ * Carries immutable save major transfer option command data.
+ * @param optionId the option identifier
+ * @param batchId the batch identifier
+ * @param targetMajorId the target major identifier
+ * @param grades the grades
+ * @param receiveQuota the receive quota
+ * @param interviewQuota the interview quota
+ * @param writtenPassScore the written pass score
+ * @param interviewPassScore the interview pass score
+ * @param writtenWeightPct the written weight pct
+ * @param interviewWeightPct the interview weight pct
+ * @param difficultyQuotaExempt the difficulty quota exempt
+ * @param requirements the requirements
+ * @param active the active
+ * @param expectedVersion the expected version
+ */
 public record SaveMajorTransferOptionCommand(
         String optionId,
         String batchId,
@@ -20,6 +37,23 @@ public record SaveMajorTransferOptionCommand(
         boolean active,
         long expectedVersion
 ) implements Serializable {
+    /**
+     * Validates and creates a save major transfer option command.
+     * @param optionId the option id
+     * @param batchId the batch id
+     * @param targetMajorId the target major id
+     * @param grades the grades
+     * @param receiveQuota the receive quota
+     * @param interviewQuota the interview quota
+     * @param writtenPassScore the written pass score
+     * @param interviewPassScore the interview pass score
+     * @param writtenWeightPct the written weight pct
+     * @param interviewWeightPct the interview weight pct
+     * @param difficultyQuotaExempt the difficulty quota exempt
+     * @param requirements the requirements
+     * @param active the active
+     * @param expectedVersion the expected version
+     */
     public SaveMajorTransferOptionCommand {
         Objects.requireNonNull(batchId, "batchId");
         Objects.requireNonNull(targetMajorId, "targetMajorId");

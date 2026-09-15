@@ -135,5 +135,6 @@ public final class AccessAuditRepository implements AuditRepository {
         return value != null && !value.isBlank();
     }
 
+    /** Provides filter behavior. */
     private record Filter(String clause, List<Object> values) { }
 }

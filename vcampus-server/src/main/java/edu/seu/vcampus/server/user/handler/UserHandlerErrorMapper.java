@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+/** Provides user handler error mapper behavior. */
 final class UserHandlerErrorMapper {
     private static final String INTERNAL_ERROR = "COMMON_INTERNAL_ERROR";
     private static final Set<String> STABLE_CODES = Set.of(

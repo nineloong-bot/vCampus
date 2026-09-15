@@ -12,6 +12,7 @@ import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the server main database connection contract. */
 class ServerMainDatabaseConnectionTest {
     @TempDir Path temporaryDirectory;
 

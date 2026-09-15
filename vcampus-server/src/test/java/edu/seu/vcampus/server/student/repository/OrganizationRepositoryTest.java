@@ -16,6 +16,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the organization repository contract. */
 class OrganizationRepositoryTest {
     private ConnectionProvider provider;
     private OrganizationRepository repository;

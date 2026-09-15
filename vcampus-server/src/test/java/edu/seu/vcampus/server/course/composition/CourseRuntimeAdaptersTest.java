@@ -7,9 +7,11 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the course runtime adapters contract. */
 class CourseRuntimeAdaptersTest {
     @Test
     void bindsUserSessionRestrictionAndAssignedTeacherRole() {
+        /** Provides external identifierentity behavior. */
         record ExternalIdentity(String userId, String role, boolean restricted) { }
         var adapter = CourseRuntimeAdapters.authorization(
                 token -> new ExternalIdentity(token, "STUDENT", "restricted".equals(token)),
@@ -27,6 +29,7 @@ class CourseRuntimeAdaptersTest {
 
     @Test
     void bindsStudentQueryEligibilityWithoutLeakingStudentTypes() {
+        /** Provides external eligibility behavior. */
         record ExternalEligibility(String studentId, String status) { }
         var adapter = CourseRuntimeAdapters.students(
                 userId -> new ExternalEligibility("student-for-" + userId, "ACTIVE"),
@@ -41,6 +44,7 @@ class CourseRuntimeAdaptersTest {
 
     @Test
     void bindsCurriculumContextFromStudentEligibility() {
+        /** Provides external eligibility behavior. */
         record ExternalEligibility(String studentId, String status,
                                    String majorCode, int cohortYear) { }
         var adapter = CourseRuntimeAdapters.students(

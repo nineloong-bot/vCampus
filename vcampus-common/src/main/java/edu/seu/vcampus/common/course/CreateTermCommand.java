@@ -8,6 +8,20 @@ import java.util.Objects;
 import java.util.Set;
 
 /** Creates a complete academic-term window and curriculum mapping. */
+/**
+ * Carries immutable create term command data.
+ * @param termCode the term code
+ * @param termName the term name
+ * @param startDate the start date
+ * @param endDate the end date
+ * @param academicYearStart the academic year start
+ * @param season the season
+ * @param enrollmentStartAt the enrollment start at
+ * @param enrollmentEndAt the enrollment end at
+ * @param adjustmentStartAt the adjustment start at
+ * @param adjustmentEndAt the adjustment end at
+ * @param termStatus the term status
+ */
 public record CreateTermCommand(String termCode, String termName,
                                 LocalDate startDate, LocalDate endDate,
                                 int academicYearStart, AcademicSeason season,
@@ -17,6 +31,20 @@ public record CreateTermCommand(String termCode, String termName,
     @Serial private static final long serialVersionUID = 1L;
     private static final Set<String> STATUSES = Set.of("PLANNED", "ACTIVE", "CLOSED");
 
+    /**
+     * Validates and creates a create term command.
+     * @param termCode the term code
+     * @param termName the term name
+     * @param startDate the start date
+     * @param endDate the end date
+     * @param academicYearStart the academic year start
+     * @param season the season
+     * @param enrollmentStartAt the enrollment start at
+     * @param enrollmentEndAt the enrollment end at
+     * @param adjustmentStartAt the adjustment start at
+     * @param adjustmentEndAt the adjustment end at
+     * @param termStatus the term status
+     */
     public CreateTermCommand {
         Objects.requireNonNull(termCode); Objects.requireNonNull(termName);
         Objects.requireNonNull(startDate); Objects.requireNonNull(endDate);
@@ -33,6 +61,18 @@ public record CreateTermCommand(String termCode, String termName,
                 || !STATUSES.contains(termStatus)) throw new IllegalArgumentException("invalid term");
     }
 
+    /**
+     * Validates and creates a create term command.
+     * @param termCode the term code
+     * @param termName the term name
+     * @param startDate the start date
+     * @param endDate the end date
+     * @param enrollmentStartAt the enrollment start at
+     * @param enrollmentEndAt the enrollment end at
+     * @param adjustmentStartAt the adjustment start at
+     * @param adjustmentEndAt the adjustment end at
+     * @param termStatus the term status
+     */
     public CreateTermCommand(String termCode, String termName, LocalDate startDate,
                              LocalDate endDate, Instant enrollmentStartAt,
                              Instant enrollmentEndAt, Instant adjustmentStartAt,

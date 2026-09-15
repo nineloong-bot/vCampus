@@ -1,7 +1,8 @@
 package edu.seu.vcampus.common.shop;
 
+/** Defines supported payment channel values. */
 public enum PaymentChannel {
-    WECHAT,
-    ALIPAY,
-    BANK_CARD
+    /** Represents wechat. */ WECHAT,
+    /** Represents alipay. */ ALIPAY,
+    /** Represents bank card. */ BANK_CARD
 }

@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
+/** Verifies the student profile handlers contract. */
 class StudentProfileHandlersTest {
     @Test
     void workspaceAlwaysUsesTheAuthenticatedStudentUserId() {
@@ -187,6 +188,7 @@ class StudentProfileHandlersTest {
         return new StubProfileService();
     }
 
+    /** Provides stub profile service behavior. */
     private static class StubProfileService implements StudentProfileService {
         public StudentProfileWorkspace getWorkspace(String userId) { return null; }
         public StudentProfileData getProfileByStudentId(String studentId) { return null; }
@@ -205,6 +207,7 @@ class StudentProfileHandlersTest {
                 System.currentTimeMillis());
     }
 
+    /** Provides student handler fixtures behavior. */
     private static final class StudentHandlerFixtures {
         private static edu.seu.vcampus.server.student.service.StudentService studentService() {
             return new edu.seu.vcampus.server.student.service.StudentService() {

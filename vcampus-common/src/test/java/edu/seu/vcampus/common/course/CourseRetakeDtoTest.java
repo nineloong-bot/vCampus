@@ -13,6 +13,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the course retake dto contract. */
 class CourseRetakeDtoTest {
     @Test
     void outcomeContractContainsOnlyPassedAndFailed() {

@@ -8,6 +8,10 @@ import java.util.function.Supplier;
 /** Applies foundation request-id deduplication to non-admission student writes. */
 public final class DeduplicatingStudentWriteExecutor implements StudentWriteExecutor {
     private final RequestDeduplicator deduplicator;
+    /**
+     * Creates a deduplicating student write executor with its required collaborators.
+     * @param deduplicator the deduplicator
+     */
     public DeduplicatingStudentWriteExecutor(RequestDeduplicator deduplicator) {
         this.deduplicator = Objects.requireNonNull(deduplicator);
     }

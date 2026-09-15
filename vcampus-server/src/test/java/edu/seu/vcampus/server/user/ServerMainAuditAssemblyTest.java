@@ -19,6 +19,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the server main audit assembly contract. */
 class ServerMainAuditAssemblyTest {
     @Test
     void unifiedProductionRuntimeKeepsSecurityAuditAssemblyAlongsideCourseRouting() throws Exception {

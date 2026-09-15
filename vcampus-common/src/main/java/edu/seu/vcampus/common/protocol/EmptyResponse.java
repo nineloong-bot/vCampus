@@ -4,5 +4,5 @@ import java.io.Serializable;
 
 /** Singleton response body for commands without result data. */
 public enum EmptyResponse implements Serializable {
-    INSTANCE
+    /** Represents instance. */ INSTANCE
 }

@@ -28,6 +28,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+/** Verifies the user audit failure isolation contract. */
 class UserAuditFailureIsolationTest {
     private static final String ADMIN_ID = "00000000-0000-0000-0000-000000000001";
     private TransactionManager transactions;
@@ -111,6 +112,7 @@ class UserAuditFailureIsolationTest {
         }
     }
 
+    /** Provides throwing audits behavior. */
     private static final class ThrowingAudits implements AuditRepository {
         private final boolean failSuccess;
         private final List<String> metadata = new ArrayList<>();

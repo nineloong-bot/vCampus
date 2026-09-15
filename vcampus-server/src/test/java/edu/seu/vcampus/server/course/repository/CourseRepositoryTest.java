@@ -18,6 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import edu.seu.vcampus.server.course.domain.CourseConcurrentModificationException;
 
+/** Verifies the course repository contract. */
 class CourseRepositoryTest {
     private CourseRepository repository;
     private Connection connection;

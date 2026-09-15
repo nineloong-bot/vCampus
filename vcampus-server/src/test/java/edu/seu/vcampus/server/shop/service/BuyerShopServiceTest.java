@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.tuple;
 
+/** Verifies the buyer shop service contract. */
 class BuyerShopServiceTest {
     private ShopTestDatabase database;
     private TransactionManager transactions;

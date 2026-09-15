@@ -17,6 +17,7 @@ import javax.crypto.spec.PBEKeySpec;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the unified demo dataset contract. */
 class UnifiedDemoDatasetTest {
     @TempDir Path directory;
 

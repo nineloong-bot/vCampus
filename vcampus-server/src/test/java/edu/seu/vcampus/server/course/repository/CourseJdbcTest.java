@@ -6,6 +6,7 @@ import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the course jdbc contract. */
 class CourseJdbcTest {
     @Test
     void normalizesGeneratedTimestampsToAccessPrecision() {

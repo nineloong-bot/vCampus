@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/** Verifies the password command cleanup contract. */
 class PasswordCommandCleanupTest {
     @Test
     void loginCommandCopiesAndCanClearItsPassword() {

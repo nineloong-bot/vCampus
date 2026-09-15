@@ -31,6 +31,14 @@ public final class SellerApplicationService {
     private final ResourceLockManager locks;
     private final Clock clock;
 
+    /**
+     * Creates a seller application service with its required collaborators.
+     * @param repository the repository
+     * @param users the users
+     * @param transactions the transactions
+     * @param locks the locks
+     * @param clock the clock
+     */
     public SellerApplicationService(ShopRepository repository, ShopUserPort users,
             TransactionManager transactions, ResourceLockManager locks, Clock clock) {
         this.repository = Objects.requireNonNull(repository, "repository");
@@ -40,6 +48,12 @@ public final class SellerApplicationService {
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
+    /**
+     * Performs the save draft operation.
+     * @param sessionToken the session token
+     * @param command the command
+     * @return the operation result
+     */
     public SellerApplicationView saveDraft(String sessionToken, SaveSellerDraftCommand command) {
         Objects.requireNonNull(command, "command");
         ShopUser actor = requireEligible(users.requireUser(sessionToken));
@@ -81,6 +95,12 @@ public final class SellerApplicationService {
                 }));
     }
 
+    /**
+     * Performs the submit application operation.
+     * @param sessionToken the session token
+     * @param command the command
+     * @return the operation result
+     */
     public SellerApplicationView submitApplication(String sessionToken,
             SubmitSellerApplicationCommand command) {
         Objects.requireNonNull(command, "command");
@@ -116,11 +136,21 @@ public final class SellerApplicationService {
                 }));
     }
 
+    /**
+     * Performs the get my application operation.
+     * @param sessionToken the session token
+     * @return the operation result
+     */
     public SellerApplicationView getMyApplication(String sessionToken) {
         return findMyApplication(sessionToken).orElseThrow(() -> error(
                 ShopErrorCode.SHOP_SELLER_NOT_APPROVED, "Seller application does not exist"));
     }
 
+    /**
+     * Performs the find my application operation.
+     * @param sessionToken the session token
+     * @return the operation result
+     */
     public Optional<SellerApplicationView> findMyApplication(String sessionToken) {
         ShopUser actor = users.requireUser(sessionToken);
         return transactions.inTransaction(connection -> repository

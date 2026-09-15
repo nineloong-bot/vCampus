@@ -169,6 +169,7 @@ public final class CourseDemoDataset {
         return new Item(code, name, new BigDecimal(credit), year, season, nature, category);
     }
 
+    /** Provides item behavior. */
     private record Item(String code, String name, BigDecimal credit, int year,
                         AcademicSeason season, String nature, String category) {}
 }

@@ -17,6 +17,12 @@ public final class SellerService {
     private final ShopUserPort users;
     private final TransactionManager transactions;
 
+    /**
+     * Creates a seller service with its required collaborators.
+     * @param repository the repository
+     * @param users the users
+     * @param transactions the transactions
+     */
     public SellerService(ShopRepository repository, ShopUserPort users,
             TransactionManager transactions) {
         this.repository = Objects.requireNonNull(repository, "repository");
@@ -24,6 +30,11 @@ public final class SellerService {
         this.transactions = Objects.requireNonNull(transactions, "transactions");
     }
 
+    /**
+     * Performs the get owned shop operation.
+     * @param sessionToken the session token
+     * @return the operation result
+     */
     public ShopView getOwnedShop(String sessionToken) {
         ShopUser actor = users.requireUser(sessionToken);
         return transactions.inTransaction(connection -> toView(repository
@@ -33,6 +44,11 @@ public final class SellerService {
                         "User does not own an approved shop"))));
     }
 
+    /**
+     * Performs the require owned active shop operation.
+     * @param sessionToken the session token
+     * @return the operation result
+     */
     public ShopView requireOwnedActiveShop(String sessionToken) {
         ShopView shop = getOwnedShop(sessionToken);
         if (shop.status() == ShopStatus.SUSPENDED) {
