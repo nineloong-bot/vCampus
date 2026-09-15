@@ -45,6 +45,47 @@ class CollegeAdministratorManagementPanelTest {
         SwingUtilities.invokeAndWait(holder[0]::removeNotify);
     }
 
+    @Test
+    void transferFiltersCurrentDepartmentAndIssuesTransferCommand() throws Exception {
+        RecordingClient client = new RecordingClient();
+        CollegeAdministratorManagementPanel[] holder = new CollegeAdministratorManagementPanel[1];
+        SwingUtilities.invokeAndWait(() -> {
+            holder[0] = new CollegeAdministratorManagementPanel(
+                    new StudentClientService(client, Duration.ofSeconds(1)));
+            holder[0].addNotify();
+        });
+        JTable table = find(holder[0], JTable.class);
+        waitForRows(table, 2);
+
+        SwingUtilities.invokeAndWait(() -> {
+            table.setRowSelectionInterval(1, 1);
+            @SuppressWarnings("unchecked")
+            JComboBox<DepartmentView> combo = find(holder[0], JComboBox.class, "collegeAdminTransferDeptCombo");
+            assertThat(combo).isNotNull();
+            assertThat(combo.getItemCount()).isEqualTo(1);
+            assertThat(combo.getItemAt(0).code()).isEqualTo("SE");
+            find(holder[0], "collegeAdminTransferButton").doClick();
+        });
+        waitFor(() -> client.commands.contains("STUDENT_COLLEGE_ADMIN_TRANSFER"));
+
+        assertThat(client.commands).contains("STUDENT_COLLEGE_ADMIN_TRANSFER");
+        SwingUtilities.invokeAndWait(holder[0]::removeNotify);
+    }
+
+    @Test
+    void layoutContainsSplitPaneAndWorkspace() throws Exception {
+        RecordingClient client = new RecordingClient();
+        CollegeAdministratorManagementPanel[] holder = new CollegeAdministratorManagementPanel[1];
+        SwingUtilities.invokeAndWait(() -> {
+            holder[0] = new CollegeAdministratorManagementPanel(
+                    new StudentClientService(client, Duration.ofSeconds(1)));
+        });
+        JSplitPane split = find(holder[0], JSplitPane.class);
+        assertThat(split).isNotNull();
+        assertThat(find(holder[0], JTable.class)).isNotNull();
+        assertThat(find(holder[0], JComponent.class, "collegeAdminWorkspacePanel")).isNotNull();
+    }
+
     private static void waitFor(java.util.function.BooleanSupplier condition)
             throws InterruptedException {
         long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(2);
@@ -77,10 +118,16 @@ class CollegeAdministratorManagementPanelTest {
     }
 
     private static <T extends Component> T find(Container root, Class<T> type) {
+        return find(root, type, null);
+    }
+
+    private static <T extends Component> T find(Container root, Class<T> type, String name) {
         for (Component component : root.getComponents()) {
-            if (type.isInstance(component)) return type.cast(component);
+            if (type.isInstance(component) && (name == null || name.equals(component.getName()))) {
+                return type.cast(component);
+            }
             if (component instanceof Container child) {
-                T found = find(child, type);
+                T found = find(child, type, name);
                 if (found != null) return found;
             }
         }
@@ -96,9 +143,13 @@ class CollegeAdministratorManagementPanelTest {
             commands.add(command);
             if ("STUDENT_COLLEGE_ADMIN_SEARCH".equals(command)) {
                 var snapshot = new StudentCollegeAdministrationSnapshot(List.of(
-                        new StudentCollegeAdministratorView("user", "COLLEGE_ADMIN_TEST",
-                                AccountStatus.ACTIVE, null, null, null, false, 0)),
-                        List.of(new DepartmentView("department", "CS", "计算机学院", true, 0)));
+                        new StudentCollegeAdministratorView("user-1", "UNASSIGNED_TEST",
+                                AccountStatus.ACTIVE, null, null, null, false, 0),
+                        new StudentCollegeAdministratorView("user-2", "ASSIGNED_TEST",
+                                AccountStatus.ACTIVE, "dept-cs", "CS", "计算机学院", true, 0)),
+                        List.of(
+                                new DepartmentView("dept-cs", "CS", "计算机学院", true, 0),
+                                new DepartmentView("dept-se", "SE", "软件学院", true, 0)));
                 return CompletableFuture.completedFuture(
                         (ResponseBody<T>) ResponseBody.success(snapshot));
             }

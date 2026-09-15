@@ -13,7 +13,6 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -25,14 +24,17 @@ public final class CollegeAdministratorManagementPanel extends JPanel {
         @Override public boolean isCellEditable(int row, int column) { return false; }
     };
     private final JTable table = new JTable(model);
-    private final JComboBox<DepartmentView> departments = new JComboBox<>();
+    private final DefaultComboBoxModel<DepartmentView> departmentsModel = new DefaultComboBoxModel<>();
     private final JLabel status = new JLabel(" ");
+    private final CollegeAdministratorWorkspacePanel workspace;
     private List<StudentCollegeAdministratorView> administrators = List.of();
 
     /** Creates the college-administrator governance workspace. */
     public CollegeAdministratorManagementPanel(StudentClientService students) {
         super(new BorderLayout(UiSpacing.SPACE_2, UiSpacing.SPACE_2));
         this.students = Objects.requireNonNull(students);
+        this.workspace = new CollegeAdministratorWorkspacePanel(
+                this::assign, this::transfer, this::deactivate);
         setName("college-administrator.management");
         setBackground(UiColors.BACKGROUND_PAGE);
         setBorder(new EmptyBorder(UiSpacing.SPACE_3, UiSpacing.SPACE_3,
@@ -43,22 +45,36 @@ public final class CollegeAdministratorManagementPanel extends JPanel {
     private void build() {
         JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
         toolbar.setOpaque(false);
-        JButton create = button("新增管理员", "collegeAdminCreateButton", event -> showCreateDialog());
-        JButton refresh = button("刷新", "collegeAdminRefreshButton", event -> refresh());
-        JButton assign = button("分配", "collegeAdminAssignButton", event -> assign());
-        JButton transfer = button("调动", "collegeAdminTransferButton", event -> transfer());
-        JButton deactivate = button("停用", "collegeAdminDeactivateButton",
-                event -> deactivate());
-        toolbar.add(create);
-        toolbar.add(new JLabel("目标学院："));
-        toolbar.add(departments);
-        toolbar.add(assign);
-        toolbar.add(transfer);
-        toolbar.add(deactivate);
-        toolbar.add(refresh);
+        toolbar.add(button("新增管理员", "collegeAdminCreateButton", e -> showCreateDialog()));
+        toolbar.add(button("分配", "collegeAdminToolbarAssignButton", e -> toolbarAssign()));
+        toolbar.add(button("调动", "collegeAdminToolbarTransferButton", e -> toolbarTransfer()));
+        toolbar.add(button("刷新", "collegeAdminRefreshButton", e -> refresh()));
+
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        add(toolbar, BorderLayout.NORTH);
-        add(new JScrollPane(table), BorderLayout.CENTER);
+        table.getSelectionModel().addListSelectionListener(event -> {
+            if (event.getValueIsAdjusting()) return;
+            StudentCollegeAdministratorView admin = selected();
+            workspace.showAdministrator(admin);
+            if (admin != null) {
+                status.setText(admin.assigned()
+                        ? "选中管理员 " + admin.loginId() + "（" + admin.departmentName() + "），可在工作区调动或停用"
+                        : "选中未分配管理员 " + admin.loginId() + "，请在右侧工作区选择学院分配");
+            }
+        });
+
+        JPanel leftPanel = new JPanel(new BorderLayout(0, UiSpacing.SPACE_2));
+        leftPanel.setOpaque(false);
+        leftPanel.add(toolbar, BorderLayout.NORTH);
+        leftPanel.add(new JScrollPane(table), BorderLayout.CENTER);
+
+        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, workspace);
+        split.setResizeWeight(0.58);
+        split.setDividerSize(6);
+        split.setOneTouchExpandable(true);
+        split.setBorder(null);
+        split.setOpaque(false);
+
+        add(split, BorderLayout.CENTER);
         add(status, BorderLayout.SOUTH);
     }
 
@@ -80,16 +96,39 @@ public final class CollegeAdministratorManagementPanel extends JPanel {
                             row.loginId(), row.accountStatus(),
                             row.departmentName() == null ? "未分配" : row.departmentName(),
                             row.assigned() ? "有效" : "未绑定"}));
-                    departments.removeAllItems();
-                    response.data().departments().stream().filter(DepartmentView::active)
-                            .forEach(departments::addItem);
+                    departmentsModel.removeAllElements();
+                    var active = response.data().departments().stream()
+                            .filter(DepartmentView::active).toList();
+                    active.forEach(departmentsModel::addElement);
+                    workspace.setDepartments(active);
+                    workspace.showAdministrator(selected());
                     status.setText("已加载 " + administrators.size() + " 名学院管理员");
                 }));
     }
 
-    private void assign() {
-        StudentCollegeAdministratorView administrator = selected();
-        DepartmentView department = (DepartmentView) departments.getSelectedItem();
+    private void toolbarAssign() {
+        StudentCollegeAdministratorView admin = selected();
+        if (admin == null || admin.assigned()) {
+            status.setText(admin == null ? "请选择未分配管理员" : "该管理员已分配学院，如需更换请在工作区调动");
+            return;
+        }
+        workspace.showAssign();
+        workspace.focusChoice();
+        status.setText("请在右侧工作区选择目标学院并确认分配");
+    }
+
+    private void toolbarTransfer() {
+        StudentCollegeAdministratorView admin = selected();
+        if (admin == null || !admin.assigned()) {
+            status.setText(admin == null ? "请选择已分配管理员" : "该管理员未分配学院，请在工作区分配");
+            return;
+        }
+        workspace.showTransfer();
+        workspace.focusChoice();
+        status.setText("请在右侧工作区选择目标学院并确认调动");
+    }
+
+    private void assign(StudentCollegeAdministratorView administrator, DepartmentView department) {
         if (administrator == null || department == null || administrator.assigned()) {
             status.setText("请选择未分配管理员和目标学院");
             return;
@@ -99,11 +138,13 @@ public final class CollegeAdministratorManagementPanel extends JPanel {
                 .whenComplete((response, failure) -> complete(response, "分配完成"));
     }
 
-    private void transfer() {
-        StudentCollegeAdministratorView administrator = selected();
-        DepartmentView target = (DepartmentView) departments.getSelectedItem();
+    private void transfer(StudentCollegeAdministratorView administrator, DepartmentView target) {
         if (administrator == null || target == null || !administrator.assigned()) {
             status.setText("请选择已分配管理员和目标学院");
+            return;
+        }
+        if (Objects.equals(administrator.departmentId(), target.departmentId())) {
+            status.setText("调动目标学院不能与当前学院相同");
             return;
         }
         students.transferCollegeAdministrator(new TransferStudentCollegeAdministratorCommand(
@@ -112,8 +153,7 @@ public final class CollegeAdministratorManagementPanel extends JPanel {
                 .whenComplete((response, failure) -> complete(response, "调动完成"));
     }
 
-    private void deactivate() {
-        StudentCollegeAdministratorView administrator = selected();
+    private void deactivate(StudentCollegeAdministratorView administrator) {
         if (administrator == null || !administrator.assigned()) {
             status.setText("请选择已分配管理员");
             return;
@@ -125,7 +165,7 @@ public final class CollegeAdministratorManagementPanel extends JPanel {
     }
 
     private void showCreateDialog() {
-        CollegeAdministratorCreationDialog.show(this, students, departments.getModel(),
+        CollegeAdministratorCreationDialog.show(this, students, departmentsModel,
                 status, this::complete);
     }
 
