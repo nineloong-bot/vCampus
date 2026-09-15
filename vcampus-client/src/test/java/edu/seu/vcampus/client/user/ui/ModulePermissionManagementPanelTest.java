@@ -13,6 +13,7 @@ import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JTable;
 import javax.swing.SwingUtilities;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
 import java.awt.Component;
 import java.awt.Container;
 import java.util.List;
@@ -42,11 +43,15 @@ class ModulePermissionManagementPanelTest {
         JTable table = component(panel[0], "governance.table", JTable.class);
         assertThat(table.getRowCount()).isEqualTo(5);
         assertThat(table.getValueAt(0, 0)).isEqualTo("学籍管理");
+        EmbeddedEditorHost host = component(panel[0], EmbeddedEditorHost.class);
+        assertThat(host.isEditorOpen()).isFalse();
         SwingUtilities.invokeAndWait(() -> {
             table.setRowSelectionInterval(4, 4);
+            component(panel[0], "governance.assign", AbstractButton.class).doClick();
+            assertThat(host.isEditorOpen()).isTrue();
             component(panel[0], "governance.module", JComboBox.class)
                     .setSelectedItem("COURSE");
-            component(panel[0], "governance.assign", AbstractButton.class).doClick();
+            component(panel[0], "governance.submit", AbstractButton.class).doClick();
         });
         flushEdt();
 
@@ -108,5 +113,19 @@ class ModulePermissionManagementPanelTest {
             }
         }
         throw new IllegalArgumentException("Missing component " + name);
+    }
+
+    private static <T extends Component> T component(Container root, Class<T> type) {
+        for (Component child : root.getComponents()) {
+            if (type.isInstance(child)) return type.cast(child);
+            if (child instanceof Container nested) {
+                try {
+                    return component(nested, type);
+                } catch (IllegalArgumentException ignored) {
+                    // Continue through siblings.
+                }
+            }
+        }
+        throw new IllegalArgumentException("Missing component " + type.getSimpleName());
     }
 }

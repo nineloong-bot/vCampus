@@ -94,12 +94,14 @@ class AccountManagementSafetyTest {
             find(panel, "governance.table", JTable.class).setRowSelectionInterval(0, 0);
             assertThatCode(() -> find(panel, "governance.assign", AbstractButton.class).doClick())
                     .doesNotThrowAnyException();
+            assertThatCode(() -> find(panel, "governance.submit", AbstractButton.class).doClick())
+                    .doesNotThrowAnyException();
             assertThat(labels(panel)).contains("权限调整失败，请稍后重试");
-            assertThat(find(panel, "governance.assign", AbstractButton.class).isEnabled()).isTrue();
+            assertThat(find(panel, "governance.submit", AbstractButton.class).isEnabled()).isTrue();
         });
     }
 
-    @Test void defaultGovernanceConfirmationOpensWithItsWindowOwner() throws Exception {
+    @Test void destructiveGovernanceConfirmationOpensWithItsWindowOwner() throws Exception {
         var users = governanceUsers();
         SwingUtilities.invokeAndWait(() -> {
             var owner = new JFrame();
@@ -118,7 +120,7 @@ class AccountManagementSafetyTest {
             timer.start();
             try {
                 find(panel, "governance.table", JTable.class).setRowSelectionInterval(0, 0);
-                assertThatCode(() -> find(panel, "governance.assign", AbstractButton.class).doClick())
+                assertThatCode(() -> find(panel, "governance.remove", AbstractButton.class).doClick())
                         .doesNotThrowAnyException();
                 assertThat(opened[0]).isTrue();
             } finally { timer.stop(); owner.dispose(); }

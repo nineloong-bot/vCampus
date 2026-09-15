@@ -1,31 +1,15 @@
 package edu.seu.vcampus.client.user.ui;
 
-import edu.seu.vcampus.client.core.ui.theme.UiBorders;
-import edu.seu.vcampus.client.core.ui.theme.UiColors;
-import edu.seu.vcampus.client.core.ui.theme.UiSpacing;
-import edu.seu.vcampus.client.core.ui.theme.UiTypography;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
+import edu.seu.vcampus.client.core.ui.theme.*;
 import edu.seu.vcampus.client.user.service.UserClientService;
 import edu.seu.vcampus.common.paging.PageResult;
-import edu.seu.vcampus.common.user.AccountStatus;
-import edu.seu.vcampus.common.user.ChangeUserStatusCommand;
-import edu.seu.vcampus.common.user.ResetStudentPasswordCommand;
-import edu.seu.vcampus.common.user.ResetTeacherPasswordCommand;
-import edu.seu.vcampus.common.user.UserRole;
-import edu.seu.vcampus.common.user.UserSearchQuery;
-import edu.seu.vcampus.common.user.UserSummary;
+import edu.seu.vcampus.common.user.*;
 
-import javax.swing.JButton;
-import javax.swing.JComboBox;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JTable;
-import javax.swing.JTextField;
-import javax.swing.SwingUtilities;
+import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -37,9 +21,12 @@ public final class UserManagementPanel extends JPanel {
     private final UserClientService users;
     private final Set<String> permissions;
     private final JTextField keyword = new JTextField(14);
-    private final JComboBox<Object> role = new JComboBox<>(filterValues(UserRole.values()));
-    private final JComboBox<Object> status = new JComboBox<>(filterValues(AccountStatus.values()));
+    private final JComboBox<Object> roleFilter = new JComboBox<>(
+            UserManagementLabels.filters(UserRole.values()));
+    private final JComboBox<Object> statusFilter = new JComboBox<>(
+            UserManagementLabels.filters(AccountStatus.values()));
     private final JButton search = button("查询", "users.search");
+    private final JButton role = button("调整角色", "users.role.open");
     private final JButton changeStatus = button("变更状态", "users.status");
     private final JButton resetPassword = button("初始化密码", "users.resetPassword");
     private final JLabel state = new JLabel("准备查询");
@@ -48,7 +35,9 @@ public final class UserManagementPanel extends JPanel {
         @Override public boolean isCellEditable(int row, int column) { return false; }
     };
     private final JTable table = new JTable(model);
-    private final UserDetailPanel detailPanel = new UserDetailPanel();
+    private final UserDetailPanel detail = new UserDetailPanel();
+    private final EmbeddedEditorHost editorHost;
+    private final UserManagementActions actions;
     private List<UserSummary> rows = List.of();
     private int page;
     private boolean busy;
@@ -56,253 +45,156 @@ public final class UserManagementPanel extends JPanel {
 
     /** Creates a paged management page using the authenticated permission snapshot. */
     public UserManagementPanel(UserClientService users, Set<String> permissions) {
-        super(new BorderLayout(0, UiSpacing.SPACE_4));
+        super(new BorderLayout());
         this.users = Objects.requireNonNull(users, "users");
         this.permissions = Set.copyOf(permissions);
-        setBackground(UiColors.BACKGROUND_PAGE); setBorder(UiBorders.pageInset());
+        actions = new UserManagementActions(users, this, () -> closed,
+                this::setBusy, this::load, state::setText);
+        setBackground(UiColors.BACKGROUND_PAGE);
+        setBorder(UiBorders.pageInset());
         setName("page.userManagement");
-        table.setName("users.table"); table.setRowHeight(34);
+        table.setName("users.table");
+        table.setRowHeight(34);
         table.getAccessibleContext().setAccessibleName("账户查询结果");
-        JPanel leftPanel = new JPanel(new BorderLayout(0, UiSpacing.SPACE_3));
-        leftPanel.setOpaque(false);
-        leftPanel.add(heading(), BorderLayout.NORTH);
-        leftPanel.add(new JScrollPane(table), BorderLayout.CENTER);
-        leftPanel.add(actions(), BorderLayout.SOUTH);
-        javax.swing.JSplitPane split = new javax.swing.JSplitPane(
-                javax.swing.JSplitPane.HORIZONTAL_SPLIT, leftPanel, detailPanel);
-        split.setDividerSize(6); split.setResizeWeight(0.58);
-        split.setOneTouchExpandable(true); split.setBorder(null); split.setOpaque(false);
-        add(split, BorderLayout.CENTER);
-        search.addActionListener(event -> { page = 0; load(); });
-        changeStatus.addActionListener(event -> changeStatus());
-        resetPassword.addActionListener(event -> confirmPasswordReset());
-        table.getSelectionModel().addListSelectionListener(event -> {
-            updateActionAvailability();
-            detailPanel.showUser(selectedRow());
-        });
+        editorHost = new EmbeddedEditorHost(listing());
+        add(editorHost, BorderLayout.CENTER);
+        wireActions();
         resetPassword.setVisible(false);
         updateActionAvailability();
-        load();
+        load(null);
+    }
+
+    private JPanel listing() {
+        JPanel left = new JPanel(new BorderLayout(0, UiSpacing.SPACE_3));
+        left.setOpaque(false);
+        left.add(heading(), BorderLayout.NORTH);
+        left.add(new JScrollPane(table), BorderLayout.CENTER);
+        left.add(actionBar(), BorderLayout.SOUTH);
+        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, left, detail);
+        split.setDividerSize(6);
+        split.setResizeWeight(0.58);
+        split.setOneTouchExpandable(true);
+        split.setBorder(null);
+        split.setOpaque(false);
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setOpaque(false);
+        panel.add(split);
+        return panel;
     }
 
     private JPanel heading() {
         JPanel panel = new JPanel(new BorderLayout(0, UiSpacing.SPACE_3));
         panel.setOpaque(false);
-        JLabel title = new JLabel("账户管理"); title.setFont(UiTypography.PAGE_TITLE);
+        JLabel title = new JLabel("账户管理");
+        title.setFont(UiTypography.PAGE_TITLE);
         panel.add(title, BorderLayout.NORTH);
         JPanel filters = new JPanel(new FlowLayout(FlowLayout.LEFT, UiSpacing.SPACE_2, 0));
         filters.setBackground(UiColors.BACKGROUND_SUBTLE);
         keyword.setName("users.keyword");
         filters.add(new JLabel("登录标识")); filters.add(keyword);
-        filters.add(new JLabel("角色")); filters.add(role);
-        filters.add(new JLabel("状态")); filters.add(status); filters.add(search);
-        panel.add(filters, BorderLayout.CENTER); return panel;
+        filters.add(new JLabel("角色")); filters.add(roleFilter);
+        filters.add(new JLabel("状态")); filters.add(statusFilter); filters.add(search);
+        panel.add(filters, BorderLayout.CENTER);
+        return panel;
     }
 
-    private JPanel actions() {
+    private JPanel actionBar() {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.RIGHT, UiSpacing.SPACE_2, 0));
-        panel.setOpaque(false); panel.add(state);
+        panel.setOpaque(false);
+        panel.add(state);
+        if (permissions.contains("USER_ROLE_WRITE")) panel.add(role);
         if (permissions.contains("USER_STATUS_WRITE")) panel.add(changeStatus);
         if (permissions.contains("USER_PASSWORD_RESET")) panel.add(resetPassword);
         return panel;
     }
 
-    private void load() {
-        load(null);
+    private void wireActions() {
+        search.addActionListener(event -> { page = 0; load(null); });
+        role.addActionListener(event -> openRoleEditor());
+        changeStatus.addActionListener(event -> actions.changeStatus(selectedRow()));
+        resetPassword.addActionListener(event -> actions.confirmPasswordReset(selectedRow()));
+        table.getSelectionModel().addListSelectionListener(event -> {
+            updateActionAvailability();
+            detail.showUser(selectedRow());
+        });
     }
 
-    private void load(String successMessage) {
+    private void openRoleEditor() {
+        UserSummary selected = selectedRow();
+        if (!roleWritable(selected)) { state.setText("请选择教师或管理员账户"); return; }
+        editorHost.showEditor(new UserRoleEditorPanel(users, selected, () -> {
+            editorHost.completeAndClose();
+            load("角色修改成功");
+        }, editorHost::requestClose));
+    }
+
+    private void load(String message) {
         if (closed) return;
         if (!permissions.contains("USER_READ_ALL")) {
-            state.setText("无权查看全部账户"); return;
+            state.setText("无权查看全部账户");
+            return;
         }
         setBusy(true);
-        UserSearchQuery query = new UserSearchQuery(keyword.getText(), selected(role, UserRole.class),
-                selected(status, AccountStatus.class), page, PAGE_SIZE);
+        UserSearchQuery query = new UserSearchQuery(keyword.getText(),
+                UserManagementLabels.selected(roleFilter, UserRole.class),
+                UserManagementLabels.selected(statusFilter, AccountStatus.class), page, PAGE_SIZE);
         CompletableFuture<PageResult<UserSummary>> response;
         try { response = users.searchUsers(query); }
         catch (RuntimeException failure) { response = CompletableFuture.failedFuture(failure); }
-        response.whenComplete((result, failure) ->
-                onEdt(() -> finish(result, failure, successMessage)));
+        response.whenComplete((result, failure) -> onEdt(() -> finish(result, failure, message)));
     }
 
-    private void finish(PageResult<UserSummary> result, Throwable failure,
-            String successMessage) {
+    private void finish(PageResult<UserSummary> result, Throwable failure, String message) {
         if (closed) return;
-        setBusy(false); model.setRowCount(0);
-        rows = List.of();
+        setBusy(false); model.setRowCount(0); rows = List.of();
         if (failure != null || result == null) {
-            state.setText(UserErrorMessages.operation(failure, "账户列表加载失败，请重试")); return;
+            state.setText(UserErrorMessages.operation(failure, "账户列表加载失败，请重试"));
+            return;
         }
         rows = List.copyOf(result.items());
         for (UserSummary row : rows) model.addRow(new Object[]{row.loginId(),
-                roleName(row.role()), statusName(row.accountStatus()), row.lastLoginAt(), row.rowVersion()});
-        detailPanel.clear();
-        state.setText(successMessage != null ? successMessage
-                : result.total() == 0 ? "未找到符合条件的账户"
-                : "共 " + result.total() + " 条");
-    }
-
-    private void changeStatus() {
-        if (busy || closed) return;
-        UserSummary selected = selectedRow();
-        if (selected == null) { state.setText("请先选择账户"); return; }
-        if (!ordinaryAccount(selected)) return;
-        AccountStatus next = nextStatus(selected.accountStatus());
-        if (next == null) { state.setText("当前状态不能在此变更"); return; }
-        setBusy(true);
-        CompletableFuture<?> response;
-        try {
-            response = users.changeStatus(new ChangeUserStatusCommand(selected.userId(), next,
-                    "管理员账户管理操作", selected.rowVersion()));
-        } catch (RuntimeException failure) {
-            response = CompletableFuture.failedFuture(failure);
-        }
-        response.whenComplete((ignored, failure) -> onEdt(() -> {
-                    if (closed) return;
-                    if (failure == null) load();
-                    else if (UserErrorMessages.isConcurrentModification(failure)) {
-                        load("账户信息已更新，请重新选择后重试");
-                    }
-                    else { setBusy(false); state.setText(UserErrorMessages.operation(
-                            failure, "状态修改失败，请稍后重试")); }
-                }));
-    }
-
-    private void confirmPasswordReset() {
-        UserSummary selected = selectedRow();
-        if (selected == null) return;
-        if (selected.role() == UserRole.STUDENT) {
-            StudentPasswordResetConfirmationDialog dialog =
-                    new StudentPasswordResetConfirmationDialog(
-                            SwingUtilities.getWindowAncestor(this),
-                            () -> resetStudentPassword(selected));
-            dialog.setVisible(true);
-        } else if (selected.role() == UserRole.TEACHER) {
-            TeacherPasswordResetConfirmationDialog dialog =
-                    new TeacherPasswordResetConfirmationDialog(
-                            SwingUtilities.getWindowAncestor(this),
-                            () -> resetTeacherPassword(selected));
-            dialog.setVisible(true);
-        }
-    }
-
-    private void resetStudentPassword(UserSummary selected) {
-        if (busy || closed) return;
-        setBusy(true);
-        CompletableFuture<?> response;
-        try {
-            response = users.resetStudentPassword(new ResetStudentPasswordCommand(
-                    selected.userId(), selected.rowVersion()));
-        } catch (RuntimeException failure) {
-            response = CompletableFuture.failedFuture(failure);
-        }
-        response.whenComplete((ignored, failure) -> onEdt(() -> {
-            finishPasswordReset(failure);
-        }));
-    }
-
-    private void resetTeacherPassword(UserSummary selected) {
-        if (busy || closed) return;
-        setBusy(true);
-        CompletableFuture<?> response;
-        try {
-            response = users.resetTeacherPassword(new ResetTeacherPasswordCommand(
-                    selected.userId(), selected.rowVersion()));
-        } catch (RuntimeException failure) {
-            response = CompletableFuture.failedFuture(failure);
-        }
-        response.whenComplete((ignored, failure) ->
-                onEdt(() -> finishPasswordReset(failure)));
-    }
-
-    private void finishPasswordReset(Throwable failure) {
-        if (closed) return;
-        if (failure == null) load();
-        else if (UserErrorMessages.isConcurrentModification(failure)) {
-            load("账户信息已更新，请重新选择后重试");
-        }
-        else {
-            setBusy(false);
-            state.setText(UserErrorMessages.operation(
-                    failure, "密码初始化失败，请稍后重试"));
-        }
+                UserManagementLabels.role(row.role()), UserManagementLabels.status(row.accountStatus()),
+                row.lastLoginAt(), row.rowVersion()});
+        detail.clear();
+        state.setText(message != null ? message : result.total() == 0
+                ? "未找到符合条件的账户" : "共 " + result.total() + " 条");
     }
 
     private UserSummary selectedRow() {
         int index = table.getSelectedRow();
         return index < 0 || index >= rows.size() ? null : rows.get(index);
     }
-    private void setBusy(boolean busy) {
-        this.busy = busy;
-        search.setEnabled(!busy);
-        resetPassword.setEnabled(!busy);
+
+    private void setBusy(boolean value) {
+        busy = value;
+        search.setEnabled(!value);
+        resetPassword.setEnabled(!value);
         updateActionAvailability();
-        if (busy) state.setText("正在加载…");
+        if (value) state.setText("正在加载…");
     }
+
     private void updateActionAvailability() {
         UserSummary selected = selectedRow();
-        changeStatus.setEnabled(!busy && selected != null
-                && ordinaryAccount(selected)
-                && nextStatus(selected.accountStatus()) != null);
-        updateResetVisibility();
-    }
-    private void updateResetVisibility() {
-        UserSummary selected = selectedRow();
-        resetPassword.setVisible(permissions.contains("USER_PASSWORD_RESET")
-                && selected != null && (selected.role() == UserRole.STUDENT
-                || selected.role() == UserRole.TEACHER));
+        role.setEnabled(!busy && roleWritable(selected));
+        changeStatus.setEnabled(!busy && selected != null && UserManagementActions.ordinary(selected)
+                && UserManagementActions.nextStatus(selected.accountStatus()) != null);
+        resetPassword.setVisible(permissions.contains("USER_PASSWORD_RESET") && selected != null
+                && (selected.role() == UserRole.STUDENT || selected.role() == UserRole.TEACHER));
     }
 
-    @Override public void addNotify() {
-        closed = false;
-        super.addNotify();
+    @Override public void addNotify() { closed = false; super.addNotify(); }
+    @Override public void removeNotify() { closed = true; super.removeNotify(); }
+    private static boolean roleWritable(UserSummary user) {
+        return user != null && (user.role() == UserRole.TEACHER || user.role() == UserRole.ADMIN);
     }
 
-    @Override public void removeNotify() {
-        closed = true;
-        super.removeNotify();
-    }
-    private static AccountStatus nextStatus(AccountStatus current) {
-        return switch (current) {
-            case DISABLED -> AccountStatus.ACTIVE;
-            case ACTIVE -> AccountStatus.DISABLED;
-            case PENDING, CANCELLED -> null;
-        };
-    }
-    private static boolean ordinaryAccount(UserSummary user) {
-        return user.role() == UserRole.STUDENT || user.role() == UserRole.TEACHER;
-    }
-    private static String roleName(UserRole value) {
-        return switch (value) {
-            case SUPER_ADMIN -> "超级管理员";
-            case STUDENT_ADMIN -> "学籍管理员";
-            case COLLEGE_ADMIN -> "学院管理员";
-            case COURSE_ADMIN -> "课程管理员";
-            case LIBRARY_ADMIN -> "图书管理员";
-            case SHOP_ADMIN -> "商城管理员";
-            case USER_ADMIN -> "用户管理员";
-            case STUDENT -> "学生";
-            case TEACHER -> "教师";
-            case ADMIN -> "管理员";
-        };
-    }
-    private static String statusName(AccountStatus value) {
-        return switch (value) { case ACTIVE -> "正常"; case PENDING -> "待审核";
-            case DISABLED -> "已停用"; case CANCELLED -> "已注销"; };
-    }
-    private static Object[] filterValues(Object[] values) {
-        List<Object> result = new ArrayList<>(); result.add("全部"); result.addAll(List.of(values));
-        return result.toArray();
-    }
-    private static <T> T selected(JComboBox<Object> box, Class<T> type) {
-        return type.isInstance(box.getSelectedItem()) ? type.cast(box.getSelectedItem()) : null;
-    }
     private static JButton button(String text, String name) {
         JButton button = new JButton(text); button.setName(name);
         button.getAccessibleContext().setAccessibleName(text); return button;
     }
+
     private static void onEdt(Runnable action) {
-        if (SwingUtilities.isEventDispatchThread()) action.run(); else SwingUtilities.invokeLater(action);
+        if (SwingUtilities.isEventDispatchThread()) action.run();
+        else SwingUtilities.invokeLater(action);
     }
 }
