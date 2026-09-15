@@ -87,6 +87,15 @@ class StudentAdmissionCoordinatorTest {
     }
 
     @Test
+    void collegeAdmissionRejectsDestinationOutsideTrustedDepartment() throws Exception {
+        assertThatThrownBy(() -> coordinator.admit(command(),
+                request(UUID.randomUUID().toString()), "department-else"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("COMMON_FORBIDDEN");
+        assertThat(database.count("tblStudent")).isZero();
+    }
+
+    @Test
     void replayReturnsOriginalResultWithoutAllocatingAgain() throws Exception {
         String requestId = "8e7c1a21-9d44-4c82-978b-df34326a0341";
         var first = coordinator.admit(command(), request(requestId));

@@ -70,4 +70,25 @@ class StudentOrganizationAdminServiceTest {
                 department.rowVersion())))
                 .isInstanceOf(edu.seu.vcampus.server.student.repository.OrganizationHierarchyException.class);
     }
+
+    @Test
+    void collegeMayMaintainOnlyMajorsAndClassesInItsDepartment() throws Exception {
+        var database = new StudentAccessTestDatabase();
+        var service = new StudentOrganizationAdminService(database.transactions(),
+                new StripedResourceLockManager(), new AccessOrganizationRepository());
+        var first = service.saveDepartment(new SaveDepartmentCommand(
+                null, "CS", "计算机学院", true, 0));
+        var second = service.saveDepartment(new SaveDepartmentCommand(
+                null, "SE", "软件学院", true, 0));
+
+        assertThatThrownBy(() -> service.saveMajor(new SaveMajorCommand(
+                null, second.departmentId(), "091", "软件工程", null, true, 0),
+                first.departmentId())).hasMessage("COMMON_FORBIDDEN");
+        var major = service.saveMajor(new SaveMajorCommand(
+                null, first.departmentId(), "090", "计算机科学", null, true, 0),
+                first.departmentId());
+        assertThat(service.saveClass(new SaveClassCommand(null, major.majorId(),
+                "090-24-1", "计科24-1", 2024, 1, true, 0), first.departmentId()))
+                .isNotNull();
+    }
 }

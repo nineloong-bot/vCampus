@@ -38,6 +38,8 @@ CREATE TABLE tblCourse (
     courseId VARCHAR(36) NOT NULL,
     courseCode VARCHAR(24) NOT NULL,
     courseName VARCHAR(128) NOT NULL,
+    departmentId VARCHAR(36),
+    departmentName VARCHAR(64),
     credit DECIMAL(4,1) NOT NULL,
     totalHours LONG NOT NULL,
     description MEMO,

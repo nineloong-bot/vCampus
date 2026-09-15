@@ -108,7 +108,7 @@ public final class StudentGradeRepository {
                 result.getString("courseCode"),
                 result.getString("courseName"),
                 result.getBigDecimal("credits"),
-                edu.seu.vcampus.common.student.CourseType.valueOf(result.getString("courseType")),
+                TrainingPlanCourseTypeCodec.read(result.getString("courseType")),
                 result.getInt("semester"),
                 GradeResult.valueOf(result.getString("result")),
                 result.getString("recordedSemester"),

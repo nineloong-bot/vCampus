@@ -17,26 +17,31 @@ import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.eq;
 
 class TrainingPlanRoleAuthorizationTest {
     @Test
-    void studentAdministratorCanManagePlansButCollegeAdministratorCannot() {
+    void collegeAdministratorManagesScopedPlansButStudentAdministratorCannot() {
         TrainingPlanService studentAdminPlans = mock(TrainingPlanService.class);
-        assertThat(route("STUDENT_ADMIN", studentAdminPlans).success()).isTrue();
-        verify(studentAdminPlans).searchPlans(any());
+        assertThat(route("STUDENT_ADMIN", studentAdminPlans, null).code())
+                .isEqualTo("COMMON_FORBIDDEN");
+        verify(studentAdminPlans, never()).searchPlans(any(), any());
 
         TrainingPlanService collegeAdminPlans = mock(TrainingPlanService.class);
-        assertThat(route("COLLEGE_ADMIN", collegeAdminPlans).code())
-                .isEqualTo("COMMON_FORBIDDEN");
-        verify(collegeAdminPlans, never()).searchPlans(any());
+        var scope = mock(edu.seu.vcampus.server.student.security.StudentCollegeScopeAuthorizationService.class);
+        when(scope.requireActiveDepartment("operator")).thenReturn("department-1");
+        assertThat(route("COLLEGE_ADMIN", collegeAdminPlans, scope).success()).isTrue();
+        verify(collegeAdminPlans).searchPlans(any(), eq("department-1"));
     }
 
     private static edu.seu.vcampus.common.protocol.ResponseBody<?> route(
-            String role, TrainingPlanService plans) {
+            String role, TrainingPlanService plans,
+            edu.seu.vcampus.server.student.security.StudentCollegeScopeAuthorizationService scope) {
         MessageRouter router = new MessageRouter(Map.of());
         new TrainingPlanHandlers(plans, mock(StudentGradeService.class),
                 token -> new StudentPrincipal("operator", Set.of(role), Set.of()),
-                (request, principal, action) -> action.get()).register(router);
+                (request, principal, action) -> action.get(), scope).register(router);
         Message request = new Message("request", MessageType.REQUEST, "TRAINING_PLAN_LIST",
                 "token", new TrainingPlanQuery(null, null, 1, 20), System.currentTimeMillis());
         return router.route(request, new ClientContext("test", "127.0.0.1"));

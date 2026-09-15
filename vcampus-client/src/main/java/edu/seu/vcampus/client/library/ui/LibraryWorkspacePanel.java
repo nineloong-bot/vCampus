@@ -57,10 +57,21 @@ public final class LibraryWorkspacePanel extends JPanel {
             books.connectCopies(copies);
             books.setAfterMutation(this::refreshAll);
             copies.setAfterMutation(this::refreshAll);
-            JSplitPane management = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, books, copies);
+
+            CardLayout rightLayout = new CardLayout();
+            JPanel rightPane = new JPanel(rightLayout);
+            rightPane.add(copies, "copies");
+            BookFormCardPanel bookForm = new BookFormCardPanel(
+                    cmd -> { books.create(cmd); rightLayout.show(rightPane, "copies"); },
+                    cmd -> { books.update(cmd); rightLayout.show(rightPane, "copies"); },
+                    () -> rightLayout.show(rightPane, "copies"));
+            rightPane.add(bookForm, "bookForm");
+            books.connectRightCards(rightPane, rightLayout, bookForm);
+
+            JSplitPane management = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, books, rightPane);
             management.setResizeWeight(0.52); management.setDividerLocation(0.52);
             management.setDividerSize(8); management.setBorder(BorderFactory.createEmptyBorder());
-            books.setMinimumSize(new Dimension(280, 0)); copies.setMinimumSize(new Dimension(280, 0));
+            books.setMinimumSize(new Dimension(280, 0)); rightPane.setMinimumSize(new Dimension(280, 0));
             addTab("图书管理", management, books::refresh);
             addTab("借阅管理", loans, loans::refresh);
             LibraryPolicyPanel settings = new LibraryPolicyPanel(service);

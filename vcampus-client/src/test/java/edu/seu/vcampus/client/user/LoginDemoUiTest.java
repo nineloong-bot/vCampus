@@ -135,23 +135,23 @@ class LoginDemoUiTest {
         assertThat(component(login[0], "login.demoTitle", JLabel.class).getText())
                 .isEqualTo("演示账号");
         assertThat(component(login[0], "login.demoAdmin", JLabel.class).getText())
-                .isEqualTo("管理员：TESTADMIN / Test12345");
+                .isEqualTo("管理员：admin / 123456");
         assertThat(component(login[0], "login.demoTeacher", JLabel.class).getText())
-                .isEqualTo("教师：TESTTEACHER001 / Test12345");
+                .isEqualTo("教师：teacher / 123456");
         assertThat(component(login[0], "login.demoStudent", JLabel.class).getText())
-                .isEqualTo("学生：213260001 / Test12345");
+                .isEqualTo("学生：student 或任意学号 / 123456");
         assertThat(component(login[0], "login.demoManagementPassword", JLabel.class).getText())
-                .isEqualTo("演示账号统一密码：Test12345");
+                .isEqualTo("演示统一密码：123456 或 admin123");
         assertThat(component(login[0], "login.demoModuleAdmins1", JLabel.class).getText())
-                .isEqualTo("模块：学籍 STUDENT_ADMIN ｜ 课程 COURSE_ADMIN");
+                .isEqualTo("模块：学籍 stu ｜ 课程 course");
         assertThat(component(login[0], "login.demoModuleAdmins2", JLabel.class).getText())
-                .isEqualTo("模块：图书 LIBRARY_ADMIN ｜ 商城 SHOP_ADMIN");
+                .isEqualTo("模块：图书 lib ｜ 商城 shop");
         assertThat(component(login[0], "login.demoModuleAdmins3", JLabel.class).getText())
-                .isEqualTo("模块：用户 USER_ADMIN");
+                .isEqualTo("模块：用户 user");
         assertThat(component(login[0], "login.demoCollegeAdmins", JLabel.class).getText())
-                .isEqualTo("学院：计算机 CS_COLLEGE_ADMIN ｜ 数学 MATH_COLLEGE_ADMIN");
+                .isEqualTo("学院：计算机 cs ｜ 数学 math");
         assertThat(component(login[0], "login.demoCollegeAdmins2", JLabel.class).getText())
-                .isEqualTo("学院：信息工程 EE_COLLEGE_ADMIN ｜ 外国语 FL_COLLEGE_ADMIN");
+                .isEqualTo("学院：信息工程 ee ｜ 外国语 fl");
         assertThat(component(login[0], "login.loginId", JTextField.class).getText())
                 .isEmpty();
         assertThat(component(login[0], "login.password", JPasswordField.class).getPassword())

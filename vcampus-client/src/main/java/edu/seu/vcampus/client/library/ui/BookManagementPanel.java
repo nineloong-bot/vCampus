@@ -13,6 +13,9 @@ public final class BookManagementPanel extends LibraryDataPanel {
     private final JComboBox<String> field = new JComboBox<>(new String[]{
             "全部栏目", "书名", "作者", "ISBN", "分类", "出版社"});
     private CopyManagementPanel copiesPanel;
+    private BookFormCardPanel bookFormCard;
+    private CardLayout rightCardLayout;
+    private JPanel rightCardContainer;
     private boolean refreshing;
     private List<BookSummary> books = List.of();
     public BookManagementPanel(LibraryClientService service) {
@@ -38,6 +41,12 @@ public final class BookManagementPanel extends LibraryDataPanel {
     }
 
     public void connectCopies(CopyManagementPanel copies) { copiesPanel = copies; }
+
+    public void connectRightCards(JPanel container, CardLayout layout, BookFormCardPanel formCard) {
+        this.rightCardContainer = container;
+        this.rightCardLayout = layout;
+        this.bookFormCard = formCard;
+    }
 
     private BookSummary selectedBook() {
         int row = table.getSelectedRow();
@@ -114,7 +123,11 @@ public final class BookManagementPanel extends LibraryDataPanel {
         service.getBook(books.get(table.convertRowIndexToModel(row)).bookId()).whenComplete((book, failure) ->
                 SwingUtilities.invokeLater(() -> {
                     if (!accepts(request)) return;
-                    if (failure != null) LibraryFeedback.failure(this, status, failure, "书目详情加载失败，请重试。"); else openUpdateDialog(book);
+                    if (failure != null) LibraryFeedback.failure(this, status, failure, "书目详情加载失败，请重试。");
+                    else if (bookFormCard != null && rightCardLayout != null && rightCardContainer != null) {
+                        bookFormCard.prepareEdit(book);
+                        rightCardLayout.show(rightCardContainer, "bookForm");
+                    } else openUpdateDialog(book);
                 }));
     }
 
@@ -137,6 +150,11 @@ public final class BookManagementPanel extends LibraryDataPanel {
     }
 
     private void openCreateDialog() {
+        if (bookFormCard != null && rightCardLayout != null && rightCardContainer != null) {
+            bookFormCard.prepareCreate();
+            rightCardLayout.show(rightCardContainer, "bookForm");
+            return;
+        }
         JTextField isbn = new JTextField(), title = new JTextField(), author = new JTextField();
         JTextField publisher = new JTextField(), publishDate = new JTextField("2026-01-01"), category = new JTextField();
         JTextArea description = new JTextArea(3, 24);

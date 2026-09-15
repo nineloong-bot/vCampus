@@ -5,6 +5,7 @@ import edu.seu.vcampus.common.protocol.EmptyRequest;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.student.*;
 import edu.seu.vcampus.common.student.majortransfer.*;
+import edu.seu.vcampus.common.student.governance.*;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Objects;
@@ -54,6 +55,17 @@ public final class StudentClientService {
     public CompletableFuture<ResponseBody<StudentProfileApplicationView>> approveProfile(ReviewStudentProfileCommand value) { return sendAsync("STUDENT_PROFILE_APPROVE", value); }
     public CompletableFuture<ResponseBody<StudentProfileApplicationView>> rejectProfile(ReviewStudentProfileCommand value) { return sendAsync("STUDENT_PROFILE_REJECT", value); }
 
+    /** Loads college-administrator assignments and the available colleges. */
+    public CompletableFuture<ResponseBody<StudentCollegeAdministrationSnapshot>> searchCollegeAdministrators() { return sendAsync("STUDENT_COLLEGE_ADMIN_SEARCH", EmptyRequest.INSTANCE); }
+    /** Provisions a new college administrator account. */
+    public CompletableFuture<ResponseBody<edu.seu.vcampus.common.protocol.EmptyResponse>> createCollegeAdministrator(edu.seu.vcampus.common.student.governance.CreateCollegeAdministratorCommand value) { return sendAsync("STUDENT_COLLEGE_ADMIN_CREATE", value); }
+    /** Assigns an unbound college administrator to a college. */
+    public CompletableFuture<ResponseBody<edu.seu.vcampus.common.protocol.EmptyResponse>> assignCollegeAdministrator(AssignStudentCollegeAdministratorCommand value) { return sendAsync("STUDENT_COLLEGE_ADMIN_ASSIGN", value); }
+    /** Moves a college administrator between colleges. */
+    public CompletableFuture<ResponseBody<edu.seu.vcampus.common.protocol.EmptyResponse>> transferCollegeAdministrator(TransferStudentCollegeAdministratorCommand value) { return sendAsync("STUDENT_COLLEGE_ADMIN_TRANSFER", value); }
+    /** Deactivates a college-administrator assignment. */
+    public CompletableFuture<ResponseBody<edu.seu.vcampus.common.protocol.EmptyResponse>> deactivateCollegeAdministrator(DeactivateStudentCollegeAdministratorCommand value) { return sendAsync("STUDENT_COLLEGE_ADMIN_DEACTIVATE", value); }
+
     // ── Major Transfer: Student ──
     public CompletableFuture<ResponseBody<MajorTransferWorkspace>> getTransferWorkspace() { return sendAsync("MAJOR_TRANSFER_GET_WORKSPACE", EmptyRequest.INSTANCE); }
     public CompletableFuture<ResponseBody<MajorTransferApplicationView>> saveTransferDraft(SaveMajorTransferDraftCommand value) { return sendAsync("MAJOR_TRANSFER_SAVE_DRAFT", value); }
@@ -73,10 +85,10 @@ public final class StudentClientService {
     public CompletableFuture<ResponseBody<MajorTransferApplicationView>> reviewTransferSource(ReviewMajorTransferSourceCommand value) { return sendAsync("MAJOR_TRANSFER_REVIEW_SOURCE", value); }
     public CompletableFuture<ResponseBody<MajorTransferApplicationView>> reviewTransferQualification(ReviewMajorTransferQualificationCommand value) { return sendAsync("MAJOR_TRANSFER_REVIEW_QUALIFICATION", value); }
     public CompletableFuture<ResponseBody<MajorTransferApplicationView>> recordTransferScore(RecordMajorTransferScoreCommand value) { return sendAsync("MAJOR_TRANSFER_RECORD_SCORE", value); }
-    public CompletableFuture<ResponseBody<MajorTransferRankingView>> generateTransferProposal(GenerateMajorTransferProposalCommand value) { return sendAsync("MAJOR_TRANSFER_GENERATE_PROPOSAL", value); }
     public CompletableFuture<ResponseBody<MajorTransferApplicationView>> finalizeTransfer(FinalizeMajorTransferCommand value) { return sendAsync("MAJOR_TRANSFER_FINALIZE", value); }
     public CompletableFuture<ResponseBody<MajorTransferApplicationView>> executeTransfer(ExecuteMajorTransferCommand value) { return sendAsync("MAJOR_TRANSFER_EXECUTE", value); }
     public CompletableFuture<ResponseBody<MajorTransferApplicationView>> cancelTransfer(CancelMajorTransferCommand value) { return sendAsync("MAJOR_TRANSFER_CANCEL", value); }
+    public CompletableFuture<ResponseBody<MajorTransferImportResult>> importTransferScores(ImportMajorTransferScoresCommand value) { return sendAsync("MAJOR_TRANSFER_IMPORT_SCORES", value); }
 
     // ── Training Plan: Admin ──
     public CompletableFuture<ResponseBody<TrainingPlanDetailView>> saveTrainingPlan(SaveTrainingPlanCommand value) { return sendAsync("TRAINING_PLAN_SAVE", value); }
@@ -85,6 +97,10 @@ public final class StudentClientService {
     public CompletableFuture<ResponseBody<TrainingPlanCourseView>> saveTrainingPlanCourse(SaveTrainingPlanCourseCommand value) { return sendAsync("TRAINING_PLAN_SAVE_COURSE", value); }
     public CompletableFuture<ResponseBody<edu.seu.vcampus.common.protocol.EmptyResponse>> removeTrainingPlanCourse(String planCourseId) { return sendAsync("TRAINING_PLAN_REMOVE_COURSE", new EntityIdRequest(planCourseId)); }
     public CompletableFuture<ResponseBody<ArrayList<TrainingPlanCourseView>>> importTrainingPlanCourses(ImportTrainingPlanCoursesCommand value) { return sendAsync("TRAINING_PLAN_IMPORT_COURSES", value); }
+    public CompletableFuture<ResponseBody<ArrayList<CoursePoolItemView>>> listCoursePool(CoursePoolQuery value) { return sendAsync("COURSE_POOL_LIST", value); }
+    public CompletableFuture<ResponseBody<CrossCourseApplicationView>> submitCrossCourseApplication(SubmitCrossCourseApplicationCommand value) { return sendAsync("CROSS_COURSE_SUBMIT_APPLICATION", value); }
+    public CompletableFuture<ResponseBody<ArrayList<CrossCourseApplicationView>>> listCrossCourseApplications(CrossCourseApplicationQuery value) { return sendAsync("CROSS_COURSE_LIST_APPLICATIONS", value); }
+    public CompletableFuture<ResponseBody<CrossCourseApplicationView>> reviewCrossCourseApplication(ReviewCrossCourseApplicationCommand value) { return sendAsync("CROSS_COURSE_REVIEW_APPLICATION", value); }
 
     // ── Training Plan: Student ──
     public CompletableFuture<ResponseBody<TrainingPlanDetailView>> getMyTrainingPlan() { return sendAsync("TRAINING_PLAN_GET_MY", EmptyRequest.INSTANCE); }

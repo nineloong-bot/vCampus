@@ -6,7 +6,7 @@ import java.awt.*;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 
-/** Prominent, client-safe feedback for failed library operations. */
+/** Prominent, client-safe in-workspace feedback for failed library operations without popups. */
 final class LibraryFeedback {
     private LibraryFeedback() { }
 
@@ -21,47 +21,34 @@ final class LibraryFeedback {
     static void borrowWarning(Component owner, JLabel status, String message) {
         String warning = "借阅失败：" + message;
         status.setText(warning);
-        if (!GraphicsEnvironment.isHeadless() && owner.isShowing()) {
-            JOptionPane.showMessageDialog(owner, warning, "借阅失败", JOptionPane.WARNING_MESSAGE);
-        }
     }
 
     private static void failure(Component owner, JLabel status, Throwable failure, String fallback,
             String defaultTitle, int messageType) {
         Throwable cause = unwrap(failure);
         String message = fallback;
-        String title = defaultTitle;
         if (cause instanceof LibraryRequestException request) {
             if ("COMMON_CONCURRENT_MODIFICATION".equals(request.code())) {
-                title = "数据冲突";
                 message = "数据已被其他操作修改，请刷新后重试。";
             } else if (request.code().endsWith("_STALE")) {
-                title = "数据冲突";
                 message = request.getMessage() == null || request.getMessage().isBlank()
                         ? "数据已被其他操作修改，请刷新后重试。" : request.getMessage();
             } else if ("LIBRARY_DUPLICATE_ISBN".equals(request.code())
                     || "LIBRARY_DUPLICATE_BARCODE".equals(request.code())) {
-                title = "编号重复";
                 message = request.getMessage();
             } else if ("LIBRARY_COPY_HAS_ACTIVE_LOAN".equals(request.code())
                     || "LIBRARY_COPY_UNAVAILABLE".equals(request.code())
                     || "LIBRARY_LOAN_NOT_ACTIVE".equals(request.code())) {
-                title = "状态冲突";
                 message = request.getMessage();
             } else if ("AUTH_SESSION_EXPIRED".equals(request.code())) {
-                title = "登录已失效";
                 message = "登录会话已过期，请重新登录。";
             } else if ("AUTH_FORBIDDEN".equals(request.code())) {
-                title = "权限不足";
                 message = "当前账号没有执行此操作的权限。";
             } else if (request.getMessage() != null && !request.getMessage().isBlank()) {
                 message = request.getMessage();
             }
         }
         status.setText(message);
-        if (!GraphicsEnvironment.isHeadless() && owner.isShowing()) {
-            JOptionPane.showMessageDialog(owner, message, title, messageType);
-        }
     }
 
     private static Throwable unwrap(Throwable failure) {

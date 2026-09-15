@@ -19,7 +19,7 @@ public final class PasswordHasher {
     public PasswordHasher() {
     }
 
-    PasswordHash hash(char[] password) {
+    public PasswordHash hash(char[] password) {
         byte[] salt = new byte[SALT_BYTES];
         random.nextBytes(salt);
         byte[] hash = derive(password, salt, ITERATIONS);
@@ -41,14 +41,11 @@ public final class PasswordHasher {
                 password, salt, iterations, HASH_BITS);
         try {
             return SecretKeyFactory.getInstance(ALGORITHM)
-                    .generateSecret(specification).getEncoded();
+                .generateSecret(specification).getEncoded();
         } catch (GeneralSecurityException error) {
             throw new IllegalStateException("Password hashing is unavailable", error);
         } finally {
             specification.clearPassword();
         }
     }
-}
-
-record PasswordHash(String hash, String salt, int iterations) {
 }

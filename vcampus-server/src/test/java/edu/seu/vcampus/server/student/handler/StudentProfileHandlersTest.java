@@ -15,6 +15,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.*;
 
 class StudentProfileHandlersTest {
     @Test
@@ -68,6 +69,41 @@ class StudentProfileHandlersTest {
 
         assertThat(response.success()).isFalse();
         assertThat(response.code()).isEqualTo("COMMON_FORBIDDEN");
+    }
+
+    @Test
+    void centralStudentAdministratorCannotReviewProfiles() {
+        MessageRouter router = router(profileService(),
+                new StudentPrincipal("central-user", Set.of("STUDENT_ADMIN"), Set.of()));
+        var response = router.route(request("STUDENT_PROFILE_REVIEW_LIST",
+                new StudentProfileReviewQuery(1, 20)), new ClientContext("connection", "local"));
+        assertThat(response.code()).isEqualTo("COMMON_FORBIDDEN");
+    }
+
+    @Test
+    void collegeProfileReviewUsesServerResolvedDepartment() {
+        AtomicReference<String> department = new AtomicReference<>();
+        StudentProfileService profiles = new StubProfileService() {
+            @Override public PageResult<StudentProfileApplicationView> listPending(
+                    StudentProfileReviewQuery query, String departmentId) {
+                department.set(departmentId);
+                return new PageResult<>(java.util.List.of(), 1, 20, 0);
+            }
+        };
+        var scope = mock(edu.seu.vcampus.server.student.security.StudentCollegeScopeAuthorizationService.class);
+        when(scope.requireActiveDepartment("college-user")).thenReturn("department-1");
+        MessageRouter router = new MessageRouter(Map.of());
+        new StudentHandlers((command, context) -> null, StudentHandlerFixtures.studentService(),
+                StudentHandlerFixtures.organizationQuery(), token -> new StudentPrincipal(
+                "college-user", Set.of("COLLEGE_ADMIN"), Set.of()),
+                (request, actor, action) -> action.get(), profiles,
+                (profile, generatedAt) -> null, scope).register(router);
+
+        var response = router.route(request("STUDENT_PROFILE_REVIEW_LIST",
+                new StudentProfileReviewQuery(1, 20)), new ClientContext("connection", "local"));
+
+        assertThat(response.success()).isTrue();
+        assertThat(department).hasValue("department-1");
     }
 
     @Test

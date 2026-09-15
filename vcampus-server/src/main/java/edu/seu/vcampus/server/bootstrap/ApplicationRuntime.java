@@ -109,8 +109,8 @@ public final class ApplicationRuntime {
         MessageRouter router = new MessageRouter(Map.of(
                 "PING", (request, context) -> ResponseBody.success(EmptyResponse.INSTANCE)));
         new UserHandlers(router, users, authorization, deduplicator);
-        UnifiedModuleRegistry.registerGovernance(router, transactions, locks, sessions,
-                authorization, deduplicator, audits);
+        StudentGovernanceRegistry.register(router, transactions, locks, sessions,
+                authorization, deduplicator, audits, userRepository, passwords);
         router.register("SECURITY_AUDIT_SEARCH", new SecurityAuditHandler(authorization,
                 new SecurityAuditService(transactions, audits)));
         StudentQueryPort studentQueries = UnifiedModuleRegistry.registerStudent(router,

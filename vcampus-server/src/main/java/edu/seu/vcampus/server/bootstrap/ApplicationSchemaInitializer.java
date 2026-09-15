@@ -53,6 +53,7 @@ public final class ApplicationSchemaInitializer {
             Map.entry("tbltrainingplan", List.of("planId")),
             Map.entry("tbltrainingplancourse", List.of("planCourseId")),
             Map.entry("tblstudentgrade", List.of("gradeId")),
+            Map.entry("tblcrosscourseapplication", List.of("applicationId")),
             Map.entry("tbllibrarypolicy", List.of("policyId")),
             Map.entry("tblterm", List.of("termId")),
             Map.entry("tblcourseselectionphase", List.of("phaseId")),
@@ -95,11 +96,18 @@ public final class ApplicationSchemaInitializer {
         installSchema(connections, schema("001_common.sql"));
         installSchema(connections, schema("010_user.sql"));
         installSchema(connections, schema("020_student.sql"));
-        ensureColumn(connections, "tblMajor", "grades", "VARCHAR(16)");
+        AccessSchemaEvolution.ensureColumn(connections, "tblMajor", "grades", "VARCHAR(16)");
         installSchema(connections, schema("025_hierarchical_administration.sql"));
         installSchema(connections, schema("025_major_transfer.sql"));
         new CourseSchemaInitializer(schema("030_course.sql")).initialize(connections);
         installSchema(connections, schema("030_training_plan.sql"));
+        AccessSchemaEvolution.ensureColumn(connections, "tblCourse", "departmentId", "VARCHAR(36)");
+        AccessSchemaEvolution.ensureColumn(connections, "tblCourse", "departmentName", "VARCHAR(64)");
+        AccessSchemaEvolution.ensureColumn(connections, "tblTrainingPlanCourse", "courseId", "VARCHAR(36)");
+        AccessSchemaEvolution.ensureColumn(connections, "tblTrainingPlanCourse", "offeringDepartmentId", "VARCHAR(36)");
+        AccessSchemaEvolution.ensureColumn(connections, "tblTrainingPlanCourse", "offeringDepartmentName", "VARCHAR(128)");
+        AccessSchemaEvolution.ensureColumn(connections, "tblTrainingPlanCourse", "allocatedQuota", "LONG");
+        installSchema(connections, schema("035_course_pool.sql"));
         installSchema(connections, schema("040_library.sql"));
         try (Connection connection = connections.open()) { LibraryPenaltySchema.initialize(connection); }
         installSchema(connections, schema("050_shop.sql"));
@@ -108,6 +116,7 @@ public final class ApplicationSchemaInitializer {
         installSeeds(connections, seed("021_more_students.sql"));
         installSeeds(connections, seed("025_major_transfer_demo.sql"));
         installSeeds(connections, seed("030_training_plan_demo.sql"));
+        installSeeds(connections, seed("035_course_pool_demo.sql"));
         installSeeds(connections, seed("040_library_policy.sql"));
         installSeeds(connections, seed("060_unified_demo_data.sql"));
     }
@@ -182,16 +191,6 @@ public final class ApplicationSchemaInitializer {
                         statement.execute(sql);
                     }
                 }
-            }
-        }
-    }
-
-    private static void ensureColumn(ConnectionProvider connections, String table, String column,
-            String definition) throws SQLException {
-        try (Connection connection = connections.open()) {
-            if (columnNames(connection, table).contains(normalize(column))) return;
-            try (Statement statement = connection.createStatement()) {
-                statement.execute("ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition);
             }
         }
     }
@@ -314,14 +313,6 @@ public final class ApplicationSchemaInitializer {
             }
         } catch (IOException error) {
             throw new SQLException("Unable to inspect Access indexes", error);
-        }
-        return names;
-    }
-
-    private static Set<String> columnNames(Connection connection, String table) throws SQLException {
-        Set<String> names = new HashSet<>();
-        try (ResultSet columns = connection.getMetaData().getColumns(null, null, table, null)) {
-            while (columns.next()) names.add(normalize(columns.getString("COLUMN_NAME")));
         }
         return names;
     }

@@ -44,6 +44,8 @@ class SeededStudentDatasetTest {
                     .contains(List.of("planid", "coursecode"));
             assertThat(uniqueIndexColumns(connection, "tblStudentGrade"))
                     .contains(List.of("studentid", "plancourseid"));
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblCourse")).isGreaterThanOrEqualTo(10);
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblCrossCourseApplication")).isGreaterThanOrEqualTo(1);
         }
     }
 

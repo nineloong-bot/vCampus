@@ -31,6 +31,7 @@ public final class MyMajorTransferPanel extends JPanel {
     private JLabel statusLabel, errorLabel;
     private JButton refreshButton, saveButton, submitButton, withdrawButton, uploadButton;
     private JPanel eligibilityPanel, applicationPanel, timelinePanel;
+    private MajorTransferFlowChartPanel flowChartPanel;
     private JPanel infoPanel;
     private boolean busy;
     private JComboBox<OptionItem> targetMajorCombo;
@@ -141,6 +142,9 @@ public final class MyMajorTransferPanel extends JPanel {
 
         // Timeline
         content.add(sectionHeader("审核进度"));
+        flowChartPanel = new MajorTransferFlowChartPanel();
+        content.add(flowChartPanel);
+        content.add(Box.createVerticalStrut(UiSpacing.SPACE_3));
         timelinePanel = new JPanel();
         timelinePanel.setLayout(new BoxLayout(timelinePanel, BoxLayout.Y_AXIS));
         timelinePanel.setOpaque(false);
@@ -298,6 +302,9 @@ public final class MyMajorTransferPanel extends JPanel {
             attachmentsPanel.revalidate();
             timelinePanel.revalidate();
         }
+        if (flowChartPanel != null) {
+            flowChartPanel.update(app, ws.availableOptions());
+        }
         setFormEnabled(true);
     }
 
@@ -357,8 +364,7 @@ public final class MyMajorTransferPanel extends JPanel {
             case SUBMITTED -> "已提交";
             case SOURCE_APPROVED -> "原学院审核通过";
             case QUALIFIED -> "转入学院审核通过";
-            case ASSESSED -> "已考核";
-            case PROPOSED -> "拟录取";
+            case ASSESSED -> "已考核，待终审";
             case PENDING_EFFECTIVE -> "待生效";
             case EFFECTIVE -> "已生效";
             case REJECTED -> "已驳回";

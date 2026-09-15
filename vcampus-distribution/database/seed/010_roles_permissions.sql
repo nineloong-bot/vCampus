@@ -175,9 +175,9 @@ VALUES ('SUPER_ADMIN', 'PLATFORM_MODULE_ADMIN_WRITE');
 INSERT INTO tblRolePermission (roleCode, permissionCode)
 VALUES ('SUPER_ADMIN', 'PLATFORM_GOVERNANCE_AUDIT_READ');
 INSERT INTO tblRolePermission (roleCode, permissionCode)
-VALUES ('STUDENT_ADMIN', 'STUDENT_READ');
+VALUES ('STUDENT_ADMIN', 'STUDENT_COLLEGE_ADMIN_READ');
 INSERT INTO tblRolePermission (roleCode, permissionCode)
-VALUES ('STUDENT_ADMIN', 'STUDENT_WRITE');
+VALUES ('STUDENT_ADMIN', 'STUDENT_COLLEGE_ADMIN_WRITE');
 INSERT INTO tblRolePermission (roleCode, permissionCode)
 VALUES ('COLLEGE_ADMIN', 'STUDENT_READ');
 INSERT INTO tblRolePermission (roleCode, permissionCode)

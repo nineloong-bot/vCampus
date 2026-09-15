@@ -50,13 +50,33 @@ class MajorTransferCollegeQueryTest {
         assertThat(visible).extracting(MajorTransferApplicationView::applicationId)
                 .containsExactlyInAnyOrder(
                         "00000000-0000-0000-0000-000000001023",
-                        "00000000-0000-0000-0000-000000001025",
-                        "00000000-0000-0000-0000-000000001030")
+                        "00000000-0000-0000-0000-000000001025")
                 .doesNotContain("00000000-0000-0000-0000-000000001022");
         assertThat(visible).allSatisfy(application -> {
             assertThat(application.sourceApprovalAllowed()).isFalse();
             assertThat(application.targetApprovalAllowed()).isTrue();
         });
+    }
+
+    @Test
+    void administrativeListsNeverExposeStudentDrafts() {
+        var allApplications = service.listApplications(
+                new MajorTransferApplicationQuery(OPEN_BATCH, null, null));
+        var collegeApplications = service.listApplicationsForCollege(
+                new MajorTransferApplicationQuery(OPEN_BATCH, null, null), MATH);
+
+        assertThat(allApplications).noneMatch(application ->
+                application.status() == edu.seu.vcampus.common.student.majortransfer.MajorTransferStatus.DRAFT);
+        assertThat(collegeApplications).noneMatch(application ->
+                application.status() == edu.seu.vcampus.common.student.majortransfer.MajorTransferStatus.DRAFT);
+    }
+
+    @Test
+    void collegeOptionListContainsOnlyPersistedTargetCollege() {
+        var options = service.listOptionsForCollege(OPEN_BATCH, MATH);
+
+        assertThat(options).isNotEmpty().allSatisfy(option ->
+                assertThat(option.targetDepartmentId()).isEqualTo(MATH));
     }
 
     private static Path directory(String child) {

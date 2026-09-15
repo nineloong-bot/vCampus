@@ -345,6 +345,12 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
 
     @Override
     public synchronized MajorTransferOptionView saveOption(String adminUserId, SaveMajorTransferOptionCommand command) {
+        return saveOption(adminUserId, command, null);
+    }
+
+    @Override
+    public synchronized MajorTransferOptionView saveOption(String adminUserId,
+            SaveMajorTransferOptionCommand command, String trustedDepartmentId) {
         return transactions.inTransaction(connection -> {
             Instant now = Instant.now();
             Major major = organizations.findMajor(connection, command.targetMajorId())
@@ -352,6 +358,7 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
             var dept = organizations.findDepartment(connection, major.departmentId());
             if (!major.active() || dept.isEmpty() || !dept.get().active())
                 throw error("TRANSFER_INVALID_TARGET", "目标学院或专业未启用");
+            requireDepartment(trustedDepartmentId, major.departmentId());
             repository.findBatch(connection, command.batchId())
                     .orElseThrow(() -> error("TRANSFER_BATCH_NOT_FOUND", "批次不存在"));
             String deptName = dept.map(d -> d.departmentName()).orElse("");
@@ -359,6 +366,7 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
                 MajorTransferRepository.OptionRow existing =
                         repository.findOption(connection, command.optionId())
                                 .orElseThrow(() -> error("TRANSFER_OPTION_NOT_FOUND", "选项不存在"));
+                requireDepartment(trustedDepartmentId, existing.targetDepartmentId());
                 if (existing.rowVersion() != command.expectedVersion()) throw concurrent();
                 if (!existing.batchId().equals(command.batchId()) || !existing.targetMajorId().equals(command.targetMajorId()))
                     throw error("TRANSFER_INVALID_TARGET", "已有选项不能更换批次或目标专业");
@@ -399,6 +407,16 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
     public List<MajorTransferOptionView> listOptions(String batchId) {
         return transactions.inTransaction(connection ->
                 repository.listOptionsByBatch(connection, batchId).stream()
+                        .map(this::toOptionView).toList());
+    }
+
+    @Override
+    public List<MajorTransferOptionView> listOptionsForCollege(
+            String batchId, String trustedDepartmentId) {
+        Objects.requireNonNull(trustedDepartmentId, "trustedDepartmentId");
+        return transactions.inTransaction(connection ->
+                repository.listOptionsByBatch(connection, batchId).stream()
+                        .filter(option -> trustedDepartmentId.equals(option.targetDepartmentId()))
                         .map(this::toOptionView).toList());
     }
 
@@ -453,11 +471,18 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
     @Override
     public MajorTransferApplicationView reviewSource(String adminUserId,
                                                       ReviewMajorTransferSourceCommand command) {
+        return reviewSource(adminUserId, command, null);
+    }
+
+    @Override
+    public MajorTransferApplicationView reviewSource(String adminUserId,
+            ReviewMajorTransferSourceCommand command, String trustedDepartmentId) {
         return locks.withLocks(List.of(new ResourceKey("TRANSFER_APPLICATION", command.applicationId())), () ->
                 transactions.inTransaction(connection -> {
                     MajorTransferRepository.ApplicationRow app =
                             repository.findApplication(connection, command.applicationId())
                                     .orElseThrow(() -> error("TRANSFER_APPLICATION_NOT_FOUND", "申请不存在"));
+                    requireDepartment(trustedDepartmentId, app.fromDepartmentId());
                     if (app.status() != SUBMITTED)
                         throw error("TRANSFER_STATE_INVALID", "申请状态不允许原学院审核");
                     if (command.decision() == MajorTransferDecision.APPROVE) {
@@ -485,11 +510,18 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
     @Override
     public MajorTransferApplicationView reviewQualification(String adminUserId,
                                                              ReviewMajorTransferQualificationCommand command) {
+        return reviewQualification(adminUserId, command, null);
+    }
+
+    @Override
+    public MajorTransferApplicationView reviewQualification(String adminUserId,
+            ReviewMajorTransferQualificationCommand command, String trustedDepartmentId) {
         return locks.withLocks(List.of(new ResourceKey("TRANSFER_APPLICATION", command.applicationId())), () ->
                 transactions.inTransaction(connection -> {
                     MajorTransferRepository.ApplicationRow app =
                             repository.findApplication(connection, command.applicationId())
                                     .orElseThrow(() -> error("TRANSFER_APPLICATION_NOT_FOUND", "申请不存在"));
+                    requireTargetDepartment(connection, app, trustedDepartmentId);
                     if (app.status() != SOURCE_APPROVED)
                         throw error("TRANSFER_STATE_INVALID", "申请状态不允许转入学院资格审核");
                     if (command.decision() == MajorTransferDecision.APPROVE) {
@@ -513,11 +545,18 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
 
     @Override
     public MajorTransferApplicationView cancel(String adminUserId, CancelMajorTransferCommand command) {
+        return cancel(adminUserId, command, null);
+    }
+
+    @Override
+    public MajorTransferApplicationView cancel(String adminUserId,
+            CancelMajorTransferCommand command, String trustedDepartmentId) {
         return locks.withLocks(List.of(new ResourceKey("TRANSFER_APPLICATION", command.applicationId())), () ->
                 transactions.inTransaction(connection -> {
                     MajorTransferRepository.ApplicationRow app =
                             repository.findApplication(connection, command.applicationId())
                                     .orElseThrow(() -> error("TRANSFER_APPLICATION_NOT_FOUND", "申请不存在"));
+                    requireTargetDepartment(connection, app, trustedDepartmentId);
                     if (!MajorTransferStateMachine.adminMayCancel(app.status()))
                         throw error("TRANSFER_STATE_INVALID", "当前状态不允许取消");
                     changeStatus(connection, command.applicationId(),
@@ -537,6 +576,12 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
     @Override
     public MajorTransferApplicationView recordScore(String adminUserId,
                                                      RecordMajorTransferScoreCommand command) {
+        return recordScore(adminUserId, command, null);
+    }
+
+    @Override
+    public MajorTransferApplicationView recordScore(String adminUserId,
+            RecordMajorTransferScoreCommand command, String trustedDepartmentId) {
         return locks.withLocks(List.of(new ResourceKey("TRANSFER_APPLICATION", command.applicationId())), () ->
                 transactions.inTransaction(connection -> {
                     MajorTransferRepository.ApplicationRow app =
@@ -546,6 +591,7 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
                         throw error("TRANSFER_STATE_INVALID", "申请状态不允许录入成绩");
                     MajorTransferRepository.OptionRow option =
                             repository.findOption(connection, app.optionId()).orElseThrow();
+                    requireDepartment(trustedDepartmentId, option.targetDepartmentId());
                     Double written = command.writtenScore() != null
                             ? command.writtenScore().doubleValue() : null;
                     Double interview = command.interviewScore() != null
@@ -567,122 +613,85 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
     }
 
     @Override
-    public MajorTransferRankingView generateProposal(String adminUserId,
-                                                       GenerateMajorTransferProposalCommand command) {
+    public MajorTransferImportResult importScores(String adminUserId,
+                                                   ImportMajorTransferScoresCommand command) {
+        return importScores(adminUserId, command, null);
+    }
+
+    @Override
+    public MajorTransferImportResult importScores(String adminUserId,
+            ImportMajorTransferScoresCommand command, String trustedDepartmentId) {
         return locks.withLocks(List.of(new ResourceKey("TRANSFER_OPTION", command.optionId())), () ->
                 transactions.inTransaction(connection -> {
                     MajorTransferRepository.OptionRow option =
                             repository.findOption(connection, command.optionId())
                                     .orElseThrow(() -> error("TRANSFER_OPTION_NOT_FOUND", "选项不存在"));
-                    if (option.rowVersion() != command.expectedOptionVersion()) throw concurrent();
-                    if (!repository.listApplicationsByOption(connection, command.optionId(),
-                            PROPOSED, PENDING_EFFECTIVE, EFFECTIVE).isEmpty())
-                        throw error("TRANSFER_PROPOSAL_EXISTS", "该专业已生成拟录取名单");
-                    if (!repository.listApplicationsByOption(connection, command.optionId(),
-                            SUBMITTED, SOURCE_APPROVED, QUALIFIED).isEmpty())
-                        throw error("TRANSFER_ASSESSMENT_INCOMPLETE", "仍有申请未完成审核或成绩录入");
-                    List<MajorTransferRepository.ApplicationRow> assessed =
-                            repository.listApplicationsByOption(connection, command.optionId(),
-                                    ASSESSED);
-                    if (assessed.isEmpty()) throw error("TRANSFER_ASSESSMENT_EMPTY", "没有已完成考核的申请");
-                    Instant now = Instant.now();
-                    List<MajorTransferRankingView.RankedApplicant> applicants = new ArrayList<>();
-                    var writtenCandidates = assessed.stream().filter(a -> a.writtenScore() != null
-                            && (option.writtenPassScore() == null || a.writtenScore() >= option.writtenPassScore()))
-                            .filter(a -> !(option.difficultyQuotaExempt() && a.applicationType() == MajorTransferApplicationType.DIFFICULTY))
-                            .sorted(Comparator.comparing(MajorTransferRepository.ApplicationRow::writtenScore).reversed()).toList();
-                    double interviewCutoff = Double.POSITIVE_INFINITY;
-                    if (option.interviewQuota() > 0 && !writtenCandidates.isEmpty())
-                        interviewCutoff = writtenCandidates.get(Math.min(option.interviewQuota(), writtenCandidates.size()) - 1).writtenScore();
-                    for (var app : assessed) {
-                        if (app.finalScore() == null) continue;
-                        if (option.interviewWeightPct() > 0
-                                && !(option.difficultyQuotaExempt() && app.applicationType() == MajorTransferApplicationType.DIFFICULTY)
-                                && (option.writtenWeightPct() > 0
-                                    ? app.writtenScore() == null || app.writtenScore() < interviewCutoff
-                                    : option.interviewQuota() == 0)) continue;
-                        Double passScore = option.writtenPassScore();
-                        if (passScore != null && app.writtenScore() != null
-                                && app.writtenScore() < passScore) continue;
-                        Double intPassScore = option.interviewPassScore();
-                        if (intPassScore != null && app.interviewScore() != null
-                                && app.interviewScore() < intPassScore) continue;
-                        applicants.add(new MajorTransferRankingView.RankedApplicant(
-                                app.applicationId(), app.studentId(), app.studentName(),
-                                app.fromStudentNumber(), app.applicationType(),
-                                app.writtenScore(), app.interviewScore(), app.finalScore(),
-                                false));
-                    }
-                    applicants.sort(Comparator
-                            .comparing(MajorTransferRankingView.RankedApplicant::finalScore,
-                                    Comparator.nullsLast(Comparator.reverseOrder()))
-                            .thenComparing(MajorTransferRankingView.RankedApplicant::fromStudentNumber));
-                    int quota = option.receiveQuota();
-                    var ordinary = applicants.stream().filter(a -> !(option.difficultyQuotaExempt()
-                            && a.applicationType() == MajorTransferApplicationType.DIFFICULTY)).toList();
-                    double cutoff = Double.POSITIVE_INFINITY;
-                    if (!ordinary.isEmpty()) {
-                        int count = Math.min(quota, ordinary.size());
-                        if (count > 0) {
-                            cutoff = ordinary.get(count - 1).finalScore();
-                        }
-                    }
-                    final double cutoffScore = cutoff;
-                    Set<String> proposedIds = new HashSet<>();
-                    for (var a : applicants) {
-                        if ((option.difficultyQuotaExempt() && a.applicationType() == MajorTransferApplicationType.DIFFICULTY)
-                                || a.finalScore() >= cutoffScore) {
-                            proposedIds.add(a.applicationId());
-                        }
-                    }
-                    List<MajorTransferRankingView.RankedApplicant> finalApplicants =
-                            applicants.stream().map(a -> new MajorTransferRankingView.RankedApplicant(
-                                    a.applicationId(), a.studentId(), a.studentName(),
-                                    a.fromStudentNumber(), a.applicationType(),
-                                    a.writtenScore(), a.interviewScore(), a.finalScore(),
-                                    proposedIds.contains(a.applicationId()))).toList();
-                    for (var app : assessed) {
-                        if (proposedIds.contains(app.applicationId())) {
-                            changeStatus(connection, app.applicationId(),
-                                    ASSESSED, PROPOSED, app.applicationVersion(), now);
-                        } else {
-                            changeStatus(connection, app.applicationId(),
-                                    ASSESSED, REJECTED, app.applicationVersion(), now);
+                    requireDepartment(trustedDepartmentId, option.targetDepartmentId());
+                    int total = command.entries().size();
+                    int success = 0;
+                    var failures = new java.util.ArrayList<MajorTransferImportResult.Failure>();
+                    for (var entry : command.entries()) {
+                        try {
+                            MajorTransferRepository.ApplicationRow app =
+                                    repository.findApplication(connection, entry.applicationId())
+                                            .orElseThrow(() -> error("TRANSFER_APPLICATION_NOT_FOUND", "申请不存在"));
+                            if (!command.optionId().equals(app.optionId())) {
+                                failures.add(new MajorTransferImportResult.Failure(
+                                        entry.applicationId(), "申请不属于所选招生专业"));
+                                continue;
+                            }
+                            if (app.status() != QUALIFIED) {
+                                failures.add(new MajorTransferImportResult.Failure(
+                                        entry.applicationId(), "申请状态不允许录入成绩"));
+                                continue;
+                            }
+                            Double written = entry.writtenScore() != null
+                                    ? entry.writtenScore().doubleValue() : null;
+                            Double interview = entry.interviewScore() != null
+                                    ? entry.interviewScore().doubleValue() : null;
+                            validateScore(written, option.writtenWeightPct());
+                            validateScore(interview, option.interviewWeightPct());
+                            Double fs = finalScore(written, interview,
+                                    option.writtenWeightPct(), option.interviewWeightPct());
+                            requireChanged(repository.recordScores(connection, entry.applicationId(),
+                                    written, interview, fs, app.applicationVersion(), Instant.now()));
                             repository.insertReview(connection, new MajorTransferRepository.ReviewRow(
                                     UUID.randomUUID().toString(), app.applicationId(),
-                                    MajorTransferReviewStage.PROPOSAL, MajorTransferDecision.REJECT,
-                                    adminUserId, "未达到本专业拟录取排名",
-                                    null, null, null, now));
+                                    MajorTransferReviewStage.ASSESSMENT,
+                                    MajorTransferDecision.APPROVE, adminUserId,
+                                    "批量导入成绩，综合成绩：" + fs, null, null, null, Instant.now()));
+                            success++;
+                        } catch (Exception e) {
+                            failures.add(new MajorTransferImportResult.Failure(
+                                    entry.applicationId(), e.getMessage()));
                         }
                     }
-                    for (String appId : proposedIds) {
-                        repository.insertReview(connection, new MajorTransferRepository.ReviewRow(
-                                UUID.randomUUID().toString(), appId,
-                                MajorTransferReviewStage.PROPOSAL, MajorTransferDecision.APPROVE,
-                                adminUserId, "拟录取",
-                                null, null, null, now));
-                    }
-                    return new MajorTransferRankingView(command.optionId(),
-                            option.targetMajorName(), option.receiveQuota(),
-                            finalApplicants, cutoffScore, option.rowVersion());
+                    return new MajorTransferImportResult(total, success, failures.size(), failures);
                 }));
     }
 
     // ── Admin: final approval and execution ──
 
     @Override
-    public MajorTransferApplicationView finalizeProposal(String adminUserId,
+    public MajorTransferApplicationView finalizeApproval(String adminUserId,
                                                           FinalizeMajorTransferCommand command) {
+        return finalizeApproval(adminUserId, command, null);
+    }
+
+    @Override
+    public MajorTransferApplicationView finalizeApproval(String adminUserId,
+            FinalizeMajorTransferCommand command, String trustedDepartmentId) {
         return locks.withLocks(List.of(new ResourceKey("TRANSFER_APPLICATION", command.applicationId())), () ->
                 transactions.inTransaction(connection -> {
                     MajorTransferRepository.ApplicationRow app =
                             repository.findApplication(connection, command.applicationId())
                                     .orElseThrow(() -> error("TRANSFER_APPLICATION_NOT_FOUND", "申请不存在"));
-                    if (app.status() != PROPOSED)
+                    requireTargetDepartment(connection, app, trustedDepartmentId);
+                    if (app.status() != ASSESSED)
                         throw error("TRANSFER_STATE_INVALID", "申请状态不允许终审");
                     Instant now = Instant.now();
                     changeStatus(connection, command.applicationId(),
-                            PROPOSED, PENDING_EFFECTIVE, command.expectedVersion(), now);
+                            ASSESSED, PENDING_EFFECTIVE, command.expectedVersion(), now);
                     repository.insertReview(connection, new MajorTransferRepository.ReviewRow(
                             UUID.randomUUID().toString(), command.applicationId(),
                             MajorTransferReviewStage.FINAL_APPROVAL, MajorTransferDecision.APPROVE,
@@ -695,6 +704,12 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
 
     @Override
     public MajorTransferApplicationView execute(String adminUserId, ExecuteMajorTransferCommand command) {
+        return execute(adminUserId, command, null);
+    }
+
+    @Override
+    public MajorTransferApplicationView execute(String adminUserId,
+            ExecuteMajorTransferCommand command, String trustedDepartmentId) {
         String studentId = transactions.inTransaction(c -> repository.findApplication(c, command.applicationId())
                 .orElseThrow(() -> error("TRANSFER_APPLICATION_NOT_FOUND", "申请不存在")).studentId());
         List<ResourceKey> keys = List.of(
@@ -704,6 +719,7 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
             MajorTransferRepository.ApplicationRow app =
                     repository.findApplication(connection, command.applicationId())
                             .orElseThrow(() -> error("TRANSFER_APPLICATION_NOT_FOUND", "申请不存在"));
+            requireTargetDepartment(connection, app, trustedDepartmentId);
             if (app.status() != PENDING_EFFECTIVE && app.status() != EXECUTION_FAILED)
                 throw error("TRANSFER_STATE_INVALID", "申请状态不允许执行");
             if (app.applicationVersion() != command.expectedVersion()) throw concurrent();
@@ -771,6 +787,24 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
     }
 
     // ── Helpers ──
+
+    private void requireTargetDepartment(Connection connection,
+            MajorTransferRepository.ApplicationRow application,
+            String trustedDepartmentId) {
+        if (trustedDepartmentId == null) return;
+        MajorTransferRepository.OptionRow option = repository.findOption(
+                connection, application.optionId()).orElseThrow(() ->
+                error("TRANSFER_OPTION_NOT_FOUND", "选项不存在"));
+        requireDepartment(trustedDepartmentId, option.targetDepartmentId());
+    }
+
+    private static void requireDepartment(String trustedDepartmentId,
+            String actualDepartmentId) {
+        if (trustedDepartmentId != null
+                && !trustedDepartmentId.equals(actualDepartmentId)) {
+            throw new IllegalArgumentException("COMMON_FORBIDDEN");
+        }
+    }
 
     private MajorTransferWorkspace emptyWorkspace(Student student) {
         return new MajorTransferWorkspace(null, List.of(), List.of(),

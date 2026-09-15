@@ -52,9 +52,15 @@ public final class StudentProfileServiceImpl implements StudentProfileService {
 
     @Override
     public StudentProfileData getProfileByStudentId(String studentId) {
+        return getProfileByStudentId(studentId, null);
+    }
+
+    @Override
+    public StudentProfileData getProfileByStudentId(String studentId, String departmentId) {
         return transactions.inTransaction(connection -> {
             var student = students.findById(connection, studentId)
                     .orElseThrow(StudentNotFoundException::new);
+            requireDepartment(connection, studentId, departmentId);
             String campusCard = campusCard(student.userId());
             return students.findProfileByStudentId(connection, studentId, campusCard);
         });
@@ -168,9 +174,17 @@ public final class StudentProfileServiceImpl implements StudentProfileService {
 
     @Override
     public PageResult<StudentProfileApplicationView> listPending(StudentProfileReviewQuery query) {
+        return listPending(query, null);
+    }
+
+    @Override
+    public PageResult<StudentProfileApplicationView> listPending(StudentProfileReviewQuery query,
+            String departmentId) {
         if (query.page() < 1 || query.pageSize() < 1 || query.pageSize() > 100)
             throw new IllegalArgumentException("无效分页参数");
-        List<StudentProfileApplicationView> all = transactions.inTransaction(applications::listPending);
+        List<StudentProfileApplicationView> all = transactions.inTransaction(connection ->
+                departmentId == null ? applications.listPending(connection)
+                        : applications.listPending(connection, departmentId));
         int from = Math.min((query.page() - 1) * query.pageSize(), all.size());
         int to = Math.min(from + query.pageSize(), all.size());
         return new PageResult<>(all.subList(from, to), query.page(), query.pageSize(), all.size());
@@ -178,12 +192,18 @@ public final class StudentProfileServiceImpl implements StudentProfileService {
 
     @Override
     public StudentProfileWorkspace getApplication(String applicationId) {
+        return getApplication(applicationId, null);
+    }
+
+    @Override
+    public StudentProfileWorkspace getApplication(String applicationId, String departmentId) {
         return transactions.inTransaction(connection -> {
             StudentProfileApplicationView application = applications.findById(connection, applicationId)
                     .orElseThrow(() -> new StudentProfileApplicationException(
                             "STUDENT_PROFILE_APPLICATION_NOT_FOUND", "资料申请不存在"));
             var student = students.findById(connection, application.studentId())
                     .orElseThrow(StudentNotFoundException::new);
+            requireDepartment(connection, application.studentId(), departmentId);
             StudentProfileData formal = students.findProfileByStudentId(connection,
                     application.studentId(), campusCard(student.userId()));
             return new StudentProfileWorkspace(formal, application);
@@ -193,19 +213,31 @@ public final class StudentProfileServiceImpl implements StudentProfileService {
     @Override
     public StudentProfileApplicationView approve(String applicationId, String reviewerUserId,
             String reviewComment) {
-        return review(applicationId, reviewerUserId, reviewComment, true);
+        return approve(applicationId, reviewerUserId, reviewComment, null);
+    }
+
+    @Override
+    public StudentProfileApplicationView approve(String applicationId, String reviewerUserId,
+            String reviewComment, String departmentId) {
+        return review(applicationId, reviewerUserId, reviewComment, true, departmentId);
     }
 
     @Override
     public StudentProfileApplicationView reject(String applicationId, String reviewerUserId,
             String reviewComment) {
+        return reject(applicationId, reviewerUserId, reviewComment, null);
+    }
+
+    @Override
+    public StudentProfileApplicationView reject(String applicationId, String reviewerUserId,
+            String reviewComment, String departmentId) {
         if (reviewComment == null || reviewComment.isBlank())
             throw new IllegalArgumentException("驳回原因不能为空");
-        return review(applicationId, reviewerUserId, reviewComment.trim(), false);
+        return review(applicationId, reviewerUserId, reviewComment.trim(), false, departmentId);
     }
 
     private StudentProfileApplicationView review(String applicationId, String reviewerUserId,
-            String reviewComment, boolean approve) {
+            String reviewComment, boolean approve, String departmentId) {
         String studentId = transactions.inTransaction(connection -> applications.findById(connection, applicationId)
                 .orElseThrow(() -> new StudentProfileApplicationException(
                         "STUDENT_PROFILE_APPLICATION_NOT_FOUND", "资料申请不存在")).studentId());
@@ -215,6 +247,7 @@ public final class StudentProfileServiceImpl implements StudentProfileService {
                             .filter(value -> value.status() == StudentProfileApplicationStatus.PENDING)
                             .orElseThrow(() -> new StudentProfileApplicationException(
                                     "STUDENT_PROFILE_NOT_PENDING", "资料申请已处理"));
+                    requireDepartment(connection, pending.studentId(), departmentId);
                     Instant now = Instant.now();
                     if (approve) {
                         var student = students.findById(connection, studentId).orElseThrow(StudentNotFoundException::new);
@@ -238,6 +271,13 @@ public final class StudentProfileServiceImpl implements StudentProfileService {
     private String campusCard(String userId) {
         return users.findByUserId(userId).orElseThrow(() ->
                 new IllegalStateException("STUDENT_USER_ACCOUNT_NOT_FOUND")).loginId();
+    }
+
+    private void requireDepartment(java.sql.Connection connection, String studentId,
+            String departmentId) {
+        if (departmentId != null
+                && !students.belongsToDepartment(connection, studentId, departmentId))
+            throw new IllegalArgumentException("COMMON_FORBIDDEN");
     }
 
     private static boolean sameEditableValues(StudentProfileData formal,

@@ -158,7 +158,17 @@ public final class StudentDetailPanel extends JPanel {
     }
 
     private JScrollPane changesTable() {
-        changesTable = new JTable(changesModel);
+        changesTable = new JTable(changesModel) {
+            @Override
+            public Component prepareRenderer(javax.swing.table.TableCellRenderer renderer, int row, int column) {
+                Component c = super.prepareRenderer(renderer, row, column);
+                if (c instanceof JComponent jc) {
+                    Object val = getValueAt(row, column);
+                    jc.setToolTipText(val != null ? val.toString() : null);
+                }
+                return c;
+            }
+        };
         changesTable.setName("student.detail.changes");
         changesTable.setFont(UiTypography.BODY);
         changesTable.setRowHeight(UiSpacing.SPACE_6);
@@ -197,6 +207,9 @@ public final class StudentDetailPanel extends JPanel {
         result.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(TABLE_BORDER),
                 BorderFactory.createEmptyBorder(9, 10, 9, 10)));
         result.setMinimumSize(new Dimension(label ? 105 : 140, 38));
+        if (value != null && !value.isBlank()) {
+            result.setToolTipText(value);
+        }
         return result;
     }
 

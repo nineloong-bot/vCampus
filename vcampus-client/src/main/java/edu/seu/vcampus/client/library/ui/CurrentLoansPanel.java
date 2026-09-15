@@ -1,4 +1,5 @@
 package edu.seu.vcampus.client.library.ui;
+
 import edu.seu.vcampus.client.library.service.LibraryClientService;
 import edu.seu.vcampus.common.library.*;
 import javax.swing.*;
@@ -6,27 +7,34 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.util.Objects;
 import java.util.List;
+
+/** Current loans workspace panel with inline return condition selector and renewal. */
 public final class CurrentLoansPanel extends LibraryDataPanel {
     private final LibraryClientService service;
     private List<LoanView> loans = List.of();
+
     public CurrentLoansPanel(LibraryClientService service) {
         super("library.current-loans", "当前借阅", "归还或续借本人当前记录。",
                 "借阅号", "书名", "馆藏条码", "借出时间", "到期时间", "续借次数", "状态");
         this.service = Objects.requireNonNull(service, "service");
         JButton refresh = new JButton("刷新借阅");
         JButton renew = new JButton("续借所选");
+        JComboBox<String> conditionCombo = new JComboBox<>(new String[]{"完好", "轻度损坏", "严重损坏"});
         JButton returned = new JButton("归还所选");
         refresh.addActionListener(event -> refresh());
-        renew.addActionListener(event -> confirmSelected("续借", this::renewSelected));
+        renew.addActionListener(event -> renewSelected());
         returned.addActionListener(event -> {
             if (selectedLoan() == null) return;
-            String[] options = {"完好", "轻度损坏", "严重损坏"};
-            int selected = JOptionPane.showOptionDialog(this, "请选择归还情况，逾期与损坏罚金将按当前借阅策略登记。",
-                    "归还图书", JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
-            if (selected >= 0) returnSelected(ReturnCondition.values()[selected]);
+            int selected = conditionCombo.getSelectedIndex();
+            returnSelected(ReturnCondition.values()[Math.max(0, selected)]);
         });
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        actions.setOpaque(false); actions.add(refresh); actions.add(renew); actions.add(returned);
+        actions.setOpaque(false);
+        actions.add(refresh);
+        actions.add(renew);
+        actions.add(new JLabel("归还情况:"));
+        actions.add(conditionCombo);
+        actions.add(returned);
         add(actions, BorderLayout.SOUTH);
     }
 
@@ -69,13 +77,6 @@ public final class CurrentLoansPanel extends LibraryDataPanel {
             return null;
         }
         return loans.get(table.convertRowIndexToModel(row));
-    }
-
-    private void confirmSelected(String action, Runnable operation) {
-        LoanView loan = selectedLoan();
-        if (loan == null) return;
-        Window owner = SwingUtilities.getWindowAncestor(this);
-        new LoanActionDialog(owner, action, "借阅记录 " + loan.loanId(), operation).setVisible(true);
     }
 
     private void submit(String pending, String success, java.util.concurrent.CompletableFuture<LoanView> future) {

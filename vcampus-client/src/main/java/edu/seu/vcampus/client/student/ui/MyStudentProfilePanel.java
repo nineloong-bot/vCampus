@@ -13,9 +13,12 @@ import java.awt.*;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 /** Student profile workspace with draft, approval and formal-PDF workflow. */
@@ -23,15 +26,29 @@ public final class MyStudentProfilePanel extends JPanel {
     private static final Color TABLE_BORDER = new Color(178, 218, 211);
     private static final Color TABLE_LABEL = new Color(239, 247, 245);
     private static final Color ACTION_GREEN = new Color(139, 195, 74);
+    private static final Set<String> REQUIRED_EDIT_KEYS = Set.of(
+            "namePinyin", "idIssuedDate", "nativePlace", "birthplace",
+            "householdBeforeEnrollment", "householdAfterEnrollment",
+            "leagueMember", "leagueJoinDate", "partyMember", "healthStatus",
+            "weightKg", "heightCm", "specialties", "hobbies", "onlyChild");
+    private static final Set<String> CORE_READONLY_KEYS = Set.of(
+            "card", "studentNumber", "name", "gender", "birthDate",
+            "idDocumentType", "idDocumentNumber");
+
     private final StudentClientService students;
     private final ClientConnection connection;
     private final AtomicLong generation = new AtomicLong();
     private final Map<String, JLabel> values = new LinkedHashMap<>();
-    private final StudentProfileStatusView statuses = new StudentProfileStatusView();
+    private final Map<String, JComponent> editComponents = new LinkedHashMap<>();
+    private final Map<String, JLabel> editReadOnlyLabels = new LinkedHashMap<>();
     private volatile boolean active;
     private StudentProfileWorkspace workspace;
+    private final StudentProfileStatusView statuses = new StudentProfileStatusView();
     private JLabel errorLabel;
-    private JButton refreshButton, personalEdit, academicEdit, exportButton, submitButton;
+    private JButton refreshButton, personalEdit, personalSave, academicEdit, exportButton, submitButton;
+    private CardLayout personalCardLayout;
+    private JPanel personalCardContainer;
+    private boolean isPersonalEditing;
 
     public MyStudentProfilePanel(StudentClientService students, ClientConnection connection) {
         super(new BorderLayout(0, UiSpacing.SPACE_4));
@@ -52,7 +69,15 @@ public final class MyStudentProfilePanel extends JPanel {
         JPanel content = new ScrollContent(); content.setName("student.profile.fields");
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
         content.add(sectionHeader("个人基本信息", true));
-        content.add(profileTable(personalDefinitions()));
+
+        personalCardLayout = new CardLayout();
+        personalCardContainer = new JPanel(personalCardLayout);
+        personalCardContainer.setOpaque(false);
+        personalCardContainer.setAlignmentX(Component.LEFT_ALIGNMENT);
+        personalCardContainer.add(profileTable(personalDefinitions()), "VIEW");
+        personalCardContainer.add(buildPersonalEditTable(personalDefinitions()), "EDIT");
+        content.add(personalCardContainer);
+
         content.add(Box.createVerticalStrut(UiSpacing.SPACE_6));
         content.add(sectionHeader("学籍信息", false));
         content.add(profileTable(academicDefinitions()));
@@ -84,8 +109,159 @@ public final class MyStudentProfilePanel extends JPanel {
         edit.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         edit.setName(personal ? "student.profile.personal.edit" : "student.profile.academic.edit");
         edit.getAccessibleContext().setAccessibleName("编辑" + title);
-        edit.addActionListener(e -> { if (personal) editPersonal(); else editAttendance(); });
-        if (personal) personalEdit = edit; else academicEdit = edit; header.add(edit); return header;
+        edit.addActionListener(e -> { if (personal) togglePersonalEdit(); else editAttendance(); });
+        if (personal) {
+            personalEdit = edit;
+            header.add(edit);
+
+            personalSave = new JButton("暂存");
+            personalSave.setName("student.profile.personal.save");
+            personalSave.setFont(UiTypography.BODY.deriveFont(Font.BOLD));
+            personalSave.setForeground(Color.WHITE);
+            personalSave.setBackground(ACTION_GREEN);
+            personalSave.setOpaque(true);
+            personalSave.setBorder(BorderFactory.createEmptyBorder(4, 12, 4, 12));
+            personalSave.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            personalSave.setVisible(false);
+            personalSave.addActionListener(e -> savePersonalDraft());
+            header.add(personalSave);
+        } else {
+            academicEdit = edit;
+            header.add(edit);
+        }
+        return header;
+    }
+
+    private JPanel buildPersonalEditTable(String[][] definitions) {
+        JPanel table = new JPanel(new GridBagLayout());
+        table.setOpaque(false);
+        table.setAlignmentX(Component.LEFT_ALIGNMENT);
+        int rows = (definitions.length + 2) / 3;
+        for (int index = 0; index < rows * 3; index++) {
+            int row = index / 3, pair = index % 3;
+            String key = index < definitions.length ? definitions[index][0] : null;
+            String title = index < definitions.length ? definitions[index][1] : "";
+            if (key == null) {
+                JLabel emptyLabel = cell("", true);
+                JLabel emptyValue = cell("", false);
+                addCell(table, emptyLabel, pair * 2, row, .12);
+                addCell(table, emptyValue, pair * 2 + 1, row, .21);
+                continue;
+            }
+
+            boolean isCore = CORE_READONLY_KEYS.contains(key);
+            String labelText = (!isCore && REQUIRED_EDIT_KEYS.contains(key))
+                    ? "<html><font color='#e53935'>* </font>" + title + "</html>"
+                    : title;
+            JLabel label = cell(labelText, true);
+            addCell(table, label, pair * 2, row, .12);
+
+            if (isCore) {
+                JLabel valueLabel = cell("未填写", false);
+                valueLabel.setName("student.profile.edit." + key);
+                editReadOnlyLabels.put(key, valueLabel);
+                addCell(table, valueLabel, pair * 2 + 1, row, .21);
+            } else if (isComboField(key)) {
+                String[] options = getComboOptions(key);
+                JComboBox<String> combo = new JComboBox<>(options);
+                combo.setBackground(Color.WHITE);
+                combo.setFont(UiTypography.BODY);
+                combo.setBorder(BorderFactory.createCompoundBorder(
+                        BorderFactory.createLineBorder(TABLE_BORDER),
+                        BorderFactory.createEmptyBorder(2, 4, 2, 4)));
+                combo.setMinimumSize(new Dimension(140, 38));
+                combo.setPreferredSize(new Dimension(140, 38));
+                combo.setName("student.profile.personal." + key);
+                combo.setToolTipText(PersonalProfileEditPanel.HINTS.get(key));
+                combo.getAccessibleContext().setAccessibleName(title);
+                editComponents.put(key, combo);
+                addCell(table, combo, pair * 2 + 1, row, .21);
+            } else {
+                JTextField field = new JTextField();
+                field.setBackground(Color.WHITE);
+                field.setFont(UiTypography.BODY);
+                field.setBorder(BorderFactory.createCompoundBorder(
+                        BorderFactory.createLineBorder(TABLE_BORDER),
+                        BorderFactory.createEmptyBorder(6, 8, 6, 8)));
+                field.setMinimumSize(new Dimension(140, 38));
+                field.setPreferredSize(new Dimension(140, 38));
+                field.setName("student.profile.personal." + key);
+                field.setToolTipText(PersonalProfileEditPanel.HINTS.get(key));
+                field.getAccessibleContext().setAccessibleName(title);
+                editComponents.put(key, field);
+                addCell(table, field, pair * 2 + 1, row, .21);
+            }
+        }
+
+        wireLinkages();
+        return table;
+    }
+
+    private static boolean isComboField(String key) {
+        return switch (key) {
+            case "politicalStatus", "ethnicity", "maritalStatus",
+                 "householdRegistrationType", "overseasChineseStatus",
+                 "leagueMember", "partyMember", "healthStatus", "bloodType", "onlyChild" -> true;
+            default -> false;
+        };
+    }
+
+    private static String[] getComboOptions(String key) {
+        return switch (key) {
+            case "politicalStatus" -> PersonalProfileEditPanel.OPTIONS.get("politicalStatus");
+            case "ethnicity" -> PersonalProfileEditPanel.ETHNICITIES;
+            case "maritalStatus" -> PersonalProfileEditPanel.OPTIONS.get("maritalStatus");
+            case "householdRegistrationType" -> PersonalProfileEditPanel.OPTIONS.get("householdRegistrationType");
+            case "overseasChineseStatus" -> PersonalProfileEditPanel.OPTIONS.get("overseasChineseStatus");
+            case "leagueMember" -> new String[]{"是", "否"};
+            case "partyMember" -> new String[]{"是", "否"};
+            case "healthStatus" -> PersonalProfileEditPanel.OPTIONS.get("healthStatus");
+            case "bloodType" -> PersonalProfileEditPanel.OPTIONS.get("bloodType");
+            case "onlyChild" -> new String[]{"请选择...", "是", "否"};
+            default -> new String[]{""};
+        };
+    }
+
+    private void wireLinkages() {
+        JComboBox<?> polCombo = (JComboBox<?>) editComponents.get("politicalStatus");
+        JComboBox<?> legCombo = (JComboBox<?>) editComponents.get("leagueMember");
+        JTextField legDate = (JTextField) editComponents.get("leagueJoinDate");
+        JComboBox<?> ptyCombo = (JComboBox<?>) editComponents.get("partyMember");
+        JTextField ptyDate = (JTextField) editComponents.get("partyJoinDate");
+
+        if (polCombo != null) {
+            polCombo.addActionListener(e -> {
+                String selected = (String) polCombo.getSelectedItem();
+                if ("群众".equals(selected)) {
+                    if (legCombo != null) legCombo.setSelectedItem("否");
+                    if (legDate != null) { legDate.setText(""); legDate.setEnabled(false); }
+                    if (ptyCombo != null) ptyCombo.setSelectedItem("否");
+                    if (ptyDate != null) { ptyDate.setText(""); ptyDate.setEnabled(false); }
+                } else if ("共青团员".equals(selected)) {
+                    if (legCombo != null) legCombo.setSelectedItem("是");
+                    if (legDate != null) legDate.setEnabled(true);
+                    if (ptyCombo != null) ptyCombo.setSelectedItem("否");
+                    if (ptyDate != null) { ptyDate.setText(""); ptyDate.setEnabled(false); }
+                } else if ("中共党员".equals(selected) || "中共预备党员".equals(selected)) {
+                    if (ptyCombo != null) ptyCombo.setSelectedItem("是");
+                    if (ptyDate != null) ptyDate.setEnabled(true);
+                }
+            });
+        }
+        if (legCombo != null && legDate != null) {
+            legCombo.addActionListener(e -> {
+                boolean isYes = "是".equals(legCombo.getSelectedItem());
+                legDate.setEnabled(isYes);
+                if (!isYes) legDate.setText("");
+            });
+        }
+        if (ptyCombo != null && ptyDate != null) {
+            ptyCombo.addActionListener(e -> {
+                boolean isYes = "是".equals(ptyCombo.getSelectedItem());
+                ptyDate.setEnabled(isYes);
+                if (!isYes) ptyDate.setText("");
+            });
+        }
     }
 
     private JPanel profileTable(String[][] definitions) {
@@ -111,7 +287,11 @@ public final class MyStudentProfilePanel extends JPanel {
         result.setOpaque(true); result.setBackground(label ? TABLE_LABEL : Color.WHITE);
         result.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(TABLE_BORDER),
                 BorderFactory.createEmptyBorder(9, 10, 9, 10)));
-        result.setMinimumSize(new Dimension(label ? 105 : 140, 38)); return result;
+        result.setMinimumSize(new Dimension(label ? 105 : 140, 38));
+        if (value != null && !value.isBlank()) {
+            result.setToolTipText(value);
+        }
+        return result;
     }
 
     @Override public void addNotify() { super.addNotify(); active = true; refreshProfile(); }
@@ -135,6 +315,9 @@ public final class MyStudentProfilePanel extends JPanel {
                 || app.status() == StudentProfileApplicationStatus.PENDING);
         StudentPersonalProfile personal = draftVisible ? app.personal() : formal.personal();
         AttendanceMode attendance = draftVisible ? app.attendanceMode() : formal.academic().attendanceMode();
+        if (isPersonalEditing) {
+            cancelPersonalEdit();
+        }
         renderCore(formal, personal); renderAcademic(formal.academic(), attendance); statuses.showApplication(app);
         statuses.loaded(); errorLabel.setText(" "); refreshButton.setEnabled(true);
         boolean connected = connection.state() == ConnectionState.CONNECTED;
@@ -175,14 +358,239 @@ public final class MyStudentProfilePanel extends JPanel {
     }
 
     private void editPersonal() {
-        if (pendingApplication()) { promptWithdrawBeforeEditing(); return; }
-        if (workspace == null || !personalEdit.isEnabled()) return;
+        togglePersonalEdit();
+    }
+
+    private void togglePersonalEdit() {
+        if (isPersonalEditing) {
+            cancelPersonalEdit();
+        } else {
+            if (pendingApplication()) { promptWithdrawBeforeEditing(); return; }
+            if (workspace == null || !personalEdit.isEnabled()) return;
+            startPersonalEdit();
+        }
+    }
+
+    private void startPersonalEdit() {
+        isPersonalEditing = true;
+        personalEdit.setText("取消编辑");
+        personalSave.setVisible(true);
+        populatePersonalEditFields();
+        personalCardLayout.show(personalCardContainer, "EDIT");
+        errorLabel.setText(" ");
+    }
+
+    private void cancelPersonalEdit() {
+        isPersonalEditing = false;
+        personalEdit.setText("编辑");
+        personalSave.setVisible(false);
+        personalCardLayout.show(personalCardContainer, "VIEW");
+        errorLabel.setText(" ");
+    }
+
+    private void populatePersonalEditFields() {
+        if (workspace == null) return;
         StudentProfileApplicationView app = workspace.application();
+        boolean draftVisible = app != null && (app.status() == StudentProfileApplicationStatus.DRAFT
+                || app.status() == StudentProfileApplicationStatus.PENDING);
+        StudentPersonalProfile p = draftVisible ? app.personal() : workspace.formalProfile().personal();
+        StudentView core = workspace.formalProfile().core();
+
+        setEditLabel("card", core.campusCardNumber());
+        setEditLabel("studentNumber", core.studentNumber());
+        setEditLabel("name", core.studentName());
+        setEditLabel("gender", core.gender());
+        setEditLabel("birthDate", p.birthDate());
+        setEditLabel("idDocumentType", p.idDocumentType());
+        setEditLabel("idDocumentNumber", p.idDocumentNumber());
+
+        setEditValue("namePinyin", p.namePinyin());
+        setEditValue("formerName", p.formerName());
+        setEditValue("politicalStatus", p.politicalStatus());
+        setEditValue("ethnicity", p.ethnicity());
+        setEditValue("maritalStatus", p.maritalStatus());
+        setEditValue("idIssuedDate", p.idIssuedDate());
+        setEditValue("nativePlace", p.nativePlace());
+        setEditValue("countryRegion", p.countryRegion());
+        setEditValue("birthplace", p.birthplace());
+        setEditValue("studentOriginPlace", p.studentOriginPlace());
+        setEditValue("householdRegistrationType", p.householdRegistrationType());
+        setEditValue("householdBeforeEnrollment", p.householdBeforeEnrollment());
+        setEditValue("householdAfterEnrollment", p.householdAfterEnrollment());
+        setEditValue("overseasChineseStatus", p.overseasChineseStatus());
+        setEditValue("religion", p.religion());
+        setEditValue("leagueMember", p.leagueMember() ? "是" : "否");
+        setEditValue("leagueJoinDate", p.leagueJoinDate());
+        setEditValue("partyMember", p.partyMember() ? "是" : "否");
+        setEditValue("partyJoinDate", p.partyJoinDate());
+        setEditValue("healthStatus", p.healthStatus());
+        setEditValue("bloodType", p.bloodType());
+        setEditValue("weightKg", p.weightKg());
+        setEditValue("heightCm", p.heightCm());
+        setEditValue("specialties", p.specialties());
+        setEditValue("hobbies", p.hobbies());
+        setEditValue("onlyChild", p.onlyChild() ? "是" : "否");
+        setEditValue("email", p.email());
+        setEditValue("phone", p.phone());
+
+        boolean isMasses = "群众".equals(p.politicalStatus());
+        JTextField legDate = (JTextField) editComponents.get("leagueJoinDate");
+        if (legDate != null) legDate.setEnabled(!isMasses && p.leagueMember());
+        JTextField ptyDate = (JTextField) editComponents.get("partyJoinDate");
+        if (ptyDate != null) ptyDate.setEnabled(!isMasses && p.partyMember());
+    }
+
+    private void setEditLabel(String key, Object value) {
+        JLabel label = editReadOnlyLabels.get(key);
+        if (label != null) {
+            String text = filled(value);
+            label.setText(text);
+            label.setToolTipText(text);
+        }
+    }
+
+    private void setEditValue(String key, Object value) {
+        JComponent comp = editComponents.get(key);
+        if (comp == null) return;
+        String valStr = value != null ? value.toString().trim() : "";
+        if (comp instanceof JTextField tf) {
+            tf.setText(valStr);
+        } else if (comp instanceof JComboBox<?> raw) {
+            @SuppressWarnings("unchecked")
+            JComboBox<String> combo = (JComboBox<String>) raw;
+            if (!valStr.isEmpty()) {
+                boolean found = false;
+                for (int i = 0; i < combo.getItemCount(); i++) {
+                    if (valStr.equals(combo.getItemAt(i))) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) combo.addItem(valStr);
+                combo.setSelectedItem(valStr);
+            } else {
+                combo.setSelectedIndex(0);
+            }
+        }
+    }
+
+    private String editVal(String key) {
+        JComponent comp = editComponents.get(key);
+        if (comp instanceof JTextField tf) {
+            String t = tf.getText().trim();
+            return t.isEmpty() ? null : t;
+        } else if (comp instanceof JComboBox<?> combo) {
+            Object sel = combo.getSelectedItem();
+            if (sel == null) return null;
+            String t = sel.toString().trim();
+            if (t.isEmpty() || "请选择...".equals(t)) return null;
+            return t;
+        }
+        return null;
+    }
+
+    private LocalDate editDate(String key) {
+        String val = editVal(key);
+        return val == null ? null : LocalDate.parse(val);
+    }
+
+    private Integer editInt(String key) {
+        String val = editVal(key);
+        return val == null ? null : Integer.valueOf(val);
+    }
+
+    private StudentPersonalProfile buildPersonalProfileValue() {
+        try {
+            String namePinyin = editVal("namePinyin");
+            String formerName = editVal("formerName");
+            String political = editVal("politicalStatus");
+            boolean isMasses = "群众".equals(political);
+            String ethnicity = editVal("ethnicity");
+            String maritalStatus = editVal("maritalStatus");
+            String idDocumentType = editReadOnlyLabels.containsKey("idDocumentType")
+                    ? editReadOnlyLabels.get("idDocumentType").getText() : null;
+            if ("未填写".equals(idDocumentType)) idDocumentType = null;
+            String idDocumentNumber = editReadOnlyLabels.containsKey("idDocumentNumber")
+                    ? editReadOnlyLabels.get("idDocumentNumber").getText() : null;
+            if ("未填写".equals(idDocumentNumber)) idDocumentNumber = null;
+            LocalDate idIssuedDate = editDate("idIssuedDate");
+
+            StudentView core = workspace != null && workspace.formalProfile() != null
+                    ? workspace.formalProfile().core() : null;
+            LocalDate birthDate = workspace != null && workspace.formalProfile() != null && workspace.formalProfile().personal() != null
+                    ? workspace.formalProfile().personal().birthDate() : null;
+            String nativePlace = editVal("nativePlace");
+            String countryRegion = editVal("countryRegion");
+            String birthplace = editVal("birthplace");
+            String studentOriginPlace = editVal("studentOriginPlace");
+            String householdRegistrationType = editVal("householdRegistrationType");
+            String householdBefore = editVal("householdBeforeEnrollment");
+            String householdAfter = editVal("householdAfterEnrollment");
+            String overseasChineseStatus = editVal("overseasChineseStatus");
+            String religion = editVal("religion");
+
+            boolean isLeague = !isMasses && "是".equals(editVal("leagueMember"));
+            LocalDate leagueDate = isLeague ? editDate("leagueJoinDate") : null;
+
+            boolean isParty = !isMasses && "是".equals(editVal("partyMember"));
+            LocalDate partyDate = isParty ? editDate("partyJoinDate") : null;
+
+            String healthStatus = editVal("healthStatus");
+            String bloodType = editVal("bloodType");
+            Integer weightKg = editInt("weightKg");
+            Integer heightCm = editInt("heightCm");
+            String specialties = editVal("specialties");
+            String hobbies = editVal("hobbies");
+            boolean onlyChild = "是".equals(editVal("onlyChild"));
+            String email = editVal("email");
+            String phone = editVal("phone");
+
+            StudentPersonalProfile value = new StudentPersonalProfile(
+                    namePinyin, formerName, political, ethnicity, maritalStatus,
+                    idDocumentType, idDocumentNumber, idIssuedDate, birthDate,
+                    nativePlace, countryRegion, birthplace, studentOriginPlace,
+                    householdRegistrationType, householdBefore, householdAfter,
+                    overseasChineseStatus, religion, isLeague, leagueDate,
+                    isParty, partyDate, healthStatus, bloodType, weightKg,
+                    heightCm, specialties, hobbies, onlyChild, email, phone);
+
+            LocalDate enrollmentDate = core != null ? core.enrollmentDate() : null;
+            List<StudentFieldError> errors = StudentFieldValidator.validatePersonal(
+                    value, LocalDate.now(), enrollmentDate);
+            if (!errors.isEmpty()) {
+                throw new IllegalArgumentException(errors.getFirst().message());
+            }
+            return value;
+        } catch (DateTimeParseException | NumberFormatException error) {
+            throw new IllegalArgumentException("日期须为 yyyy-MM-dd，身高和体重须为整数");
+        }
+    }
+
+    private void savePersonalDraft() {
+        StudentPersonalProfile value;
+        try {
+            value = buildPersonalProfileValue();
+        } catch (IllegalArgumentException invalid) {
+            errorLabel.setText(invalid.getMessage());
+            return;
+        }
+        personalSave.setEnabled(false);
+        errorLabel.setText("正在暂存…");
+        StudentProfileApplicationView app = workspace != null ? workspace.application() : null;
         boolean draft = app != null && app.status() == StudentProfileApplicationStatus.DRAFT;
-        StudentPersonalProfile initial = draft ? app.personal() : workspace.formalProfile().personal();
         long expected = draft ? app.applicationVersion() : 0;
-        new PersonalProfileEditDialog(SwingUtilities.getWindowAncestor(this), students, initial,
-                workspace.formalProfile().core().enrollmentDate(), expected, this::render).setVisible(true);
+        students.savePersonalDraft(new SaveStudentPersonalDraftCommand(value, expected))
+                .whenComplete((body, failure) -> onEdt(() -> {
+                    if (failure != null || body == null || !body.success() || body.data() == null) {
+                        errorLabel.setText(message(body, "暂存失败，请稍后重试"));
+                        personalSave.setEnabled(true);
+                        return;
+                    }
+                    render(body.data());
+                    cancelPersonalEdit();
+                    personalSave.setEnabled(true);
+                    errorLabel.setText("个人信息已暂存");
+                }));
     }
     private void editAttendance() {
         if (pendingApplication()) { promptWithdrawBeforeEditing(); return; }
@@ -273,7 +681,14 @@ public final class MyStudentProfilePanel extends JPanel {
 
     private void connectionChanged(ConnectionState state) { onEdt(() -> { if (active && workspace != null) render(workspace); }); }
     private void setControls(boolean enabled) { personalEdit.setEnabled(enabled); academicEdit.setEnabled(enabled); exportButton.setEnabled(enabled); submitButton.setEnabled(enabled); }
-    private void put(String key, Object value) { JLabel label = values.get(key); if (label != null) label.setText(filled(value)); }
+    private void put(String key, Object value) {
+        JLabel label = values.get(key);
+        if (label != null) {
+            String text = filled(value);
+            label.setText(text);
+            label.setToolTipText(text);
+        }
+    }
     private static String filled(Object value) { return value == null || value.toString().isBlank() ? "未填写" : value.toString(); }
     private static String yesNo(boolean value) { return value ? "是" : "否"; }
     private static String message(ResponseBody<?> body, String fallback) { return body != null && body.message() != null && !body.message().isBlank() ? body.message() : fallback; }

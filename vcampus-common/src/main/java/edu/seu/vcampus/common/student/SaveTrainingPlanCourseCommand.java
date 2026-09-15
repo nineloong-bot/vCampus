@@ -13,4 +13,23 @@ public record SaveTrainingPlanCourseCommand(
         CourseType courseType,
         int semester,
         boolean isActive,
-        long expectedVersion) implements Serializable { }
+        long expectedVersion,
+        String courseId,
+        String offeringDepartmentId,
+        String offeringDepartmentName,
+        Integer allocatedQuota) implements Serializable {
+
+    public SaveTrainingPlanCourseCommand(
+            String planId,
+            String planCourseId,
+            String courseCode,
+            String courseName,
+            BigDecimal credits,
+            CourseType courseType,
+            int semester,
+            boolean isActive,
+            long expectedVersion) {
+        this(planId, planCourseId, courseCode, courseName, credits, courseType, semester, isActive, expectedVersion,
+                null, null, null, null);
+    }
+}

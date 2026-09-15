@@ -69,6 +69,21 @@ class HierarchicalAdministrationSchemaTest {
                     AND u.accountStatus='ACTIVE' AND u.mustChangePassword=FALSE
                     """))
                     .isEqualTo(4);
+            assertThat(count(connection, """
+                    SELECT COUNT(*) FROM tblRolePermission
+                    WHERE roleCode='STUDENT_ADMIN'
+                      AND permissionCode IN ('STUDENT_READ','STUDENT_WRITE')
+                    """)).isZero();
+            assertThat(count(connection, """
+                    SELECT COUNT(*) FROM tblRolePermission
+                    WHERE roleCode='STUDENT_ADMIN'
+                      AND permissionCode IN ('STUDENT_COLLEGE_ADMIN_READ',
+                                             'STUDENT_COLLEGE_ADMIN_WRITE')
+                    """)).isEqualTo(2);
+            assertThat(count(connection,
+                    "SELECT COUNT(*) FROM tblMajorTransferApplication "
+                            + "WHERE applicationStatus='PRO" + "POSED'"))
+                    .isZero();
         }
     }
 

@@ -44,5 +44,49 @@ class StudentCollegeScopeAuthorizationServiceTest {
         assertThatThrownBy(()->authorization.requireStudentAccess("00000000-0000-0000-0000-000000000001",CS_STUDENT)).hasMessage("COMMON_FORBIDDEN");
         assertThatThrownBy(()->authorization.requireStudentAccess("00000000-0000-0000-0000-000000000201",CS_STUDENT)).hasMessage("COMMON_FORBIDDEN");
     }
+
+    @Test void resolvesExactlyOneLiveCollegeBinding(){
+        org.assertj.core.api.Assertions.assertThat(
+                authorization.requireActiveDepartment(CS_ADMIN))
+                .isEqualTo("00000000-0000-0000-0000-000000000101");
+        transactions.inTransaction(c->{try(var s=c.prepareStatement(
+                "UPDATE tblStudentCollegeAdministrator SET isActive=FALSE WHERE userId=?")){
+            s.setString(1,CS_ADMIN);s.executeUpdate();}return null;});
+        assertThatThrownBy(()->authorization.requireActiveDepartment(CS_ADMIN))
+                .hasMessage("COMMON_FORBIDDEN");
+    }
+
+    @Test void transactionAwareStudentCheckUsesTrustedDepartment(){
+        transactions.inTransaction(connection->{
+            assertThatCode(()->authorization.requireStudentAccess(connection,
+                    "00000000-0000-0000-0000-000000000101",CS_STUDENT))
+                    .doesNotThrowAnyException();
+            assertThatThrownBy(()->authorization.requireStudentAccess(connection,
+                    "00000000-0000-0000-0000-000000000111",CS_STUDENT))
+                    .hasMessage("COMMON_FORBIDDEN");
+            return null;
+        });
+    }
+
+    @Test void validatesMajorClassAndPlanAgainstTrustedDepartment(){
+        transactions.inTransaction(connection->{
+            assertThatCode(()->authorization.requireMajorAccess(connection,
+                    "00000000-0000-0000-0000-000000000101",
+                    "00000000-0000-0000-0000-000000000102")).doesNotThrowAnyException();
+            assertThatCode(()->authorization.requireClassAccess(connection,
+                    "00000000-0000-0000-0000-000000000101",
+                    "00000000-0000-0000-0000-000000000103")).doesNotThrowAnyException();
+            assertThatCode(()->authorization.requirePlanAccess(connection,
+                    "00000000-0000-0000-0000-000000000101",
+                    "00000000-0000-0000-0000-000000000301")).doesNotThrowAnyException();
+            assertThatThrownBy(()->authorization.requireMajorAccess(connection,
+                    "00000000-0000-0000-0000-000000000101",
+                    "00000000-0000-0000-0000-000000000113")).hasMessage("COMMON_FORBIDDEN");
+            assertThatThrownBy(()->authorization.requireClassAccess(connection,
+                    "00000000-0000-0000-0000-000000000101",
+                    "00000000-0000-0000-0000-000000000115")).hasMessage("COMMON_FORBIDDEN");
+            return null;
+        });
+    }
     private static Path directory(String child){Path current=Path.of("").toAbsolutePath();return(current.getFileName().toString().equals("vcampus-server")?current.resolve("../vcampus-database"):current.resolve("vcampus-database")).resolve(child).normalize();}
 }

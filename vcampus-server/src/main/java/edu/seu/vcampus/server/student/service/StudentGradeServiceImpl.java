@@ -36,6 +36,12 @@ public final class StudentGradeServiceImpl implements StudentGradeService {
 
     @Override
     public StudentGradeView recordGrade(RecordStudentGradeCommand command, String operatorUserId) {
+        return recordGrade(command, operatorUserId, null);
+    }
+
+    @Override
+    public StudentGradeView recordGrade(RecordStudentGradeCommand command, String operatorUserId,
+            String departmentId) {
         Objects.requireNonNull(command.studentId());
         Objects.requireNonNull(command.planCourseId());
         Objects.requireNonNull(command.result());
@@ -45,9 +51,11 @@ public final class StudentGradeServiceImpl implements StudentGradeService {
                 () -> transactions.inTransaction(connection -> {
             students.findById(connection, command.studentId())
                     .orElseThrow(StudentNotFoundException::new);
+            requireStudent(connection, command.studentId(), departmentId);
             TrainingPlanCourse course = plans.findCourseById(connection, command.planCourseId())
                     .orElseThrow(() -> new TrainingPlanException("TRAINING_PLAN_COURSE_NOT_FOUND",
                             "课程不存在"));
+            requireCourse(connection, course, departmentId);
             Instant now = Instant.now();
             var existing = grades.findByStudentAndCourse(connection, command.studentId(),
                     command.planCourseId());
@@ -72,19 +80,31 @@ public final class StudentGradeServiceImpl implements StudentGradeService {
     @Override
     public List<StudentGradeView> batchRecordGrades(BatchRecordGradesCommand command,
             String operatorUserId) {
+        return batchRecordGrades(command, operatorUserId, null);
+    }
+
+    @Override
+    public List<StudentGradeView> batchRecordGrades(BatchRecordGradesCommand command,
+            String operatorUserId, String departmentId) {
         Objects.requireNonNull(command.entries());
         return command.entries().stream()
                 .map(entry -> recordGrade(new RecordStudentGradeCommand(entry.studentId(),
                         entry.planCourseId(), entry.result(), entry.recordedSemester()),
-                        operatorUserId))
+                        operatorUserId, departmentId))
                 .toList();
     }
 
     @Override
     public StudentTranscriptView getTranscriptByStudentId(String studentId) {
+        return getTranscriptByStudentId(studentId, null);
+    }
+
+    @Override
+    public StudentTranscriptView getTranscriptByStudentId(String studentId, String departmentId) {
         return transactions.inTransaction(connection -> {
             Student student = students.findById(connection, studentId)
                     .orElseThrow(StudentNotFoundException::new);
+            requireStudent(connection, studentId, departmentId);
             return buildTranscript(connection, student);
         });
     }
@@ -136,5 +156,21 @@ public final class StudentGradeServiceImpl implements StudentGradeService {
         return new StudentGradeView(grade.gradeId(), grade.studentId(), grade.planCourseId(),
                 course.courseCode(), course.courseName(), course.credits(), course.courseType(),
                 course.semester(), grade.result(), grade.recordedSemester(), grade.rowVersion());
+    }
+
+    private void requireStudent(java.sql.Connection connection, String studentId,
+            String departmentId) {
+        if (departmentId != null
+                && !students.belongsToDepartment(connection, studentId, departmentId))
+            throw new IllegalArgumentException("COMMON_FORBIDDEN");
+    }
+
+    private void requireCourse(java.sql.Connection connection, TrainingPlanCourse course,
+            String departmentId) {
+        if (departmentId == null) return;
+        TrainingPlan plan = plans.findById(connection, course.planId()).orElseThrow();
+        boolean allowed = new AccessOrganizationRepository().findMajor(connection, plan.majorId())
+                .filter(major -> departmentId.equals(major.departmentId())).isPresent();
+        if (!allowed) throw new IllegalArgumentException("COMMON_FORBIDDEN");
     }
 }

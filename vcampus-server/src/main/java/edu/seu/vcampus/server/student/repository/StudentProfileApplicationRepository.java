@@ -43,10 +43,32 @@ public final class StudentProfileApplicationRepository {
     public List<StudentProfileApplicationView> listPending(Connection connection) {
         String sql = "SELECT " + COLUMNS + " FROM tblStudentProfileApplication "
                 + "WHERE applicationStatus='PENDING' ORDER BY submittedAt";
-        try (var statement = connection.prepareStatement(sql); var result = statement.executeQuery()) {
-            List<StudentProfileApplicationView> values = new ArrayList<>();
-            while (result.next()) values.add(map(result));
-            return List.copyOf(values);
+        return list(connection, sql, null);
+    }
+
+    /** Lists pending profile applications for students in the trusted department. */
+    public List<StudentProfileApplicationView> listPending(Connection connection,
+            String departmentId) {
+        String sql = """
+                SELECT a.* FROM ((tblStudentProfileApplication a
+                INNER JOIN tblStudent s ON a.studentId=s.studentId)
+                INNER JOIN tblClass c ON s.classId=c.classId)
+                INNER JOIN tblMajor m ON c.majorId=m.majorId
+                WHERE a.applicationStatus='PENDING' AND m.departmentId=?
+                ORDER BY a.submittedAt
+                """;
+        return list(connection, sql, departmentId);
+    }
+
+    private List<StudentProfileApplicationView> list(Connection connection, String sql,
+            String departmentId) {
+        try (var statement = connection.prepareStatement(sql)) {
+            if (departmentId != null) statement.setString(1, departmentId);
+            try (var result = statement.executeQuery()) {
+                List<StudentProfileApplicationView> values = new ArrayList<>();
+                while (result.next()) values.add(map(result));
+                return List.copyOf(values);
+            }
         } catch (SQLException error) {
             throw failure("Cannot list pending profile applications", error);
         }

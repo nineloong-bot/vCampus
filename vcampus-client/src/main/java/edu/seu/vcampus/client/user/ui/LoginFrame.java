@@ -68,6 +68,7 @@ public final class LoginFrame extends JFrame {
         add(formPanel(connection), split);
         getRootPane().setDefaultButton(submit);
         submit.addActionListener(event -> submitLogin());
+        loginId.setToolTipText("支持所有学号/一卡通号直接登录；快捷账号：admin, stu, course, lib, shop, user, cs, math, ee, fl, teacher, student；密码：123456 或 admin123");
         setSize(UiDimensions.LOGIN_WINDOW);
         setMinimumSize(UiDimensions.LOGIN_MINIMUM);
         setResizable(true);
@@ -109,7 +110,7 @@ public final class LoginFrame extends JFrame {
         c.gridwidth = 2;
         c.weightx = 1;
         c.fill = GridBagConstraints.HORIZONTAL;
-        c.insets = new Insets(0, 0, UiSpacing.SPACE_6, 0);
+        c.insets = new Insets(0, 0, UiSpacing.SPACE_3, 0);
         JLabel heading = new JLabel("登录校园账户");
         heading.setFont(UiTypography.PAGE_TITLE);
         panel.add(heading, c);
@@ -193,21 +194,21 @@ public final class LoginFrame extends JFrame {
         panel.setOpaque(false);
         panel.getAccessibleContext().setAccessibleName("课程演示账号");
         panel.add(demoLabel("演示账号", "login.demoTitle"));
-        panel.add(demoLabel("管理员：TESTADMIN / Test12345", "login.demoAdmin"));
-        panel.add(demoLabel("身份：SUPER_ADMIN（超级管理员）", "login.demoAdminRole"));
-        panel.add(demoLabel("教师：TESTTEACHER001 / Test12345", "login.demoTeacher"));
-        panel.add(demoLabel("学生：213260001 / Test12345",
+        panel.add(demoLabel("管理员：admin / 123456", "login.demoAdmin"));
+        panel.add(demoLabel("身份：SUPER_ADMIN（超管 admin）", "login.demoAdminRole"));
+        panel.add(demoLabel("教师：teacher / 123456", "login.demoTeacher"));
+        panel.add(demoLabel("学生：student 或任意学号 / 123456",
                 "login.demoStudent"));
-        panel.add(demoLabel("演示账号统一密码：Test12345",
+        panel.add(demoLabel("演示统一密码：123456 或 admin123",
                 "login.demoManagementPassword"));
-        panel.add(demoLabel("模块：学籍 STUDENT_ADMIN ｜ 课程 COURSE_ADMIN",
+        panel.add(demoLabel("模块：学籍 stu ｜ 课程 course",
                 "login.demoModuleAdmins1"));
-        panel.add(demoLabel("模块：图书 LIBRARY_ADMIN ｜ 商城 SHOP_ADMIN",
+        panel.add(demoLabel("模块：图书 lib ｜ 商城 shop",
                 "login.demoModuleAdmins2"));
-        panel.add(demoLabel("模块：用户 USER_ADMIN", "login.demoModuleAdmins3"));
-        panel.add(demoLabel("学院：计算机 CS_COLLEGE_ADMIN ｜ 数学 MATH_COLLEGE_ADMIN",
+        panel.add(demoLabel("模块：用户 user", "login.demoModuleAdmins3"));
+        panel.add(demoLabel("学院：计算机 cs ｜ 数学 math",
                 "login.demoCollegeAdmins"));
-        panel.add(demoLabel("学院：信息工程 EE_COLLEGE_ADMIN ｜ 外国语 FL_COLLEGE_ADMIN",
+        panel.add(demoLabel("学院：信息工程 ee ｜ 外国语 fl",
                 "login.demoCollegeAdmins2"));
         return panel;
     }

@@ -1,4 +1,5 @@
 package edu.seu.vcampus.client.library.ui;
+
 import edu.seu.vcampus.client.library.service.LibraryClientService;
 import edu.seu.vcampus.common.library.*;
 import javax.swing.*;
@@ -6,12 +7,15 @@ import javax.swing.table.DefaultTableModel;
 import java.util.Objects;
 import java.awt.*;
 import java.util.List;
+
+/** Administrator panel for school-wide loan inspection, return, and loss processing. */
 public final class LoanAdminPanel extends LibraryDataPanel {
     private final LibraryClientService service;
     private final JTextField borrower = new JTextField(12);
     private final JComboBox<String> loanStatus = new JComboBox<>(new String[]{"全部状态", "ACTIVE", "OVERDUE", "RETURNED", "LOST"});
     private final JComboBox<String> condition = new JComboBox<>(new String[]{"完好", "轻度损坏", "严重损坏"});
     private List<LoanView> loans = List.of();
+
     public LoanAdminPanel(LibraryClientService service) {
         super("library.loan-admin", "借阅管理", "查询全校借阅；归还或遗失登记时计算罚金，仅登记金额。", "借阅号", "借阅人", "副本", "到期时间", "状态", "归还情况", "逾期罚金（元）", "赔偿（元）", "罚金合计（元）");
         this.service = Objects.requireNonNull(service, "service");
@@ -23,6 +27,7 @@ public final class LoanAdminPanel extends LibraryDataPanel {
         actions.add(refresh); actions.add(new JLabel("归还情况")); actions.add(condition); actions.add(returnBook); actions.add(markLost); add(actions, BorderLayout.SOUTH);
         borrower.addActionListener(event -> refresh());
     }
+
     public void refresh() {
         long request = beginRequest();
         status.setText("正在加载全校借阅……");
@@ -58,12 +63,7 @@ public final class LoanAdminPanel extends LibraryDataPanel {
     private void confirmSelected(LoanStatus resolution) {
         LoanView loan = selectedActiveLoan();
         if (loan == null) return;
-        String action = resolution == LoanStatus.RETURNED ? "办理归还" : "确认遗失登记";
-        String subject = readable(loan.borrowerLoginId(), loan.borrowerUserId()) + " · "
-                + readable(loan.bookTitle(), loan.bookId()) + " · "
-                + readable(loan.copyBarcode(), loan.copyId());
-        new LoanActionDialog(SwingUtilities.getWindowAncestor(this), action, subject,
-                () -> resolve(loan, resolution)).setVisible(true);
+        resolve(loan, resolution);
     }
 
     private LoanView selectedActiveLoan() {
