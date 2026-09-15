@@ -39,7 +39,7 @@ public final class OfferingSearchPanel extends AbstractCoursePanel {
     private final CoursePager pager;
 
     public OfferingSearchPanel(CourseUiGateway gateway) {
-        super("教学班查询", "按学期、课程或上课时间筛选教学班，查看余量后完成选课。");
+        super("教学班查询");
         this.gateway = gateway;
         this.pager = new CoursePager(20, this::loadPage);
         results.setModel(model);

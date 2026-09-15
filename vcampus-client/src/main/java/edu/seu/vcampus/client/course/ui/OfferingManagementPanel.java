@@ -36,7 +36,7 @@ public final class OfferingManagementPanel extends AbstractCoursePanel {
     private final EmbeddedEditorHost editorHost;
 
     public OfferingManagementPanel(CourseUiGateway gateway) {
-        super("教学班管理", "维护教学班容量、教师、上课时间地点与开放状态。");
+        super("教学班管理");
         this.gateway = gateway;
         this.pager = new CoursePager(50, this::search);
         table.setModel(model);

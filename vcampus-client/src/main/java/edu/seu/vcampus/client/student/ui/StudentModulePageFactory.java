@@ -15,7 +15,6 @@ import java.awt.*;
 /** Selects the student module page that is safe for the authenticated user. */
 public final class StudentModulePageFactory {
     private static final String TITLE = "学籍档案";
-    private static final String DESCRIPTION = "用于查看和维护校园身份与学籍信息。";
 
     private StudentModulePageFactory() {
     }
@@ -23,7 +22,7 @@ public final class StudentModulePageFactory {
     public static JPanel create(UserView user, StudentClientService students,
                                 ClientConnection connection) {
         if (user == null || students == null || connection == null) {
-            return new ModulePlaceholderPage(TITLE, DESCRIPTION);
+            return new ModulePlaceholderPage(TITLE);
         }
         return switch (user.role()) {
             case STUDENT -> createStudentPage(user, students, connection);
@@ -32,14 +31,14 @@ public final class StudentModulePageFactory {
             case COLLEGE_ADMIN -> createCollegePage(students, connection);
             case ADMIN, SUPER_ADMIN, COURSE_ADMIN,
                     LIBRARY_ADMIN, SHOP_ADMIN, USER_ADMIN ->
-                    new ModulePlaceholderPage(TITLE, DESCRIPTION);
+                    new ModulePlaceholderPage(TITLE);
         };
     }
 
     private static JPanel createStudentPage(UserView user, StudentClientService students,
                                             ClientConnection connection) {
         if (user.mustChangePassword()) {
-            return new ModulePlaceholderPage(TITLE, DESCRIPTION);
+            return new ModulePlaceholderPage(TITLE);
         }
         JTabbedPane tabs = new JTabbedPane();
         tabs.setName("student.tabs");

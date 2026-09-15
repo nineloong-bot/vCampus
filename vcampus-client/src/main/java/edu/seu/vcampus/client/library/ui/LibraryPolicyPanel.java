@@ -12,7 +12,7 @@ public final class LibraryPolicyPanel extends JPanel {
     private final LibraryClientService service;
     private final PolicyRow student = new PolicyRow("STUDENT", "学生", 5, 30, 1, 15);
     private final PolicyRow teacher = new PolicyRow("TEACHER", "教师", 10, 60, 2, 30);
-    private final JLabel message = new JLabel("可分别调整学生和教师的借阅规则");
+    private final JLabel message = new JLabel(" ");
     private final JLabel serverStatus = new JLabel("检查中");
     private final JLabel databaseStatus = new JLabel("检查中");
     private long refreshSequence;
@@ -31,7 +31,7 @@ public final class LibraryPolicyPanel extends JPanel {
         JPanel header = new JPanel(new GridLayout(0, 1, 0, 4));
         header.setOpaque(false);
         JLabel title = new JLabel("借阅策略设置"); title.setFont(title.getFont().deriveFont(Font.BOLD, 22f));
-        header.add(title); header.add(new JLabel("按身份设置借阅期限和罚金。金额单位：元；设置为 0 表示该项不罚款。"));
+        header.add(title);
         add(header, BorderLayout.NORTH);
 
         JPanel content = new JPanel(); content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));

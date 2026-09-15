@@ -102,7 +102,6 @@ final class OfferingEditorDialog extends JPanel {
         heading.setFont(UiTypography.PAGE_TITLE);
         panel.add(heading);
         panel.add(Box.createVerticalStrut(UiSpacing.SM));
-        panel.add(label("从学期、课程和在职教师中选择，并逐行维护上课安排", UiColors.TEXT_SECONDARY));
         return panel;
     }
 
@@ -232,7 +231,7 @@ final class OfferingEditorDialog extends JPanel {
             referenceReady = term.getSelectedItem() != null
                     && course.getSelectedItem() != null && teacher.getSelectedItem() != null;
             referenceStatus.setText(referenceReady
-                    ? "参考数据已就绪" : "请选择有结果的学期、课程和教师");
+                    ? " " : "请选择有结果的学期、课程和教师");
             save.setEnabled(referenceReady);
         }));
     }

@@ -2322,7 +2322,7 @@ class CourseUiTest {
 
         assertThat(courseSearches.get()).isEqualTo(2);
         assertThat(button(dialog, "创建教学班").isEnabled()).isTrue();
-        assertThat(labels(dialog)).contains("参考数据已就绪");
+        assertThat(labels(dialog)).doesNotContain("参考数据已就绪");
         SwingUtilities.invokeAndWait(dialog::dispose);
     }
 

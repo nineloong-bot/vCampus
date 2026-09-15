@@ -332,7 +332,7 @@ public final class StudentDetailPanel extends JPanel {
         put("studentSource", academic.studentSource()); put("graduateStudyMode", academic.graduateStudyMode());
         put("counselorName", academic.counselorName()); put("counselorContact", academic.counselorContact());
         loaded = true;
-        statusLabel.setText(connection.state() == ConnectionState.CONNECTED ? "已加载" : "已断开连接");
+        statusLabel.setText(connection.state() == ConnectionState.CONNECTED ? " " : "已断开连接");
         errorLabel.setText(" ");
         updateEditingState();
     }
@@ -350,7 +350,7 @@ public final class StudentDetailPanel extends JPanel {
         put("major", core.majorName());
         put("class", core.className());
         loaded = true;
-        statusLabel.setText(connection.state() == ConnectionState.CONNECTED ? "已加载" : "已断开连接");
+        statusLabel.setText(connection.state() == ConnectionState.CONNECTED ? " " : "已断开连接");
         errorLabel.setText(" ");
     }
 
@@ -370,7 +370,7 @@ public final class StudentDetailPanel extends JPanel {
     private void connectionChanged(ConnectionState state) {
         onEdt(() -> {
             if (!active) return;
-            if (loaded) statusLabel.setText(state == ConnectionState.CONNECTED ? "已加载" : "已断开连接");
+            if (loaded) statusLabel.setText(state == ConnectionState.CONNECTED ? " " : "已断开连接");
             updateEditingState();
         });
     }

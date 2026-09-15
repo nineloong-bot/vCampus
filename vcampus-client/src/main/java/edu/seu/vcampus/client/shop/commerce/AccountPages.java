@@ -63,7 +63,6 @@ final class AccountPages {
 
     private void apply(View previous) {
         JPanel form = CommerceTheme.form();
-        form.add(CommerceTheme.muted("填写主体资料，提交后由平台进行审核。"));
         form.add(CommerceTheme.gap(20));
         JTextField name = new JTextField(previous == null ? "" : previous.title());
         JTextField subject = new JTextField(previous == null ? "" : previous.subjectName());

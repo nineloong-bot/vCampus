@@ -25,7 +25,7 @@ final class OrderPages {
   JPanel content=new JPanel(new BorderLayout(0,12));content.setOpaque(false);
   String[] labels={"全部","待付款","待发货","待收货","已完成","退款 / 已关闭"};
   String[] states={"ALL","PENDING_PAYMENT","PAID","SHIPPED","COMPLETED","CLOSED"};
-  JPanel top=CommerceTheme.form();top.add(CommerceTheme.muted("按店铺查看每一笔订单"));JPanel tabs=CommerceTheme.row();
+  JPanel top=CommerceTheme.form();JPanel tabs=CommerceTheme.row();
   for(int i=0;i<states.length;i++){String filter=states[i];JButton tab=CommerceTheme.button(labels[i],()->list(seller,filter));
    if(filter.equals(state))CommerceTheme.primary(tab);tabs.add(tab);}
   top.add(tabs);content.add(top,BorderLayout.NORTH);

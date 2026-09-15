@@ -29,7 +29,7 @@ public final class StudentCourseSelectionPanel extends AbstractCoursePanel {
     }
 
     StudentCourseSelectionPanel(CourseUiGateway gateway, DropConfirmation confirmation, Runnable onMutation) {
-        super("选课", null);
+        super("选课");
         this.gateway = gateway;
         this.confirmation = confirmation;
         this.onMutation = onMutation;

@@ -24,11 +24,9 @@ final class AccountWorkspace {
         JPanel welcome = CommerceTheme.card(Color.WHITE, 28);
         welcome.setLayout(new BorderLayout(20, 0));
         JPanel introduction = CommerceTheme.form();
-        introduction.add(CommerceTheme.muted("开始经营"));
         introduction.add(CommerceTheme.gap(12));
         introduction.add(CommerceTheme.heading("让第一件好物，遇见它的新主人", 24));
         introduction.add(CommerceTheme.gap(12));
-        introduction.add(CommerceTheme.muted("单个创建商品，或通过 Excel 导入后完善草稿。"));
         welcome.add(introduction, BorderLayout.CENTER);
         welcome.add(CommerceTheme.primary(CommerceTheme.button("管理商品 →", () -> new SellerCatalogPage(ui).open())), BorderLayout.EAST);
         body.add(welcome);

@@ -349,7 +349,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
                         + " | 必修" + required + "门 选修" + elective + "门 跨学科" + cross + "门"
                         + " | 选修毕业要求≥" + currentPlan.minElectiveCount() + "门"
                         + "≥" + currentPlan.minElectiveCredits() + "学分");
-                statusLabel.setText("已加载方案");
+                statusLabel.setText(" ");
             }
         }));
     }

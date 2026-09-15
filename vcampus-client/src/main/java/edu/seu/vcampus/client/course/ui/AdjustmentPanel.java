@@ -64,7 +64,7 @@ public final class AdjustmentPanel extends AbstractCoursePanel {
     }
 
     AdjustmentPanel(CourseUiGateway gateway, ChangeConfirmation confirmation) {
-        super("选课调整", "调整开放期内可补选、退选或原子改选；失败不会影响原选课。");
+        super("选课调整");
         this.gateway = gateway;
         this.confirmation = confirmation;
         enrollmentTable.setModel(enrollmentModel);

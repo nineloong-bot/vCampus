@@ -36,7 +36,7 @@ public final class CourseCatalogPanel extends AbstractCoursePanel {
     private final EmbeddedEditorHost editorHost;
 
     public CourseCatalogPanel(CourseUiGateway gateway) {
-        super("课程目录管理", "维护课程代码、名称、学分与启用状态；修改使用服务端乐观锁版本。");
+        super("课程目录管理");
         this.gateway = gateway;
         this.pager = new CoursePager(50, this::search);
         table.setModel(model);

@@ -37,7 +37,7 @@ public final class MyEnrollmentPanel extends AbstractCoursePanel {
 
     MyEnrollmentPanel(CourseUiGateway gateway, DropConfirmation ignoredConfirmation,
                       Runnable ignoredOnEnrollmentChanged) {
-        super("我的选课", "查看当前学期已选教学班；选课和退课请前往“选课”页操作。");
+        super("我的选课");
         this.gateway = gateway;
         JPanel toolbar = new JPanel(new BorderLayout());
         toolbar.setBackground(UiColors.BACKGROUND_SUBTLE);

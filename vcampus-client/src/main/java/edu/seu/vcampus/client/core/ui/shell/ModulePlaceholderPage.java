@@ -12,8 +12,8 @@ import java.awt.GridLayout;
 
 /** Reusable structured placeholder for modules not implemented in this UI slice. */
 public final class ModulePlaceholderPage extends JPanel {
-    /** Creates an accessible module placeholder with purpose and construction status. */
-    public ModulePlaceholderPage(String title, String description) {
+    /** Creates an accessible module placeholder with construction status. */
+    public ModulePlaceholderPage(String title) {
         super(new BorderLayout());
         setName("page." + pageId(title));
         setBackground(UiColors.BACKGROUND_PAGE);
@@ -30,13 +30,8 @@ public final class ModulePlaceholderPage extends JPanel {
         JLabel titleLabel = new JLabel(title);
         titleLabel.setName("page.title");
         titleLabel.setFont(UiTypography.PAGE_TITLE);
-        JLabel descriptionLabel = new JLabel(description);
-        descriptionLabel.setName("page.description");
-        descriptionLabel.setFont(UiTypography.BODY);
-        descriptionLabel.setForeground(UiColors.TEXT_SECONDARY);
         heading.add(breadcrumb);
         heading.add(titleLabel);
-        heading.add(descriptionLabel);
         add(heading, BorderLayout.NORTH);
 
         JLabel status = new JLabel("功能建设中", JLabel.CENTER);

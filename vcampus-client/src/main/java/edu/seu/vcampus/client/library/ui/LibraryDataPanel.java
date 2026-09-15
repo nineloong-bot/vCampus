@@ -16,7 +16,7 @@ class LibraryDataPanel extends JPanel {
     final void setAfterMutation(Runnable refresh) { afterMutation = java.util.Objects.requireNonNull(refresh); }
     protected final void mutationSucceeded() { afterMutation.run(); }
 
-    protected final JLabel status = new JLabel("尚未加载", JLabel.CENTER);
+    protected final JLabel status = new JLabel(" ", JLabel.CENTER);
     protected final JTable table;
     private final AtomicLong lifecycle = new AtomicLong();
     private final AtomicLong mutationLifecycle = new AtomicLong();
@@ -38,12 +38,6 @@ class LibraryDataPanel extends JPanel {
         headingLabel.setForeground(LibraryPalette.TEXT);
         heading.add(breadcrumb);
         heading.add(headingLabel);
-        if (description != null && !description.isBlank()) {
-            JLabel descriptionLabel = new JLabel(description);
-            descriptionLabel.setFont(LibraryPalette.BODY);
-            descriptionLabel.setForeground(LibraryPalette.MUTED);
-            heading.add(descriptionLabel);
-        }
         add(heading, BorderLayout.NORTH);
         table = new JTable(new DefaultTableModel(columns, 0) {
             @Override public boolean isCellEditable(int row, int column) { return false; }

@@ -30,20 +30,8 @@ final class ManagementLayout {
         side.add(Box.createVerticalGlue());
         side.add(CommerceTheme.muted("店主工作台"));
         side.add(CommerceTheme.muted("校园集 · CAMPUS MARKET"));
-        String description = switch (section) {
-            case "商品管理" -> "管理草稿与在售商品，让好物被更多人发现。";
-            case "订单管理" -> "查看订单进度，安排每一笔订单的履约。";
-            case "经营资质" -> "查看主体资质与可经营范围。";
-            case "店铺设置" -> "维护店铺资料，查看平台通知。";
-            default -> "从这里开始，打理你的校园小店。";
-        };
         JPanel content = new JPanel(new BorderLayout(0, 24));
         content.setOpaque(false);
-        JPanel intro = CommerceTheme.form();
-        intro.add(CommerceTheme.muted("SELLER WORKSPACE"));
-        intro.add(CommerceTheme.gap(10));
-        intro.add(CommerceTheme.muted(description));
-        content.add(intro, BorderLayout.NORTH);
         content.add(main);
         JPanel shell = new JPanel(new BorderLayout(30, 0));
         shell.setOpaque(false);

@@ -19,7 +19,6 @@ final class WalletPage {
 
     void open() {
         JPanel body = new WalletColumn();
-        body.add(CommerceTheme.muted("平台虚拟货币"));
         body.add(CommerceTheme.gap(18));
         JPanel hero = CommerceTheme.card(new Color(0xeaf2e7), 24);
         hero.setLayout(new GridLayout(1, 2, 20, 0));
@@ -132,7 +131,6 @@ final class WalletPage {
 
     void recharge() {
         JPanel form = new WalletColumn();
-        form.add(CommerceTheme.muted("平台虚拟货币 · 不涉及真实支付"));
         form.add(CommerceTheme.gap(18));
         JLabel balance = new JLabel("当前可用余额 " + (balanceCents == null ? "加载中…" : CommerceTheme.money(balanceCents)));
         form.add(balance);

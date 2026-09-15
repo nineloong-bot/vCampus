@@ -35,7 +35,7 @@ abstract class AbstractCoursePanel extends JPanel {
     private final JLabel breadcrumbTitle;
     private final JLabel pageTitle;
 
-    protected AbstractCoursePanel(String title, String description) {
+    protected AbstractCoursePanel(String title) {
         super(new BorderLayout(0, UiSpacing.XL));
         setBackground(UiColors.BACKGROUND_PAGE);
         setBorder(BorderFactory.createEmptyBorder(UiSpacing.PAGE_PADDING, UiSpacing.PAGE_PADDING,

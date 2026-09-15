@@ -14,7 +14,7 @@ public final class OutcomeImportPanel extends AbstractCoursePanel {
 
     /** Creates the outcome-import page with a hidden editor workspace. */
     public OutcomeImportPanel(CourseUiGateway gateway) {
-        super("课程结果导入", "");
+        super("课程结果导入");
         this.gateway = Objects.requireNonNull(gateway, "gateway");
         JPanel entry = new JPanel(new FlowLayout(FlowLayout.RIGHT, UiSpacing.SM, 0));
         entry.setOpaque(false);

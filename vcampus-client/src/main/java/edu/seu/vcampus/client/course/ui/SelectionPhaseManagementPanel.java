@@ -28,7 +28,7 @@ public final class SelectionPhaseManagementPanel extends AbstractCoursePanel {
 
     /** Creates the selection-phase management page. */
     public SelectionPhaseManagementPanel(CourseUiGateway gateway) {
-        super("选课阶段", "");
+        super("选课阶段");
         this.gateway = Objects.requireNonNull(gateway, "gateway");
         JPanel listing = new JPanel(new BorderLayout(0, UiSpacing.MD));
         listing.setOpaque(false);

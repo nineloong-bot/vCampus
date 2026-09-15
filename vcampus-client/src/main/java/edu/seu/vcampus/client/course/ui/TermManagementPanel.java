@@ -29,7 +29,7 @@ public final class TermManagementPanel extends AbstractCoursePanel {
     private final EmbeddedEditorHost editorHost;
 
     public TermManagementPanel(CourseUiGateway gateway) {
-        super("学期管理", "维护学期名称、教学日期和状态；选课开放请前往“选课阶段”。");
+        super("学期管理");
         this.gateway = gateway;
         JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT, UiSpacing.SM, 0));
         toolbar.setOpaque(false);
