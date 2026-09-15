@@ -27,3 +27,7 @@ vcampus-distribution/logs/
 vCampus-release/logs/
 vCampus-release/docs/
 vCampus-release/lib/vcampus-*-1.0.0-SNAPSHOT.jar
+
+# Local acceptance-defense workspace artifacts
+/docs/slide/
+~$*.docx
