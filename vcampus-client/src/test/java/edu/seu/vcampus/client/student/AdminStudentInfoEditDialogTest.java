@@ -2,7 +2,7 @@ package edu.seu.vcampus.client.student;
 
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.client.student.service.StudentRequestClient;
-import edu.seu.vcampus.client.student.ui.AdminStudentInfoEditDialog;
+import edu.seu.vcampus.client.student.ui.AdminStudentInfoEditPanel;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.student.*;
 import org.junit.jupiter.api.AfterEach;
@@ -29,7 +29,7 @@ class AdminStudentInfoEditDialogTest {
     @Test
     void academicSaveUsesOneAtomicCommand() throws Exception {
         RecordingClient client = new RecordingClient();
-        AdminStudentInfoEditDialog dialog = dialog(client, profile());
+        Container dialog = dialog(client, profile());
         loadHierarchy(client, "d1", "m1", "c1", "计算机学院", "软件工程", "计科2401");
 
         onEdt(() -> {
@@ -51,7 +51,7 @@ class AdminStudentInfoEditDialogTest {
     @Test
     void conflictRefreshRebindsAllFiveAcademicControls() throws Exception {
         RecordingClient client = new RecordingClient();
-        AdminStudentInfoEditDialog dialog = dialog(client, profile());
+        Container dialog = dialog(client, profile());
         loadHierarchy(client, "d1", "m1", "c1", "计算机学院", "软件工程", "计科2401");
         onEdt(() -> {
             field(dialog, "student.info.studentNumber").setText("09024109");
@@ -100,7 +100,7 @@ class AdminStudentInfoEditDialogTest {
     @Test
     void slowerPreviousDepartmentResponseCannotOverwriteCurrentSelection() throws Exception {
         RecordingClient client = new RecordingClient();
-        AdminStudentInfoEditDialog dialog = dialog(client, profile());
+        Container dialog = dialog(client, profile());
         loadHierarchy(client, "d1", "m1", "c1", "计算机学院", "软件工程", "计科2401");
         DepartmentView second = new DepartmentView("d2", "02", "数学学院", true, 1);
         DepartmentView third = new DepartmentView("d3", "03", "物理学院", true, 1);
@@ -125,13 +125,12 @@ class AdminStudentInfoEditDialogTest {
                 .containsExactly("m3");
     }
 
-    private static AdminStudentInfoEditDialog dialog(RecordingClient client, StudentView profile) throws Exception {
+    private static Container dialog(RecordingClient client, StudentView profile) throws Exception {
         return onEdt(() -> {
-            AdminStudentInfoEditDialog dialog = new AdminStudentInfoEditDialog(null,
+            AdminStudentInfoEditPanel editor = new AdminStudentInfoEditPanel(
                     new StudentClientService(client, Duration.ofSeconds(2)), profile,
-                    academic(), ignored -> {});
-            dialog.addNotify();
-            return dialog;
+                    academic(), ignored -> {}, () -> { });
+            return editor.component();
         });
     }
 

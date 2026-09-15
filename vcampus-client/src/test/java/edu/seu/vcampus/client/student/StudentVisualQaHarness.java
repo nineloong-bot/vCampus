@@ -7,7 +7,6 @@ import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.client.student.service.StudentRequestClient;
 import edu.seu.vcampus.client.student.ui.ManualStudentCreationPanel;
 import edu.seu.vcampus.client.student.ui.OrganizationManagementPanel;
-import edu.seu.vcampus.client.student.ui.UpdateContactDialog;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.student.*;
 import edu.seu.vcampus.common.user.UserRole;
@@ -19,7 +18,6 @@ import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JTree;
-import javax.swing.JTextField;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.TreePath;
 import java.awt.Dimension;
@@ -28,10 +26,6 @@ import java.awt.GraphicsEnvironment;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Window;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
-import java.awt.event.FocusAdapter;
-import java.awt.event.FocusEvent;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.Serializable;
@@ -98,35 +92,6 @@ public final class StudentVisualQaHarness {
             onEdt(() -> paint(frame, new Dimension(1024, 680),
                     output.resolve("student-profile-1024x680.png")));
 
-            CountDownLatch dialogVisible = new CountDownLatch(1);
-            CountDownLatch dialogEmailFocused = new CountDownLatch(1);
-            AtomicReference<UpdateContactDialog> dialogReference = new AtomicReference<>();
-            SwingUtilities.invokeLater(() -> {
-                UpdateContactDialog dialog = new UpdateContactDialog(frame, students, profile, ignored -> { });
-                JTextField email = component(dialog, "student.contact.email", JTextField.class);
-                email.addFocusListener(new FocusAdapter() {
-                    @Override public void focusGained(FocusEvent event) { dialogEmailFocused.countDown(); }
-                });
-                dialog.addWindowListener(new WindowAdapter() {
-                    @Override public void windowOpened(WindowEvent event) { dialogVisible.countDown(); }
-                });
-                dialogReference.set(dialog);
-                dialog.setVisible(true);
-            });
-            await(dialogVisible, "contact dialog visibility");
-            await(dialogEmailFocused, "contact email focus");
-            UpdateContactDialog dialog = dialogReference.get();
-            try {
-                onEdt(() -> {
-                    if (!component(dialog, "student.contact.email", JTextField.class).isFocusOwner()) {
-                        throw new IllegalStateException("Contact email did not receive initial focus");
-                    }
-                });
-                onEdt(() -> paint(dialog, new Dimension(560, 360),
-                        output.resolve("student-contact-560x360.png")));
-            } finally {
-                onEdt(dialog::dispose);
-            }
             renderOrganizationAndManualStudent(output);
         } finally {
             MainFrame frame = frameReference.get();

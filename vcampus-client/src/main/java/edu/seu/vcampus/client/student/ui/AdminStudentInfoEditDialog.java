@@ -21,8 +21,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
-/** Modal editor for admin to edit all academic fields of a student record. */
-public final class AdminStudentInfoEditDialog extends JDialog {
+/** Academic form workflow retained separately from its page-embedded host adapter. */
+final class AdminStudentInfoEditForm extends JPanel {
     private static final Border SUBMIT_BORDER = BorderFactory.createCompoundBorder(UiBorders.LINE,
             BorderFactory.createEmptyBorder(UiSpacing.SPACE_2, UiSpacing.SPACE_4,
                     UiSpacing.SPACE_2, UiSpacing.SPACE_4));
@@ -32,6 +32,7 @@ public final class AdminStudentInfoEditDialog extends JDialog {
 
     private final StudentClientService students;
     private final Consumer<StudentView> saved;
+    private final Runnable close;
     private final AtomicLong requestGeneration = new AtomicLong();
     private final AtomicLong hierarchyGeneration = new AtomicLong();
     private final JTextField studentNumberField = field("student.info.studentNumber", "学号");
@@ -70,14 +71,14 @@ public final class AdminStudentInfoEditDialog extends JDialog {
     private boolean published;
     private boolean suppressComboEvents;
 
-    public AdminStudentInfoEditDialog(Window owner, StudentClientService students,
-                                      StudentView initial, StudentAcademicProfile academic,
-                                      Consumer<StudentView> saved) {
-        super(owner, "编辑学籍信息", ModalityType.APPLICATION_MODAL);
+    AdminStudentInfoEditForm(StudentClientService students, StudentView initial,
+            StudentAcademicProfile academic, Consumer<StudentView> saved, Runnable close) {
+        super(new BorderLayout());
         this.students = Objects.requireNonNull(students, "students");
         this.base = Objects.requireNonNull(initial, "initial");
         this.academic = Objects.requireNonNull(academic, "academic");
         this.saved = Objects.requireNonNull(saved, "saved");
+        this.close = Objects.requireNonNull(close, "close");
         studentNumberField.setText(initial.studentNumber());
         studentTypeCombo.setSelectedItem(studentTypeLabel(initial.studentType()));
         statusCombo.setSelectedItem(statusLabel(initial.status()));
@@ -101,22 +102,14 @@ public final class AdminStudentInfoEditDialog extends JDialog {
         styleCombo(enrolledCombo, "student.info.enrolled", "是否在籍");
         styleCombo(onCampusCombo, "student.info.onCampus", "是否在校");
         styleCombo(attendanceModeCombo, "student.info.attendanceMode", "就读方式");
-        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-        setContentPane(buildForm());
+        add(buildForm(), BorderLayout.CENTER);
         initComboListeners();
         loadDepartments();
         refresh.setVisible(false);
         refresh.addActionListener(event -> refreshBase());
-        cancel.addActionListener(event -> dispose());
+        cancel.addActionListener(event -> close.run());
         submit.addActionListener(event -> save());
-        getRootPane().setDefaultButton(submit);
-        getRootPane().registerKeyboardAction(event -> dispose(),
-                KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
-                JComponent.WHEN_IN_FOCUSED_WINDOW);
         setFocusCycleRoot(true);
-        setSize(new Dimension(620, 680));
-        setResizable(false);
-        setLocationRelativeTo(owner);
     }
 
     private void styleCombo(JComboBox<String> combo, String name, String accessibleName) {
@@ -497,7 +490,7 @@ public final class AdminStudentInfoEditDialog extends JDialog {
         if (body != null && body.success() && body.data() != null) {
             if (published) return;
             published = true;
-            dispose();
+            close.run();
             saved.accept(body.data());
             return;
         }
@@ -591,12 +584,13 @@ public final class AdminStudentInfoEditDialog extends JDialog {
         if (saving) error.setText(" ");
     }
 
-    @Override public void dispose() {
+    void closeEditor() {
         disposed = true;
         requestGeneration.incrementAndGet();
         hierarchyGeneration.incrementAndGet();
-        super.dispose();
     }
+
+    boolean isDirty() { return !reasonField.getText().isBlank(); }
 
     private String selectedDepartmentId() {
         Object selected = departmentCombo.getSelectedItem();
