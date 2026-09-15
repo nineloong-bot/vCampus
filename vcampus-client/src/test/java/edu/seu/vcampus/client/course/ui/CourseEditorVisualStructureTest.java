@@ -1,6 +1,7 @@
 package edu.seu.vcampus.client.course.ui;
 
 import java.awt.Color;
+import java.awt.BorderLayout;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import org.junit.jupiter.api.Test;
@@ -16,5 +17,14 @@ class CourseEditorVisualStructureTest {
         assertThat(card.getBorder()).isNotNull();
         assertThat(actions.getName()).isEqualTo("course-editor-actions");
         assertThat(new OfferingScheduleEditorPanel().getBorder()).isNotNull();
+    }
+
+    @Test void compactCardKeepsShortFormAtTop() {
+        JLabel content = new JLabel("紧凑表单");
+
+        JPanel card = CourseEditorCard.createCompact(content, new JPanel());
+
+        assertThat(((BorderLayout) card.getLayout()).getLayoutComponent(BorderLayout.NORTH))
+                .isSameAs(content);
     }
 }

@@ -44,7 +44,7 @@ public final class TermEditorPanel implements EmbeddedEditor {
         start.addChangeListener(event -> { if (existing == null) year.setValue(date(start).getYear()); });
         save = AbstractCoursePanel.primary(existing == null ? "创建学期" : "保存修改");
         save.addActionListener(event -> submit());
-        root.add(CourseEditorCard.create(form(), actions()), BorderLayout.CENTER);
+        root.add(CourseEditorCard.createCompact(form(), actions()), BorderLayout.CENTER);
         if (existing != null) fill(existing); else season.setSelectedItem(AcademicSeason.AUTUMN);
         initial = snapshot();
         root.setMinimumSize(new Dimension(520, 360));
@@ -53,6 +53,9 @@ public final class TermEditorPanel implements EmbeddedEditor {
 
     @Override public JComponent component() { return root; }
     @Override public EditorSize size() { return EditorSize.COMPACT; }
+    @Override public edu.seu.vcampus.client.core.ui.editor.EditorPlacement preferredPlacement() {
+        return edu.seu.vcampus.client.core.ui.editor.EditorPlacement.RIGHT;
+    }
     @Override public boolean isDirty() { return !snapshot().equals(initial); }
     @Override public void onOpened() { guard.activate(); }
     @Override public void onClosed() { guard.deactivate(); }
@@ -75,7 +78,10 @@ public final class TermEditorPanel implements EmbeddedEditor {
 
     private JPanel row(String text, Component input) {
         JPanel row = new JPanel(); row.setOpaque(false); row.setLayout(new BoxLayout(row, BoxLayout.Y_AXIS));
-        row.add(AbstractCoursePanel.label(text, UiTypography.BODY, UiColors.TEXT_PRIMARY));
+        JLabel label = AbstractCoursePanel.label(text, UiTypography.BODY, UiColors.TEXT_PRIMARY);
+        label.setAlignmentX(Component.LEFT_ALIGNMENT);
+        if (input instanceof JComponent component) component.setAlignmentX(Component.LEFT_ALIGNMENT);
+        row.add(label);
         row.add(Box.createVerticalStrut(UiSpacing.XS)); row.add(input); row.add(Box.createVerticalStrut(UiSpacing.SM));
         return row;
     }

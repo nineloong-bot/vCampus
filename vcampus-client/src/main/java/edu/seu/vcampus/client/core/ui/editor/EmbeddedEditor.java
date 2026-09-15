@@ -10,6 +10,9 @@ public interface EmbeddedEditor {
     /** Returns the editor's preferred space category. */
     EditorSize size();
 
+    /** Returns an explicit list-relative placement, or null to use responsive placement. */
+    default EditorPlacement preferredPlacement() { return null; }
+
     /** Reports whether closing the editor may discard user changes. */
     boolean isDirty();
 

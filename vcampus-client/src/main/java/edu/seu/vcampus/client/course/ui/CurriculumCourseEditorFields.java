@@ -37,6 +37,8 @@ public final class CurriculumCourseEditorFields {
         this.gateway = Objects.requireNonNull(gateway);
         code = new AutocompleteSelectionField((query, limit) -> search(query, limit, true));
         name = new AutocompleteSelectionField((query, limit) -> search(query, limit, false));
+        code.inputComponent().getAccessibleContext().setAccessibleName("课程代码");
+        name.inputComponent().getAccessibleContext().setAccessibleName("课程名称");
         code.onSelection(this::select);
         name.onSelection(this::select);
         root.add(row("课程代码", code));
@@ -46,7 +48,10 @@ public final class CurriculumCourseEditorFields {
         root.add(row("开课学院", department));
         JButton clear = AbstractCoursePanel.secondary("重新选择");
         clear.addActionListener(event -> clear());
+        clear.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
         root.add(clear);
+        root.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
+        root.setMaximumSize(new Dimension(Integer.MAX_VALUE, root.getPreferredSize().height));
     }
 
     /** Returns the complete selector component. */
@@ -107,9 +112,27 @@ public final class CurriculumCourseEditorFields {
     private void setInputsEnabled(boolean enabled) { code.setEnabled(enabled); name.setEnabled(enabled); }
     private static JPanel pair(String leftLabel, java.awt.Component left, String rightLabel, java.awt.Component right) {
         JPanel pair = new JPanel(new java.awt.GridLayout(1, 2, UiSpacing.SM, 0));
-        pair.setOpaque(false); pair.add(row(leftLabel, left)); pair.add(row(rightLabel, right)); return pair;
+        pair.setOpaque(false);
+        pair.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
+        pair.add(row(leftLabel, left));
+        pair.add(row(rightLabel, right));
+        pair.setMaximumSize(new Dimension(Integer.MAX_VALUE, pair.getPreferredSize().height));
+        return pair;
     }
-    private static JPanel row(String label, java.awt.Component input) { JPanel row=vertical();JLabel text=AbstractCoursePanel.label(label,UiTypography.BODY,UiColors.TEXT_PRIMARY);row.add(text);row.add(Box.createVerticalStrut(UiSpacing.XS));row.add(input);row.add(Box.createVerticalStrut(UiSpacing.SM));return row; }
-    private static JPanel vertical(){JPanel panel=new JPanel();panel.setOpaque(false);panel.setLayout(new BoxLayout(panel,BoxLayout.Y_AXIS));return panel;}
+    private static JPanel row(String label, java.awt.Component input) {
+        JPanel row = vertical();
+        JLabel text = AbstractCoursePanel.label(label, UiTypography.BODY, UiColors.TEXT_PRIMARY);
+        text.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
+        input.setMaximumSize(new Dimension(Integer.MAX_VALUE, input.getPreferredSize().height));
+        if (input instanceof javax.swing.JComponent component) {
+            component.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);
+        }
+        row.add(text);
+        row.add(Box.createVerticalStrut(UiSpacing.XS));
+        row.add(input);
+        row.add(Box.createVerticalStrut(UiSpacing.SM));
+        return row;
+    }
+    private static JPanel vertical(){JPanel panel=new JPanel();panel.setOpaque(false);panel.setAlignmentX(java.awt.Component.LEFT_ALIGNMENT);panel.setLayout(new BoxLayout(panel,BoxLayout.Y_AXIS));return panel;}
     private static JTextField locked(String name){JTextField field=new JTextField();field.setEditable(false);field.setMaximumSize(new Dimension(Integer.MAX_VALUE,32));field.getAccessibleContext().setAccessibleName(name);return field;}
 }

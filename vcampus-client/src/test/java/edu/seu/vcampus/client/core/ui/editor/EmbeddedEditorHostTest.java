@@ -6,6 +6,7 @@ import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JSplitPane;
+import javax.swing.SwingUtilities;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -78,6 +79,39 @@ class EmbeddedEditorHostTest {
     }
 
     @Test
+    void explicitRightPlacementKeepsListVisibleAtApplicationWidth() {
+        JPanel list = new JPanel();
+        EmbeddedEditorHost host = new EmbeddedEditorHost(list, owner -> true);
+        RecordingEditor editor = new RecordingEditor(EditorSize.WIDE, false) {
+            @Override public EditorPlacement preferredPlacement() { return EditorPlacement.RIGHT; }
+        };
+
+        host.setAvailableWidthForTest(980);
+        host.showEditor(editor);
+
+        JSplitPane split = (JSplitPane) host.getComponent(0);
+        assertThat(split.getOrientation()).isEqualTo(JSplitPane.HORIZONTAL_SPLIT);
+        assertThat(split.getLeftComponent()).isSameAs(list);
+        assertThat(split.getRightComponent()).isSameAs(editor.component());
+    }
+
+    @Test
+    void rightWorkspaceReservesStableWidthForBothListAndEditor() throws Exception {
+        EmbeddedEditorHost host = new EmbeddedEditorHost(new JPanel(), owner -> true);
+        RecordingEditor editor = new RecordingEditor(EditorSize.WIDE, false) {
+            @Override public EditorPlacement preferredPlacement() { return EditorPlacement.RIGHT; }
+        };
+        host.setSize(1200, 700);
+
+        host.showEditor(editor);
+        host.doLayout();
+        SwingUtilities.invokeAndWait(() -> { });
+
+        JSplitPane split = (JSplitPane) host.getComponent(0);
+        assertThat(split.getDividerLocation()).isBetween(480, 600);
+    }
+
+    @Test
     void staleCompletionCannotCloseReplacementEditor() {
         EmbeddedEditorHost host = new EmbeddedEditorHost(new JPanel(), owner -> true);
         AtomicReference<Runnable> firstCompletion = new AtomicReference<>();
@@ -94,7 +128,7 @@ class EmbeddedEditorHostTest {
         assertThat(second.closed).isZero();
     }
 
-    private static final class RecordingEditor implements EmbeddedEditor {
+    private static class RecordingEditor implements EmbeddedEditor {
         private final JComponent component = new JLabel("editor");
         private final EditorSize size;
         private final boolean dirty;

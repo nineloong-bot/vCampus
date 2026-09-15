@@ -35,7 +35,7 @@ public final class CourseEditorPanel implements EmbeddedEditor {
         root.setBorder(BorderFactory.createEmptyBorder(UiSpacing.LG, UiSpacing.LG, UiSpacing.LG, UiSpacing.LG));
         save = AbstractCoursePanel.primary(existing == null ? "创建课程" : "保存修改");
         save.addActionListener(event -> submit());
-        root.add(CourseEditorCard.create(form(), actions()), BorderLayout.CENTER);
+        root.add(CourseEditorCard.createCompact(form(), actions()), BorderLayout.CENTER);
         if (existing != null) fill(existing);
         initial = snapshot();
         root.setMinimumSize(new Dimension(430, 420));
@@ -44,6 +44,9 @@ public final class CourseEditorPanel implements EmbeddedEditor {
 
     @Override public JComponent component() { return root; }
     @Override public EditorSize size() { return EditorSize.COMPACT; }
+    @Override public edu.seu.vcampus.client.core.ui.editor.EditorPlacement preferredPlacement() {
+        return edu.seu.vcampus.client.core.ui.editor.EditorPlacement.RIGHT;
+    }
     @Override public boolean isDirty() { return !snapshot().equals(initial); }
     @Override public void onOpened() { guard.activate(); }
     @Override public void onClosed() { guard.deactivate(); }
@@ -51,14 +54,22 @@ public final class CourseEditorPanel implements EmbeddedEditor {
     private JPanel form() {
         JPanel panel = vertical();
         panel.add(curriculum.component());
-        panel.add(AbstractCoursePanel.label("课程简介", UiTypography.BODY, UiColors.TEXT_PRIMARY));
+        JLabel descriptionLabel = AbstractCoursePanel.label(
+                "课程简介", UiTypography.BODY, UiColors.TEXT_PRIMARY);
+        descriptionLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(descriptionLabel);
         description.setFont(UiTypography.BODY);
         description.setLineWrap(true);
         description.setWrapStyleWord(true);
         description.getAccessibleContext().setAccessibleName("课程简介");
-        panel.add(new JScrollPane(description));
+        JScrollPane descriptionScroll = new JScrollPane(description);
+        descriptionScroll.setAlignmentX(Component.LEFT_ALIGNMENT);
+        descriptionScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE,
+                descriptionScroll.getPreferredSize().height));
+        panel.add(descriptionScroll);
         active.setOpaque(false);
         active.setFont(UiTypography.BODY);
+        active.setAlignmentX(Component.LEFT_ALIGNMENT);
         panel.add(active);
         return panel;
     }

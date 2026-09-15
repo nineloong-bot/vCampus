@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import edu.seu.vcampus.server.course.repository.Course;
 
 /** Aggregates conflict-safe catalog candidates from canonical curricula. */
 public final class CurriculumCatalogCandidateService {
@@ -29,7 +30,7 @@ public final class CurriculumCatalogCandidateService {
         this.transactions = Objects.requireNonNull(transactions);
     }
 
-    /** Searches unique definitions not yet included in the course catalog. */
+    /** Searches unique definitions from active canonical training plans. */
     public PageResult<CurriculumCourseCandidate> search(CurriculumCourseCandidateQuery query) {
         Objects.requireNonNull(query, "query");
         return transactions.inTransaction(connection -> search(connection, query));
@@ -43,7 +44,7 @@ public final class CurriculumCatalogCandidateService {
     /** Reloads one selected definition and rejects ambiguous curriculum metadata. */
     public CurriculumCourseCandidate requireAvailable(Connection connection, String planCourseId) {
         if (planCourseId == null || planCourseId.isBlank()) throw new IllegalArgumentException("planCourseId");
-        return aggregate(curricula.findActive(connection), List.of()).stream()
+        return aggregate(definitions(connection)).stream()
                 .filter(candidate -> planCourseId.equals(candidate.planCourseId()))
                 .filter(candidate -> !candidate.conflicted())
                 .findFirst().orElseThrow(() -> new IllegalArgumentException("curriculum course unavailable"));
@@ -51,10 +52,8 @@ public final class CurriculumCatalogCandidateService {
 
     private PageResult<CurriculumCourseCandidate> search(Connection connection,
                                                           CurriculumCourseCandidateQuery query) {
-        List<String> catalogCodes = courses.findCourses(connection).stream()
-                .map(course -> normalize(course.courseCode())).toList();
         String keyword = normalize(query.keyword());
-        List<CurriculumCourseCandidate> all = aggregate(curricula.findActive(connection), catalogCodes).stream()
+        List<CurriculumCourseCandidate> all = aggregate(definitions(connection)).stream()
                 .filter(row -> keyword.isEmpty() || normalize(row.courseCode()).contains(keyword)
                         || normalize(row.courseName()).contains(keyword)).toList();
         int from = Math.min(all.size(), Math.multiplyExact(query.page(), query.pageSize()));
@@ -62,12 +61,32 @@ public final class CurriculumCatalogCandidateService {
                 query.page(), query.pageSize(), all.size());
     }
 
-    static List<CurriculumCourseCandidate> aggregate(List<Definition> definitions,
-                                                      List<String> catalogCodes) {
+    static List<CurriculumCourseCandidate> aggregate(List<Definition> definitions) {
         Map<String, List<Definition>> grouped = new LinkedHashMap<>();
         for (Definition row : definitions) grouped.computeIfAbsent(normalize(row.courseCode()), ignored -> new java.util.ArrayList<>()).add(row);
-        return grouped.values().stream().filter(rows -> !catalogCodes.contains(normalize(rows.getFirst().courseCode())))
-                .map(CurriculumCatalogCandidateService::candidate).toList();
+        return grouped.values().stream().map(CurriculumCatalogCandidateService::candidate).toList();
+    }
+
+    static List<Definition> mergeWithCatalog(List<Definition> definitions, List<Course> catalog) {
+        Map<String, Course> byCode = new LinkedHashMap<>();
+        for (Course course : catalog) byCode.put(normalize(course.courseCode()), course);
+        return definitions.stream().map(row -> merge(row, byCode.get(normalize(row.courseCode()))))
+                .filter(row -> row.totalHours() != null && row.totalHours() > 0).toList();
+    }
+
+    private List<Definition> definitions(Connection connection) {
+        return mergeWithCatalog(curricula.findActive(connection), courses.findCourses(connection));
+    }
+
+    private static Definition merge(Definition row, Course catalog) {
+        if (catalog == null) return row;
+        int hours = row.totalHours() == null || row.totalHours() <= 0
+                ? catalog.totalHours() : row.totalHours();
+        boolean catalogOwnsDepartment = catalog.departmentId() != null || catalog.departmentName() != null;
+        String departmentId = catalogOwnsDepartment ? catalog.departmentId() : row.departmentId();
+        String departmentName = catalogOwnsDepartment ? catalog.departmentName() : row.departmentName();
+        return new Definition(row.planCourseId(), row.courseCode(), catalog.courseName(), catalog.credit(),
+                hours, row.courseNature(), departmentId, departmentName);
     }
 
     private static CurriculumCourseCandidate candidate(List<Definition> rows) {
@@ -80,9 +99,8 @@ public final class CurriculumCatalogCandidateService {
 
     private static boolean same(Definition a, Definition b) {
         return normalize(a.courseName()).equals(normalize(b.courseName()))
-                && a.credits().compareTo(b.credits()) == 0 && a.totalHours() == b.totalHours()
-                && Objects.equals(a.courseNature(), b.courseNature())
-                && Objects.equals(a.departmentId(), b.departmentId());
+                && a.credits().compareTo(b.credits()) == 0
+                && Objects.equals(a.totalHours(), b.totalHours());
     }
 
     private static String normalize(String value) {

@@ -21,7 +21,7 @@ class OfferingManagementWorkspaceTest {
 
         onEdt(() -> button(panel, "新建教学班").doClick());
         assertThat(host.isEditorOpen()).isTrue();
-        assertThat(host.currentPlacement()).isEqualTo(EditorPlacement.BOTTOM);
+        assertThat(host.currentPlacement()).isEqualTo(EditorPlacement.RIGHT);
         onEdt(() -> { host.completeAndClose(); });
 
         JTable table = descendants(panel).stream().filter(JTable.class::isInstance).map(JTable.class::cast)

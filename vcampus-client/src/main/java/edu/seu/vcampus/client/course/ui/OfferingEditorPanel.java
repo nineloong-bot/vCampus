@@ -64,6 +64,7 @@ public final class OfferingEditorPanel implements EmbeddedEditor {
 
     @Override public JComponent component() { return root; }
     @Override public EditorSize size() { return EditorSize.WIDE; }
+    @Override public EditorPlacement preferredPlacement() { return EditorPlacement.RIGHT; }
     @Override public boolean isDirty() { return !snapshot().equals(initial); }
     @Override public void onOpened() { active = true; guard.activate(); resolveExistingTeacher(); }
     @Override public void onClosed() { active = false; guard.deactivate(); }
@@ -86,7 +87,12 @@ public final class OfferingEditorPanel implements EmbeddedEditor {
 
     private JPanel row(String text, Component input) {
         JPanel row = new JPanel(); row.setOpaque(false); row.setLayout(new BoxLayout(row, BoxLayout.Y_AXIS));
-        if (!text.isBlank()) row.add(AbstractCoursePanel.label(text, UiTypography.BODY, UiColors.TEXT_PRIMARY));
+        if (!text.isBlank()) {
+            JLabel label = AbstractCoursePanel.label(text, UiTypography.BODY, UiColors.TEXT_PRIMARY);
+            label.setAlignmentX(Component.LEFT_ALIGNMENT);
+            row.add(label);
+        }
+        if (input instanceof JComponent component) component.setAlignmentX(Component.LEFT_ALIGNMENT);
         row.add(Box.createVerticalStrut(UiSpacing.XS)); row.add(input); row.add(Box.createVerticalStrut(UiSpacing.SM)); return row;
     }
 

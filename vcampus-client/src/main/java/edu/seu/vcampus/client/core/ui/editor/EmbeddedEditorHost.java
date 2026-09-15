@@ -3,6 +3,7 @@ package edu.seu.vcampus.client.core.ui.editor;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.JSplitPane;
+import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
@@ -11,6 +12,7 @@ import java.util.function.BiFunction;
 /** Keeps a list stable while opening its editor inside the same page. */
 public final class EmbeddedEditorHost extends JPanel {
     private static final int RIGHT_PLACEMENT_WIDTH = 1180;
+    private static final double RIGHT_LIST_SHARE = 0.46;
     private final JComponent list;
     private final DiscardChangesConfirmation confirmation;
     private EmbeddedEditor editor;
@@ -125,6 +127,7 @@ public final class EmbeddedEditorHost extends JPanel {
     }
 
     private EditorPlacement resolvePlacement() {
+        if (editor.preferredPlacement() != null) return editor.preferredPlacement();
         if (editor.size() == EditorSize.WIDE) return EditorPlacement.BOTTOM;
         int available = widthOverride >= 0 ? widthOverride : getWidth();
         return available <= 0 || available >= RIGHT_PLACEMENT_WIDTH
@@ -138,9 +141,18 @@ public final class EmbeddedEditorHost extends JPanel {
         split.setName("embedded-editor-split");
         split.setBorder(null);
         split.setContinuousLayout(true);
-        split.setResizeWeight(placement == EditorPlacement.RIGHT ? 0.58 : 0.56);
+        double listShare = placement == EditorPlacement.RIGHT ? RIGHT_LIST_SHARE : 0.56;
+        split.setResizeWeight(listShare);
         split.setDividerSize(8);
+        if (placement == EditorPlacement.RIGHT && getWidth() > 0) {
+            split.setDividerLocation((int) Math.round(getWidth() * listShare));
+        }
         add(split, BorderLayout.CENTER);
+        SwingUtilities.invokeLater(() -> {
+            if (split.getParent() == this && split.getWidth() > 0) {
+                split.setDividerLocation(listShare);
+            }
+        });
     }
 
 }
