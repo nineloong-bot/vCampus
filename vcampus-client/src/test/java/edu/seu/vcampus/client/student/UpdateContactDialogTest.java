@@ -480,12 +480,23 @@ class UpdateContactDialogTest {
 
     private static void incrementGeneration(UpdateContactDialog dialog) {
         try {
-            var field = UpdateContactDialog.class.getDeclaredField("requestGeneration");
+            var field = declaredGenerationField();
             field.setAccessible(true);
             ((AtomicLong) field.get(dialog)).incrementAndGet();
         } catch (ReflectiveOperationException failure) {
             throw new AssertionError(failure);
         }
+    }
+
+    private static java.lang.reflect.Field declaredGenerationField() throws NoSuchFieldException {
+        for (Class<?> type = UpdateContactDialog.class; type != null; type = type.getSuperclass()) {
+            try {
+                return type.getDeclaredField("requestGeneration");
+            } catch (NoSuchFieldException missing) {
+                // the field now lives in a segment superclass; keep walking up
+            }
+        }
+        throw new NoSuchFieldException("requestGeneration");
     }
 
     private static UpdateContactDialog displayed(UpdateContactDialog dialog) {
