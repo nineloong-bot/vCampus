@@ -10,6 +10,8 @@ final class ProductPage {
     ProductPage(CommercePanel ui) { this.ui=ui; }
     void open(String id) {
         JPanel content=CommerceTheme.form();
+        // Purchase choices are transient; only adding to the cart persists them.
+        content.putClientProperty(CommerceEditorBridge.CONFIRM_DISCARD, Boolean.FALSE);
         ui.modal("商品详情",content,null,ui.snapshot(),620);
         ui.fetch("SHOP2_CATALOG_DETAIL",id,data->show(content,(Product)data));
     }

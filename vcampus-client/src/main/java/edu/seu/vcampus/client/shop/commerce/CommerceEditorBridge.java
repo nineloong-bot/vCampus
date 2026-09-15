@@ -11,13 +11,16 @@ import java.awt.event.ContainerEvent;
 
 /** Adapts commerce forms to the shared page-embedded editor contract. */
 final class CommerceEditorBridge implements EmbeddedEditor {
+    static final String CONFIRM_DISCARD = "commerce.confirmDiscard";
     private final JPanel root = CommerceTheme.card(Color.WHITE, 24);
     private final EditorSize size;
+    private final boolean confirmDiscard;
     private boolean dirty;
 
     CommerceEditorBridge(String title, JComponent main, JComponent footer,
             JLabel message, int requestedWidth, Runnable close) {
         size = requestedWidth > 720 ? EditorSize.WIDE : EditorSize.COMPACT;
+        confirmDiscard = !Boolean.FALSE.equals(main.getClientProperty(CONFIRM_DISCARD));
         root.setName("commerce.editor");
         JPanel header = new JPanel(new BorderLayout(12, 0)); header.setOpaque(false);
         header.add(CommerceTheme.heading(title, 22));
@@ -39,7 +42,10 @@ final class CommerceEditorBridge implements EmbeddedEditor {
 
     @Override public JComponent component() { return root; }
     @Override public EditorSize size() { return size; }
-    @Override public void onOpened() { install(root); dirty = false; }
+    @Override public void onOpened() {
+        if (confirmDiscard) install(root);
+        dirty = false;
+    }
     @Override public boolean isDirty() { return dirty; }
 
     private void install(Component component) {
