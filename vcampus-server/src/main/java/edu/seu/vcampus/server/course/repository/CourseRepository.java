@@ -83,6 +83,9 @@ public interface CourseRepository {
     /** Applies one enrollment-count delta and increments the offering version. */
     Offering changeEnrolledCount(Connection connection, String offeringId, int delta);
 
+    /** Increments normal enrollment and expands capacity when an administrator overrides a full class. */
+    Offering incrementNormalEnrollmentForAdmin(Connection connection, String offeringId);
+
     /** Reads the independent retake bucket; legacy missing rows are exposed as zero. */
     default RetakeQuota findRetakeQuota(Connection connection, String offeringId) {
         return new RetakeQuota(offeringId, 0, 0);

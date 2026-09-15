@@ -76,6 +76,9 @@ public final class AccessCourseRepository implements CourseRepository {
     @Override public Offering changeEnrolledCount(Connection c, String id, int delta) {
         return enrollments.changeEnrolledCount(c, id, delta);
     }
+    @Override public Offering incrementNormalEnrollmentForAdmin(Connection c, String id) {
+        return offerings.incrementNormalEnrollmentForAdmin(c, id);
+    }
     @Override public RetakeQuota findRetakeQuota(Connection c, String id) {
         return enrollments.findRetakeQuota(c, id);
     }

@@ -50,19 +50,31 @@ class GenerationTest(unittest.TestCase):
         self.assertEqual("ACTIVE", account["accountStatus"])
         self.assertFalse(account["mustChangePassword"])
 
-    def test_courses_include_three_seasons_and_canonical_plans(self):
+    def test_only_last_ten_students_require_an_initial_password_change(self):
+        fast_password = dict(passwordHash="hash", passwordSalt="salt", passwordIterations=1)
+        with patch.object(people, "credentials", return_value=fast_password):
+            rows = self.capture(people.generate)
+        students = [row for row in rows["tblUser"] if row["roleCode"] == "STUDENT"]
+        self.assertEqual(10, sum(row["mustChangePassword"] for row in students))
+
+    def test_courses_include_two_seasons_and_canonical_eight_term_plans(self):
         rows = self.capture(courses.generate)
         seasons = {row["season"] for row in rows["tblTerm"]}
         catalog_codes = {row["courseCode"] for row in rows["tblCourse"]}
         plan_codes = {row["courseCode"] for row in rows["tblTrainingPlanCourse"]}
 
-        self.assertEqual({"SUMMER", "AUTUMN", "SPRING"}, seasons)
+        self.assertEqual({"AUTUMN", "SPRING"}, seasons)
         self.assertEqual(64, len(rows["tblTrainingPlan"]))
-        self.assertEqual(3_840, len(rows["tblTrainingPlanCourse"]))
+        self.assertEqual(2_560, len(rows["tblTrainingPlanCourse"]))
         self.assertEqual(catalog_codes, plan_codes)
-        self.assertEqual(240, len(catalog_codes))
-        self.assertGreaterEqual(len(rows["tblCourseOffering"]), 580)
+        self.assertEqual(160, len(catalog_codes))
+        self.assertGreaterEqual(len(rows["tblCourseOffering"]), 380)
         self.assertGreater(len(rows["tblTrainingPlanPrerequisite"]), 0)
+
+    def test_every_course_has_an_opening_college(self):
+        rows = self.capture(courses.generate)
+        self.assertTrue(all(row.get("departmentId") and row.get("departmentName")
+                            for row in rows["tblCourse"]))
 
     def test_each_plan_has_fifteen_credits_in_semesters_one_to_eight(self):
         rows = self.capture(courses.generate)
@@ -134,7 +146,7 @@ class GenerationTest(unittest.TestCase):
             academic_year = 2026 - cohort + 1
             course = int(offering_courses[enrollment["offeringId"]].rsplit("-", 1)[1])
             semester = (course - 1) // 20 + 1
-            self.assertEqual((academic_year - 1) * 3 + 2, semester)
+            self.assertEqual((academic_year - 1) * 2 + 1, semester)
 
     def test_major_transfer_fixture_has_many_valid_computer_to_math_applications(self):
         rows = self.capture(major_transfer.generate)

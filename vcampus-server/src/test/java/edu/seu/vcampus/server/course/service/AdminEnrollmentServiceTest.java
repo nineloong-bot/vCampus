@@ -101,6 +101,60 @@ class AdminEnrollmentServiceTest {
         });
     }
 
+    @Test
+    void administratorCanPlaceOrdinaryStudentWithoutFailedAttempt() {
+        transactions.inTransaction(connection -> {
+            repository.findAttempts(connection, "student-1",
+                    repository.requireOffering(connection, offeringId).courseId()).forEach(attempt -> {
+                        try (var statement = connection.prepareStatement(
+                                "DELETE FROM tblCourseAttempt WHERE attemptId=?")) {
+                            statement.setString(1, attempt.attemptId());
+                            statement.executeUpdate();
+                        } catch (java.sql.SQLException error) {
+                            throw new IllegalStateException(error);
+                        }
+                    });
+            return null;
+        });
+        fillNormalCapacity();
+        transactions.inTransaction(connection -> {
+            assertThat(repository.requireOffering(connection, offeringId).enrolledCount()).isEqualTo(40);
+            return null;
+        });
+
+        EnrollmentView result = service.adminEnrollStudent(
+                new AdminEnrollStudentCommand("213260001", offeringId));
+
+        assertThat(result.enrollmentType()).isEqualTo("NORMAL");
+        transactions.inTransaction(connection -> {
+            assertThat(repository.requireOffering(connection, offeringId))
+                    .satisfies(offering -> {
+                        assertThat(offering.capacity()).isEqualTo(41);
+                        assertThat(offering.enrolledCount()).isEqualTo(41);
+                    });
+            assertThat(repository.findAdjustmentsByStudent(connection, "student-1"))
+                    .extracting(row -> row.adjustmentType()).contains("ADMIN_ADD");
+            return null;
+        });
+    }
+
+    private void fillNormalCapacity() {
+        transactions.inTransaction(connection -> {
+            for (int index = 1; index <= 40; index++) {
+                repository.insertEnrollment(connection, new Enrollment(null, offeringId,
+                        "ordinary-" + index, "NORMAL", "ACTIVE", NOW, null, 0, null, null));
+            }
+            try (var statement = connection.prepareStatement(
+                    "UPDATE tblCourseOffering SET enrolledCount=40 WHERE offeringId=?")) {
+                statement.setString(1, offeringId);
+                statement.executeUpdate();
+            } catch (java.sql.SQLException error) {
+                throw new IllegalStateException(error);
+            }
+            return null;
+        });
+    }
+
     private void fillRetakeQuota() {
         transactions.inTransaction(connection -> {
             repository.saveRetakeCapacity(connection, offeringId, 5);

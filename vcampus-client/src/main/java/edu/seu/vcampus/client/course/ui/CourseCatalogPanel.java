@@ -1,7 +1,6 @@
 package edu.seu.vcampus.client.course.ui;
 
 import edu.seu.vcampus.client.core.ui.theme.UiColors;
-import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
 import edu.seu.vcampus.client.core.ui.theme.UiDimensions;
 import edu.seu.vcampus.client.core.ui.theme.UiSpacing;
 import edu.seu.vcampus.client.core.ui.theme.UiTypography;
@@ -21,8 +20,6 @@ import javax.swing.SwingUtilities;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
-import java.util.ArrayList;
-import java.util.List;
 
 /** Administrator catalog page backed by the live paged catalog query. */
 public final class CourseCatalogPanel extends AbstractCoursePanel {
@@ -31,12 +28,10 @@ public final class CourseCatalogPanel extends AbstractCoursePanel {
     private final JCheckBox activeOnly = new JCheckBox("仅显示启用课程");
     private final DefaultTableModel model = readOnlyModel("课程代码", "课程名称", "学分", "总学时", "状态", "开课学院");
     private final JTable table = table(new Object[0][0], new Object[0]);
-    private final List<CourseView> courses = new ArrayList<>();
     private final CoursePager pager;
-    private final EmbeddedEditorHost editorHost;
 
     public CourseCatalogPanel(CourseUiGateway gateway) {
-        super("课程目录管理");
+        super("课程目录");
         this.gateway = gateway;
         this.pager = new CoursePager(50, this::search);
         table.setModel(model);
@@ -52,9 +47,7 @@ public final class CourseCatalogPanel extends AbstractCoursePanel {
         tableArea.add(scroll, BorderLayout.CENTER);
         tableArea.add(pager, BorderLayout.SOUTH);
         listing.add(tableArea, BorderLayout.CENTER);
-        listing.add(actions(), BorderLayout.SOUTH);
-        editorHost = new EmbeddedEditorHost(listing);
-        body.add(editorHost, BorderLayout.CENTER);
+        body.add(listing, BorderLayout.CENTER);
         search(0);
     }
 
@@ -86,22 +79,6 @@ public final class CourseCatalogPanel extends AbstractCoursePanel {
         return panel;
     }
 
-    private JPanel actions() {
-        JPanel panel = new JPanel();
-        panel.setOpaque(false);
-        panel.setLayout(new BoxLayout(panel, BoxLayout.X_AXIS));
-        panel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, UiColors.BORDER_DEFAULT));
-        panel.add(Box.createHorizontalGlue());
-        JButton edit = secondary("编辑所选");
-        edit.addActionListener(event -> editSelected());
-        panel.add(edit);
-        panel.add(Box.createHorizontalStrut(UiSpacing.SM));
-        JButton create = primary("新建课程");
-        create.addActionListener(event -> openEditor(null));
-        panel.add(create);
-        return panel;
-    }
-
     private void search(int pageNumber) {
         long request = beginAsyncRequest();
         showState(ViewState.LOADING, "正在查询课程目录，请稍候");
@@ -111,8 +88,6 @@ public final class CourseCatalogPanel extends AbstractCoursePanel {
             if (!acceptsAsyncResult(request)) return;
             if (error != null) { showState(ViewState.DISCONNECTED, "无法读取课程目录，请检查连接后重试"); return; }
             model.setRowCount(0);
-            courses.clear();
-            courses.addAll(page.items());
             for (CourseView row : page.items()) model.addRow(new Object[]{
                     row.courseCode(), row.courseName(), row.credit().stripTrailingZeros().toPlainString(), row.totalHours(),
                     row.active() ? "启用" : "已停用", college(row)});
@@ -123,19 +98,6 @@ public final class CourseCatalogPanel extends AbstractCoursePanel {
     }
 
     @Override protected void refreshAfterNavigation() { search(pager.currentPage()); }
-
-    private void editSelected() {
-        int selected = table.getSelectedRow();
-        if (selected < 0) { showState(ViewState.ERROR, "请先选择要编辑的课程"); return; }
-        openEditor(courses.get(table.convertRowIndexToModel(selected)));
-    }
-
-    private void openEditor(CourseView course) {
-        editorHost.showEditor((complete, cancel) -> new CourseEditorPanel(gateway, course, () -> {
-            search(pager.currentPage());
-            complete.run();
-        }, cancel));
-    }
 
     private static DefaultTableModel readOnlyModel(Object... columns) {
         return new DefaultTableModel(columns, 0) { public boolean isCellEditable(int row, int column) { return false; } };

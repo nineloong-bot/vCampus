@@ -15,7 +15,7 @@ import edu.seu.vcampus.client.core.ui.theme.UiTypography;
 import edu.seu.vcampus.common.course.AdminEnrollStudentCommand;
 import edu.seu.vcampus.common.course.OfferingSummary;
 
-/** Compact administrator control for exceptional retake placement. */
+/** Compact administrator control for placing a student into a selected teaching class. */
 final class AdminEnrollmentControl extends JPanel {
     private final CourseUiGateway gateway;
     private final OfferingSummary offering;
@@ -40,7 +40,7 @@ final class AdminEnrollmentControl extends JPanel {
         studentNumber.setFont(UiTypography.BODY);
         studentNumber.setPreferredSize(new java.awt.Dimension(150, UiDimensions.CONTROL_HEIGHT));
         studentNumber.getAccessibleContext().setAccessibleName("学生学号");
-        submit.getAccessibleContext().setAccessibleName("确认添加重修学生");
+        submit.getAccessibleContext().setAccessibleName("确认添加学生");
         submit.addActionListener(event -> submit());
         add(label);
         add(studentNumber);
@@ -66,7 +66,7 @@ final class AdminEnrollmentControl extends JPanel {
                     if (!active) return;
                     submit.setEnabled(true);
                     if (error != null) {
-                        onError.accept("添加失败，请核对学号、重修资格和教学班状态");
+                        onError.accept("添加失败，请核对学号、修读状态和教学班状态");
                         return;
                     }
                     studentNumber.setText("");

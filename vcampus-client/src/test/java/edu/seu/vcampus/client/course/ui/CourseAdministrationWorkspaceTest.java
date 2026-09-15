@@ -16,29 +16,26 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class CourseAdministrationWorkspaceTest {
     @Test
-    void catalogAndTermEditorsOpenOnlyAfterAnExplicitAction() throws Exception {
+    void catalogIsReadOnlyAndTermEditorOpensOnlyAfterAnExplicitAction() throws Exception {
         CourseCatalogPanel catalog = onEdt(() -> new CourseCatalogPanel(CourseUiGateway.preview()));
         TermManagementPanel terms = onEdt(() -> new TermManagementPanel(CourseUiGateway.preview()));
         flushEdt();
 
-        EmbeddedEditorHost catalogHost = descendant(catalog, EmbeddedEditorHost.class);
         EmbeddedEditorHost termHost = descendant(terms, EmbeddedEditorHost.class);
-        assertThat(catalogHost.isEditorOpen()).isFalse();
         assertThat(termHost.isEditorOpen()).isFalse();
         assertThat(columns(descendant(catalog, JTable.class)))
                 .containsExactly("课程代码", "课程名称", "学分", "总学时", "状态", "开课学院");
         assertThat(columns(descendant(terms, JTable.class)))
                 .containsExactly("学期代码", "学期名称", "开学日期", "结束日期", "状态");
 
-        onEdt(() -> button(catalog, "新建课程").doClick());
+        assertThat(descendants(catalog).stream().filter(JButton.class::isInstance)
+                .map(JButton.class::cast).map(JButton::getText))
+                .doesNotContain("新建课程", "编辑所选");
         onEdt(() -> button(terms, "新建学期").doClick());
 
-        assertThat(catalogHost.isEditorOpen()).isTrue();
         assertThat(termHost.isEditorOpen()).isTrue();
-        catalogHost.setSize(1400, 800);
         termHost.setSize(1400, 800);
         flushEdt();
-        assertThat(catalogHost.currentPlacement()).isEqualTo(EditorPlacement.RIGHT);
         assertThat(termHost.currentPlacement()).isEqualTo(EditorPlacement.RIGHT);
     }
 

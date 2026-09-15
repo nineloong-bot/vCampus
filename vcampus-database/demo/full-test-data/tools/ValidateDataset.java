@@ -68,7 +68,7 @@ class ValidateDataset {
                 require(count(c,"SELECT COUNT(*) FROM tblStudent s INNER JOIN tblClass c "
                         +"ON s.classId=c.classId WHERE s.studentId LIKE 'bulk-student-%' AND c.enrollmentYear="
                         +cohort)==600,"Student cohort "+cohort);
-                int semester=(2026-cohort)*3+2;
+                int semester=(2026-cohort)*2+1;
                 require(count(c,"SELECT COUNT(*) FROM ((tblTrainingPlan p INNER JOIN "
                         +"tblTrainingPlanCourse pc ON p.planId=pc.planId) INNER JOIN tblCourse x "
                         +"ON pc.courseCode=x.courseCode) INNER JOIN tblCourseOffering o "
@@ -98,8 +98,8 @@ class ValidateDataset {
                     "ON o.termId=t.termId WHERE e.enrollmentId LIKE 'bulk-%' AND e.enrollmentStatus='ACTIVE'";
             try(var s=c.createStatement();var r=s.executeQuery(enrollmentSql)) {
                 while(r.next()) {
-                    int season=switch(r.getString(7)){case "SUMMER"->1;case "AUTUMN"->2;default->3;};
-                    int current=(r.getInt(6)-r.getInt(5))*3+season;
+                    int season="AUTUMN".equals(r.getString(7))?1:2;
+                    int current=(r.getInt(6)-r.getInt(5))*2+season;
                     Integer planned=planSemesters.get(r.getString(4)+":"+r.getInt(5)+":"+r.getString(3));
                     if("NORMAL".equals(r.getString(2))) require(Objects.equals(planned,current),
                             "Normal enrollment outside current plan "+r.getString(1)+":"+r.getString(3));
@@ -108,7 +108,9 @@ class ValidateDataset {
                 }
             }
             require(count(c,"SELECT COUNT(*) FROM (SELECT season FROM tblTerm "
-                    +"WHERE termId LIKE 'bulk-%' GROUP BY season)")==3,"Academic season coverage");
+                    +"WHERE termId LIKE 'bulk-%' GROUP BY season)")==2,"Academic season coverage");
+            require(count(c,"SELECT COUNT(*) FROM tblCourse WHERE departmentId IS NULL "
+                    +"OR departmentName IS NULL OR departmentName=''")==0,"Missing course college");
             Map<String,Integer> enrolled=new HashMap<>(),retakes=new HashMap<>();
             try(var s=c.createStatement();var r=s.executeQuery("SELECT offeringId,enrollmentType FROM tblEnrollment WHERE enrollmentStatus='ACTIVE'")) {
                 while(r.next()) ("RETAKE".equals(r.getString(2))?retakes:enrolled).merge(r.getString(1),1,Integer::sum);

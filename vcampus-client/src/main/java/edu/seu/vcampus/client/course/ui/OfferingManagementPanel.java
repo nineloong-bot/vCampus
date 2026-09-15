@@ -60,13 +60,14 @@ public final class OfferingManagementPanel extends AbstractCoursePanel {
         panel.setOpaque(false);
         panel.setLayout(new BoxLayout(panel, BoxLayout.X_AXIS));
         panel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, UiColors.BORDER_DEFAULT));
-        JButton addRetake = secondary("添加重修学生");
-        addRetake.addActionListener(event -> openRetakeEditor());
-        panel.add(addRetake);
         panel.add(Box.createHorizontalGlue());
         JButton edit = secondary("编辑所选");
         edit.addActionListener(event -> editSelected());
         panel.add(edit);
+        panel.add(Box.createHorizontalStrut(UiSpacing.SM));
+        JButton addStudent = secondary("添加学生");
+        addStudent.addActionListener(event -> openStudentEditor());
+        panel.add(addStudent);
         panel.add(Box.createHorizontalStrut(UiSpacing.SM));
         JButton create = primary("新建教学班");
         create.addActionListener(event -> openEditor(null));
@@ -155,7 +156,7 @@ public final class OfferingManagementPanel extends AbstractCoursePanel {
         }, cancel));
     }
 
-    private void openRetakeEditor() {
+    private void openStudentEditor() {
         OfferingSummary offering = selectedOffering();
         if (offering == null) { showState(ViewState.ERROR, "请先选择要添加学生的教学班"); return; }
         editorHost.showEditor((complete, cancel) -> new AdminEnrollmentEditorPanel(

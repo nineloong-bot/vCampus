@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class OfferingManagementWorkspaceTest {
     @Test
-    void offeringAndManualRetakeEditorsAreHiddenUntilRequested() throws Exception {
+    void offeringAndManualEnrollmentEditorsAreHiddenUntilRequested() throws Exception {
         OfferingManagementPanel panel = onEdt(() -> new OfferingManagementPanel(CourseUiGateway.preview()));
         flush();
         EmbeddedEditorHost host = descendants(panel).stream().filter(EmbeddedEditorHost.class::isInstance)
@@ -27,7 +27,10 @@ class OfferingManagementWorkspaceTest {
         JTable table = descendants(panel).stream().filter(JTable.class::isInstance).map(JTable.class::cast)
                 .findFirst().orElseThrow();
         onEdt(() -> table.setRowSelectionInterval(0, 0));
-        onEdt(() -> button(panel, "添加重修学生").doClick());
+        assertThat(descendants(panel).stream().filter(JButton.class::isInstance)
+                .map(JButton.class::cast).map(JButton::getText))
+                .doesNotContain("添加重修学生");
+        onEdt(() -> button(panel, "添加学生").doClick());
         assertThat(host.isEditorOpen()).isTrue();
     }
 

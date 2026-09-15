@@ -25,61 +25,6 @@ VALUES ('demo-shop-owner-user', 'SHOPOWNER',
     'mW5pbqIFUpGT2Zlkq7TsSA==', 120000, 'STUDENT', 'ACTIVE', FALSE, 0,
     NULL, NULL, 0, NOW(), NOW());
 
-INSERT INTO tblTerm
-    (termId, termCode, termName, startDate, endDate, academicYearStart, season, enrollmentStartAt,
-     enrollmentEndAt, adjustmentStartAt, adjustmentEndAt, termStatus,
-     rowVersion, createdAt, updatedAt)
-VALUES ('demo-term-2026', '2026-2027-1', '2026-2027学年第一学期', #2026-09-01#,
-    #2027-01-15#, 2026, 'AUTUMN', #2026-08-20#, #2026-09-30#, #2026-10-01#, #2026-10-07#,
-    'ACTIVE', 0, NOW(), NOW());
-
-INSERT INTO tblCourse
-    (courseId, courseCode, courseName, credit, totalHours, description,
-     isActive, rowVersion, createdAt, updatedAt)
-VALUES ('demo-course-java', 'CS201', 'Java程序设计', 4.0, 64,
-    '程序设计基础课程', TRUE, 0, NOW(), NOW());
-
-INSERT INTO tblCourse
-    (courseId, courseCode, courseName, credit, totalHours, description,
-     isActive, rowVersion, createdAt, updatedAt)
-VALUES ('demo-course-math', 'MATH101', '高等数学', 5.0, 80,
-    '面向高年级学生的软件工程课程', TRUE, 0, NOW(), NOW());
-
-INSERT INTO tblCourseOffering
-    (offeringId, termId, courseId, teacherUserId, className, capacity,
-     enrolledCount, offeringStatus, rowVersion, createdAt, updatedAt)
-VALUES ('demo-offering-java-a', 'demo-term-2026', 'demo-course-java',
-    '00000000-0000-0000-0000-000000000402', 'Java程序设计-A', 40, 1,
-    'OPEN', 0, NOW(), NOW());
-
-INSERT INTO tblCourseOffering
-    (offeringId, termId, courseId, teacherUserId, className, capacity,
-     enrolledCount, offeringStatus, rowVersion, createdAt, updatedAt)
-VALUES ('demo-offering-math-full', 'demo-term-2026', 'demo-course-math',
-    '00000000-0000-0000-0000-000000000402', '高等数学-满员班', 1, 1,
-    'OPEN', 0, NOW(), NOW());
-
-INSERT INTO tblCourseRetakeQuota (offeringId, capacity, enrolledCount)
-VALUES ('demo-offering-java-a', 5, 0);
-
-INSERT INTO tblCourseRetakeQuota (offeringId, capacity, enrolledCount)
-VALUES ('demo-offering-math-full', 5, 0);
-
-INSERT INTO tblCourseSchedule
-    (scheduleId, offeringId, dayOfWeek, startPeriod, endPeriod, startWeek, endWeek, classroom)
-VALUES ('demo-schedule-java-a', 'demo-offering-java-a', 1, 1, 2, 1, 16, '教一-101');
-
-INSERT INTO tblCourseSchedule
-    (scheduleId, offeringId, dayOfWeek, startPeriod, endPeriod, startWeek, endWeek, classroom)
-VALUES ('demo-schedule-math-full', 'demo-offering-math-full', 1, 1, 2, 1, 16, '教一-102');
-
-INSERT INTO tblEnrollment
-    (enrollmentId, offeringId, studentId, enrollmentType, enrollmentStatus,
-     enrolledAt, droppedAt, rowVersion, createdAt, updatedAt)
-VALUES ('demo-enrollment-java', 'demo-offering-java-a',
-    '00000000-0000-0000-0000-000000000404', 'NORMAL', 'ACTIVE', NOW(), NULL,
-    0, NOW(), NOW());
-
 INSERT INTO tblBook
     (bookId, isbn, title, author, publisher, publishDate, category, description,
      isActive, rowVersion)

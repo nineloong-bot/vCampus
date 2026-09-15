@@ -14,7 +14,7 @@ powershell -ExecutionPolicy Bypass -File vcampus-database/demo/full-test-data/bu
 
 脚本构建数据库、校验数据并生成 ZIP。包内依次运行 `start-server.bat` 与 `start-client.bat`，连接端口 18888。
 
-**统一密码：`Test12345`**。管理员为 `TESTADMIN`，教师为 `TESTTEACHER001`～`TESTTEACHER050`，学生为 `213260001`～`213261000`。数据包含 10 个专业、2023～2026 四个年级、40 套培养方案、120 门课程和 290 个教学班；教学学期覆盖暑期、秋季和春季。
+**统一密码：`Test12345`**。管理员为 `TESTADMIN`，教师为 `TESTTEACHER001`～`TESTTEACHER050`，学生账号详见生成的账号清单。数据包含 8 个学院、16 个专业、2023～2026 四个年级、64 套培养方案、160 门课程和 380 个教学班；教学学期只覆盖秋季和春季。
 
 ## 内容
 

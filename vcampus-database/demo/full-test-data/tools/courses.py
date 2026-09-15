@@ -3,20 +3,21 @@ from collections import Counter, defaultdict
 from datetime import timedelta
 from decimal import Decimal
 
-COURSE_COUNT = 240
+COURSE_COUNT = 160
 COURSES_PER_SEMESTER = 20
 PLAN_COURSES_PER_SEMESTER = 5
 COURSE_CREDIT = Decimal("3.0")
+DEPARTMENTS = ["计算机学院", "数学学院", "外国语学院", "经济管理学院",
+               "艺术设计学院", "物理学院", "生命科学学院", "法学学院"]
 
 
 def generate(add, now):
     stamp = dict(rowVersion=0, createdAt=now, updatedAt=now)
     current, previous = "bulk-term-current", "bulk-term-previous"
-    spring, summer = "bulk-term-spring", "bulk-term-summer"
+    spring = "bulk-term-spring"
     for term, delta, year, season, status, title in (
         (current, 0, 2026, "AUTUMN", "ACTIVE", "2026-2027学年秋季学期"),
         (spring, 165, 2026, "SPRING", "PLANNED", "2026-2027学年春季学期"),
-        (summer, -68, 2026, "SUMMER", "CLOSED", "2026-2027学年暑期学期"),
         (previous, -365, 2025, "AUTUMN", "CLOSED", "2025-2026学年秋季学期"),
     ):
         base = now + timedelta(days=delta)
@@ -42,9 +43,12 @@ def generate(add, now):
              "经济学原理", "管理学基础", "设计基础", "法学概论", "实验方法",
              "科研训练", "创新实践", "学术写作", "社会调查"]
     for course in range(1, COURSE_COUNT + 1):
+        department = (course - 1) // COURSES_PER_SEMESTER + 1
         add("tblCourse", courseId=f"bulk-course-{course:03d}",
             courseCode=f"BULK-C{course:03d}",
             courseName=f"{names[(course - 1) % len(names)]}{(course - 1) // len(names) + 1}",
+            departmentId=f"bulk-dept-{department:02d}",
+            departmentName=DEPARTMENTS[department - 1],
             credit=COURSE_CREDIT,
             totalHours=48,
             description="批量合成课程，用于分页、搜索、选课及教学班管理。",
@@ -57,10 +61,10 @@ def generate(add, now):
         cohort = 2023 + (student - 1) % 4
         year = 2026 - cohort + 1
         major = (student - 1) // 150 + 1
-        current_semester = (year - 1) * 3 + 2
+        current_semester = (year - 1) * 2 + 1
         current_courses = plan_courses(major, current_semester)
-        retake = plan_courses(major, max(1, current_semester - 1))[(student - 1) % 5] \
-            if student <= 50 else None
+        retake = plan_courses(major, current_semester - 1)[(student - 1) % 5] \
+            if student <= 50 and current_semester > 1 else None
         if retake is not None:
             selections.append((student, retake, (retake - 1) * 2 + 1, True))
             current_courses = [course for course in current_courses
@@ -92,7 +96,6 @@ def generate(add, now):
         add("tblCourseRetakeQuota", offeringId=f"bulk-offering-{offering:03d}",
             capacity=5, enrolledCount=retake_counts[offering])
     generate_season_offerings(add, spring, "spring", range(1, 61), stamp)
-    generate_season_offerings(add, summer, "summer", range(61, 101), stamp)
     for index, (student, course, offering, retake) in enumerate(selections, 1):
         add("tblEnrollment", enrollmentId=f"bulk-enrollment-{index:04d}",
             offeringId=f"bulk-offering-{offering:03d}", studentId=f"bulk-student-{student:04d}",
@@ -104,12 +107,8 @@ def generate(add, now):
             offeringId="bulk-offering-238", studentId=f"bulk-student-{student:04d}",
             enrollmentType="NORMAL", enrollmentStatus="DROPPED",
             enrolledAt=now - timedelta(days=3), droppedAt=now - timedelta(days=1), **stamp)
-    attempts = []
-    for s in range(1, 51):
-        major = (s - 1) // 150 + 1
-        cohort = 2023 + ((s - 1) % 150) % 4
-        semester = (2026 - cohort) * 3 + 2
-        attempts.append((s, plan_courses(major, max(1, semester - 1))[(s - 1) % 5], "FAILED"))
+    attempts = [(student, course, "FAILED")
+                for student, course, _, retake in selections if retake]
     for index, (student, course, outcome) in enumerate(attempts, 1):
         add("tblCourseAttempt", attemptId=f"bulk-attempt-{index:03d}",
             studentId=f"bulk-student-{student:04d}", courseId=f"bulk-course-{course:03d}",
@@ -163,7 +162,7 @@ def self_check():
         pair = (e["studentId"], offers[e["offeringId"]]["courseId"])
         assert (*pair, "PASSED") not in outcomes
         assert (e["enrollmentType"] == "RETAKE") == ((*pair, "FAILED") in outcomes)
-    assert len(active) == 2700 and len(offers) == 580
+    assert len(active) == 2700 and len(offers) == 380
     assert sum(p["phaseStatus"] in ("OPEN", "PREVIEW") for p in rows["tblCourseSelectionPhase"]) == 1
     return {table: len(values) for table, values in rows.items()}
 
@@ -177,7 +176,7 @@ def plan_courses(major, semester):
 
 
 def generate_plans(add, now):
-    """Emit one canonical four-year, three-season plan per major and cohort."""
+    """Emit one canonical four-year, two-season plan per major and cohort."""
     for major in range(1, 17):
         for cohort in range(2023, 2027):
             plan = f"bulk-plan-{major:02}-{cohort}"
@@ -185,7 +184,7 @@ def generate_plans(add, now):
                 enrollmentYear=cohort, planName=f"{800+major}专业{cohort}级培养方案",
                 minElectiveCount=8, minElectiveCredits=16, isActive=True,
                 rowVersion=1, createdAt=now, updatedAt=now)
-            for semester in range(1, 13):
+            for semester in range(1, 9):
                 planned_courses = plan_courses(major, semester)
                 for local, course in enumerate(planned_courses):
                     prerequisite = planned_courses[local - 1] if local else None
@@ -196,7 +195,7 @@ def generate_plans(add, now):
                         semester=semester,
                         courseNature="ELECTIVE" if local == 4 else "REQUIRED",
                         courseCategory="专业方向课" if local == 4 else "专业基础课",
-                        offeringUnit=f"{800+major}专业所在学院", isActive=True,
+                        offeringUnit=DEPARTMENTS[(course - 1) // COURSES_PER_SEMESTER], isActive=True,
                         rowVersion=0, createdAt=now, updatedAt=now)
                     if prerequisite is not None:
                         add("tblTrainingPlanPrerequisite",
@@ -206,7 +205,7 @@ def generate_plans(add, now):
 
 
 def generate_season_offerings(add, term, label, courses, stamp):
-    season_name = {"spring": "春季", "summer": "暑期"}[label]
+    season_name = {"spring": "春季"}[label]
     for course in courses:
         offering = f"bulk-{label}-offering-{course:03d}"
         add("tblCourseOffering", offeringId=offering, termId=term,
@@ -218,7 +217,7 @@ def generate_season_offerings(add, term, label, courses, stamp):
             offeringId=offering, dayOfWeek=(course - 1) % 5 + 1,
             startPeriod=1 + ((course - 1) // 5 % 4) * 2,
             endPeriod=2 + ((course - 1) // 5 % 4) * 2,
-            startWeek=1, endWeek=6 if label == "summer" else 18,
+            startWeek=1, endWeek=18,
             classroom=f"{season_name}教学楼-{101 + course % 50}")
         add("tblCourseRetakeQuota", offeringId=offering, capacity=5, enrolledCount=0)
 

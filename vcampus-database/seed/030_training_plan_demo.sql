@@ -11,20 +11,6 @@ INSERT INTO tblTrainingPlanCourse
     (planCourseId, planId, courseCode, courseName, credits, courseType, semester,
      isActive, rowVersion, createdAt, updatedAt)
 VALUES
-    ('00000000-0000-0000-0000-000000000311', '00000000-0000-0000-0000-000000000301',
-     'CS201', 'Java程序设计', 4.0, 'REQUIRED', 11, TRUE, 0, NOW(), NOW());
-
-INSERT INTO tblTrainingPlanCourse
-    (planCourseId, planId, courseCode, courseName, credits, courseType, semester,
-     isActive, rowVersion, createdAt, updatedAt)
-VALUES
-    ('00000000-0000-0000-0000-000000000312', '00000000-0000-0000-0000-000000000301',
-     'MATH101', '高等数学', 5.0, 'REQUIRED', 11, TRUE, 0, NOW(), NOW());
-
-INSERT INTO tblTrainingPlanCourse
-    (planCourseId, planId, courseCode, courseName, credits, courseType, semester,
-     isActive, rowVersion, createdAt, updatedAt)
-VALUES
     ('00000000-0000-0000-0000-000000000313', '00000000-0000-0000-0000-000000000301',
      'CS2303', '人工智能导论', 2.0, 'ELECTIVE', 3, TRUE, 0, NOW(), NOW());
 

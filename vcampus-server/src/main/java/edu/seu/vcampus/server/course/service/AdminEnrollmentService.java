@@ -13,7 +13,6 @@ import edu.seu.vcampus.server.concurrency.ResourceKey;
 import edu.seu.vcampus.server.concurrency.ResourceLockManager;
 import edu.seu.vcampus.server.course.domain.CourseAlreadyPassedException;
 import edu.seu.vcampus.server.course.domain.EnrollmentClosedException;
-import edu.seu.vcampus.server.course.domain.RetakeNotEligibleException;
 import edu.seu.vcampus.server.course.domain.ScheduleConflictPolicy;
 import edu.seu.vcampus.server.course.domain.StudentIneligibleException;
 import edu.seu.vcampus.server.course.repository.CourseRepository;
@@ -21,7 +20,7 @@ import edu.seu.vcampus.server.course.repository.Enrollment;
 import edu.seu.vcampus.server.course.repository.EnrollmentAdjustment;
 import edu.seu.vcampus.server.persistence.TransactionManager;
 
-/** Locked administrator placement for exceptional retake enrollment. */
+/** Locked administrator placement into the correct normal or retake capacity bucket. */
 final class AdminEnrollmentService {
     private final CourseStudentGateway students;
     private final CourseRepository repository;
@@ -63,21 +62,29 @@ final class AdminEnrollmentService {
         if (repository.existsPassedAttempt(connection, studentId, offering.courseId())) {
             throw new CourseAlreadyPassedException();
         }
-        if (!repository.existsFailedAttempt(connection, studentId, offering.courseId())) {
-            throw new RetakeNotEligibleException();
-        }
+        boolean retake = repository.existsFailedAttempt(connection, studentId, offering.courseId());
         rules.requireNoDuplicateOrConflict(connection,
                 repository.findActiveByStudentAndTerm(connection, studentId, offering.termId()), offering, null);
-        var quota = repository.findRetakeQuota(connection, offeringId);
-        if (quota.enrolledCount() >= quota.capacity()) {
-            repository.saveRetakeCapacity(connection, offeringId, quota.enrolledCount() + 1);
+        if (retake) {
+            var quota = repository.findRetakeQuota(connection, offeringId);
+            if (quota.enrolledCount() >= quota.capacity()) {
+                repository.saveRetakeCapacity(connection, offeringId, quota.enrolledCount() + 1);
+            }
         }
         Enrollment saved = repository.insertEnrollment(connection, new Enrollment(
-                UUID.randomUUID().toString(), offeringId, studentId, "RETAKE", "ACTIVE",
+                UUID.randomUUID().toString(), offeringId, studentId,
+                retake ? "RETAKE" : "NORMAL", "ACTIVE",
                 now, null, 0, null, null));
-        repository.changeEnrolledCount(connection, offeringId, "RETAKE", 1);
+        if (retake) {
+            repository.changeEnrolledCount(connection, offeringId, "RETAKE", 1);
+        } else if (offering.enrolledCount() >= offering.capacity()) {
+            repository.incrementNormalEnrollmentForAdmin(connection, offeringId);
+        } else {
+            repository.changeEnrolledCount(connection, offeringId, "NORMAL", 1);
+        }
         repository.insertAdjustment(connection, new EnrollmentAdjustment(
-                UUID.randomUUID().toString(), studentId, "ADMIN_RETAKE_ADD", null,
+                UUID.randomUUID().toString(), studentId,
+                retake ? "ADMIN_RETAKE_ADD" : "ADMIN_ADD", null,
                 offeringId, "SUCCEEDED", null, now));
         return new EnrollmentView(saved.enrollmentId(), saved.offeringId(), saved.studentId(),
                 saved.enrollmentType(), saved.enrollmentStatus(), saved.enrolledAt(),

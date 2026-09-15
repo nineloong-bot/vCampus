@@ -4,7 +4,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Objects;
 
-/** Course-administrator request to place one eligible retake student into an offering. */
+/** Course-administrator request to place one active student into an offering. */
 public record AdminEnrollStudentCommand(String studentNumber, String offeringId)
         implements Serializable {
     @Serial private static final long serialVersionUID = 1L;

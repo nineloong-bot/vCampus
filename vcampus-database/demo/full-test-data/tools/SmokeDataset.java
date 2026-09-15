@@ -34,13 +34,13 @@ class SmokeDataset {
             var executor=Executors.newSingleThreadExecutor();
             var serving=executor.submit(()->{server.serve();return null;});
             try {
-                for(String login:new String[]{"TESTADMIN","TESTTEACHER001","213260001","213260101","213260991"}) {
+                for(String login:new String[]{"TESTADMIN","TESTTEACHER001","213260001","213260101","213262631"}) {
                     try(var connection=new ClientConnection("127.0.0.1",server.localPort())) {
                         connection.connect(Duration.ofSeconds(10));
                         var users=new UserClientService(connection,"bulk-smoke-"+login,Duration.ofSeconds(30));
                         var logged=result(users.login(login,"Test12345".toCharArray()));
                         require(logged.user().loginId().equals(login),"login "+login);
-                        if(login.equals("213260991")) {
+                        if(login.equals("213262631")) {
                             require(logged.mustChangePassword(),"first password change");
                             result(users.logout());
                             continue;
@@ -55,7 +55,7 @@ class SmokeDataset {
                             require(result(shop.getOwnedShop()).shopId().equals("bulk-shop-001"),"seller owns shop");
                             require(result(courses.getCurrentEnrollments()).stream().filter(e->"ACTIVE".equals(e.enrollmentStatus())).count()==3,"student active enrollment records");
                             require(result(courses.getCurrentEnrollments()).stream().filter(e->"DROPPED".equals(e.enrollmentStatus())).count()==1,"student dropped history");
-                            result(courses.enroll(new EnrollCommand("bulk-offering-207")));
+                            result(courses.enroll(new EnrollCommand("bulk-offering-245")));
                             require(result(courses.getCurrentEnrollments()).stream().filter(e->"ACTIVE".equals(e.enrollmentStatus())).count()==4,"new course enrollment");
                             var loan=result(library.borrow(new BorrowBookCommand("bulk-copy-0001-2")));
                             result(library.returnBook(new ReturnBookCommand(loan.loanId(),loan.rowVersion())));

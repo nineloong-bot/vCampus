@@ -57,7 +57,8 @@ def generate(add, now):
         scenario = ('店主' if i <= 30 else '开店申请' if i <= 45 else
                     '订单与购物车' if 101 <= i <= 700 else '普通学生')
         # 末尾十名专门覆盖首次改密，其他账号可直接进入业务页面。
-        user(uid, login, 'STUDENT', name, scenario + '；学籍=' + status, i > 990)
+        user(uid, login, 'STUDENT', name, scenario + '；学籍=' + status,
+             i > STUDENT_COUNT - 10)
         add('tblStudent', studentId=f'bulk-student-{i:04}', userId=uid,
             studentNumber=f'{major:02}{cohort % 100:02}1{serial:03}', studentType='UNDERGRADUATE',
             studentName=name, gender='男' if i%2 else '女',

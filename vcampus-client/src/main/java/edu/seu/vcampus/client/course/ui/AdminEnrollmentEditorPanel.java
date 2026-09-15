@@ -5,7 +5,7 @@ import edu.seu.vcampus.client.core.ui.editor.EditorSize;
 
 import javax.swing.JComponent;
 
-/** Embedded-editor adapter for exceptional administrator enrollment. */
+/** Embedded-editor adapter for administrator-managed enrollment. */
 final class AdminEnrollmentEditorPanel implements EmbeddedEditor {
     private final AdminEnrollmentControl control;
 

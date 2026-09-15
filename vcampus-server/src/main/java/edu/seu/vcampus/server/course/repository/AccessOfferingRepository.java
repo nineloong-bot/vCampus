@@ -65,6 +65,24 @@ final class AccessOfferingRepository {
         } catch (SQLException error) { throw CourseJdbc.failure("update offering", error); }
     }
 
+    Offering incrementNormalEnrollmentForAdmin(Connection c, String offeringId) {
+        Offering existing = requireOffering(c, offeringId);
+        int enrolled = existing.enrolledCount() + 1;
+        int capacity = Math.max(existing.capacity(), enrolled);
+        String sql = "UPDATE tblCourseOffering SET capacity=?,enrolledCount=?,"
+                + "rowVersion=rowVersion+1,updatedAt=? WHERE offeringId=?";
+        try (PreparedStatement statement = c.prepareStatement(sql)) {
+            statement.setInt(1, capacity);
+            statement.setInt(2, enrolled);
+            statement.setTimestamp(3, CourseJdbc.timestamp(Instant.now()));
+            statement.setString(4, offeringId);
+            if (statement.executeUpdate() != 1) throw CourseJdbc.missing("Offering", offeringId);
+            return requireOffering(c, offeringId);
+        } catch (SQLException error) {
+            throw CourseJdbc.failure("increment administrator enrollment", error);
+        }
+    }
+
     List<Schedule> findSchedules(Connection c, String offeringId) {
         List<Schedule> values = new ArrayList<>();
         String sql = "SELECT * FROM tblCourseSchedule WHERE offeringId=? ORDER BY dayOfWeek, startWeek, startPeriod";

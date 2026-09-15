@@ -35,8 +35,6 @@ public final class CourseHandlers {
   r.register("COURSE_GET_MY_SCHEDULE",read(EmptyRequest.class,Set.of("STUDENT","TEACHER"),(m,b)->(Serializable)new ArrayList<>(service.getCurrentSchedule(m.sessionToken()))));
   r.register("COURSE_GET_MY_ENROLLMENTS",read(EmptyRequest.class,Set.of("STUDENT"),(m,b)->(Serializable)new ArrayList<>(service.getCurrentEnrollments(m.sessionToken()))));
   r.register("COURSE_IMPORT_OUTCOMES",write(ImportCourseOutcomesCommand.class,Set.of("ADMIN"),(m,b)->{service.importCourseOutcomes(b);return EmptyResponse.INSTANCE;}));
-  r.register("COURSE_CREATE",write(CreateCourseCommand.class,Set.of("ADMIN"),(m,b)->service.createCourse(b)));
-  r.register("COURSE_UPDATE",write(UpdateCourseCommand.class,Set.of("ADMIN"),(m,b)->service.updateCourse(b)));
   r.register("COURSE_CREATE_OFFERING",write(CreateOfferingCommand.class,Set.of("ADMIN"),(m,b)->service.createOffering(b)));
   r.register("COURSE_UPDATE_OFFERING",write(UpdateOfferingCommand.class,Set.of("ADMIN"),(m,b)->service.updateOffering(b)));
   r.register("COURSE_ADMIN_ENROLL_STUDENT",write(AdminEnrollStudentCommand.class,Set.of("ADMIN"),(m,b)->service.adminEnrollStudent(b)));

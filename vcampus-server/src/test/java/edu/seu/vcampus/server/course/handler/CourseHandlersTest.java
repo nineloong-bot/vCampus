@@ -36,8 +36,8 @@ class CourseHandlersTest {
                 "COURSE_SELECTION_PHASE_CHANGE_STATUS", "COURSE_STUDENT_SELECTION_CONTEXT", "COURSE_STUDENT_COURSE_SEARCH",
                 "COURSE_ADJUSTMENT_ADD", "COURSE_DROP", "COURSE_ADJUSTMENT_DROP",
                 "COURSE_RETAKE_CHECK", "COURSE_RETAKE_ENROLL", "COURSE_GET_MY_SCHEDULE",
-                "COURSE_GET_MY_ENROLLMENTS", "COURSE_IMPORT_OUTCOMES", "COURSE_CREATE",
-                "COURSE_UPDATE", "COURSE_CREATE_OFFERING", "COURSE_UPDATE_OFFERING");
+                "COURSE_GET_MY_ENROLLMENTS", "COURSE_IMPORT_OUTCOMES",
+                "COURSE_CREATE_OFFERING", "COURSE_UPDATE_OFFERING");
         commands.forEach(command -> assertThat(route(router, command, "student", validBody(command)).code())
                 .isNotEqualTo("COMMON_INTERNAL_ERROR"));
         ResponseBody<?> duplicate = route(router, "COURSE_ENROLL", "student", new EnrollCommand("o-1"));
@@ -51,6 +51,16 @@ class CourseHandlersTest {
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> route(
                         router(), "COURSE_ADJUSTMENT_CHANGE", "student",
                         new ChangeOfferingCommand("e-1", "o-2", 0)))
+                .isInstanceOf(CommandNotFoundException.class);
+    }
+
+    @Test void doesNotPublishCatalogMutationForCourseAdministrators() {
+        MessageRouter router = router();
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> route(
+                        router, "COURSE_CREATE", "admin", validBody("COURSE_CREATE")))
+                .isInstanceOf(CommandNotFoundException.class);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> route(
+                        router, "COURSE_UPDATE", "admin", validBody("COURSE_UPDATE")))
                 .isInstanceOf(CommandNotFoundException.class);
     }
 
