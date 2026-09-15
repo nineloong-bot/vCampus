@@ -5,7 +5,7 @@ import edu.seu.vcampus.client.core.network.ConnectionState;
 import edu.seu.vcampus.client.core.ui.MainFrame;
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.client.student.service.StudentRequestClient;
-import edu.seu.vcampus.client.student.ui.ManualStudentCreationDialog;
+import edu.seu.vcampus.client.student.ui.ManualStudentCreationPanel;
 import edu.seu.vcampus.client.student.ui.OrganizationManagementPanel;
 import edu.seu.vcampus.client.student.ui.UpdateContactDialog;
 import edu.seu.vcampus.common.protocol.ResponseBody;
@@ -186,19 +186,15 @@ public final class StudentVisualQaHarness {
                 paint(frame, new Dimension(1280, 800), output.resolve("organization-class-1280x800.png"));
             });
 
-            AtomicReference<ManualStudentCreationDialog> dialogReference = new AtomicReference<>();
             onEdt(() -> {
-                ManualStudentCreationDialog dialog = new ManualStudentCreationDialog(frame, students,
-                        department, major, studentClass);
-                dialog.setModalityType(java.awt.Dialog.ModalityType.MODELESS);
-                dialog.setVisible(true);
-                dialog.validate();
-                dialogReference.set(dialog);
-                paint(dialog, new Dimension(700, 680), output.resolve("manual-student-700x680.png"));
-                component(dialog, "student.manual.submit", JButton.class).doClick();
-                paint(dialog, new Dimension(700, 680), output.resolve("manual-student-invalid-700x680.png"));
+                ManualStudentCreationPanel editor = new ManualStudentCreationPanel(students,
+                        department, major, studentClass, ignored -> { }, () -> { });
+                paintComponent(editor.component(), new Dimension(700, 680),
+                        output.resolve("manual-student-700x680.png"));
+                component(editor.component(), "student.manual.submit", JButton.class).doClick();
+                paintComponent(editor.component(), new Dimension(700, 680),
+                        output.resolve("manual-student-invalid-700x680.png"));
             });
-            onEdt(dialogReference.get()::dispose);
         } finally {
             JFrame frame = frameReference.get();
             if (frame != null) onEdt(frame::dispose);
@@ -241,6 +237,24 @@ public final class StudentVisualQaHarness {
             BufferedImage written = ImageIO.read(target.toFile());
             if (written == null) throw new IllegalStateException("Unreadable PNG: " + target);
             validateImage(written, size, target);
+        } catch (IOException failure) {
+            throw new IllegalStateException("Unable to write " + target, failure);
+        } finally {
+            graphics.dispose();
+        }
+    }
+
+    private static void paintComponent(Component component, Dimension size, Path target) {
+        component.setSize(size);
+        component.doLayout();
+        BufferedImage image = new BufferedImage(size.width, size.height, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = image.createGraphics();
+        try {
+            component.paintAll(graphics);
+            if (!ImageIO.write(image, "png", target.toFile())) {
+                throw new IllegalStateException("No PNG writer available for " + target);
+            }
+            validateImage(ImageIO.read(target.toFile()), size, target);
         } catch (IOException failure) {
             throw new IllegalStateException("Unable to write " + target, failure);
         } finally {
