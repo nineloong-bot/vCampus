@@ -36,7 +36,8 @@ import java.util.Objects;
 import java.util.function.Function;
 
 /** Production composition root for the user and course server modules. */
-public final class ApplicationRuntime {
+public final class ApplicationRuntime implements AutoCloseable {
+    private edu.seu.vcampus.server.shop.composition.CommerceRuntime commerce;
     private final MessageRouter router;
     private final CourseComposition course;
     private final ResourceLockManager resourceLocks;
@@ -87,6 +88,10 @@ public final class ApplicationRuntime {
         Objects.requireNonNull(clock, "clock");
         Objects.requireNonNull(sessionIdleTimeout, "sessionIdleTimeout");
         new ApplicationSchemaInitializer(databaseResourceRoot).initialize(connections);
+        new edu.seu.vcampus.server.wallet.WalletSchemaInitializer(
+                databaseResourceRoot.resolve("schema/051_shop_wallet.sql")).initialize(connections);
+        new edu.seu.vcampus.server.shop.composition.CommerceSchemaInitializer(
+                databaseResourceRoot.resolve("schema")).initialize(connections);
 
         ResourceLockManager locks = new StripedResourceLockManager();
         SessionRegistry sessions = new SessionRegistry(clock, sessionIdleTimeout);
@@ -109,6 +114,9 @@ public final class ApplicationRuntime {
         MessageRouter router = new MessageRouter(Map.of(
                 "PING", (request, context) -> ResponseBody.success(EmptyResponse.INSTANCE)));
         new UserHandlers(router, users, authorization, deduplicator);
+        new edu.seu.vcampus.server.wallet.handler.WalletHandlers(router,
+                new edu.seu.vcampus.server.wallet.service.WalletService(
+                        transactions, new StripedResourceLockManager(), clock), sessions);
         StudentGovernanceRegistry.register(router, transactions, locks, sessions,
                 authorization, deduplicator, audits, userRepository, passwords);
         router.register("SECURITY_AUDIT_SEARCH", new SecurityAuditHandler(authorization,
@@ -131,8 +139,17 @@ public final class ApplicationRuntime {
         courses.register(router);
         UnifiedModuleRegistry.registerLibraryAndShop(router, transactions, locks, sessions,
                 authorization, deduplicator, clock);
-        return new ApplicationRuntime(router, courses, locks, authorization);
+        ApplicationRuntime runtime = new ApplicationRuntime(router, courses, locks, authorization);
+        runtime.commerce = new edu.seu.vcampus.server.shop.composition.CommerceRuntime(
+                router, transactions, locks, sessions, clock);
+        return runtime;
     }
+
+    /** Starts commerce expiry and recovery tasks after the application has been composed. */
+    public void startMaintenance() { if (commerce != null) commerce.start(); }
+
+    /** Stops owned commerce maintenance tasks during shutdown. */
+    @Override public void close() { if (commerce != null) commerce.close(); }
 
     /** Returns the application-wide message router. */
     public MessageRouter router() {
