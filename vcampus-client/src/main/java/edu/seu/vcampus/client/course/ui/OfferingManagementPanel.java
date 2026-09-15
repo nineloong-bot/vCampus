@@ -28,7 +28,7 @@ public final class OfferingManagementPanel extends AbstractCoursePanel {
     private final JTextField termId = field("学期编号", "");
     private final JTextField keyword = field("课程或教学班", "");
     private final DefaultTableModel model = readOnlyModel(
-            "课程代码", "课程名称", "教学班", "授课教师", "容量", "已选", "状态", "版本");
+            "课程代码", "课程名称", "教学班", "授课教师", "开课学院", "容量", "已选", "状态");
     private final JTable table = table(new Object[0][0], new Object[0]);
     private final List<OfferingSummary> offerings = new ArrayList<>();
     private final CoursePager pager;
@@ -36,6 +36,7 @@ public final class OfferingManagementPanel extends AbstractCoursePanel {
     public OfferingManagementPanel(CourseUiGateway gateway) {
         super("教学班管理", "维护教学班容量、教师、上课时间地点与开放状态。");
         this.gateway = gateway;
+        termId.setEditable(false);
         this.pager = new CoursePager(50, this::search);
         body.add(filters(), BorderLayout.NORTH);
         table.setModel(model);
@@ -121,8 +122,10 @@ public final class OfferingManagementPanel extends AbstractCoursePanel {
                     offerings.clear();
                     offerings.addAll(page.items());
                     for (OfferingSummary row : page.items()) model.addRow(new Object[]{
-                            row.courseCode(), row.courseName(), row.className(), row.teacherUserId(), row.capacity(),
-                            row.enrolledCount(), status(row.offeringStatus()), "v" + row.rowVersion()});
+                            row.courseCode(), row.courseName(), row.className(), row.teacherUserId(),
+                            row.offeringDepartmentName() == null || row.offeringDepartmentName().isBlank()
+                                    ? "未设置" : row.offeringDepartmentName(),
+                            row.capacity(), row.enrolledCount(), status(row.offeringStatus())});
                     pager.showPage(page.page(), page.total());
                     showState(page.items().isEmpty() ? ViewState.EMPTY : ViewState.NORMAL,
                             page.items().isEmpty() ? "当前学期没有符合条件的教学班" : "");

@@ -54,7 +54,7 @@ class CurriculumRepositoryTest {
     }
 
     @Test
-    void partitionsCurrentAndEarlierCoursesAndLoadsPrerequisites() {
+    void partitionsCurrentAndEarlierCoursesAndLoadsPrerequisites() throws Exception {
         repository.insertPlan(connection, new CurriculumPlan(
                 "plan", "080901", 2024, "2024级计算机科学与技术", 1, "PUBLISHED"));
         repository.insertCourse(connection, curriculum("pc-data", "course-data", 2,
@@ -71,6 +71,8 @@ class CurriculumRepositoryTest {
                 .extracting(CurriculumCourse::courseId).containsExactly("course-data");
         assertThat(repository.findPrerequisiteCourseIds(connection, "plan", "course-db"))
                 .containsExactly("course-data");
+        assertThat(semester("pc-db")).isEqualTo(5);
+        assertThat(semester("pc-software")).isEqualTo(6);
     }
 
     @Test
@@ -112,6 +114,17 @@ class CurriculumRepositoryTest {
     private long count(String sql) throws Exception {
         try (var statement = connection.createStatement(); var rows = statement.executeQuery(sql)) {
             rows.next(); return rows.getLong(1);
+        }
+    }
+
+    private int semester(String planCourseId) throws Exception {
+        try (var statement = connection.prepareStatement(
+                "SELECT semester FROM tblTrainingPlanCourse WHERE planCourseId=?")) {
+            statement.setString(1, planCourseId);
+            try (var rows = statement.executeQuery()) {
+                rows.next();
+                return rows.getInt(1);
+            }
         }
     }
 

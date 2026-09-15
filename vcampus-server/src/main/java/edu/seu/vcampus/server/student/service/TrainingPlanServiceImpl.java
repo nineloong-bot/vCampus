@@ -319,8 +319,8 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
         if (command.targetPlanId() == null || command.targetPlanId().isBlank()) {
             throw new IllegalArgumentException("目标培养方案不能为空");
         }
-        if (command.semester() < 1 || command.semester() > 12) {
-            throw new IllegalArgumentException("开设学期必须在 1-12 之间");
+        if (command.semester() < 1 || command.semester() > 8) {
+            throw new IllegalArgumentException("开设学期必须在 1-8 之间");
         }
         if (command.requestedQuota() <= 0) {
             throw new IllegalArgumentException("申请名额必须大于 0");
@@ -489,7 +489,7 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
         Objects.requireNonNull(courseType);
         if (credits.compareTo(BigDecimal.ZERO) <= 0)
             throw new IllegalArgumentException("credits must be positive");
-        if (semester < 1 || semester > 12)
-            throw new IllegalArgumentException("semester must be 1-12");
+        if (semester < 1 || semester > 8)
+            throw new IllegalArgumentException("semester must be 1-8");
     }
 }

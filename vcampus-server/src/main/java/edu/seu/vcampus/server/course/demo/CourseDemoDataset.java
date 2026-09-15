@@ -24,8 +24,8 @@ public final class CourseDemoDataset {
             item("BJSL0031", "程序设计基础及语言II", "2.5", 1, AcademicSeason.SPRING, "REQUIRED", "大类学科基础课"),
             item("BJSL0040", "离散数学", "4", 1, AcademicSeason.SPRING, "REQUIRED", "大类学科基础课"),
             item("BJSL0051", "数字逻辑电路", "3", 1, AcademicSeason.SPRING, "REQUIRED", "大类学科基础课"),
-            item("B09L0010", "劳动教育与实践", "1", 2, AcademicSeason.SUMMER, "REQUIRED", "实践环节"),
-            item("BJSL0090", "语言课程设计", "2", 2, AcademicSeason.SUMMER, "REQUIRED", "实践环节"),
+            item("B09L0010", "劳动教育与实践", "1", 2, AcademicSeason.SPRING, "REQUIRED", "实践环节"),
+            item("BJSL0090", "语言课程设计", "2", 2, AcademicSeason.SPRING, "REQUIRED", "实践环节"),
             item("BJSL0061", "数据结构", "4", 2, AcademicSeason.AUTUMN, "REQUIRED", "大类学科基础课"),
             item("BJSL0071", "计算机组成原理", "4", 2, AcademicSeason.AUTUMN, "REQUIRED", "大类学科基础课"),
             item("B07M3010", "概率论与数理统计", "3", 2, AcademicSeason.AUTUMN, "REQUIRED", "自然科学类"),
@@ -35,7 +35,7 @@ public final class CourseDemoDataset {
             item("B09T0011", "算法设计与分析", "3", 2, AcademicSeason.SPRING, "REQUIRED", "专业主干课"),
             item("B09A0010", "人工智能概论", "3", 2, AcademicSeason.SPRING, "REQUIRED", "专业主干课"),
             item("B09S1031", "Java程序设计", "2", 2, AcademicSeason.SPRING, "ELECTIVE", "专业方向课"),
-            item("B09P0040", "专业技能实训(校企)", "2", 3, AcademicSeason.SUMMER, "REQUIRED", "实践环节"),
+            item("B09P0040", "专业技能实训(校企)", "2", 3, AcademicSeason.SPRING, "REQUIRED", "实践环节"),
             item("B09D0012", "数据库原理", "3", 3, AcademicSeason.AUTUMN, "REQUIRED", "专业主干课"),
             item("B09G0011", "数字图像处理", "3", 3, AcademicSeason.AUTUMN, "REQUIRED", "专业主干课"),
             item("B09N0014", "计算机网络", "3", 3, AcademicSeason.AUTUMN, "REQUIRED", "专业主干课"),
@@ -121,7 +121,7 @@ public final class CourseDemoDataset {
             if (existing.contains(course.courseId())) continue;
             int day = index % 5;
             int period = 1 + (index % 4) * 2;
-            service.createOffering(new CreateOfferingCommand(term.termId(), course.courseId(), teacherId,
+            service.createOffering(new CreateOfferingCommand(course.courseId(), teacherId,
                     String.format("%02d班", 1), 43, 8, "OPEN", List.of(new CreateOfferingCommand.ScheduleInput(
                     List.of("MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY").get(day),
                     period, period + 1, 1, 16, "教二-" + (301 + index)))));

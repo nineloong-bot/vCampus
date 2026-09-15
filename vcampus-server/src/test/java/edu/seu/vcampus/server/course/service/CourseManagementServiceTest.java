@@ -123,9 +123,10 @@ class CourseManagementServiceTest {
         OfferingView currentOffering = service.createOffering(new CreateOfferingCommand(
                 current.termId(), course.courseId(), "teacher-1", "当前班", 30, "OPEN",
                 List.of(new CreateOfferingCommand.ScheduleInput("MONDAY", 1, 2, 1, 16, "当前教室"))));
-        OfferingView historicalOffering = service.createOffering(new CreateOfferingCommand(
-                closed.termId(), course.courseId(), "teacher-1", "历史班", 30, "OPEN",
-                List.of(new CreateOfferingCommand.ScheduleInput("TUESDAY", 3, 4, 1, 16, "历史教室"))));
+        Offering historicalOffering = transactions.inTransaction(connection -> repository.insertOffering(
+                connection, new Offering(null, closed.termId(), course.courseId(), "teacher-1",
+                        "历史班", 30, 0, "OPEN", 0, null, null),
+                List.of(new Schedule(null, null, DayOfWeek.TUESDAY, 3, 4, 1, 16, "历史教室"))));
         EnrollmentView currentEnrollment = service.enroll("student", new EnrollCommand(currentOffering.offeringId()));
         transactions.inTransaction(connection -> {
             repository.insertEnrollment(connection, new Enrollment(null, historicalOffering.offeringId(),
@@ -296,7 +297,7 @@ class CourseManagementServiceTest {
     }
 
     @Test void updatesCourseAndOfferingWithDatabaseReadbackAndVersion() {
-        TermView term=service.createTerm(termCommand()); CourseView course=service.createCourse(courseCommand("CS101","程序设计"));
+        TermView term=activateEnrollmentPhase(service.createTerm(termCommand())); CourseView course=service.createCourse(courseCommand("CS101","程序设计"));
         CourseView changed=service.updateCourse(new UpdateCourseCommand(course.courseId(),"CS102","高级程序设计",BigDecimal.valueOf(4),64,"更新说明",false,0));
         var persistedCourse=transactions.inTransaction(c->repository.requireCourse(c,course.courseId()));
         assertThat(changed.rowVersion()).isEqualTo(1); assertThat(persistedCourse).extracting(Course::courseCode,Course::courseName,Course::credit,Course::totalHours,Course::description,Course::active,Course::rowVersion).containsExactly("CS102","高级程序设计",new BigDecimal("4.0"),64,"更新说明",false,1L);
@@ -307,18 +308,39 @@ class CourseManagementServiceTest {
         List<Schedule> persistedSchedules=transactions.inTransaction(c->repository.findSchedules(c,offering.offeringId())); assertThat(persistedSchedules).singleElement().extracting(Schedule::dayOfWeek,Schedule::classroom).containsExactly(DayOfWeek.TUESDAY,"教二-202");
     }
 
-    @Test void rejectsNonTeacherAndMissingTermWithoutRowsOrPartialUpdates(){
+    @Test void offeringCreationUsesActiveTermAndUpdatePreservesIt() {
+        TermView planned = service.createTerm(termCommand());
+        TermView active = service.updateTerm(new UpdateTermCommand(planned.termId(), planned.termCode(),
+                planned.termName(), planned.startDate(), planned.endDate(), planned.enrollmentStartAt(),
+                planned.enrollmentEndAt(), planned.adjustmentStartAt(), planned.adjustmentEndAt(),
+                "ACTIVE", planned.rowVersion()));
+        CourseView course = service.createCourse(courseCommand("CS108", "离散数学"));
+
+        OfferingView created = service.createOffering(new CreateOfferingCommand(course.courseId(),
+                "teacher-1", "01班", 30, 5, "OPEN", List.of()));
+        OfferingView updated = service.updateOffering(new UpdateOfferingCommand(created.offeringId(),
+                course.courseId(), "teacher-1", "02班", 35, 5, "OPEN", created.rowVersion(),
+                List.of()));
+
+        assertThat(created.termId()).isEqualTo(active.termId());
+        assertThat(updated.termId()).isEqualTo(active.termId());
+    }
+
+    @Test void rejectsNonTeacherAndRequiresAnActiveTermWithoutPartialRows(){
         TermView term=service.createTerm(termCommand()); CourseView course=service.createCourse(courseCommand("CS101","程序设计")); var input=new CreateOfferingCommand.ScheduleInput("MONDAY",1,2,1,16,"教室");
-        assertThatThrownBy(()->service.createOffering(new CreateOfferingCommand(term.termId(),course.courseId(),"not-teacher","坏班",10,"OPEN",List.of(input)))).isInstanceOf(RuntimeException.class);
-        assertThatThrownBy(()->service.createOffering(new CreateOfferingCommand("missing",course.courseId(),"teacher-1","坏班",10,"OPEN",List.of(input)))).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(()->service.createOffering(new CreateOfferingCommand(course.courseId(),"not-teacher","坏班",10,"OPEN",List.of(input)))).isInstanceOf(RuntimeException.class);
+        assertThatThrownBy(()->service.createOffering(new CreateOfferingCommand(course.courseId(),"teacher-1","坏班",10,"OPEN",List.of(input)))).isInstanceOf(IllegalStateException.class);
         List<Offering> rejected=transactions.inTransaction(c->repository.findOfferingsByTerm(c,term.termId())); assertThat(rejected).isEmpty();
-        OfferingView good=service.createOffering(new CreateOfferingCommand(term.termId(),course.courseId(),"teacher-1","好班",10,"OPEN",List.of(input)));
-        assertThatThrownBy(()->service.updateOffering(new UpdateOfferingCommand(good.offeringId(),"missing",course.courseId(),"teacher-1","坏更新",20,"CLOSED",0,List.of(input)))).isInstanceOf(IllegalStateException.class);
+        service.updateTerm(new UpdateTermCommand(term.termId(), term.termCode(), term.termName(),
+                term.startDate(), term.endDate(), term.enrollmentStartAt(), term.enrollmentEndAt(),
+                term.adjustmentStartAt(), term.adjustmentEndAt(), "ACTIVE", term.rowVersion()));
+        OfferingView good=service.createOffering(new CreateOfferingCommand(course.courseId(),"teacher-1","好班",10,"OPEN",List.of(input)));
+        assertThatThrownBy(()->service.updateOffering(new UpdateOfferingCommand(good.offeringId(),"missing-course","teacher-1","坏更新",20,"CLOSED",0,List.of(input)))).isInstanceOf(IllegalStateException.class);
         Offering unchanged=transactions.inTransaction(c->repository.requireOffering(c,good.offeringId())); assertThat(unchanged).extracting(Offering::className,Offering::rowVersion).containsExactly("好班",0L);
     }
 
     @Test void offeringAggregateUsesRealCourseLabelsAndRollsBackInvalidReferences() {
-        TermView term = service.createTerm(termCommand());
+        TermView term = activateEnrollmentPhase(service.createTerm(termCommand()));
         CourseView course = service.createCourse(courseCommand("CS101", "程序设计"));
         var schedule = new CreateOfferingCommand.ScheduleInput("MONDAY", 1, 2, 1, 16, "教一-101");
 
@@ -337,7 +359,7 @@ class CourseManagementServiceTest {
         assertThat(persisted.rowVersion()).isZero();
     }
 
-    @Test void enrolledOfferingCannotMoveAcrossTermsCoursesOrSchedules() {
+    @Test void enrolledOfferingCannotChangeCourseOrSchedulesAndKeepsItsTerm() {
         TermView originalTerm = activateEnrollmentPhase(service.createTerm(termCommand()));
         TermView otherTerm = service.createTerm(new CreateTermCommand(
                 "2026-2", "春季", LocalDate.of(2027, 2, 20), LocalDate.of(2027, 7, 1),
@@ -352,8 +374,6 @@ class CourseManagementServiceTest {
         service.enroll("student", new EnrollCommand(offering.offeringId()));
 
         List<UpdateOfferingCommand> invalidChanges = List.of(
-                new UpdateOfferingCommand(offering.offeringId(), otherTerm.termId(), originalCourse.courseId(),
-                        "teacher-1", "01班", 30, "OPEN", 1, List.of(monday)),
                 new UpdateOfferingCommand(offering.offeringId(), originalTerm.termId(), otherCourse.courseId(),
                         "teacher-1", "01班", 30, "OPEN", 1, List.of(monday)),
                 new UpdateOfferingCommand(offering.offeringId(), originalTerm.termId(), originalCourse.courseId(),
@@ -399,7 +419,7 @@ class CourseManagementServiceTest {
     }
 
     @Test void exposesServerPhaseAndFilteredPagedAdjustmentAudit() {
-        TermView term = service.createTerm(termCommand());
+        TermView term = activateEnrollmentPhase(service.createTerm(termCommand()));
         CourseView course = service.createCourse(courseCommand("CS101", "程序设计"));
         OfferingView offering = service.createOffering(new CreateOfferingCommand(term.termId(), course.courseId(),
                 "teacher-1", "01班", 30, "OPEN", List.of()));

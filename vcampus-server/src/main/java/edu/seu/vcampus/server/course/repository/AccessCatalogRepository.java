@@ -59,10 +59,10 @@ final class AccessCatalogRepository {
     }
 
     Course insertCourse(Connection c, Course course) {
-        Instant now = Instant.now(); Course saved = new Course(CourseJdbc.id(course.courseId()), course.courseCode(), course.courseName(), course.credit(), course.totalHours(), course.description(), course.active(), 0, now, now);
-        String sql = "INSERT INTO tblCourse (courseId, courseCode, courseName, credit, totalHours, description, isActive, rowVersion, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        Instant now = Instant.now(); Course saved = new Course(CourseJdbc.id(course.courseId()), course.courseCode(), course.courseName(), course.departmentId(), course.departmentName(), course.credit(), course.totalHours(), course.description(), course.active(), 0, now, now);
+        String sql = "INSERT INTO tblCourse (courseId, courseCode, courseName, departmentId, departmentName, credit, totalHours, description, isActive, rowVersion, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (PreparedStatement s = c.prepareStatement(sql)) {
-            s.setString(1, saved.courseId()); s.setString(2, saved.courseCode()); s.setString(3, saved.courseName()); s.setBigDecimal(4, saved.credit()); s.setInt(5, saved.totalHours()); s.setString(6, saved.description()); s.setBoolean(7, saved.active()); s.setLong(8, 0); s.setTimestamp(9, CourseJdbc.timestamp(now)); s.setTimestamp(10, CourseJdbc.timestamp(now)); s.executeUpdate(); return saved;
+            s.setString(1, saved.courseId()); s.setString(2, saved.courseCode()); s.setString(3, saved.courseName()); s.setString(4, saved.departmentId()); s.setString(5, saved.departmentName()); s.setBigDecimal(6, saved.credit()); s.setInt(7, saved.totalHours()); s.setString(8, saved.description()); s.setBoolean(9, saved.active()); s.setLong(10, 0); s.setTimestamp(11, CourseJdbc.timestamp(now)); s.setTimestamp(12, CourseJdbc.timestamp(now)); s.executeUpdate(); return saved;
         } catch (SQLException error) { throw CourseJdbc.failure("insert course", error); }
     }
 
@@ -86,7 +86,7 @@ final class AccessCatalogRepository {
         try (PreparedStatement s = c.prepareStatement(sql)) {
             s.setString(1, course.courseCode()); s.setString(2, course.courseName()); s.setBigDecimal(3, course.credit()); s.setInt(4, course.totalHours()); s.setString(5, course.description()); s.setBoolean(6, course.active()); s.setLong(7, expected + 1); s.setTimestamp(8, CourseJdbc.timestamp(now)); s.setString(9, course.courseId()); s.setLong(10, expected);
             if (s.executeUpdate() != 1) throw CourseJdbc.stale("course", course.courseId());
-            return new Course(course.courseId(), course.courseCode(), course.courseName(), course.credit(), course.totalHours(), course.description(), course.active(), expected + 1, course.createdAt(), now);
+            return new Course(course.courseId(), course.courseCode(), course.courseName(), course.departmentId(), course.departmentName(), course.credit(), course.totalHours(), course.description(), course.active(), expected + 1, course.createdAt(), now);
         } catch (SQLException error) { throw CourseJdbc.failure("update course", error); }
     }
 
@@ -101,6 +101,9 @@ final class AccessCatalogRepository {
     }
 
     private static Course course(ResultSet r) throws SQLException {
-        return new Course(r.getString("courseId"), r.getString("courseCode"), r.getString("courseName"), r.getBigDecimal("credit"), r.getInt("totalHours"), r.getString("description"), r.getBoolean("isActive"), r.getLong("rowVersion"), CourseJdbc.instant(r, "createdAt"), CourseJdbc.instant(r, "updatedAt"));
+        return new Course(r.getString("courseId"), r.getString("courseCode"), r.getString("courseName"),
+                r.getString("departmentId"), r.getString("departmentName"), r.getBigDecimal("credit"),
+                r.getInt("totalHours"), r.getString("description"), r.getBoolean("isActive"),
+                r.getLong("rowVersion"), CourseJdbc.instant(r, "createdAt"), CourseJdbc.instant(r, "updatedAt"));
     }
 }

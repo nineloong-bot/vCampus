@@ -110,7 +110,8 @@ public final class AccessCurriculumRepository implements CurriculumRepository {
         String sql = "SELECT pc.planCourseId,pc.planId,c.courseId,pc.semester,pc.courseType,"
                 + "pc.courseNature,pc.courseCategory,pc.offeringUnit FROM tblTrainingPlanCourse pc "
                 + "INNER JOIN tblCourse c ON pc.courseCode=c.courseCode "
-                + "WHERE pc.planId=? AND pc.isActive=TRUE ORDER BY pc.semester,c.courseCode";
+                + "WHERE pc.planId=? AND pc.isActive=TRUE AND pc.semester BETWEEN 1 AND 8 "
+                + "ORDER BY pc.semester,c.courseCode";
         try (PreparedStatement s = c.prepareStatement(sql)) {
             s.setString(1, planId);
             try (ResultSet r = s.executeQuery()) { while (r.next()) values.add(course(r)); }
@@ -126,26 +127,25 @@ public final class AccessCurriculumRepository implements CurriculumRepository {
 
     private static CurriculumCourse course(ResultSet r) throws SQLException {
         int semester = r.getInt("semester");
+        if (semester < 1 || semester > 8) {
+            throw new SQLException("training-plan semester must be between 1 and 8");
+        }
         String nature = r.getString("courseNature");
         if (nature == null) nature = r.getString("courseType");
         String category = r.getString("courseCategory");
         String unit = r.getString("offeringUnit");
         return new CurriculumCourse(r.getString("planCourseId"), r.getString("planId"),
-                r.getString("courseId"), (semester - 1) / 3 + 1, season(semester), nature,
+                r.getString("courseId"), (semester - 1) / 2 + 1, season(semester), nature,
                 category == null ? "培养方案课程" : category,
                 unit == null ? "专业所在院系" : unit);
     }
 
     private static int ordinal(int academicYearNo, AcademicSeason season) {
-        return (academicYearNo - 1) * 3 + season.curriculumTermOrdinal();
+        return (academicYearNo - 1) * 2 + season.curriculumTermOrdinal();
     }
 
     private static AcademicSeason season(int semester) {
-        return switch ((semester - 1) % 3 + 1) {
-            case 1 -> AcademicSeason.SUMMER;
-            case 2 -> AcademicSeason.AUTUMN;
-            default -> AcademicSeason.SPRING;
-        };
+        return semester % 2 == 1 ? AcademicSeason.AUTUMN : AcademicSeason.SPRING;
     }
 
     private static boolean hasCanonicalTables(Connection connection) {

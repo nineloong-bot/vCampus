@@ -91,6 +91,7 @@ class LoginCourseSocketIntegrationTest {
         insertUser(connections, "admin-user-002", "ADMIN2", UserRole.SUPER_ADMIN, false);
         insertUser(connections, "course-admin-user", "COURSEADMIN", UserRole.COURSE_ADMIN, false);
         insertUser(connections, "restricted-user-001", "RESTRICTED1", UserRole.SUPER_ADMIN, true);
+        closeSeededActiveTerm();
 
         server = new SocketServer(0, 4, 20, runtime.router());
         serverThread = Executors.newSingleThreadExecutor();
@@ -379,7 +380,7 @@ class LoginCourseSocketIntegrationTest {
                     credits, courseType, semester, courseNature, courseCategory, offeringUnit,
                     isActive, rowVersion, createdAt, updatedAt)
                 SELECT ?, '00000000-0000-0000-0000-000000000301', courseCode, courseName,
-                    credit, 'REQUIRED', 11, 'REQUIRED', '专业核心课',
+                    credit, 'REQUIRED', 7, 'REQUIRED', '专业核心课',
                     '计算机科学与工程学院', TRUE, 0, NOW(), NOW()
                 FROM tblCourse WHERE courseId=?
                 """)) {
@@ -388,6 +389,14 @@ class LoginCourseSocketIntegrationTest {
             statement.executeUpdate();
         } catch (Exception error) {
             throw new AssertionError(error);
+        }
+    }
+
+    private void closeSeededActiveTerm() throws Exception {
+        try (var database = connections.open();
+             var statement = database.prepareStatement(
+                     "UPDATE tblTerm SET termStatus='CLOSED' WHERE termStatus='ACTIVE'")) {
+            statement.executeUpdate();
         }
     }
 

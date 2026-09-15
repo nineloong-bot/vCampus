@@ -88,7 +88,7 @@ public interface CourseUiGateway {
         List<OfferingSummary> offerings = schedule.stream().map(item -> new OfferingSummary(
                 item.offeringId(), "2026-autumn", switch (item.courseCode()) {
                     case "B09D0012" -> "c1"; case "B09G0011" -> "c2"; default -> "c3";
-                }, item.courseCode(), item.courseName(),
+                }, item.courseCode(), item.courseName(), "计算机科学与工程学院",
                 item.teacherUserId(), item.className(), 40, 28, 8, 2, "OPEN", 0, List.of(item))).toList();
         return new CourseUiGateway() {
             public CompletableFuture<StudentSelectionContextView> studentSelectionContext() {
@@ -225,12 +225,12 @@ public interface CourseUiGateway {
                         command.termStatus(), command.expectedVersion() + 1, java.time.Instant.now(), java.time.Instant.now()));
             }
             public CompletableFuture<OfferingView> createOffering(CreateOfferingCommand command) {
-                return CompletableFuture.completedFuture(new OfferingView("preview-created-offering", command.termId(),
+                return CompletableFuture.completedFuture(new OfferingView("preview-created-offering", "2026-autumn",
                         command.courseId(), command.teacherUserId(), command.className(), command.capacity(), 0,
                         command.offeringStatus(), 0, java.time.Instant.now(), java.time.Instant.now(), List.of()));
             }
             public CompletableFuture<OfferingView> updateOffering(UpdateOfferingCommand command) {
-                return CompletableFuture.completedFuture(new OfferingView(command.offeringId(), command.termId(),
+                return CompletableFuture.completedFuture(new OfferingView(command.offeringId(), "2026-autumn",
                         command.courseId(), command.teacherUserId(), command.className(), command.capacity(), 0,
                         command.offeringStatus(), command.expectedVersion() + 1, java.time.Instant.now(),
                         java.time.Instant.now(), List.of()));

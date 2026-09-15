@@ -40,6 +40,16 @@ class CourseRepositoryTest {
     }
 
     @Test
+    void readsOpeningDepartmentFromTheCatalogCourse() {
+        seedCatalog();
+
+        Course course = repository.requireCourse(connection, "course-1");
+
+        assertThat(course.departmentId()).isEqualTo("department-1");
+        assertThat(course.departmentName()).isEqualTo("计算机科学与工程学院");
+    }
+
+    @Test
     void storesAndOptimisticallyUpdatesSelectionPhase() {
         seedCatalog();
         SelectionPhase draft = repository.insertSelectionPhase(connection, new SelectionPhase(
@@ -255,7 +265,8 @@ class CourseRepositoryTest {
         repository.insertTerm(connection, new Term("term-1", "2026-2027-1", "Autumn", LocalDate.of(2026, 9, 1),
                 LocalDate.of(2027, 1, 15), Instant.parse("2026-08-01T00:00:00Z"), Instant.parse("2026-08-20T00:00:00Z"),
                 Instant.parse("2026-09-01T00:00:00Z"), Instant.parse("2026-09-10T00:00:00Z"), "PLANNED", 99, null, null));
-        repository.insertCourse(connection, new Course("course-1", "CS101", "Programming", java.math.BigDecimal.valueOf(3.0), 48,
+        repository.insertCourse(connection, new Course("course-1", "CS101", "Programming",
+                "department-1", "计算机科学与工程学院", java.math.BigDecimal.valueOf(3.0), 48,
                 "intro", true, 99, null, null));
     }
 

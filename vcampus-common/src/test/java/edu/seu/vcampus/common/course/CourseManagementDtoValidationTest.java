@@ -26,13 +26,12 @@ class CourseManagementDtoValidationTest {
 
  @Test void offeringAndEnrollmentCommandsEnforceIdentifierAndLabelWidths(){
   var validSchedule=java.util.List.of(new CreateOfferingCommand.ScheduleInput("MONDAY",1,2,1,16,"R".repeat(64)));
-  assertThatCode(()->new CreateOfferingCommand("t".repeat(36),"c".repeat(36),"u".repeat(36),"N".repeat(64),20,"OPEN",validSchedule)).doesNotThrowAnyException();
-  assertThatThrownBy(()->new CreateOfferingCommand("t".repeat(37),"c","u","N",20,"OPEN",validSchedule)).isInstanceOf(IllegalArgumentException.class);
-  assertThatThrownBy(()->new CreateOfferingCommand("t","c".repeat(37),"u","N",20,"OPEN",validSchedule)).isInstanceOf(IllegalArgumentException.class);
-  assertThatThrownBy(()->new CreateOfferingCommand("t","c","u".repeat(37),"N",20,"OPEN",validSchedule)).isInstanceOf(IllegalArgumentException.class);
-  assertThatThrownBy(()->new CreateOfferingCommand("t","c","u","N".repeat(65),20,"OPEN",validSchedule)).isInstanceOf(IllegalArgumentException.class);
+  assertThatCode(()->new CreateOfferingCommand("c".repeat(36),"u".repeat(36),"N".repeat(64),20,"OPEN",validSchedule)).doesNotThrowAnyException();
+  assertThatThrownBy(()->new CreateOfferingCommand("c".repeat(37),"u","N",20,"OPEN",validSchedule)).isInstanceOf(IllegalArgumentException.class);
+  assertThatThrownBy(()->new CreateOfferingCommand("c","u".repeat(37),"N",20,"OPEN",validSchedule)).isInstanceOf(IllegalArgumentException.class);
+  assertThatThrownBy(()->new CreateOfferingCommand("c","u","N".repeat(65),20,"OPEN",validSchedule)).isInstanceOf(IllegalArgumentException.class);
   assertThatThrownBy(()->new CreateOfferingCommand.ScheduleInput("MONDAY",1,2,1,16,"R".repeat(65))).isInstanceOf(IllegalArgumentException.class);
-  assertThatThrownBy(()->new UpdateOfferingCommand("o".repeat(37),"t","c","u","N",20,"OPEN",0,java.util.List.of())).isInstanceOf(IllegalArgumentException.class);
+  assertThatThrownBy(()->new UpdateOfferingCommand("o".repeat(37),"c","u","N",20,"OPEN",0,java.util.List.of())).isInstanceOf(IllegalArgumentException.class);
   assertThatThrownBy(()->new EnrollCommand("o".repeat(37))).isInstanceOf(IllegalArgumentException.class);
   assertThatThrownBy(()->new LateAddCommand("o".repeat(37))).isInstanceOf(IllegalArgumentException.class);
   assertThatThrownBy(()->new DropCommand("e".repeat(37),0)).isInstanceOf(IllegalArgumentException.class);

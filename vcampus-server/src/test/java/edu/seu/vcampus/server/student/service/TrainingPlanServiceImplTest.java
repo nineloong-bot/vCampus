@@ -167,13 +167,21 @@ class TrainingPlanServiceImplTest {
     }
 
     @Test
-    void acceptsFourthYearSummerAsTwelfthPositionModel() {
+    void acceptsEighthSemesterAndRejectsNinthSemester() {
         var plan = service.savePlan(new SaveTrainingPlanCommand(null, "major-1", 2024,
                 "2024级培养方案", 2, new BigDecimal("10.0"), true, 0), "admin");
-        var command = new SaveTrainingPlanCourseCommand(plan.planId(), null, "CS-SUMMER",
-                "暑期专业实践", new BigDecimal("2.0"), CourseType.ELECTIVE, 10, true, 0);
+        var eighth = new SaveTrainingPlanCourseCommand(plan.planId(), null, "CS-8",
+                "毕业设计", new BigDecimal("2.0"), CourseType.ELECTIVE, 8, true, 0);
+        var ninth = new SaveTrainingPlanCourseCommand(plan.planId(), null, "CS-9",
+                "超出学制课程", new BigDecimal("2.0"), CourseType.ELECTIVE, 9, true, 0);
 
-        assertThat(service.saveCourse(command, "admin").semester()).isEqualTo(10);
+        assertThat(service.saveCourse(eighth, "admin").semester()).isEqualTo(8);
+        assertThatIllegalArgumentException().isThrownBy(() -> service.saveCourse(ninth, "admin"))
+                .withMessage("semester must be 1-8");
+        assertThatIllegalArgumentException().isThrownBy(() -> service.submitCrossCourseApplication(
+                new edu.seu.vcampus.common.student.SubmitCrossCourseApplicationCommand(
+                        "course-math-01", plan.planId(), 9, 20, "超出学制"), "admin"))
+                .withMessage("开设学期必须在 1-8 之间");
     }
 
     private static SaveTrainingPlanCourseCommand courseCommand(String planId, String code) {

@@ -19,7 +19,7 @@ class CourseAdminDtoTest {
     }
 
     @Test void updateValidatesAllAggregateFields() {
-        assertThatThrownBy(() -> new UpdateOfferingCommand("o", "", "c", "teacher", "A", 20,
+        assertThatThrownBy(() -> new UpdateOfferingCommand("o", "", "teacher", "A", 20,
                 "OPEN", 0, List.of())).isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -32,7 +32,14 @@ class CourseAdminDtoTest {
                 Instant.EPOCH, Instant.EPOCH);
 
         assertThat(term.academicYearStart()).isEqualTo(2026);
-        assertThat(term.season().curriculumTermOrdinal()).isEqualTo(2);
+        assertThat(term.season().curriculumTermOrdinal()).isEqualTo(1);
+        assertThat(AcademicSeason.SPRING.curriculumTermOrdinal()).isEqualTo(2);
+        assertThat(AcademicSeason.fromStartMonth(9)).isEqualTo(AcademicSeason.AUTUMN);
+        assertThat(AcademicSeason.fromStartMonth(2)).isEqualTo(AcademicSeason.SPRING);
+        assertThatThrownBy(() -> AcademicSeason.fromStartMonth(7))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> AcademicSeason.fromStartMonth(8))
+                .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new CreateTermCommand("bad", "bad", term.startDate(),
                 term.endDate(), 1999, AcademicSeason.AUTUMN, term.enrollmentStartAt(),
                 term.enrollmentEndAt(), term.adjustmentStartAt(), term.adjustmentEndAt(), "ACTIVE"))
@@ -54,11 +61,11 @@ class CourseAdminDtoTest {
     }
 
     private static CreateOfferingCommand offering(String status, List<CreateOfferingCommand.ScheduleInput> schedules) {
-        return new CreateOfferingCommand("term", "course", "teacher", "A", 20, status, schedules);
+        return new CreateOfferingCommand("course", "teacher", "A", 20, status, schedules);
     }
 
     private static CreateOfferingCommand offeringWithRetakeCapacity(int retakeCapacity) {
-        return new CreateOfferingCommand("term", "course", "teacher", "A", 20,
+        return new CreateOfferingCommand("course", "teacher", "A", 20,
                 retakeCapacity, "OPEN", List.of());
     }
 

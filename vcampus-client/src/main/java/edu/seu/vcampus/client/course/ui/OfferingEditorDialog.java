@@ -10,7 +10,6 @@ import edu.seu.vcampus.common.course.CourseView;
 import edu.seu.vcampus.common.course.CreateOfferingCommand;
 import edu.seu.vcampus.common.course.OfferingSummary;
 import edu.seu.vcampus.common.course.OfferingView;
-import edu.seu.vcampus.common.course.TermView;
 import edu.seu.vcampus.common.course.UpdateOfferingCommand;
 import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.user.UserSummary;
@@ -45,7 +44,6 @@ final class OfferingEditorDialog extends JDialog {
     private final CourseUiGateway gateway;
     private final OfferingSummary existing;
     private final Runnable onSaved;
-    private final JComboBox<OfferingReferenceChoice> term = combo("学期");
     private final JComboBox<OfferingReferenceChoice> course = combo("课程");
     private final JComboBox<OfferingReferenceChoice> teacher = combo("教师");
     private final JTextField courseKeyword = field("课程关键字");
@@ -55,7 +53,7 @@ final class OfferingEditorDialog extends JDialog {
     private final JSpinner retakeCapacity;
     private final JComboBox<StatusChoice> status = new JComboBox<>(StatusChoice.values());
     private final OfferingScheduleEditorPanel schedules = new OfferingScheduleEditorPanel();
-    private final JLabel referenceStatus = label("正在加载学期、课程和教师，请稍候…", UiColors.TEXT_SECONDARY);
+    private final JLabel referenceStatus = label("正在加载课程和教师，请稍候…", UiColors.TEXT_SECONDARY);
     private final JLabel error = label(" ", UiColors.ACCENT);
     private final JButton retry = AbstractCoursePanel.secondary("重试加载");
     private final JButton save;
@@ -115,10 +113,10 @@ final class OfferingEditorDialog extends JDialog {
         panel.setOpaque(false);
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
         panel.add(referenceLine());
-        panel.add(pair("学期（必填）", term, "课程（必填）", course));
+        panel.add(pair("课程（必填）", course, "教师（必填）", teacher));
         panel.add(searchLine("课程关键字", courseKeyword, "查询课程"));
-        panel.add(pair("教师（必填）", teacher, "教学班名称（必填）", className));
         panel.add(searchLine("教师关键字", teacherKeyword, "查询教师"));
+        panel.add(row("教学班名称（必填）", className));
         status.setFont(UiTypography.BODY);
         status.setMaximumSize(new Dimension(Integer.MAX_VALUE, UiDimensions.CONTROL_HEIGHT));
         status.getAccessibleContext().setAccessibleName("教学班状态");
@@ -203,28 +201,23 @@ final class OfferingEditorDialog extends JDialog {
         referenceReady = false;
         save.setEnabled(false);
         retry.setEnabled(false);
-        referenceStatus.setText("正在加载学期、课程和教师，请稍候…");
+        referenceStatus.setText("正在加载课程和教师，请稍候…");
         error.setText(" ");
         long request = ++referenceSequence;
         String courseSearch = courseKeyword.getText().trim();
         String teacherSearch = teacherKeyword.getText().trim();
         if (courseSearch.isEmpty() && existing != null) courseSearch = existing.courseCode();
 
-        CompletableFuture<String> selectedTerm = existing == null
-                ? gateway.currentTermId() : CompletableFuture.completedFuture(existing.termId());
         CompletableFuture<Optional<UserSummary>> existingTeacher = existing == null
                 || resolvedExistingTeacher != null
                 ? CompletableFuture.completedFuture(Optional.empty())
                 : gateway.resolveTeacher(existing.teacherUserId());
-        CompletableFuture<ReferenceData> loaded = gateway.listTerms()
-                .thenCombine(selectedTerm, TermAndCurrent::new)
-                .thenCombine(gateway.searchCatalog(new CourseCatalogQuery(courseSearch, true, 0, 100)),
-                        (termData, courses) -> new PartialReferenceData(termData, courses))
+        CompletableFuture<ReferenceData> loaded = gateway
+                .searchCatalog(new CourseCatalogQuery(courseSearch, true, 0, 100))
                 .thenCombine(gateway.searchTeachers(teacherSearch),
-                        (partial, teachers) -> new ReferenceData(
-                                partial.termData(), partial.courses(), teachers, Optional.empty()))
+                        (courses, teachers) -> new ReferenceData(courses, teachers, Optional.empty()))
                 .thenCombine(existingTeacher, (data, resolved) -> new ReferenceData(
-                        data.termData(), data.courses(), data.teachers(), resolved));
+                        data.courses(), data.teachers(), resolved));
         loaded.whenComplete((data, failure) -> SwingUtilities.invokeLater(() -> {
             if (!active || referenceSequence != request) return;
             if (failure != null) {
@@ -233,10 +226,9 @@ final class OfferingEditorDialog extends JDialog {
                 return;
             }
             installReferences(data);
-            referenceReady = term.getSelectedItem() != null
-                    && course.getSelectedItem() != null && teacher.getSelectedItem() != null;
+            referenceReady = course.getSelectedItem() != null && teacher.getSelectedItem() != null;
             referenceStatus.setText(referenceReady
-                    ? "参考数据已就绪" : "请选择有结果的学期、课程和教师");
+                    ? "参考数据已就绪" : "请选择有结果的课程和教师");
             save.setEnabled(referenceReady);
         }));
     }
@@ -244,26 +236,17 @@ final class OfferingEditorDialog extends JDialog {
     private void installReferences(ReferenceData data) {
         data.existingTeacher().ifPresent(value -> resolvedExistingTeacher =
                 new OfferingReferenceChoice(value.userId(), value.loginId()));
-        OfferingReferenceChoice currentTerm = selectedChoice(term);
         OfferingReferenceChoice currentCourse = selectedChoice(course);
         OfferingReferenceChoice currentTeacher = selectedChoice(teacher);
-        String desiredTerm = currentTerm == null && existing != null ? existing.termId() : id(currentTerm);
         String desiredCourse = currentCourse == null && existing != null ? existing.courseId() : id(currentCourse);
         String desiredTeacher = currentTeacher == null && existing != null ? existing.teacherUserId() : id(currentTeacher);
-        if (desiredTerm == null) desiredTerm = data.termData().currentTermId();
 
-        List<OfferingReferenceChoice> terms = data.termData().terms().stream()
-                .map(value -> new OfferingReferenceChoice(value.termId(), value.termName() + " · " + value.termCode()))
-                .toList();
         List<OfferingReferenceChoice> courses = data.courses().items().stream()
                 .map(value -> new OfferingReferenceChoice(value.courseId(), value.courseCode() + " · " + value.courseName()))
                 .toList();
         List<OfferingReferenceChoice> teachers = data.teachers().items().stream()
                 .map(value -> new OfferingReferenceChoice(value.userId(), value.loginId()))
                 .toList();
-        installChoices(term, terms, desiredTerm,
-                currentTerm != null ? currentTerm : existing == null
-                        ? null : new OfferingReferenceChoice(existing.termId(), existing.termId()));
         installChoices(course, courses, desiredCourse,
                 currentCourse != null ? currentCourse : existing == null ? null
                         : new OfferingReferenceChoice(existing.courseId(),
@@ -293,7 +276,6 @@ final class OfferingEditorDialog extends JDialog {
         }
         CompletableFuture<OfferingView> request;
         try {
-            String cleanTerm = requiredChoice(term, "请选择学期");
             String cleanCourse = requiredChoice(course, "请选择课程");
             String cleanTeacher = requiredChoice(teacher, "请选择教师");
             String cleanClass = required(className, "请输入教学班名称");
@@ -309,10 +291,10 @@ final class OfferingEditorDialog extends JDialog {
             StatusChoice cleanStatus = (StatusChoice) status.getSelectedItem();
             List<CreateOfferingCommand.ScheduleInput> cleanSchedules = schedules.scheduleInputs();
             if (existing == null) {
-                request = gateway.createOffering(new CreateOfferingCommand(cleanTerm, cleanCourse, cleanTeacher,
+                request = gateway.createOffering(new CreateOfferingCommand(cleanCourse, cleanTeacher,
                         cleanClass, cleanCapacity, cleanRetakeCapacity, cleanStatus.code(), cleanSchedules));
             } else {
-                request = gateway.updateOffering(new UpdateOfferingCommand(existing.offeringId(), cleanTerm,
+                request = gateway.updateOffering(new UpdateOfferingCommand(existing.offeringId(),
                         cleanCourse, cleanTeacher, cleanClass, cleanCapacity, cleanRetakeCapacity, cleanStatus.code(),
                         existing.rowVersion(), cleanSchedules));
             }
@@ -451,9 +433,7 @@ final class OfferingEditorDialog extends JDialog {
         @Override public String toString() { return label; }
     }
 
-    private record TermAndCurrent(List<TermView> terms, String currentTermId) { }
-    private record PartialReferenceData(TermAndCurrent termData, PageResult<CourseView> courses) { }
-    private record ReferenceData(TermAndCurrent termData, PageResult<CourseView> courses,
+    private record ReferenceData(PageResult<CourseView> courses,
                                  PageResult<UserSummary> teachers,
                                  Optional<UserSummary> existingTeacher) { }
 

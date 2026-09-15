@@ -2,9 +2,9 @@ package edu.seu.vcampus.common.course;
 
 import java.io.Serializable;
 
-/** Academic season mapped to the three term columns used by the curriculum plan. */
+/** Academic season mapped to the two terms in each curriculum year. */
 public enum AcademicSeason implements Serializable {
-    SUMMER(1, "暑期"), AUTUMN(2, "秋季"), SPRING(3, "春季");
+    AUTUMN(1, "秋季"), SPRING(2, "春季");
 
     private final int curriculumTermOrdinal;
     private final String displayName;
@@ -18,8 +18,8 @@ public enum AcademicSeason implements Serializable {
     public String displayName() { return displayName; }
 
     public static AcademicSeason fromStartMonth(int month) {
-        if (month >= 7 && month <= 8) return SUMMER;
-        if (month >= 9) return AUTUMN;
-        return SPRING;
+        if (month >= 9 && month <= 12) return AUTUMN;
+        if (month >= 1 && month <= 6) return SPRING;
+        throw new IllegalArgumentException("July and August are not teaching terms");
     }
 }

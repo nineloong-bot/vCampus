@@ -75,9 +75,9 @@ final class LegacyCurriculumRepository implements CurriculumRepository {
 
     @Override public List<CurriculumCourse> findEarlierCourses(
             Connection c, String planId, int year, AcademicSeason season) {
-        int current = (year - 1) * 3 + season.curriculumTermOrdinal();
+        int current = (year - 1) * 2 + season.curriculumTermOrdinal();
         return findCourses(c, planId).stream().filter(course ->
-                (course.academicYearNo() - 1) * 3
+                (course.academicYearNo() - 1) * 2
                         + course.season().curriculumTermOrdinal() < current).toList();
     }
 

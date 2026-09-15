@@ -1887,7 +1887,11 @@ class CourseUiTest {
         assertThat(captured.get()).isEqualTo(new OfferingSearchQuery("2026-autumn", "", null, false, 0, 50));
         assertThat(table.getRowCount()).isEqualTo(3);
         assertThat(table.getValueAt(0, 0)).isEqualTo("B09D0012");
-        assertThat(table.getValueAt(0, 6)).isEqualTo("开放");
+        assertThat(IntStream.range(0, table.getColumnCount()).mapToObj(table::getColumnName))
+                .containsExactly("课程代码", "课程名称", "教学班", "授课教师", "开课学院", "容量", "已选", "状态");
+        assertThat(table.getValueAt(0, 4)).isEqualTo("计算机科学与工程学院");
+        assertThat(table.getValueAt(0, 7)).isEqualTo("开放");
+        assertThat(textField(panel, "学期编号").isEditable()).isFalse();
         assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.NORMAL);
     }
 
@@ -2210,7 +2214,7 @@ class CourseUiTest {
         CourseUiGateway gateway = new DelegatingCourseUiGateway(CourseUiGateway.preview()) {
             @Override public CompletableFuture<OfferingView> createOffering(CreateOfferingCommand command) {
                 submitted.set(command);
-                return CompletableFuture.completedFuture(new OfferingView("new-offering", command.termId(),
+                return CompletableFuture.completedFuture(new OfferingView("new-offering", "2026-autumn",
                         command.courseId(), command.teacherUserId(), command.className(), command.capacity(), 0,
                         command.offeringStatus(), 0, Instant.now(), Instant.now(), List.of()));
             }
@@ -2225,11 +2229,10 @@ class CourseUiTest {
         OfferingEditorDialog dialog = onEdt(() -> new OfferingEditorDialog(null, gateway, null, () -> { }));
         flushEdt(4);
 
-        JComboBox<?> terms = component(dialog, "学期", JComboBox.class);
         JComboBox<?> courses = component(dialog, "课程", JComboBox.class);
         JComboBox<?> teachers = component(dialog, "教师", JComboBox.class);
         JComboBox<?> status = component(dialog, "教学班状态", JComboBox.class);
-        assertThat(terms.getSelectedItem().toString()).contains("2026—2027学年秋季学期");
+        assertThat(component(dialog, "学期", JComboBox.class)).isNull();
         assertThat(courses.getItemAt(0).toString()).contains("B09D0012", "数据库原理");
         assertThat(teachers.getItemAt(0).toString()).contains("zhang.teacher");
         assertThat(status.getItemAt(0).toString()).isEqualTo("草稿");
@@ -2246,13 +2249,13 @@ class CourseUiTest {
         flushEdt(2);
 
         assertThat(submitted.get()).isEqualTo(new CreateOfferingCommand(
-                "2026-autumn", "c1", "teacher-zhang", "软件工程 01 班", 48, "DRAFT",
+                "c1", "teacher-zhang", "软件工程 01 班", 48, "DRAFT",
                 List.of(new CreateOfferingCommand.ScheduleInput("MONDAY", 1, 2, 1, 16, "待定"))));
         SwingUtilities.invokeAndWait(dialog::dispose);
     }
 
     @Test
-    void offeringEditorKeepsSaveDisabledUntilReferencesLoadAndDefaultsToCurrentTerm() throws Exception {
+    void offeringEditorKeepsSaveDisabledUntilCourseAndTeacherReferencesLoad() throws Exception {
         CompletableFuture<List<TermView>> terms = new CompletableFuture<>();
         CompletableFuture<String> currentTerm = new CompletableFuture<>();
         CompletableFuture<PageResult<CourseView>> courses = new CompletableFuture<>();
@@ -2261,21 +2264,16 @@ class CourseUiTest {
         OfferingEditorDialog dialog = onEdt(() -> new OfferingEditorDialog(null, gateway, null, () -> { }));
 
         assertThat(button(dialog, "创建教学班").isEnabled()).isFalse();
-        assertThat(labels(dialog)).contains("正在加载学期、课程和教师，请稍候…");
+        assertThat(labels(dialog)).contains("正在加载课程和教师，请稍候…");
 
         TermView first = term("term-first", "第一学期");
         TermView current = term("term-current", "当前学期");
-        terms.complete(List.of(first, current));
-        currentTerm.complete("term-current");
         courses.complete(new PageResult<>(List.of(courseView("course-current", "CS301", "编译原理")), 0, 100, 1));
         teachers.complete(new PageResult<>(List.of(teacher("teacher-current", "compiler.teacher")), 0, 100, 1));
         flushEdt(5);
 
         assertThat(button(dialog, "创建教学班").isEnabled()).isTrue();
-        OfferingReferenceChoice selected = (OfferingReferenceChoice) component(dialog, "学期", JComboBox.class)
-                .getSelectedItem();
-        assertThat(selected.id()).isEqualTo("term-current");
-        assertThat(selected.toString()).contains("当前学期");
+        assertThat(component(dialog, "学期", JComboBox.class)).isNull();
         SwingUtilities.invokeAndWait(dialog::dispose);
     }
 
@@ -2312,17 +2310,18 @@ class CourseUiTest {
     @Test
     void disposedOfferingEditorIgnoresLateReferenceResponses() throws Exception {
         CompletableFuture<List<TermView>> terms = new CompletableFuture<>();
+        CompletableFuture<PageResult<CourseView>> courses = new CompletableFuture<>();
         CourseUiGateway gateway = referenceGateway(terms, CompletableFuture.completedFuture("late-term"),
-                CompletableFuture.completedFuture(new PageResult<>(List.of(courseView("c", "C1", "课程")), 0, 100, 1)),
+                courses,
                 CompletableFuture.completedFuture(new PageResult<>(List.of(teacher("t", "teacher")), 0, 100, 1)));
         OfferingEditorDialog dialog = onEdt(() -> new OfferingEditorDialog(null, gateway, null, () -> { }));
-        JComboBox<?> termChoice = component(dialog, "学期", JComboBox.class);
+        JComboBox<?> courseChoice = component(dialog, "课程", JComboBox.class);
 
         SwingUtilities.invokeAndWait(dialog::dispose);
-        terms.complete(List.of(term("late-term", "不应出现")));
+        courses.complete(new PageResult<>(List.of(courseView("c", "C1", "不应出现")), 0, 100, 1));
         flushEdt(3);
 
-        assertThat(termChoice.getItemCount()).isZero();
+        assertThat(courseChoice.getItemCount()).isZero();
         assertThat(button(dialog, "创建教学班").isEnabled()).isFalse();
     }
 
@@ -2355,7 +2354,7 @@ class CourseUiTest {
             }
             @Override public CompletableFuture<OfferingView> updateOffering(UpdateOfferingCommand command) {
                 submitted.set(command);
-                return CompletableFuture.completedFuture(new OfferingView(command.offeringId(), command.termId(),
+                return CompletableFuture.completedFuture(new OfferingView(command.offeringId(), "2026-autumn",
                         command.courseId(), command.teacherUserId(), command.className(), command.capacity(), 28,
                         command.offeringStatus(), command.expectedVersion() + 1, Instant.now(), Instant.now(), List.of()));
             }
@@ -2363,8 +2362,7 @@ class CourseUiTest {
         OfferingEditorDialog dialog = onEdt(() -> new OfferingEditorDialog(null, gateway, existing, () -> { }));
         flushEdt(5);
 
-        assertThat(((OfferingReferenceChoice) component(dialog, "学期", JComboBox.class).getSelectedItem()).id())
-                .isEqualTo("term-legacy");
+        assertThat(component(dialog, "学期", JComboBox.class)).isNull();
         assertThat(((OfferingReferenceChoice) component(dialog, "课程", JComboBox.class).getSelectedItem()).id())
                 .isEqualTo("course-legacy");
         assertThat(((OfferingReferenceChoice) component(dialog, "教师", JComboBox.class).getSelectedItem()).id())
@@ -2377,7 +2375,7 @@ class CourseUiTest {
         SwingUtilities.invokeAndWait(() -> button(dialog, "保存修改").doClick());
         flushEdt(2);
         assertThat(submitted.get()).isEqualTo(new UpdateOfferingCommand(
-                "offering-7", "term-legacy", "course-legacy", "teacher-legacy", "01班", 40, 40, "OPEN", 7,
+                "offering-7", "course-legacy", "teacher-legacy", "01班", 40, 40, "OPEN", 7,
                 List.of(new CreateOfferingCommand.ScheduleInput("MONDAY", 1, 2, 1, 16, "教一-101"),
                         new CreateOfferingCommand.ScheduleInput("THURSDAY", 5, 6, 2, 15, "教二-301"))));
         SwingUtilities.invokeAndWait(dialog::dispose);
@@ -2404,7 +2402,7 @@ class CourseUiTest {
             }
             @Override public CompletableFuture<OfferingView> updateOffering(UpdateOfferingCommand command) {
                 submitted.set(command);
-                return CompletableFuture.completedFuture(new OfferingView(command.offeringId(), command.termId(),
+                return CompletableFuture.completedFuture(new OfferingView(command.offeringId(), "2026-autumn",
                         command.courseId(), command.teacherUserId(), command.className(), command.capacity(), 5,
                         command.offeringStatus(), command.expectedVersion() + 1, Instant.now(), Instant.now(), List.of()));
             }
@@ -2461,7 +2459,7 @@ class CourseUiTest {
             }
             @Override public CompletableFuture<OfferingView> updateOffering(UpdateOfferingCommand command) {
                 submitted.set(command);
-                return CompletableFuture.completedFuture(new OfferingView(command.offeringId(), command.termId(),
+                return CompletableFuture.completedFuture(new OfferingView(command.offeringId(), "2026-autumn",
                         command.courseId(), command.teacherUserId(), command.className(), command.capacity(), 5,
                         command.offeringStatus(), command.expectedVersion() + 1, Instant.now(), Instant.now(), List.of()));
             }

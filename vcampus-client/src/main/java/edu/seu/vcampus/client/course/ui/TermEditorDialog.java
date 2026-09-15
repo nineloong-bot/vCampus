@@ -47,7 +47,6 @@ final class TermEditorDialog extends JDialog {
     private final JSpinner academicYearStart = new JSpinner(new SpinnerNumberModel(
             LocalDate.now().getYear(), 2000, 2200, 1));
     private final JComboBox<SeasonChoice> season = new JComboBox<>(new SeasonChoice[]{
-            new SeasonChoice(AcademicSeason.SUMMER, "夏季"),
             new SeasonChoice(AcademicSeason.AUTUMN, "秋季"),
             new SeasonChoice(AcademicSeason.SPRING, "春季")
     });
@@ -80,7 +79,7 @@ final class TermEditorDialog extends JDialog {
                 "yyyy-MM-dd HH:mm", "退改补开始");
         adjustmentEnd = dateSpinner(at(defaultStart.plusDays(7), 23, 59), Calendar.MINUTE,
                 "yyyy-MM-dd HH:mm", "退改补结束");
-        season.setSelectedIndex(1);
+        season.setSelectedIndex(0);
         startDate.addChangeListener(event -> {
             if (existing == null) academicYearStart.setValue(date(startDate).getYear());
         });

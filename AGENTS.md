@@ -15,8 +15,8 @@ rules for a subdirectory, but must not weaken these requirements.
 - Training plans are canonical in `tblTrainingPlan`, `tblTrainingPlanCourse`, and
   `tblTrainingPlanPrerequisite`. Course selection must access them through its repository
   port and must not create a second production copy of curriculum data.
-- Preserve the three academic seasons `SUMMER`, `AUTUMN`, and `SPRING`. A four-year plan
-  uses twelve positions: `(academicYearNo - 1) * 3 + seasonOrdinal`.
+- Preserve the two academic seasons `AUTUMN` and `SPRING`. A four-year plan uses eight
+  positions: `(academicYearNo - 1) * 2 + seasonOrdinal`.
 
 ## Java source rules
 
