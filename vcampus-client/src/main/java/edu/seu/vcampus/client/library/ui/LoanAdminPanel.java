@@ -1,6 +1,7 @@
 package edu.seu.vcampus.client.library.ui;
 
 import edu.seu.vcampus.client.library.service.LibraryClientService;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
 import edu.seu.vcampus.common.library.*;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -13,8 +14,8 @@ public final class LoanAdminPanel extends LibraryDataPanel {
     private final LibraryClientService service;
     private final JTextField borrower = new JTextField(12);
     private final JComboBox<String> loanStatus = new JComboBox<>(new String[]{"全部状态", "ACTIVE", "OVERDUE", "RETURNED", "LOST"});
-    private final JComboBox<String> condition = new JComboBox<>(new String[]{"完好", "轻度损坏", "严重损坏"});
     private List<LoanView> loans = List.of();
+    private final EmbeddedEditorHost editorHost;
 
     public LoanAdminPanel(LibraryClientService service) {
         super("library.loan-admin", "借阅管理", "查询全校借阅；归还或遗失登记时计算罚金，仅登记金额。", "借阅号", "借阅人", "副本", "到期时间", "状态", "归还情况", "逾期罚金（元）", "赔偿（元）", "罚金合计（元）");
@@ -24,7 +25,8 @@ public final class LoanAdminPanel extends LibraryDataPanel {
         JButton markLost = new JButton("标记遗失"); markLost.addActionListener(event -> confirmSelected(LoanStatus.LOST));
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT)); actions.setOpaque(false);
         actions.add(new JLabel("账号（精确查询）")); actions.add(borrower); actions.add(loanStatus);
-        actions.add(refresh); actions.add(new JLabel("归还情况")); actions.add(condition); actions.add(returnBook); actions.add(markLost); add(actions, BorderLayout.SOUTH);
+        actions.add(refresh); actions.add(returnBook); actions.add(markLost); add(actions, BorderLayout.SOUTH);
+        editorHost = installEditorHost();
         borrower.addActionListener(event -> refresh());
     }
 
@@ -57,13 +59,15 @@ public final class LoanAdminPanel extends LibraryDataPanel {
 
     private void resolveSelected(LoanStatus resolution) {
         LoanView loan = selectedActiveLoan();
-        if (loan != null) resolve(loan, resolution);
+        if (loan != null) resolve(loan, resolution,
+                resolution == LoanStatus.LOST ? ReturnCondition.LOST : ReturnCondition.NORMAL);
     }
 
     private void confirmSelected(LoanStatus resolution) {
         LoanView loan = selectedActiveLoan();
         if (loan == null) return;
-        resolve(loan, resolution);
+        editorHost.showEditor(new LoanActionPanel(loan, resolution,
+                condition -> resolve(loan, resolution, condition), () -> editorHost.requestClose()));
     }
 
     private LoanView selectedActiveLoan() {
@@ -76,11 +80,11 @@ public final class LoanAdminPanel extends LibraryDataPanel {
         return loan;
     }
 
-    private void resolve(LoanView loan, LoanStatus resolution) {
+    private void resolve(LoanView loan, LoanStatus resolution, ReturnCondition condition) {
         long request = beginMutation();
         status.setText(resolution == LoanStatus.RETURNED ? "正在办理归还……" : "正在标记遗失……");
         service.resolveLoan(new AdminResolveLoanCommand(loan.loanId(), resolution, loan.rowVersion(),
-                resolution == LoanStatus.LOST ? ReturnCondition.LOST : ReturnCondition.values()[condition.getSelectedIndex()]))
+                condition))
                 .whenComplete((resolved, failure) -> SwingUtilities.invokeLater(() -> {
                     if (!acceptsMutation(request)) return;
                     if (failure != null) {
@@ -88,6 +92,7 @@ public final class LoanAdminPanel extends LibraryDataPanel {
                         return;
                     }
                     status.setText(resolution == LoanStatus.RETURNED ? "归还已办理，用户借阅已同步" : "遗失已登记，用户借阅已同步");
+                    editorHost.completeAndClose();
                     refresh();
                     mutationSucceeded();
                 }));

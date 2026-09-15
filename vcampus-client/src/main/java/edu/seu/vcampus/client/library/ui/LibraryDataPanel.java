@@ -1,6 +1,7 @@
 package edu.seu.vcampus.client.library.ui;
 
 import edu.seu.vcampus.client.core.ui.theme.*;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
 
 import javax.swing.*;
 import java.awt.*;
@@ -89,6 +90,21 @@ class LibraryDataPanel extends JPanel {
     protected final boolean accepts(long request) { return active && lifecycle.get() == request; }
     protected final long beginMutation() { beginRequest(); return mutationLifecycle.get(); }
     protected final boolean acceptsMutation(long request) { return active && mutationLifecycle.get() == request; }
+
+    /** Moves the complete list page into a host whose editor is initially hidden. */
+    protected final EmbeddedEditorHost installEditorHost() {
+        JPanel list = new JPanel(new BorderLayout(0, UiSpacing.SPACE_4));
+        list.setOpaque(false);
+        BorderLayout layout = (BorderLayout) getLayout();
+        for (Component component : getComponents()) {
+            Object constraint = layout.getConstraints(component);
+            remove(component);
+            list.add(component, constraint);
+        }
+        EmbeddedEditorHost host = new EmbeddedEditorHost(list);
+        add(host, BorderLayout.CENTER);
+        return host;
+    }
 
     @Override public void addNotify() { active = true; super.addNotify(); }
     @Override public void removeNotify() {

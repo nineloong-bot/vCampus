@@ -1,6 +1,7 @@
 package edu.seu.vcampus.client.library.ui;
 
 import edu.seu.vcampus.client.library.service.LibraryClientService;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
 import edu.seu.vcampus.common.library.*;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -20,6 +21,7 @@ public final class CopyManagementPanel extends LibraryDataPanel {
     private final JButton add = new JButton("新增副本"), change = new JButton("更新状态 / 找回");
     private List<BookCopyView> copies = List.of();
     private List<CopyRow> allCopies = List.of();
+    private final EmbeddedEditorHost editorHost;
 
     public CopyManagementPanel(LibraryClientService service) {
         this(service, null);
@@ -39,6 +41,7 @@ public final class CopyManagementPanel extends LibraryDataPanel {
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT)); buttons.setOpaque(false);
         buttons.add(add); buttons.add(change);
         actions.add(filters); actions.add(buttons); add(actions, BorderLayout.SOUTH);
+        editorHost = installEditorHost();
     }
 
     public void selectBook(BookSummary selected) {
@@ -61,6 +64,7 @@ public final class CopyManagementPanel extends LibraryDataPanel {
             }
             add.setEnabled(true); change.setEnabled(true);
             if (failure == null) {
+                editorHost.completeAndClose();
                 mutationSucceeded();
                 if (book != null) {
                     loadCopies();
@@ -93,6 +97,7 @@ public final class CopyManagementPanel extends LibraryDataPanel {
                     ? new CopyRow(copy, row.title()) : row).toList();
             filterCopies();
             status.setText("副本状态已更新");
+            editorHost.completeAndClose();
             mutationSucceeded();
             if (reloadPending) loadCopies();
         }));
@@ -143,43 +148,26 @@ public final class CopyManagementPanel extends LibraryDataPanel {
     private void openAddDialog() {
         BookSummary selectedBook = book;
         if (selectionRequired && selectedBook == null) { status.setText("请先在左侧选择书目"); return; }
-        JTextField isbn = new JTextField(), barcode = new JTextField(), location = new JTextField();
-        JPanel form = selectedBook == null
-                ? form(new String[]{"ISBN", "馆藏条码", "馆藏位置"}, new JComponent[]{isbn, barcode, location})
-                : form(new String[]{"书目", "ISBN", "馆藏条码", "馆藏位置"},
-                        new JComponent[]{new JLabel(selectedBook.title()), new JLabel(selectedBook.isbn()), barcode, location});
-        if (JOptionPane.showConfirmDialog(this, form, "新增馆藏副本", JOptionPane.OK_CANCEL_OPTION,
-                JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return;
-        if (barcode.getText().isBlank() || location.getText().isBlank()
-                || (selectedBook == null && isbn.getText().isBlank())) {
-            status.setText("请填写 ISBN、馆藏条码和馆藏位置"); return;
-        }
+        editorHost.showEditor(CopyEditorPanel.add(selectedBook,
+                values -> submitAdd(selectedBook, values), () -> editorHost.requestClose()));
+    }
+
+    private void submitAdd(BookSummary selectedBook, CopyEditorPanel.AddValues values) {
         if (selectedBook != null) {
-            add(new AddBookCopyCommand(selectedBook.bookId(), barcode.getText().trim(), location.getText().trim()));
+            add(new AddBookCopyCommand(selectedBook.bookId(), values.barcode(), values.location()));
             return;
         }
         long request = beginMutation(); status.setText("正在查找 ISBN 对应的书目……");
         add.setEnabled(false); change.setEnabled(false);
-        findBookByIsbn(isbn.getText().trim(), 1).whenComplete((found, failure) -> SwingUtilities.invokeLater(() -> {
+        CopyBookLookup.find(service, values.isbn(), 1).whenComplete((found, failure) -> SwingUtilities.invokeLater(() -> {
             if (!acceptsMutation(request)) return;
             add.setEnabled(true); change.setEnabled(true);
             if (failure != null) {
                 LibraryFeedback.failure(this, status, failure, "书目查找失败，请重试。"); return;
             }
             if (found == null) { status.setText("未找到该 ISBN 对应的书目，请先新增书目"); return; }
-            add(new AddBookCopyCommand(found.bookId(), barcode.getText().trim(), location.getText().trim()));
+            add(new AddBookCopyCommand(found.bookId(), values.barcode(), values.location()));
         }));
-    }
-
-    private CompletableFuture<BookSummary> findBookByIsbn(String isbn, int page) {
-        return service.searchManagedBooks(new BookSearchQuery(isbn, BookSearchField.ISBN, null, false, page, 100))
-                .thenCompose(result -> {
-                    BookSummary match = result.items().stream().filter(item -> isbn.equals(item.isbn()))
-                            .findFirst().orElse(null);
-                    if (match != null || result.items().isEmpty() || (long) page * 100 >= result.total())
-                        return CompletableFuture.completedFuture(match);
-                    return findBookByIsbn(isbn, page + 1);
-                });
     }
 
     private void openStatusDialog() {
@@ -195,24 +183,8 @@ public final class CopyManagementPanel extends LibraryDataPanel {
                 : copy.status() == CopyStatus.AVAILABLE
                         ? new CopyStatus[]{CopyStatus.DAMAGED}
                         : new CopyStatus[]{CopyStatus.AVAILABLE};
-        JComboBox<CopyStatus> state = new JComboBox<>(targets);
-        state.setRenderer((list, value, index, selected, focused) -> {
-            JLabel label = (JLabel) new DefaultListCellRenderer().getListCellRendererComponent(
-                    list, value, index, selected, focused);
-            label.setText(value == null ? "" : LibraryStatusText.copy(value));
-            return label;
-        });
-        JPanel form = form(new String[]{"馆藏条码", "目标状态"}, new JComponent[]{new JLabel(copy.barcode()), state});
-        String title = copy.status() == CopyStatus.LOST ? "登记遗失副本已找回" : "变更副本状态";
-        if (JOptionPane.showConfirmDialog(this, form, title, JOptionPane.OK_CANCEL_OPTION,
-                JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return;
-        changeStatus(new ChangeCopyStatusCommand(copy.copyId(), (CopyStatus) state.getSelectedItem(), copy.rowVersion()));
-    }
-
-    private static JPanel form(String[] labels, JComponent[] fields) {
-        JPanel panel = new JPanel(new GridLayout(0, 2, 8, 8));
-        for (int index = 0; index < labels.length; index++) { panel.add(new JLabel(labels[index])); panel.add(fields[index]); }
-        return panel;
+        editorHost.showEditor(CopyEditorPanel.status(copy, targets, this::changeStatus,
+                () -> editorHost.requestClose()));
     }
 
     private record CopyRow(BookCopyView copy, String title) { }

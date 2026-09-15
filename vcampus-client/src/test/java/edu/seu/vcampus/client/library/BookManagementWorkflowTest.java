@@ -27,7 +27,7 @@ class BookManagementWorkflowTest {
     private final BookCopyView copy = new BookCopyView("copy-1", "book-1", "BC-2", "A-02", CopyStatus.AVAILABLE, 0);
 
     @Test
-    void addDialogKeepsItsBookWhenAsyncSelectionChangesDuringConfirmation() throws Exception {
+    void addWorkspaceKeepsItsBookWhenSelectionChangesBeforeSubmit() throws Exception {
         BookSummary other = new BookSummary("book-2", "9782", "数据库", "作者", "CS", 0, 0);
         when(service.getBook(any())).thenReturn(CompletableFuture.completedFuture(
                 new BookDetail("book-1", book.isbn(), "Java", "Author", "Press", LocalDate.of(2026, 1, 1),
@@ -36,15 +36,11 @@ class BookManagementWorkflowTest {
         when(service.addCopy(any())).thenReturn(added);
         CopyManagementPanel panel = new CopyManagementPanel(service, book);
         SwingUtilities.invokeAndWait(() -> {
-            try (var dialogs = mockStatic(JOptionPane.class)) {
-                dialogs.when(() -> JOptionPane.showConfirmDialog(any(), any(), anyString(), anyInt(), anyInt()))
-                        .thenAnswer(call -> {
-                            fill((Container) call.getArgument(1), "BC-2", "A-02");
-                            panel.selectBook(other);
-                            return JOptionPane.OK_OPTION;
-                        });
-                button(panel, "新增副本").doClick();
-            }
+            button(panel, "新增副本").doClick();
+            text(panel, "library.copy-editor.barcode").setText("BC-2");
+            text(panel, "library.copy-editor.location").setText("A-02");
+            panel.selectBook(other);
+            button(panel, "确认新增").doClick();
         });
         verify(service).addCopy(new AddBookCopyCommand("book-1", "BC-2", "A-02"));
     }
@@ -220,15 +216,16 @@ class BookManagementWorkflowTest {
                         "CS", "", true, 0)));
         SwingUtilities.invokeAndWait(() -> {
             BookManagementPanel panel = new BookManagementPanel(service);
-            try (var dialogs = mockStatic(JOptionPane.class)) {
-                dialogs.when(() -> JOptionPane.showConfirmDialog(any(), any(), anyString(), anyInt(), anyInt()))
-                        .thenAnswer(call -> {
-                            fill((Container) call.getArgument(1), book.isbn(), "Java", "Author", "Press",
-                                    "2026-01-01", "CS", " A-02 ", " LIB-CUSTOM-01 ");
-                            return JOptionPane.OK_OPTION;
-                        });
-                button(panel, "新增书目").doClick();
-            }
+            button(panel, "新增书目").doClick();
+            text(panel, "library.book-form.isbn").setText(book.isbn());
+            text(panel, "library.book-form.title").setText("Java");
+            text(panel, "library.book-form.author").setText("Author");
+            text(panel, "library.book-form.publisher").setText("Press");
+            text(panel, "library.book-form.publish-date").setText("2026-01-01");
+            text(panel, "library.book-form.category").setText("CS");
+            text(panel, "library.book-form.location").setText(" A-02 ");
+            text(panel, "library.book-form.barcode").setText(" LIB-CUSTOM-01 ");
+            button(panel, "保存书目").doClick();
         });
         SwingUtilities.invokeAndWait(() -> { });
         verify(service).createBook(new CreateBookCommand("9787300000001", "Java", "Author", "Press",
@@ -241,14 +238,11 @@ class BookManagementWorkflowTest {
                 new PageResult<>(List.of(book), 1, 100, 1)));
         SwingUtilities.invokeAndWait(() -> {
             CopyManagementPanel panel = new CopyManagementPanel(service);
-            try (var dialogs = mockStatic(JOptionPane.class)) {
-                dialogs.when(() -> JOptionPane.showConfirmDialog(any(), any(), anyString(), anyInt(), anyInt()))
-                        .thenAnswer(call -> {
-                            fill((Container) call.getArgument(1), "978730", "BC-2", "A-02");
-                            return JOptionPane.OK_OPTION;
-                        });
-                button(panel, "新增副本").doClick();
-            }
+            button(panel, "新增副本").doClick();
+            text(panel, "library.copy-editor.isbn").setText("978730");
+            text(panel, "library.copy-editor.barcode").setText("BC-2");
+            text(panel, "library.copy-editor.location").setText("A-02");
+            button(panel, "确认新增").doClick();
         });
         SwingUtilities.invokeAndWait(() -> { });
         verify(service, never()).addCopy(any());
@@ -261,14 +255,11 @@ class BookManagementWorkflowTest {
         when(service.addCopy(any())).thenReturn(CompletableFuture.completedFuture(copy));
         SwingUtilities.invokeAndWait(() -> {
             CopyManagementPanel panel = new CopyManagementPanel(service);
-            try (var dialogs = mockStatic(JOptionPane.class)) {
-                dialogs.when(() -> JOptionPane.showConfirmDialog(any(), any(), anyString(), anyInt(), anyInt()))
-                        .thenAnswer(call -> {
-                            fill((Container) call.getArgument(1), " 9787300000001 ", "BC-2", "A-02");
-                            return JOptionPane.OK_OPTION;
-                        });
-                button(panel, "新增副本").doClick();
-            }
+            button(panel, "新增副本").doClick();
+            text(panel, "library.copy-editor.isbn").setText(" 9787300000001 ");
+            text(panel, "library.copy-editor.barcode").setText("BC-2");
+            text(panel, "library.copy-editor.location").setText("A-02");
+            button(panel, "确认新增").doClick();
         });
         SwingUtilities.invokeAndWait(() -> { });
         verify(service).addCopy(new AddBookCopyCommand("book-1", "BC-2", "A-02"));
@@ -290,25 +281,24 @@ class BookManagementWorkflowTest {
         SwingUtilities.invokeAndWait(() -> { });
         SwingUtilities.invokeAndWait(() -> { });
         SwingUtilities.invokeAndWait(() -> {
-            try (var dialogs = mockStatic(JOptionPane.class)) {
-                dialogs.when(() -> JOptionPane.showConfirmDialog(any(), any(), anyString(), anyInt(), anyInt()))
-                        .thenAnswer(call -> {
-                            fill((Container) call.getArgument(1), "BC-2", "A-02");
-                            return JOptionPane.OK_OPTION;
-                        });
-                button(copies, "新增副本").doClick();
-            }
+            button(copies, "新增副本").doClick();
+            text(copies, "library.copy-editor.barcode").setText("BC-2");
+            text(copies, "library.copy-editor.location").setText("A-02");
+            button(copies, "确认新增").doClick();
         });
         SwingUtilities.invokeAndWait(() -> { });
         verify(service).addCopy(new AddBookCopyCommand("book-1", "BC-2", "A-02"));
     }
 
-    private static void fill(Container form, String... values) {
-        int index = 0;
-        for (Component child : form.getComponents()) {
-            if (child instanceof JTextField field && field.isEditable()) field.setText(values[index++]);
+    private static JTextField text(Container root, String name) {
+        for (Component child : root.getComponents()) {
+            if (child instanceof JTextField field && name.equals(field.getName())) return field;
+            if (child instanceof Container nested) {
+                JTextField found = text(nested, name);
+                if (found != null) return found;
+            }
         }
-        assertThat(index).isEqualTo(values.length);
+        return null;
     }
 
     private static JButton button(Container root, String text) {
