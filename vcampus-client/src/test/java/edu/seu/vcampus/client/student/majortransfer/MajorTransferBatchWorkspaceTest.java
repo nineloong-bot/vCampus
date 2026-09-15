@@ -74,9 +74,11 @@ class MajorTransferBatchWorkspaceTest {
         awaitSize(panel, 1);
         onEdt(() -> {
             batchList(panel).setSelectedIndex(0);
-            SaveMajorTransferBatchCommand edit = formCard(panel).buildCommand();
-            assertThat(edit.batchId()).isEqualTo("edit");
-            assertThat(edit.expectedVersion()).isEqualTo(7);
+            JButton editButton = findButton(panel, "major-transfer.batch-edit");
+            editButton.doClick();
+            SaveMajorTransferBatchCommand command = formCard(panel).buildCommand();
+            assertThat(command.batchId()).isEqualTo("edit");
+            assertThat(command.expectedVersion()).isEqualTo(7);
             long dialogs = visibleDialogs();
             button(panel, "createButton").doClick();
             assertThat(batchList(panel).isSelectionEmpty()).isTrue();
@@ -135,6 +137,17 @@ class MajorTransferBatchWorkspaceTest {
         Field field = MajorTransferBatchManagementPanel.class.getDeclaredField(fieldName);
         field.setAccessible(true);
         return (JButton) field.get(panel);
+    }
+
+    private static JButton findButton(java.awt.Container root, String name) {
+        for (java.awt.Component child : root.getComponents()) {
+            if (child instanceof JButton button && name.equals(button.getName())) return button;
+            if (child instanceof java.awt.Container nested) {
+                JButton found = findButton(nested, name);
+                if (found != null) return found;
+            }
+        }
+        return null;
     }
 
     private static void awaitSize(MajorTransferBatchManagementPanel panel, int size)

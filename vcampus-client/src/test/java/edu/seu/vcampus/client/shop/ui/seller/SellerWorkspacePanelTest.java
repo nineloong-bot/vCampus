@@ -50,11 +50,11 @@ class SellerWorkspacePanelTest {
 
         assertThat(ShopSwingTestSupport.component(panel, "seller.workspace.tabs", JTabbedPane.class)
                 .getTabCount()).isEqualTo(3);
-        assertThat(ShopSwingTestSupport.component(panel, "seller.profile.category", JTextField.class)
-                .isEditable()).isFalse();
+        assertThat(ShopSwingTestSupport.component(panel,
+                "seller.profile.category-summary", JLabel.class).getText()).isEqualTo("文具");
         assertThat(ShopSwingTestSupport.component(panel, "seller.profile.suspension", JLabel.class)
                 .getText()).contains("整改中");
-        assertThat(ShopSwingTestSupport.component(panel, "seller.profile.save", JButton.class)
+        assertThat(ShopSwingTestSupport.component(panel, "seller.profile.edit", JButton.class)
                 .isEnabled()).isFalse();
     }
 }

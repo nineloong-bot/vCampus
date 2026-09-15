@@ -36,7 +36,7 @@ public final class AdjustmentAuditPanel extends AbstractCoursePanel {
     private final CoursePager pager;
 
     public AdjustmentAuditPanel(CourseUiGateway gateway) {
-        super("选课调整审计", "查询补选、退选、改选及失败原因；记录由服务端生成且不可修改。");
+        super("选课调整审计");
         this.gateway = gateway;
         this.pager = new CoursePager(50, this::search);
         body.add(filters(), BorderLayout.NORTH);

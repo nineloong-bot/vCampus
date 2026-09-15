@@ -1,6 +1,7 @@
 package edu.seu.vcampus.client.shop.commerce;
 
 import edu.seu.vcampus.common.shop.governance.GovernanceDtos.*;
+import edu.seu.vcampus.common.shop.governance.GovernanceDtos;
 import edu.seu.vcampus.common.shop.catalog.CatalogDtos.Product;
 import javax.swing.*;
 import java.util.List;
@@ -40,17 +41,30 @@ final class GovernanceCasePages {
     private void resolve(View view) {
         if(!view.kind().startsWith("REPORT_")||!"PENDING".equals(view.state())){ui.notice("请选择待处理举报");return;}
         String[] labels={"警告","商品紧急下架","暂停店铺","未发现违规"};
-        int choice=JOptionPane.showOptionDialog(ui,"请选择本次举报处理结果","处理举报",JOptionPane.DEFAULT_OPTION,JOptionPane.QUESTION_MESSAGE,null,labels,labels[0]);
-        if(choice<0)return;
-        String action=new String[]{"WARN","EMERGENCY","SUSPEND","NO_VIOLATION"}[choice];
+        JComboBox<String> choice=new JComboBox<>(labels);JTextField productId=new JTextField();JTextArea reason=new JTextArea(4,32);
+        JPanel form=CommerceTheme.form();CommerceTheme.field(form,"处理结果",choice);
+        CommerceTheme.field(form,"紧急下架商品编号",productId);CommerceTheme.field(form,"原因与整改要求",new JScrollPane(reason));
+        JButton submit=CommerceTheme.primary(new JButton("确认处理"));submit.addActionListener(event->{
+            String action=new String[]{"WARN","EMERGENCY","SUSPEND","NO_VIOLATION"}[choice.getSelectedIndex()];
+            if(reason.getText().isBlank()){ui.notice("请填写原因与整改要求");return;}
+            if("REPORT_SHOP".equals(view.kind())&&"EMERGENCY".equals(action)&&productId.getText().isBlank()){
+                ui.notice("请填写需要紧急下架的商品编号");return;
+            }
+            resolve(view,action,productId.getText().strip(),reason.getText().strip(),submit);
+        });
+        ui.modal("处理举报",form,CommerceTheme.row(CommerceTheme.button("取消",ui::closeModal),submit),ui::closeModal,680);
+    }
+    private void resolve(View view,String action,String productId,String reason,JButton submit) {
         if("REPORT_PRODUCT".equals(view.kind())) {
             ui.fetch("SHOP2_PRODUCT_ADMIN_DETAIL",view.objectId(),data->{
                 Product p=(Product)data;
-                new GovernanceForms(pages).action("EMERGENCY".equals(action)?p.id():p.shopId(),action,view.id(),"WARN".equals(action)?List.of(p.id()):List.of(),()->open(false));
+                write("EMERGENCY".equals(action)?p.id():p.shopId(),action,reason,view.id(),
+                        "WARN".equals(action)?List.of(p.id()):List.of(),submit);
             });
-        } else if("EMERGENCY".equals(action)) {
-            String id=ui.input("填写该店需要紧急下架的商品编号");
-            if(id!=null&&!id.isBlank())new GovernanceForms(pages).action(id.strip(),action,view.id(),List.of(),()->open(false));
-        } else new GovernanceForms(pages).action(view.objectId(),action,view.id(),List.of(),()->open(false));
+        } else write("EMERGENCY".equals(action)?productId:view.objectId(),action,reason,view.id(),List.of(),submit);
+    }
+    private void write(String objectId,String action,String reason,String reportId,List<String> ids,JButton submit) {
+        ui.write("SHOP2_GOV_ACTION",new GovernanceDtos.Action(objectId,action,reason,ids,reportId),submit,
+                data->{open(false);ui.notice("处置已记录，商家可查看通知");});
     }
 }

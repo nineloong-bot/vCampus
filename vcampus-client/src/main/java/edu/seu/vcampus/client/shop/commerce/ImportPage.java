@@ -27,7 +27,6 @@ final class ImportPage {
         hero.setLayout(new BoxLayout(hero,BoxLayout.Y_AXIS));
         hero.add(CommerceTheme.heading("批量创建商品草稿",20));
         hero.add(CommerceTheme.gap(10));
-        hero.add(CommerceTheme.muted("下载模板 → 填写商品与规格 → 校验预览 → 确认导入"));
         introduction.add(hero);
         introduction.add(CommerceTheme.row(CommerceTheme.button("下载模板",()->template(false)),
                 CommerceTheme.button("下载示例",()->template(true)),choose));

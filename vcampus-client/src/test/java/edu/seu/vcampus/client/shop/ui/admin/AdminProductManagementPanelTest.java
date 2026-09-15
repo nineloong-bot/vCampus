@@ -2,7 +2,6 @@ package edu.seu.vcampus.client.shop.ui.admin;
 
 import edu.seu.vcampus.client.shop.ShopSwingTestSupport;
 import edu.seu.vcampus.client.shop.service.AdminShopClientPort;
-import edu.seu.vcampus.client.shop.ui.seller.ProductEditorDialogPort;
 import edu.seu.vcampus.client.shop.ui.style.DefaultShopUiKit;
 import edu.seu.vcampus.client.shop.ui.style.SharedShopUiKitAdapter;
 import edu.seu.vcampus.common.paging.PageResult;
@@ -74,9 +73,8 @@ class AdminProductManagementPanelTest {
     }
 
     @Test
-    void selectingProductLoadsSelectedShopDetailAndUpdatesWithExplicitShopId() throws Exception {
+    void selectingProductLoadsSelectedShopDetailIntoEmbeddedWorkspace() throws Exception {
         AdminShopClientPort port = mock(AdminShopClientPort.class);
-        ProductEditorDialogPort dialogs = mock(ProductEditorDialogPort.class);
         ShopAdminSummary shop = new ShopAdminSummary("shop-1", "owner-1", "文具店",
                 "文具", ShopStatus.ACTIVE, 3, 2);
         ProductManagementSummary summary = new ProductManagementSummary("product-1", "签字笔",
@@ -90,13 +88,8 @@ class AdminProductManagementPanelTest {
                 new PageResult<>(List.of(summary), 0, 50, 1)));
         when(port.getProduct(new AdminProductRef("shop-1", "product-1")))
                 .thenReturn(CompletableFuture.completedFuture(detail));
-        UpdateProductCommand command = new UpdateProductCommand("product-1", "签字笔", "文具",
-                "说明", null, List.of(new UpsertSkuCommand("sku-1", "黑色",
-                        new BigDecimal("2.50"), 10, true, 3)), 7);
-        when(dialogs.update(any(), eq(detail))).thenReturn(java.util.Optional.of(command));
-        when(port.updateProduct(any())).thenReturn(CompletableFuture.completedFuture(detail));
         AdminProductManagementPanel panel = ShopSwingTestSupport.onEdt(() ->
-                new AdminProductManagementPanel(port, new DefaultShopUiKit(), () -> { }, dialogs));
+                new AdminProductManagementPanel(port, new DefaultShopUiKit(), () -> { }));
 
         ShopSwingTestSupport.onEdt(panel::load);
         ShopSwingTestSupport.flushEdt();
@@ -109,27 +102,22 @@ class AdminProductManagementPanelTest {
 
         JButton update = ShopSwingTestSupport.component(panel, "admin.products.update", JButton.class);
         ShopSwingTestSupport.onEdt(() -> { update.doClick(); });
-        ShopSwingTestSupport.flushEdt();
-        ShopSwingTestSupport.flushEdt();
-        verify(dialogs).update(panel, detail);
-        verify(port).updateProduct(new AdminUpdateProductCommand("shop-1", command));
-        assertThat(shops.getSelectedRow()).isZero();
-        assertThat(products.getSelectedRow()).isZero();
+        assertThat(ShopSwingTestSupport.component(panel,
+                "seller.editor.name", JTextField.class).getText()).isEqualTo("签字笔");
+        verify(port, never()).updateProduct(any());
     }
 
     @Test
-    void createUsesDialogForTheSelectedShopAndCancelSendsNothing() throws Exception {
+    void createUsesEmbeddedWorkspaceForTheSelectedShop() throws Exception {
         AdminShopClientPort port = mock(AdminShopClientPort.class);
-        ProductEditorDialogPort dialogs = mock(ProductEditorDialogPort.class);
         ShopAdminSummary shop = new ShopAdminSummary("shop-1", "owner-1", "文具店",
                 "文具", ShopStatus.ACTIVE, 3, 2);
         when(port.searchShops(any())).thenReturn(CompletableFuture.completedFuture(
                 new PageResult<>(List.of(shop), 0, 50, 1)));
         when(port.searchProducts(any())).thenReturn(CompletableFuture.completedFuture(
                 new PageResult<>(List.of(), 0, 50, 0)));
-        when(dialogs.create(any(), eq("文具"))).thenReturn(java.util.Optional.empty());
         AdminProductManagementPanel panel = ShopSwingTestSupport.onEdt(() ->
-                new AdminProductManagementPanel(port, new DefaultShopUiKit(), () -> { }, dialogs));
+                new AdminProductManagementPanel(port, new DefaultShopUiKit(), () -> { }));
         ShopSwingTestSupport.onEdt(panel::load);
         ShopSwingTestSupport.flushEdt();
         JTable shops = ShopSwingTestSupport.component(panel, "admin.products.shops", JTable.class);
@@ -139,7 +127,7 @@ class AdminProductManagementPanelTest {
         ShopSwingTestSupport.onEdt(() -> ShopSwingTestSupport.component(panel,
                 "admin.products.create", JButton.class).doClick());
 
-        verify(dialogs).create(panel, "文具");
+        assertThat(findNamed(panel, "seller.editor.name")).isNotNull();
         verify(port, never()).createProduct(any());
     }
 

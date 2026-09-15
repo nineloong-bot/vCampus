@@ -52,10 +52,11 @@ class AdminEnrollmentControlTest {
                 "CS101", "程序设计", "teacher-1", "A班", 40, 20, 5, 5,
                 "OPEN", 0, List.of());
         AdminEnrollmentControl control = new AdminEnrollmentControl(
-                gateway, () -> offering, refreshes::incrementAndGet, ignored -> { });
+                gateway, offering, refreshes::incrementAndGet, () -> { }, ignored -> { });
+        control.activate();
 
         field(control).setText("213260001");
-        SwingUtilities.invokeAndWait(() -> button(control).doClick());
+        SwingUtilities.invokeAndWait(() -> button(control, "确认添加").doClick());
         SwingUtilities.invokeAndWait(() -> { });
 
         assertThat(submitted.get()).isEqualTo(
@@ -67,8 +68,9 @@ class AdminEnrollmentControlTest {
         return descendants(root, JTextField.class).getFirst();
     }
 
-    private static JButton button(Container root) {
-        return descendants(root, JButton.class).getFirst();
+    private static JButton button(Container root, String text) {
+        return descendants(root, JButton.class).stream()
+                .filter(button -> text.equals(button.getText())).findFirst().orElseThrow();
     }
 
     private static <T extends Component> List<T> descendants(Container root, Class<T> type) {

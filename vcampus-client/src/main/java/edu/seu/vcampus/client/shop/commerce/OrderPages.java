@@ -25,7 +25,7 @@ final class OrderPages {
   JPanel content=new JPanel(new BorderLayout(0,12));content.setOpaque(false);
   String[] labels={"全部","待付款","待发货","待收货","已完成","退款 / 已关闭"};
   String[] states={"ALL","PENDING_PAYMENT","PAID","SHIPPED","COMPLETED","CLOSED"};
-  JPanel top=CommerceTheme.form();top.add(CommerceTheme.muted("按店铺查看每一笔订单"));JPanel tabs=CommerceTheme.row();
+  JPanel top=CommerceTheme.form();JPanel tabs=CommerceTheme.row();
   for(int i=0;i<states.length;i++){String filter=states[i];JButton tab=CommerceTheme.button(labels[i],()->list(seller,filter));
    if(filter.equals(state))CommerceTheme.primary(tab);tabs.add(tab);}
   top.add(tabs);content.add(top,BorderLayout.NORTH);
@@ -87,9 +87,22 @@ final class OrderPages {
   return lines;
  }
  private JButton action(String title,String action,OrderView order,boolean seller,boolean needsReason){
-  JButton b=CommerceTheme.button(title,()->{});b.addActionListener(e->{String reason=needsReason?ui.input("请填写原因"):"";
-   if(reason==null||needsReason&&reason.isBlank())return;if(!ui.confirm("确定"+title+"？"))return;
-   ui.write("SHOP2_ORDER_"+action,new OrderAction(List.of(order.orderId()),reason),b,data->showOrders((OrderResult)data,seller));});return b;
+  JButton b=CommerceTheme.button(title,()->{});b.addActionListener(e->{
+   if(needsReason){reasonEditor(title,action,order,seller);return;}
+   if(!ui.confirm("确定"+title+"？"))return;
+   submitAction(action,order,seller,"",b);
+  });return b;
+ }
+ private void reasonEditor(String title,String action,OrderView order,boolean seller){
+  JPanel form=CommerceTheme.form();JTextArea reason=new JTextArea(4,32);reason.setLineWrap(true);reason.setWrapStyleWord(true);
+  CommerceTheme.field(form,"原因（必填）",new JScrollPane(reason));JButton submit=CommerceTheme.primary(new JButton("确认"+title));
+  submit.addActionListener(e->{if(reason.getText().isBlank()){ui.notice("请填写原因");return;}
+   submitAction(action,order,seller,reason.getText().strip(),submit);});
+  ui.modal(title,form,CommerceTheme.row(CommerceTheme.button("取消",ui::closeModal),submit),ui::closeModal,620);
+ }
+ private void submitAction(String action,OrderView order,boolean seller,String reason,JButton button){
+  ui.write("SHOP2_ORDER_"+action,new OrderAction(List.of(order.orderId()),reason),button,
+          data->showOrders((OrderResult)data,seller));
  }
  private void pay(List<String> ids){
   ui.fetch("SHOP2_ORDER_VALIDATE",new OrderAction(ids,""),data->{OrderResult result=(OrderResult)data;

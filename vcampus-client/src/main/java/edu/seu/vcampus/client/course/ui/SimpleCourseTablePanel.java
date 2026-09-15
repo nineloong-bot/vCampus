@@ -12,8 +12,8 @@ import java.awt.BorderLayout;
 
 /** Spec-shaped list/management scaffold shared only as page composition, not a private theme. */
 abstract class SimpleCourseTablePanel extends AbstractCoursePanel {
-    protected SimpleCourseTablePanel(String title, String description, String action, Object[] columns, Object[][] rows) {
-        super(title, description);
+    protected SimpleCourseTablePanel(String title, String action, Object[] columns, Object[][] rows) {
+        super(title);
         JPanel toolbar = new JPanel(new BorderLayout());
         toolbar.setBackground(UiColors.BACKGROUND_SUBTLE);
         toolbar.setBorder(BorderFactory.createCompoundBorder(

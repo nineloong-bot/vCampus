@@ -3,10 +3,9 @@ package edu.seu.vcampus.client.shop.ui.admin;
 import edu.seu.vcampus.client.shop.service.AdminShopClientPort;
 import edu.seu.vcampus.client.shop.ui.ShopUiErrors;
 import edu.seu.vcampus.client.shop.ui.async.LatestRequest;
-import edu.seu.vcampus.client.shop.ui.seller.ProductEditorDialogPort;
-import edu.seu.vcampus.client.shop.ui.seller.SwingProductEditorDialogs;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
 import edu.seu.vcampus.client.shop.ui.style.ShopComponentStyle;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
 import edu.seu.vcampus.common.shop.*;
 
 import javax.swing.*;
@@ -16,7 +15,6 @@ import java.awt.GridLayout;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-
 /** Shop-selection-fenced administrator product workspace. */
 public final class AdminProductManagementPanel extends JPanel {
     private final AdminShopClientPort port;
@@ -32,7 +30,8 @@ public final class AdminProductManagementPanel extends JPanel {
     private final JTable products = named(new JTable(productModel), "admin.products.table");
     private final JTextField category = named(new JTextField(), "admin.products.category");
     private final JLabel status = named(new JLabel(), "admin.products.status");
-    private final ProductEditorDialogPort dialogs;
+    private final EmbeddedEditorHost editorHost;
+    private final AdminProductEditorCoordinator editor;
     private final JButton create;
     private final JButton update;
     private final JButton toggle;
@@ -44,11 +43,6 @@ public final class AdminProductManagementPanel extends JPanel {
 
     public AdminProductManagementPanel(AdminShopClientPort port, ShopUiKit uiKit,
             Runnable sessionExpired) {
-        this(port, uiKit, sessionExpired, new SwingProductEditorDialogs(uiKit));
-    }
-
-    AdminProductManagementPanel(AdminShopClientPort port, ShopUiKit uiKit,
-            Runnable sessionExpired, ProductEditorDialogPort dialogs) {
         super(new BorderLayout(8, 8));
         ShopComponentStyle.pagePanel(this);
         ShopComponentStyle.styleTable(shops, true);
@@ -56,7 +50,7 @@ public final class AdminProductManagementPanel extends JPanel {
         ShopComponentStyle.styleTextComponent(category);
         this.port = Objects.requireNonNull(port, "port");
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
-        this.dialogs = Objects.requireNonNull(dialogs, "dialogs");
+        Objects.requireNonNull(uiKit, "uiKit");
         category.setEditable(false);
         shops.getSelectionModel().addListSelectionListener(event -> {
             if (!event.getValueIsAdjusting()) selectShop();
@@ -81,7 +75,11 @@ public final class AdminProductManagementPanel extends JPanel {
         workspace.add(selected, BorderLayout.SOUTH);
         JPanel actions = uiKit.filterPanel("admin.products.actions", new java.awt.FlowLayout());
         actions.add(create); actions.add(update); actions.add(toggle); actions.add(status);
-        add(workspace, BorderLayout.CENTER); add(actions, BorderLayout.SOUTH);
+        JPanel list = new JPanel(new BorderLayout(8, 8));
+        list.add(workspace); list.add(actions, BorderLayout.SOUTH);
+        editorHost = new EmbeddedEditorHost(list); add(editorHost, BorderLayout.CENTER);
+        editor = new AdminProductEditorCoordinator(port, uiKit, editorHost, status,
+                this::finishMutation);
     }
 
     public void load() {
@@ -157,26 +155,13 @@ public final class AdminProductManagementPanel extends JPanel {
     }
 
     private void create() {
-        ShopAdminSummary shop = selectedShop; if (shop == null) return;
-        try {
-            dialogs.create(this, shop.category()).ifPresent(command ->
-                    port.createProduct(new AdminCreateProductCommand(shop.shopId(), command))
-                            .whenComplete((ignored, failure) -> finishMutation(shop.shopId(), failure)));
-        } catch (RuntimeException failure) {
-            status.setText(ShopUiErrors.message("COMMON_VALIDATION_FAILED"));
-        }
+        if (selectedShop != null) editor.create(selectedShop);
     }
 
     private void update() {
         ShopAdminSummary shop = selectedShop; ProductView product = selectedProduct;
         if (shop == null || product == null) return;
-        try {
-            dialogs.update(this, product).ifPresent(command ->
-                    port.updateProduct(new AdminUpdateProductCommand(shop.shopId(), command))
-                            .whenComplete((ignored, failure) -> finishMutation(shop.shopId(), failure)));
-        } catch (RuntimeException failure) {
-            status.setText(ShopUiErrors.message("COMMON_VALIDATION_FAILED"));
-        }
+        editor.update(shop, product);
     }
 
     private void toggle() {
@@ -193,8 +178,10 @@ public final class AdminProductManagementPanel extends JPanel {
     private void finishMutation(String shopId, Throwable failure) {
         SwingUtilities.invokeLater(() -> {
             if (disposed || selectedShop == null || !selectedShop.shopId().equals(shopId)) return;
-            if (failure != null) fail(failure); else loadProducts(shopId,
-                    selectedProduct == null ? null : selectedProduct.productId());
+            if (failure != null) fail(failure); else {
+                editorHost.completeAndClose();
+                loadProducts(shopId, selectedProduct == null ? null : selectedProduct.productId());
+            }
         });
     }
 

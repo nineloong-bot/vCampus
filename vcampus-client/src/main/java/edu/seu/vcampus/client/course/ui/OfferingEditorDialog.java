@@ -19,7 +19,6 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
-import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -39,7 +38,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
 
 /** Modal create/edit form for an offering aggregate and all of its schedule rows. */
-final class OfferingEditorDialog extends JDialog {
+final class OfferingEditorDialog extends JPanel {
     private final UiAsyncGuard asyncGuard = new UiAsyncGuard();
     private final CourseUiGateway gateway;
     private final OfferingSummary existing;
@@ -63,7 +62,7 @@ final class OfferingEditorDialog extends JDialog {
     private OfferingReferenceChoice resolvedExistingTeacher;
 
     OfferingEditorDialog(Window owner, CourseUiGateway gateway, OfferingSummary existing, Runnable onSaved) {
-        super(owner, existing == null ? "新建教学班" : "编辑教学班", ModalityType.APPLICATION_MODAL);
+        super(new BorderLayout());
         this.gateway = Objects.requireNonNull(gateway, "gateway");
         this.existing = existing;
         this.onSaved = Objects.requireNonNull(onSaved, "onSaved");
@@ -75,7 +74,6 @@ final class OfferingEditorDialog extends JDialog {
                 : Math.max(minimumRetakeCapacity, existing.retakeCapacity());
         retakeCapacity = spinner(initialRetakeCapacity, minimumRetakeCapacity,
                 Math.max(10_000, initialRetakeCapacity), "重修容量");
-        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         JPanel root = new JPanel(new BorderLayout(0, UiSpacing.LG));
         root.setBackground(UiColors.BACKGROUND_PAGE);
         root.setBorder(BorderFactory.createEmptyBorder(UiSpacing.XL, UiSpacing.XL, UiSpacing.XL, UiSpacing.XL));
@@ -87,12 +85,10 @@ final class OfferingEditorDialog extends JDialog {
         retry.setEnabled(false);
         retry.addActionListener(event -> loadReferences());
         root.add(actions(), BorderLayout.SOUTH);
-        setContentPane(root);
-        getRootPane().setDefaultButton(save);
+        add(root, BorderLayout.CENTER);
         if (existing == null) schedules.addDefaultRow();
         else fill(existing);
         setSize(new Dimension(840, 780));
-        setLocationRelativeTo(owner);
         loadReferences();
     }
 
@@ -104,7 +100,6 @@ final class OfferingEditorDialog extends JDialog {
         heading.setFont(UiTypography.PAGE_TITLE);
         panel.add(heading);
         panel.add(Box.createVerticalStrut(UiSpacing.SM));
-        panel.add(label("从学期、课程和在职教师中选择，并逐行维护上课安排", UiColors.TEXT_SECONDARY));
         return panel;
     }
 
@@ -228,7 +223,7 @@ final class OfferingEditorDialog extends JDialog {
             installReferences(data);
             referenceReady = course.getSelectedItem() != null && teacher.getSelectedItem() != null;
             referenceStatus.setText(referenceReady
-                    ? "参考数据已就绪" : "请选择有结果的课程和教师");
+                    ? " " : "请选择有结果的课程和教师");
             save.setEnabled(referenceReady);
         }));
     }
@@ -316,11 +311,10 @@ final class OfferingEditorDialog extends JDialog {
         }));
     }
 
-    @Override public void dispose() {
+    public void dispose() {
         active = false;
         referenceSequence++;
         asyncGuard.deactivate();
-        super.dispose();
     }
 
     private void fill(OfferingSummary value) {

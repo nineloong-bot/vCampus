@@ -1,6 +1,7 @@
 package edu.seu.vcampus.client.student.ui;
 
 import edu.seu.vcampus.client.core.network.ClientConnection;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
 import edu.seu.vcampus.client.core.ui.theme.*;
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.common.protocol.ResponseBody;
@@ -23,6 +24,7 @@ public final class StudentProfileReviewPanel extends JPanel {
     private final JButton approve = new JButton("审核通过"), reject = new JButton("驳回申请");
     private final List<StudentProfileApplicationView> applications = new ArrayList<>();
     private StudentProfileWorkspace selected;
+    private EmbeddedEditorHost editorHost;
     private volatile boolean active;
 
     public StudentProfileReviewPanel(StudentClientService students, ClientConnection connection) {
@@ -33,25 +35,28 @@ public final class StudentProfileReviewPanel extends JPanel {
     }
 
     private void build() {
+        JPanel page = new JPanel(new BorderLayout(UiSpacing.SPACE_4, UiSpacing.SPACE_4));
+        page.setOpaque(false);
         JPanel heading = new JPanel(new BorderLayout()); heading.setOpaque(false);
-        JPanel copy = new JPanel(); copy.setOpaque(false); copy.setLayout(new BoxLayout(copy, BoxLayout.Y_AXIS));
         JLabel title = label("学生资料审核", UiTypography.PAGE_TITLE, UiColors.TEXT_PRIMARY);
-        copy.add(title); copy.add(label("修改仅在审核通过后写入正式学籍档案", UiTypography.CAPTION, UiColors.TEXT_SECONDARY));
-        heading.add(copy); JButton refresh = new JButton("刷新"); refresh.setName("student.profile.review.refresh");
-        refresh.addActionListener(e -> refresh()); heading.add(refresh, BorderLayout.EAST); add(heading, BorderLayout.NORTH);
+        heading.add(title); JButton refresh = new JButton("刷新"); refresh.setName("student.profile.review.refresh");
+        refresh.addActionListener(e -> refresh()); heading.add(refresh, BorderLayout.EAST); page.add(heading, BorderLayout.NORTH);
 
         queue.setName("student.profile.review.queue"); queue.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         queue.setRowHeight(30); queue.getSelectionModel().addListSelectionListener(e -> { if (!e.getValueIsAdjusting()) loadSelection(); });
         differences.setName("student.profile.review.diff"); differences.setRowHeight(30); differences.setFillsViewportHeight(true);
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, tableBox("待审核申请", queue),
-                tableBox("正式信息与申请差异", differences)); split.setResizeWeight(.36); split.setDividerLocation(360); add(split);
+                tableBox("正式信息与申请差异", differences)); split.setResizeWeight(.36); split.setDividerLocation(360); page.add(split);
 
         JPanel bottom = new JPanel(new BorderLayout()); bottom.setOpaque(false); status.setName("student.profile.review.status");
         status.setFont(UiTypography.CAPTION); status.setForeground(UiColors.TEXT_SECONDARY); bottom.add(status);
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, UiSpacing.SPACE_2, 0)); actions.setOpaque(false);
         approve.setName("student.profile.review.approve"); reject.setName("student.profile.review.reject");
         approve.addActionListener(e -> approve()); reject.addActionListener(e -> reject());
-        actions.add(reject); actions.add(approve); bottom.add(actions, BorderLayout.EAST); add(bottom, BorderLayout.SOUTH);
+        actions.add(reject); actions.add(approve); bottom.add(actions, BorderLayout.EAST); page.add(bottom, BorderLayout.SOUTH);
+        editorHost = new EmbeddedEditorHost(page);
+        editorHost.setOpaque(false);
+        add(editorHost, BorderLayout.CENTER);
         controls(false);
     }
 
@@ -127,11 +132,10 @@ public final class StudentProfileReviewPanel extends JPanel {
     }
     private void reject() {
         if (selected == null) return;
-        String reason = JOptionPane.showInputDialog(this, "请输入驳回原因（学生端将显示）：", "驳回申请",
-                JOptionPane.WARNING_MESSAGE);
-        if (reason == null) return;
-        if (reason.isBlank()) { JOptionPane.showMessageDialog(this, "驳回原因不能为空", "无法驳回", JOptionPane.ERROR_MESSAGE); return; }
-        review(false, reason.trim());
+        editorHost.showEditor(new ProfileRejectionEditor(reason -> {
+            review(false, reason);
+            editorHost.completeAndClose();
+        }, () -> editorHost.requestClose()));
     }
     private void review(boolean approved, String comment) {
         controls(false); status.setText(approved ? "正在通过申请…" : "正在驳回申请…");

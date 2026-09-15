@@ -25,6 +25,7 @@ class MajorTransferRoleUiTest {
     void centralModeShowsManagementButNeverCollegeReviewControls() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             var panel = new MajorTransferBatchManagementPanel(client());
+            ((javax.swing.JButton) find(panel, "major-transfer.batch-create")).doClick();
             assertThat(find(panel, "saveBatchButton")).isNotNull();
             assertThat(find(panel, "sourceReviewButton")).isNull();
             assertThat(find(panel, "recordScoreButton")).isNull();

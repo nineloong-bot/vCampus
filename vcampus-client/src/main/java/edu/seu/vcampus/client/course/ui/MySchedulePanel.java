@@ -30,7 +30,7 @@ public final class MySchedulePanel extends AbstractCoursePanel {
     private final JLabel termSummary = label("当前学期", UiTypography.BODY, UiColors.TEXT_SECONDARY);
 
     public MySchedulePanel(CourseUiGateway gateway) {
-        super("我的课表", "按当前学期展示课程的星期、节次、周次和上课地点。");
+        super("我的课表");
         this.gateway = gateway;
         JPanel identity = new JPanel(new BorderLayout());
         identity.setBackground(UiColors.BACKGROUND_SUBTLE);

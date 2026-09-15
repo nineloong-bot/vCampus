@@ -63,11 +63,12 @@ public final class CommercePanel extends JPanel {
     }
     void modal(String title,JComponent main,JComponent footer,Runnable previous,int width){
         if(!stage.isModal())modalReturn=snapshot();
+        else stage.hideDialog();
         generation++;pendingReads.clear();back=previous;view=new View(title,main,footer,previous,true,width);
         stage.showDialog(title,main,footer,width);notice(" ");restyle();
     }
     void closeModal(){
-        if(!stage.isModal())return;Runnable previous=modalReturn;stage.hideDialog();modalReturn=null;
+        if(!stage.isModal()||!stage.requestClose())return;Runnable previous=modalReturn;modalReturn=null;
         if(previous!=null)previous.run();else home();
     }
     void notice(String text){String value=text==null||text.isBlank()?" ":text;feedback.setText(value);stage.notice(value);}
@@ -108,7 +109,6 @@ public final class CommercePanel extends JPanel {
     private void restyle(){CommerceStyle.apply(stage);stage.revalidate();stage.repaint();}
     void updateCart(boolean nonempty){cart.setText(nonempty?"购物车 ●":"购物车");}
     boolean confirm(String text){return JOptionPane.showConfirmDialog(this,text,"请确认",JOptionPane.OK_CANCEL_OPTION)==JOptionPane.OK_OPTION;}
-    String input(String text){return JOptionPane.showInputDialog(this,text);}
     void refreshCartDot(){api.execute("SHOP2_CART_GET",EmptyRequest.INSTANCE,UUID.randomUUID().toString()).thenAccept(data->
         SwingUtilities.invokeLater(()->{if(data instanceof edu.seu.vcampus.common.shop.catalog.CatalogDtos.CartResult r)updateCart(!r.lines().isEmpty());}));}
 }

@@ -1,6 +1,7 @@
 package edu.seu.vcampus.client.library.ui;
 
 import edu.seu.vcampus.client.core.ui.theme.*;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
 
 import javax.swing.*;
 import java.awt.*;
@@ -15,7 +16,7 @@ class LibraryDataPanel extends JPanel {
     final void setAfterMutation(Runnable refresh) { afterMutation = java.util.Objects.requireNonNull(refresh); }
     protected final void mutationSucceeded() { afterMutation.run(); }
 
-    protected final JLabel status = new JLabel("尚未加载", JLabel.CENTER);
+    protected final JLabel status = new JLabel(" ", JLabel.CENTER);
     protected final JTable table;
     private final AtomicLong lifecycle = new AtomicLong();
     private final AtomicLong mutationLifecycle = new AtomicLong();
@@ -37,12 +38,6 @@ class LibraryDataPanel extends JPanel {
         headingLabel.setForeground(LibraryPalette.TEXT);
         heading.add(breadcrumb);
         heading.add(headingLabel);
-        if (description != null && !description.isBlank()) {
-            JLabel descriptionLabel = new JLabel(description);
-            descriptionLabel.setFont(LibraryPalette.BODY);
-            descriptionLabel.setForeground(LibraryPalette.MUTED);
-            heading.add(descriptionLabel);
-        }
         add(heading, BorderLayout.NORTH);
         table = new JTable(new DefaultTableModel(columns, 0) {
             @Override public boolean isCellEditable(int row, int column) { return false; }
@@ -85,10 +80,34 @@ class LibraryDataPanel extends JPanel {
         add(results, BorderLayout.CENTER);
     }
 
+    protected final void setColumnWidths(int... widths) {
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        for (int index = 0; index < widths.length; index++) {
+            var column = table.getColumnModel().getColumn(index);
+            column.setMinWidth(widths[index]);
+            column.setPreferredWidth(widths[index]);
+        }
+    }
+
     protected final long beginRequest() { return lifecycle.incrementAndGet(); }
     protected final boolean accepts(long request) { return active && lifecycle.get() == request; }
     protected final long beginMutation() { beginRequest(); return mutationLifecycle.get(); }
     protected final boolean acceptsMutation(long request) { return active && mutationLifecycle.get() == request; }
+
+    /** Moves the complete list page into a host whose editor is initially hidden. */
+    protected final EmbeddedEditorHost installEditorHost() {
+        JPanel list = new JPanel(new BorderLayout(0, UiSpacing.SPACE_4));
+        list.setOpaque(false);
+        BorderLayout layout = (BorderLayout) getLayout();
+        for (Component component : getComponents()) {
+            Object constraint = layout.getConstraints(component);
+            remove(component);
+            list.add(component, constraint);
+        }
+        EmbeddedEditorHost host = new EmbeddedEditorHost(list);
+        add(host, BorderLayout.CENTER);
+        return host;
+    }
 
     @Override public void addNotify() { active = true; super.addNotify(); }
     @Override public void removeNotify() {

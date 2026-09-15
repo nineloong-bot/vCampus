@@ -12,15 +12,15 @@ import org.junit.jupiter.api.Test;
 class OfferingEditorRetakeDefaultTest {
     @Test
     void newOfferingStartsWithFiveRetakeSeatsIndependentOfNormalCapacity() {
-        OfferingEditorDialog dialog = new OfferingEditorDialog(
-                null, CourseUiGateway.preview(), null, () -> { });
-        JSpinner normal = spinner(dialog, "容量");
-        JSpinner retake = spinner(dialog, "重修容量");
+        OfferingEditorPanel editor = new OfferingEditorPanel(
+                CourseUiGateway.preview(), null, () -> { }, () -> { });
+        JSpinner normal = spinner(editor.component(), "容量");
+        JSpinner retake = spinner(editor.component(), "重修容量");
 
         assertThat(retake.getValue()).isEqualTo(5);
         normal.setValue(80);
         assertThat(retake.getValue()).isEqualTo(5);
-        dialog.dispose();
+        editor.onClosed();
     }
 
     private static JSpinner spinner(Container root, String name) {

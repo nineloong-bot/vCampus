@@ -125,4 +125,5 @@ public final class CollegeAdministratorWorkspacePanel extends JPanel {
             assignCard.focusChoice();
         }
     }
+
 }

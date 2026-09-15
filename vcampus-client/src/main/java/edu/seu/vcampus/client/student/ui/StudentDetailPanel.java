@@ -2,6 +2,7 @@ package edu.seu.vcampus.client.student.ui;
 
 import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.core.network.ConnectionState;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
 import edu.seu.vcampus.client.core.ui.theme.*;
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.common.protocol.ResponseBody;
@@ -39,6 +40,7 @@ public final class StudentDetailPanel extends JPanel {
     private JLabel errorLabel;
     private JButton academicEditButton;
     private JTable changesTable;
+    private EmbeddedEditorHost editorHost;
 
     public StudentDetailPanel(StudentClientService students, ClientConnection connection,
                               String studentId, boolean canEdit) {
@@ -55,6 +57,8 @@ public final class StudentDetailPanel extends JPanel {
     }
 
     private void buildPage() {
+        JPanel page = new JPanel(new BorderLayout(0, UiSpacing.SPACE_4));
+        page.setOpaque(false);
         JPanel heading = new JPanel(new BorderLayout(0, UiSpacing.SPACE_1));
         heading.setOpaque(false);
         JLabel breadcrumb = text("学籍管理 > 学生详情", UiTypography.CAPTION, UiColors.TEXT_SECONDARY);
@@ -66,7 +70,7 @@ public final class StudentDetailPanel extends JPanel {
         statusLabel = text("正在加载...", UiTypography.CAPTION, UiColors.TEXT_SECONDARY);
         statusLabel.setName("student.detail.status");
         heading.add(statusLabel, BorderLayout.SOUTH);
-        add(heading, BorderLayout.NORTH);
+        page.add(heading, BorderLayout.NORTH);
 
         JPanel content = new ScrollContent();
         content.setName("student.detail.fields");
@@ -91,11 +95,14 @@ public final class StudentDetailPanel extends JPanel {
         scroll.getViewport().setOpaque(false);
         scroll.getVerticalScrollBar().setUnitIncrement(18);
         scroll.getAccessibleContext().setAccessibleName("学生学籍档案字段");
-        add(scroll, BorderLayout.CENTER);
+        page.add(scroll, BorderLayout.CENTER);
 
         errorLabel = text(" ", UiTypography.CAPTION, UiColors.ERROR_FG);
         errorLabel.setName("student.detail.error");
-        add(errorLabel, BorderLayout.SOUTH);
+        page.add(errorLabel, BorderLayout.SOUTH);
+        editorHost = new EmbeddedEditorHost(page);
+        editorHost.setOpaque(false);
+        add(editorHost, BorderLayout.CENTER);
         setEditingEnabled(false);
     }
 
@@ -325,7 +332,7 @@ public final class StudentDetailPanel extends JPanel {
         put("studentSource", academic.studentSource()); put("graduateStudyMode", academic.graduateStudyMode());
         put("counselorName", academic.counselorName()); put("counselorContact", academic.counselorContact());
         loaded = true;
-        statusLabel.setText(connection.state() == ConnectionState.CONNECTED ? "已加载" : "已断开连接");
+        statusLabel.setText(connection.state() == ConnectionState.CONNECTED ? " " : "已断开连接");
         errorLabel.setText(" ");
         updateEditingState();
     }
@@ -343,14 +350,14 @@ public final class StudentDetailPanel extends JPanel {
         put("major", core.majorName());
         put("class", core.className());
         loaded = true;
-        statusLabel.setText(connection.state() == ConnectionState.CONNECTED ? "已加载" : "已断开连接");
+        statusLabel.setText(connection.state() == ConnectionState.CONNECTED ? " " : "已断开连接");
         errorLabel.setText(" ");
     }
 
     private void editAcademic() {
         if (profile == null || connection.state() != ConnectionState.CONNECTED) return;
-        new AdminStudentInfoEditDialog(SwingUtilities.getWindowAncestor(this), students,
-                profile.core(), profile.academic(), saved -> loadProfile()).setVisible(true);
+        editorHost.showEditor((complete, cancel) -> new AdminStudentInfoEditPanel(students,
+                profile.core(), profile.academic(), saved -> { loadProfile(); complete.run(); }, cancel));
     }
 
     private void openChangeDetail() {
@@ -361,7 +368,7 @@ public final class StudentDetailPanel extends JPanel {
     private void connectionChanged(ConnectionState state) {
         onEdt(() -> {
             if (!active) return;
-            if (loaded) statusLabel.setText(state == ConnectionState.CONNECTED ? "已加载" : "已断开连接");
+            if (loaded) statusLabel.setText(state == ConnectionState.CONNECTED ? " " : "已断开连接");
             updateEditingState();
         });
     }

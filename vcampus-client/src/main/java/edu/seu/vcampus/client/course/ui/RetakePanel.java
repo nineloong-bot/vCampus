@@ -36,7 +36,7 @@ public final class RetakePanel extends AbstractCoursePanel {
     private int eligibleRow = -1;
 
     public RetakePanel(CourseUiGateway gateway) {
-        super("重修选课", "选择教学班后先检查历史未通过记录，资格通过后才能提交重修。");
+        super("重修选课");
         this.gateway = gateway;
         table.setModel(model);
         table.getTableHeader().setBackground(UiColors.BACKGROUND_SUBTLE);

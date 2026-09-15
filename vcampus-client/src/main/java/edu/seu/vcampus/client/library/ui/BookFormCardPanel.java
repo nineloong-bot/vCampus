@@ -29,6 +29,7 @@ public final class BookFormCardPanel extends JPanel {
     private Consumer<UpdateBookCommand> onUpdate;
     private Runnable onCancel;
     private BookDetail currentEditingBook;
+    private String initialFingerprint = "";
 
     /** Creates an in-workspace book creation and editing card. */
     public BookFormCardPanel(Consumer<CreateBookCommand> onCreate,
@@ -39,6 +40,10 @@ public final class BookFormCardPanel extends JPanel {
         this.onUpdate = Objects.requireNonNull(onUpdate, "onUpdate");
         this.onCancel = Objects.requireNonNull(onCancel, "onCancel");
         setName("library.book-form-card");
+        isbn.setName("library.book-form.isbn"); title.setName("library.book-form.title");
+        author.setName("library.book-form.author"); publisher.setName("library.book-form.publisher");
+        publishDate.setName("library.book-form.publish-date"); category.setName("library.book-form.category");
+        location.setName("library.book-form.location"); barcode.setName("library.book-form.barcode");
         setBackground(LibraryPalette.PAGE);
         setBorder(BorderFactory.createEmptyBorder(12, 14, 12, 14));
         buildLayout();
@@ -101,6 +106,7 @@ public final class BookFormCardPanel extends JPanel {
         location.setText(""); barcode.setText(""); active.setSelected(true); active.setVisible(false);
         copyConfigPanel.setVisible(true);
         feedback.setText(" ");
+        initialFingerprint = fingerprint();
     }
 
     /** Opens form in update mode with selected book detail. */
@@ -113,6 +119,7 @@ public final class BookFormCardPanel extends JPanel {
         active.setSelected(book.active()); active.setVisible(true);
         copyConfigPanel.setVisible(false);
         feedback.setText(" ");
+        initialFingerprint = fingerprint();
     }
 
     private void submit() {
@@ -147,4 +154,13 @@ public final class BookFormCardPanel extends JPanel {
             feedback.setText("输入格式有误：" + ex.getMessage());
         }
     }
+
+    private String fingerprint() {
+        return String.join("\u0000", isbn.getText(), title.getText(), author.getText(),
+                publisher.getText(), publishDate.getText(), category.getText(),
+                description.getText(), location.getText(), barcode.getText(),
+                Boolean.toString(active.isSelected()));
+    }
+
+    boolean hasChanges() { return !initialFingerprint.equals(fingerprint()); }
 }

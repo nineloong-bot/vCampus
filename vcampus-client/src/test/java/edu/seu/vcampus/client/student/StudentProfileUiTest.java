@@ -2,6 +2,8 @@ package edu.seu.vcampus.client.student;
 
 import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.core.network.ConnectionState;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
+import edu.seu.vcampus.client.core.ui.editor.EditorPlacement;
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.client.student.service.StudentRequestClient;
 import edu.seu.vcampus.client.student.ui.AttendanceModeEditPanel;
@@ -55,6 +57,7 @@ class StudentProfileUiTest {
                 ResponseBody.success(workspace(StudentProfileApplicationStatus.PENDING, null))), new CountDownLatch(0));
         SwingUtilities.invokeAndWait(pending::addNotify);
         awaitText(pending, "student.profile.application.status", "审核中");
+        awaitEnabled(pending, "student.profile.personal.edit");
         assertThat(button(pending, "student.profile.personal.edit").isEnabled()).isTrue();
         assertThat(button(pending, "student.profile.personal.edit").getToolTipText()).contains("撤回");
         assertThat(button(pending, "student.profile.academic.edit").isEnabled()).isTrue();
@@ -78,6 +81,22 @@ class StudentProfileUiTest {
                 .containsExactly("走读", "住校", "借宿", "其他");
         assertThat(all(editor, JTextField.class)).isEmpty();
         assertThat(editor.selectedMode()).isEqualTo(AttendanceMode.RESIDENT);
+    }
+
+    @Test void attendanceEditorIsHiddenUntilAcademicEditIsRequested() throws Exception {
+        MyStudentProfilePanel panel = panel(CompletableFuture.completedFuture(
+                ResponseBody.success(workspace(StudentProfileApplicationStatus.DRAFT, null))),
+                new CountDownLatch(0));
+        SwingUtilities.invokeAndWait(panel::addNotify);
+        awaitEnabled(panel, "student.profile.academic.edit");
+        EmbeddedEditorHost host = all(panel, EmbeddedEditorHost.class).getFirst();
+        assertThat(host.isEditorOpen()).isFalse();
+
+        SwingUtilities.invokeAndWait(() -> button(panel, "student.profile.academic.edit").doClick());
+
+        assertThat(host.isEditorOpen()).isTrue();
+        assertThat(host.currentPlacement()).isEqualTo(EditorPlacement.BOTTOM);
+        assertThat(find(panel, "student.profile.attendance.mode", JComboBox.class)).isNotNull();
     }
 
     @Test void personalEditorUsesGuidedDropdownsAndFormatTooltips() {
@@ -240,6 +259,17 @@ class StudentProfileUiTest {
             Thread.sleep(10);
         }
         assertThat(find(root, name, JLabel.class).getText()).contains(expected);
+    }
+
+    private static void awaitEnabled(Container root, String name) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+        while (System.nanoTime() < deadline) {
+            SwingUtilities.invokeAndWait(() -> { });
+            JButton target = button(root, name);
+            if (target != null && target.isEnabled()) return;
+            Thread.sleep(10);
+        }
+        assertThat(button(root, name).isEnabled()).isTrue();
     }
     private static void setConnected(ClientConnection value) {
         try { var field = ClientConnection.class.getDeclaredField("state"); field.setAccessible(true); field.set(value, ConnectionState.CONNECTED); }

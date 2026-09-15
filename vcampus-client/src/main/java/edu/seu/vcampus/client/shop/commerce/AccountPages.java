@@ -35,7 +35,7 @@ final class AccountPages {
         entries.getComponent(0).setEnabled(false);
         entries.getComponent(0).setBackground(new Color(0xe9efe9));
         body.add(entries);
-        ui.modal("我的", body, null, ui::closeModal, 620);
+        ui.display("我的", body, null, ui::home);
         ui.fetch("WALLET_GET_BALANCE", EmptyRequest.INSTANCE,
                 data -> balance.setText(CommerceTheme.money(((WalletBalance) data).balanceCents())),
                 () -> balance.setText("余额加载失败，请重试"));
@@ -63,7 +63,6 @@ final class AccountPages {
 
     private void apply(View previous) {
         JPanel form = CommerceTheme.form();
-        form.add(CommerceTheme.muted("填写主体资料，提交后由平台进行审核。"));
         form.add(CommerceTheme.gap(20));
         JTextField name = new JTextField(previous == null ? "" : previous.title());
         JTextField subject = new JTextField(previous == null ? "" : previous.subjectName());

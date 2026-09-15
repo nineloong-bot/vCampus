@@ -184,8 +184,7 @@ class MainFrameShellTest {
                     .isEqualTo("虚拟校园 / " + TITLES[index]);
             assertThat(component(page, "page.title", JLabel.class).getText())
                     .isEqualTo(TITLES[index]);
-            assertThat(component(page, "page.description", JLabel.class).getText())
-                    .isNotBlank();
+            assertThat(hasNamed(page, "page.description")).isFalse();
             assertThat(component(page, "page.status", JLabel.class).getText())
                     .isEqualTo("功能建设中");
             assertThat(page.isFocusable()).isTrue();
@@ -272,5 +271,13 @@ class MainFrameShellTest {
             if (child instanceof Container nested) result.append(text(nested));
         }
         return result.toString();
+    }
+
+    private static boolean hasNamed(Container root, String name) {
+        for (Component child : root.getComponents()) {
+            if (name.equals(child.getName())) return true;
+            if (child instanceof Container nested && hasNamed(nested, name)) return true;
+        }
+        return false;
     }
 }

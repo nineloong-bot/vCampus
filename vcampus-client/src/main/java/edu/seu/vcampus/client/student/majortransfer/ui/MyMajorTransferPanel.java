@@ -3,6 +3,7 @@ package edu.seu.vcampus.client.student.majortransfer.ui;
 import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.core.network.ConnectionState;
 import edu.seu.vcampus.client.core.ui.theme.*;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.common.student.majortransfer.*;
 
@@ -41,6 +42,10 @@ public final class MyMajorTransferPanel extends JPanel {
     private volatile boolean active;
     private MajorTransferWorkspace workspace;
     private String currentApplicationId;
+    private EmbeddedEditorHost editorHost;
+    private JPanel applicationEditorPanel;
+    private JButton editApplicationButton;
+    private MajorTransferApplicationEditorPanel applicationEditor;
 
     public MyMajorTransferPanel(StudentClientService students, ClientConnection connection) {
         super(new BorderLayout(0, UiSpacing.SPACE_4));
@@ -98,9 +103,19 @@ public final class MyMajorTransferPanel extends JPanel {
 
         // Application form
         content.add(sectionHeader("申请信息"));
+        editApplicationButton = new JButton("新建申请");
+        editApplicationButton.setName("major-transfer.student.edit-application");
+        editApplicationButton.addActionListener(event -> openApplicationEditor());
+        JPanel applicationAction = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        applicationAction.setOpaque(false);
+        applicationAction.add(editApplicationButton);
+        content.add(applicationAction);
+
+        applicationEditorPanel = new JPanel();
+        applicationEditorPanel.setLayout(new BoxLayout(applicationEditorPanel, BoxLayout.Y_AXIS));
         JPanel formPanel = buildFormPanel();
-        content.add(formPanel);
-        content.add(Box.createVerticalStrut(UiSpacing.SPACE_4));
+        applicationEditorPanel.add(formPanel);
+        applicationEditorPanel.add(Box.createVerticalStrut(UiSpacing.SPACE_2));
 
         // Buttons
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, UiSpacing.SPACE_2, 0));
@@ -120,7 +135,7 @@ public final class MyMajorTransferPanel extends JPanel {
         withdrawButton.setVisible(false);
         withdrawButton.addActionListener(e -> withdraw());
         buttons.add(withdrawButton);
-        content.add(buttons);
+        applicationEditorPanel.add(buttons);
         content.add(Box.createVerticalStrut(UiSpacing.SPACE_4));
 
         // Attachments
@@ -165,7 +180,8 @@ public final class MyMajorTransferPanel extends JPanel {
         scroll.setBorder(null);
         center.add(scroll, BorderLayout.CENTER);
         center.add(errorLabel, BorderLayout.SOUTH);
-        add(center, BorderLayout.CENTER);
+        editorHost = new EmbeddedEditorHost(center);
+        add(editorHost, BorderLayout.CENTER);
 
     }
 
@@ -274,6 +290,9 @@ public final class MyMajorTransferPanel extends JPanel {
         boolean isDraft = app != null && app.status() == MajorTransferStatus.DRAFT;
         boolean isSubmitted = app != null && app.status() == MajorTransferStatus.SUBMITTED;
         boolean canEdit = eligible && (app == null || isDraft);
+        editApplicationButton.setVisible(canEdit);
+        editApplicationButton.setEnabled(canEdit);
+        editApplicationButton.setText(app == null ? "新建申请" : "编辑申请");
         saveButton.setEnabled(canEdit);
         submitButton.setEnabled(isDraft && app.reason() != null && !app.reason().isBlank());
         withdrawButton.setVisible(isSubmitted);
@@ -364,6 +383,7 @@ public final class MyMajorTransferPanel extends JPanel {
     }
 
     private void saveDraft() {
+        MajorTransferApplicationEditorPanel expectedEditor = applicationEditor;
         OptionItem selected = (OptionItem) targetMajorCombo.getSelectedItem();
         if (selected == null) {
             errorLabel.setText("请选择目标专业");
@@ -380,13 +400,22 @@ public final class MyMajorTransferPanel extends JPanel {
         errorLabel.setText(" ");
         students.saveTransferDraft(cmd).whenComplete((response, error) ->
                 SwingUtilities.invokeLater(() -> {
+                    if (expectedEditor != null && !editorHost.isCurrent(expectedEditor)) return;
                     setFormEnabled(true);
                     if (response != null && response.success()) {
                         errorLabel.setText(" ");
+                        editorHost.completeAndClose(expectedEditor);
                         refresh();
                     }
                     else errorLabel.setText(response != null ? response.message() : "网络错误");
                 }));
+    }
+
+    private void openApplicationEditor() {
+        MajorTransferApplicationEditorPanel[] expected = new MajorTransferApplicationEditorPanel[1];
+        expected[0] = new MajorTransferApplicationEditorPanel(applicationEditorPanel,
+                this::applicationDirty, () -> editorHost.requestClose(expected[0]));
+        if (editorHost.showEditor(expected[0])) applicationEditor = expected[0];
     }
 
     private void submit() {
@@ -501,6 +530,18 @@ public final class MyMajorTransferPanel extends JPanel {
         submitButton.setEnabled(!busy && connection.state() == ConnectionState.CONNECTED && isDraft && saved
                 && workspace.eligibilityItems().stream().allMatch(MajorTransferEligibilityItem::passed)
                 && reason != null && !reason.isBlank());
+    }
+
+    private boolean applicationDirty() {
+        if (workspace == null) return false;
+        MajorTransferApplicationView app = workspace.application();
+        OptionItem selected = (OptionItem) targetMajorCombo.getSelectedItem();
+        if (app == null) return selected != null || !reasonArea.getText().isBlank()
+                || applicationTypeCombo.getSelectedIndex() != 0;
+        return !Objects.equals(reasonArea.getText(), app.reason()) || selected == null
+                || !selected.option.optionId().equals(app.optionId())
+                || applicationTypeCombo.getSelectedIndex()
+                != (app.applicationType() == MajorTransferApplicationType.DIFFICULTY ? 1 : 0);
     }
 
     private void connectionChanged(ConnectionState state) {

@@ -2,6 +2,9 @@ package edu.seu.vcampus.client.student.ui;
 
 import edu.seu.vcampus.client.core.ui.theme.UiColors;
 import edu.seu.vcampus.client.core.ui.theme.UiSpacing;
+import edu.seu.vcampus.client.core.ui.editor.EditorSize;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditor;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.common.student.DepartmentView;
 import edu.seu.vcampus.common.student.governance.AssignStudentCollegeAdministratorCommand;
@@ -27,6 +30,8 @@ public final class CollegeAdministratorManagementPanel extends JPanel {
     private final DefaultComboBoxModel<DepartmentView> departmentsModel = new DefaultComboBoxModel<>();
     private final JLabel status = new JLabel(" ");
     private final CollegeAdministratorWorkspacePanel workspace;
+    private final EmbeddedEditor workspaceEditor;
+    private EmbeddedEditorHost editorHost;
     private List<StudentCollegeAdministratorView> administrators = List.of();
 
     /** Creates the college-administrator governance workspace. */
@@ -35,6 +40,11 @@ public final class CollegeAdministratorManagementPanel extends JPanel {
         this.students = Objects.requireNonNull(students);
         this.workspace = new CollegeAdministratorWorkspacePanel(
                 this::assign, this::transfer, this::deactivate);
+        this.workspaceEditor = new EmbeddedEditor() {
+            @Override public JComponent component() { return workspace; }
+            @Override public EditorSize size() { return EditorSize.COMPACT; }
+            @Override public boolean isDirty() { return false; }
+        };
         setName("college-administrator.management");
         setBackground(UiColors.BACKGROUND_PAGE);
         setBorder(new EmptyBorder(UiSpacing.SPACE_3, UiSpacing.SPACE_3,
@@ -51,31 +61,14 @@ public final class CollegeAdministratorManagementPanel extends JPanel {
         toolbar.add(button("刷新", "collegeAdminRefreshButton", e -> refresh()));
 
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        table.getSelectionModel().addListSelectionListener(event -> {
-            if (event.getValueIsAdjusting()) return;
-            StudentCollegeAdministratorView admin = selected();
-            workspace.showAdministrator(admin);
-            if (admin != null) {
-                status.setText(admin.assigned()
-                        ? "选中管理员 " + admin.loginId() + "（" + admin.departmentName() + "），可在工作区调动或停用"
-                        : "选中未分配管理员 " + admin.loginId() + "，请在右侧工作区选择学院分配");
-            }
-        });
-
         JPanel leftPanel = new JPanel(new BorderLayout(0, UiSpacing.SPACE_2));
         leftPanel.setOpaque(false);
         leftPanel.add(toolbar, BorderLayout.NORTH);
         leftPanel.add(new JScrollPane(table), BorderLayout.CENTER);
-
-        JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, workspace);
-        split.setResizeWeight(0.58);
-        split.setDividerSize(6);
-        split.setOneTouchExpandable(true);
-        split.setBorder(null);
-        split.setOpaque(false);
-
-        add(split, BorderLayout.CENTER);
-        add(status, BorderLayout.SOUTH);
+        leftPanel.add(status, BorderLayout.SOUTH);
+        editorHost = new EmbeddedEditorHost(leftPanel);
+        editorHost.setOpaque(false);
+        add(editorHost, BorderLayout.CENTER);
     }
 
     @Override public void addNotify() {
@@ -101,8 +94,7 @@ public final class CollegeAdministratorManagementPanel extends JPanel {
                             .filter(DepartmentView::active).toList();
                     active.forEach(departmentsModel::addElement);
                     workspace.setDepartments(active);
-                    workspace.showAdministrator(selected());
-                    status.setText("已加载 " + administrators.size() + " 名学院管理员");
+                    status.setText(" ");
                 }));
     }
 
@@ -112,9 +104,11 @@ public final class CollegeAdministratorManagementPanel extends JPanel {
             status.setText(admin == null ? "请选择未分配管理员" : "该管理员已分配学院，如需更换请在工作区调动");
             return;
         }
+        workspace.showAdministrator(admin);
         workspace.showAssign();
+        editorHost.showEditor(workspaceEditor);
         workspace.focusChoice();
-        status.setText("请在右侧工作区选择目标学院并确认分配");
+        status.setText("请在页面内工作区选择目标学院并确认分配");
     }
 
     private void toolbarTransfer() {
@@ -123,9 +117,11 @@ public final class CollegeAdministratorManagementPanel extends JPanel {
             status.setText(admin == null ? "请选择已分配管理员" : "该管理员未分配学院，请在工作区分配");
             return;
         }
+        workspace.showAdministrator(admin);
         workspace.showTransfer();
+        editorHost.showEditor(workspaceEditor);
         workspace.focusChoice();
-        status.setText("请在右侧工作区选择目标学院并确认调动");
+        status.setText("请在页面内工作区选择目标学院并确认调动");
     }
 
     private void assign(StudentCollegeAdministratorView administrator, DepartmentView department) {
@@ -165,8 +161,15 @@ public final class CollegeAdministratorManagementPanel extends JPanel {
     }
 
     private void showCreateDialog() {
-        CollegeAdministratorCreationDialog.show(this, students, departmentsModel,
-                status, this::complete);
+        CollegeAdministratorCreationPanel[] expected = new CollegeAdministratorCreationPanel[1];
+        expected[0] = new CollegeAdministratorCreationPanel(students, departmentsModel,
+                (response, message) -> {
+                    complete(response, message);
+                    if (response != null && response.success()) {
+                        editorHost.completeAndClose(expected[0]);
+                    }
+                }, () -> editorHost.requestClose(expected[0]));
+        editorHost.showEditor(expected[0]);
     }
 
     private StudentCollegeAdministratorView selected() {
@@ -179,7 +182,10 @@ public final class CollegeAdministratorManagementPanel extends JPanel {
         SwingUtilities.invokeLater(() -> {
             status.setText(response != null && response.success()
                     ? success : message(response, "操作失败"));
-            if (response != null && response.success()) refresh();
+            if (response != null && response.success()) {
+                editorHost.completeAndClose(workspaceEditor);
+                refresh();
+            }
         });
     }
 

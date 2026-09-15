@@ -1,15 +1,28 @@
 package edu.seu.vcampus.server.bootstrap;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.DriverManager;
 import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 class VerifyDistributionDataTest {
+    @TempDir
+    Path tempDir;
+
     @Test
     void verifyData() throws Exception {
-        for (String dbPath : List.of("../vcampus-distribution/data/vCampus.accdb", "../vCampus-release/data/vCampus.accdb")) {
-            String url = "jdbc:ucanaccess://" + dbPath + ";immediatelyReleaseResources=true";
+        List<Path> databases = List.of(
+                Path.of("../vcampus-distribution/data/vCampus.accdb"),
+                Path.of("../vCampus-release/data/vCampus.accdb"));
+        for (int index = 0; index < databases.size(); index++) {
+            Path source = databases.get(index);
+            Path database = Files.copy(source, tempDir.resolve(index + "-vCampus.accdb"));
+            String url = "jdbc:ucanaccess://" + database + ";immediatelyReleaseResources=true";
             try (var conn = DriverManager.getConnection(url);
                  var stmt = conn.createStatement()) {
                 stmt.executeUpdate("""
@@ -24,11 +37,11 @@ class VerifyDistributionDataTest {
                     assertThat(rs.next()).isTrue();
                     assertThat(rs.getBoolean("enrolled")).isTrue();
                     assertThat(rs.getBoolean("onCampus")).isTrue();
-                    System.out.println(dbPath + " 09023999 enrolled=" + rs.getBoolean("enrolled") + ", onCampus=" + rs.getBoolean("onCampus"));
+                    System.out.println(source + " 09023999 enrolled=" + rs.getBoolean("enrolled") + ", onCampus=" + rs.getBoolean("onCampus"));
                 }
                 try (var rs = stmt.executeQuery("SELECT COUNT(*) FROM tblMajorTransferApplication")) {
                     rs.next();
-                    System.out.println(dbPath + " TOTAL APPLICATIONS: " + rs.getInt(1));
+                    System.out.println(source + " TOTAL APPLICATIONS: " + rs.getInt(1));
                 }
             }
         }

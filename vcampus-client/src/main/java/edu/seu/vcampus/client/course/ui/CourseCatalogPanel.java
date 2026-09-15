@@ -1,6 +1,7 @@
 package edu.seu.vcampus.client.course.ui;
 
 import edu.seu.vcampus.client.core.ui.theme.UiColors;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
 import edu.seu.vcampus.client.core.ui.theme.UiDimensions;
 import edu.seu.vcampus.client.core.ui.theme.UiSpacing;
 import edu.seu.vcampus.client.core.ui.theme.UiTypography;
@@ -32,12 +33,12 @@ public final class CourseCatalogPanel extends AbstractCoursePanel {
     private final JTable table = table(new Object[0][0], new Object[0]);
     private final List<CourseView> courses = new ArrayList<>();
     private final CoursePager pager;
+    private final EmbeddedEditorHost editorHost;
 
     public CourseCatalogPanel(CourseUiGateway gateway) {
-        super("课程目录管理", "维护课程代码、名称、学分与启用状态；修改使用服务端乐观锁版本。");
+        super("课程目录管理");
         this.gateway = gateway;
         this.pager = new CoursePager(50, this::search);
-        body.add(filters(), BorderLayout.NORTH);
         table.setModel(model);
         table.getTableHeader().setBackground(UiColors.BACKGROUND_SUBTLE);
         table.getAccessibleContext().setAccessibleName("课程目录列表");
@@ -45,10 +46,15 @@ public final class CourseCatalogPanel extends AbstractCoursePanel {
         scroll.setBorder(BorderFactory.createLineBorder(UiColors.BORDER_DEFAULT));
         JPanel listing = new JPanel(new BorderLayout(0, UiSpacing.MD));
         listing.setOpaque(false);
-        listing.add(scroll, BorderLayout.CENTER);
-        listing.add(pager, BorderLayout.SOUTH);
-        body.add(listing, BorderLayout.CENTER);
-        body.add(actions(), BorderLayout.SOUTH);
+        listing.add(filters(), BorderLayout.NORTH);
+        JPanel tableArea = new JPanel(new BorderLayout(0, UiSpacing.MD));
+        tableArea.setOpaque(false);
+        tableArea.add(scroll, BorderLayout.CENTER);
+        tableArea.add(pager, BorderLayout.SOUTH);
+        listing.add(tableArea, BorderLayout.CENTER);
+        listing.add(actions(), BorderLayout.SOUTH);
+        editorHost = new EmbeddedEditorHost(listing);
+        body.add(editorHost, BorderLayout.CENTER);
         search(0);
     }
 
@@ -85,7 +91,6 @@ public final class CourseCatalogPanel extends AbstractCoursePanel {
         panel.setOpaque(false);
         panel.setLayout(new BoxLayout(panel, BoxLayout.X_AXIS));
         panel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, UiColors.BORDER_DEFAULT));
-        panel.add(label("新增和短编辑使用统一课程表单，保存后自动刷新列表", UiTypography.CAPTION, UiColors.TEXT_SECONDARY));
         panel.add(Box.createHorizontalGlue());
         JButton edit = secondary("编辑所选");
         edit.addActionListener(event -> editSelected());
@@ -126,9 +131,10 @@ public final class CourseCatalogPanel extends AbstractCoursePanel {
     }
 
     private void openEditor(CourseView course) {
-        CourseEditorDialog dialog = new CourseEditorDialog(SwingUtilities.getWindowAncestor(this), gateway, course,
-                () -> search(pager.currentPage()));
-        dialog.setVisible(true);
+        editorHost.showEditor((complete, cancel) -> new CourseEditorPanel(gateway, course, () -> {
+            search(pager.currentPage());
+            complete.run();
+        }, cancel));
     }
 
     private static DefaultTableModel readOnlyModel(Object... columns) {

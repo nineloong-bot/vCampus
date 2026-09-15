@@ -1,11 +1,15 @@
 package edu.seu.vcampus.client.student.ui;
 
 import edu.seu.vcampus.client.student.service.StudentClientService;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditor;
 import edu.seu.vcampus.common.student.*;
 
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -36,6 +40,9 @@ public final class TrainingPlanManagementPanel extends JPanel {
     private JTextField planNameField, minCountField, minCreditsField;
     private JLabel planMsgLabel;
     private boolean isEditingPlan;
+    private EmbeddedEditorHost editorHost;
+    private boolean workspaceDirty;
+    private EmbeddedEditor workspaceEditor;
 
     public TrainingPlanManagementPanel(StudentClientService students) {
         this.students = students;
@@ -46,18 +53,20 @@ public final class TrainingPlanManagementPanel extends JPanel {
     }
 
     private void buildUi() {
+        buildWorkspacePanel();
+        trackWorkspaceChanges();
         JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
         splitPane.setResizeWeight(0.38);
         splitPane.setLeftComponent(buildLeftPanel());
         splitPane.setRightComponent(buildCoursePanel());
-        add(splitPane, BorderLayout.CENTER);
+        editorHost = new EmbeddedEditorHost(splitPane);
+        add(editorHost, BorderLayout.CENTER);
         add(statusLabel, BorderLayout.SOUTH);
     }
 
     private JPanel buildLeftPanel() {
         JPanel leftPanel = new JPanel(new BorderLayout(4, 8));
         leftPanel.add(buildFilterPanel(), BorderLayout.NORTH);
-        leftPanel.add(buildWorkspacePanel(), BorderLayout.CENTER);
         return leftPanel;
     }
 
@@ -342,7 +351,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
                         + " | 必修" + required + "门 选修" + elective + "门 跨学科" + cross + "门"
                         + " | 选修毕业要求≥" + currentPlan.minElectiveCount() + "门"
                         + "≥" + currentPlan.minElectiveCredits() + "学分");
-                statusLabel.setText("已加载方案");
+                statusLabel.setText(" ");
             }
         }));
     }
@@ -353,6 +362,22 @@ public final class TrainingPlanManagementPanel extends JPanel {
         courseMsgLabel.setText(" ");
         planMsgLabel.setText(" ");
         workspaceCardLayout.show(workspaceCardPanel, "EMPTY");
+        workspaceDirty = false;
+        if (editorHost != null) editorHost.completeAndClose();
+    }
+
+    private void trackWorkspaceChanges() {
+        DocumentListener listener = new DocumentListener() {
+            @Override public void insertUpdate(DocumentEvent event) { workspaceDirty = true; }
+            @Override public void removeUpdate(DocumentEvent event) { workspaceDirty = true; }
+            @Override public void changedUpdate(DocumentEvent event) { workspaceDirty = true; }
+        };
+        for (JTextField field : List.of(planNameField, minCountField, minCreditsField,
+                courseCodeField, courseNameField, courseCreditsField)) {
+            field.getDocument().addDocumentListener(listener);
+        }
+        courseTypeBox.addActionListener(event -> workspaceDirty = true);
+        courseSemesterBox.addActionListener(event -> workspaceDirty = true);
     }
 
     private void openCourseWorkspace(TrainingPlanCourseView existing) {
@@ -360,6 +385,10 @@ public final class TrainingPlanManagementPanel extends JPanel {
             statusLabel.setText("请先查询并选择一个培养方案");
             return;
         }
+        EmbeddedEditor editor = new TrainingPlanCourseEditorPanel(
+                workspaceCardPanel, () -> workspaceDirty);
+        if (!editorHost.showEditor(editor)) return;
+        workspaceEditor = editor;
         editingCourse = existing;
         boolean isEdit = existing != null;
         courseBorder.setTitle(isEdit ? "编辑课程" : "添加课程");
@@ -371,6 +400,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
         courseSemesterBox.setSelectedIndex(isEdit ? Math.max(0, existing.semester() - 1) : 0);
         courseMsgLabel.setText(" ");
         workspaceCardLayout.show(workspaceCardPanel, "COURSE");
+        workspaceDirty = false;
         courseCodeField.requestFocusInWindow();
     }
 
@@ -388,6 +418,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
     }
 
     private void saveCourse() {
+        EmbeddedEditor expectedEditor = workspaceEditor;
         if (currentPlan == null) {
             courseMsgLabel.setText("未选择有效方案");
             return;
@@ -423,6 +454,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
                 editingCourse != null ? editingCourse.allocatedQuota() : null);
         courseMsgLabel.setText("正在保存...");
         students.saveTrainingPlanCourse(cmd).thenAccept(r -> SwingUtilities.invokeLater(() -> {
+            if (expectedEditor != null && !editorHost.isCurrent(expectedEditor)) return;
             if (r.success()) {
                 loadPlanDetail(currentPlan.planId());
                 statusLabel.setText(editingCourse != null ? "课程修改成功" : "课程添加成功");
@@ -441,6 +473,9 @@ public final class TrainingPlanManagementPanel extends JPanel {
             statusLabel.setText("请先选择院系、专业和年级");
             return;
         }
+        EmbeddedEditor editor = new TrainingPlanEditorPanel(workspaceCardPanel, () -> workspaceDirty);
+        if (!editorHost.showEditor(editor)) return;
+        workspaceEditor = editor;
         int year = Integer.parseInt(yearStr.replace("级", ""));
         isEditingPlan = false;
         planBorder.setTitle("新建培养方案");
@@ -450,6 +485,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
         minCreditsField.setText("8");
         planMsgLabel.setText(" ");
         workspaceCardLayout.show(workspaceCardPanel, "PLAN");
+        workspaceDirty = false;
         planNameField.requestFocusInWindow();
     }
 
@@ -458,6 +494,9 @@ public final class TrainingPlanManagementPanel extends JPanel {
             statusLabel.setText("请先查询并选择一个方案");
             return;
         }
+        EmbeddedEditor editor = new TrainingPlanEditorPanel(workspaceCardPanel, () -> workspaceDirty);
+        if (!editorHost.showEditor(editor)) return;
+        workspaceEditor = editor;
         isEditingPlan = true;
         planBorder.setTitle("编辑培养方案");
         workspaceCardPanel.repaint();
@@ -466,10 +505,12 @@ public final class TrainingPlanManagementPanel extends JPanel {
         minCreditsField.setText(currentPlan.minElectiveCredits().toPlainString());
         planMsgLabel.setText(" ");
         workspaceCardLayout.show(workspaceCardPanel, "PLAN");
+        workspaceDirty = false;
         planNameField.requestFocusInWindow();
     }
 
     private void savePlan() {
+        EmbeddedEditor expectedEditor = workspaceEditor;
         MajorView major = (MajorView) majorBox.getSelectedItem();
         String yearStr = (String) yearBox.getSelectedItem();
         if (!isEditingPlan && (major == null || yearStr == null)) {
@@ -504,6 +545,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
                     name, minCount, minCredits, true, currentPlan.rowVersion());
             planMsgLabel.setText("正在保存...");
             students.saveTrainingPlan(cmd).thenAccept(r -> SwingUtilities.invokeLater(() -> {
+                if (expectedEditor != null && !editorHost.isCurrent(expectedEditor)) return;
                 if (r.success()) {
                     loadPlanDetail(currentPlan.planId());
                     statusLabel.setText("方案更新成功");
@@ -519,6 +561,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
                     year, name, minCount, minCredits, true, 0);
             planMsgLabel.setText("正在创建...");
             students.saveTrainingPlan(cmd).thenAccept(r -> SwingUtilities.invokeLater(() -> {
+                if (expectedEditor != null && !editorHost.isCurrent(expectedEditor)) return;
                 if (r.success()) {
                     loadPlanDetail(r.data().planId());
                     statusLabel.setText("方案创建成功");
@@ -572,10 +615,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
         DepartmentView currentDept = (DepartmentView) deptBox.getSelectedItem();
         String currentDeptId = currentDept != null ? currentDept.departmentId() : "";
 
-        JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "全校课程库引入", true);
-        dialog.setSize(880, 520);
-        dialog.setLocationRelativeTo(this);
-        dialog.setLayout(new BorderLayout(8, 8));
+        JPanel dialog = new JPanel(new BorderLayout(8, 8));
 
         JPanel topFilter = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 8));
         JComboBox<DepartmentFilterItem> poolDeptBox = new JComboBox<>();
@@ -638,7 +678,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
         JPanel bottomBar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 8));
         JButton importBtn = new JButton("引入到当前培养方案");
         JButton closeBtn = new JButton("关闭");
-        closeBtn.addActionListener(e -> dialog.dispose());
+        closeBtn.addActionListener(e -> editorHost.requestClose());
         bottomBar.add(importBtn);
         bottomBar.add(closeBtn);
         dialog.add(bottomBar, BorderLayout.SOUTH);
@@ -659,20 +699,17 @@ public final class TrainingPlanManagementPanel extends JPanel {
 
             boolean isCrossDept = course.departmentId() != null && !course.departmentId().equals(currentDeptId);
             if (isCrossDept) {
-                showCrossCourseApplicationDialog(dialog, course);
+                showCrossCourseApplicationDialog(course);
             } else {
-                showDirectAddCourseFromPoolDialog(dialog, course);
+                showDirectAddCourseFromPoolDialog(course);
             }
         });
 
-        dialog.setVisible(true);
+        editorHost.showEditor(new TrainingPlanCourseEditorPanel(dialog, () -> false));
     }
 
-    private void showCrossCourseApplicationDialog(JDialog parent, CoursePoolItemView course) {
-        JDialog appDialog = new JDialog(parent, "申请跨学科课程引入", true);
-        appDialog.setSize(480, 360);
-        appDialog.setLocationRelativeTo(parent);
-        appDialog.setLayout(new BorderLayout(8, 8));
+    private void showCrossCourseApplicationDialog(CoursePoolItemView course) {
+        JPanel appDialog = new JPanel(new BorderLayout(8, 8));
 
         JPanel form = new JPanel(new GridBagLayout());
         GridBagConstraints c = new GridBagConstraints();
@@ -711,7 +748,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
 
         JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 8));
         JButton cancelBtn = new JButton("取消");
-        cancelBtn.addActionListener(e -> appDialog.dispose());
+        cancelBtn.addActionListener(e -> editorHost.requestClose());
         JButton submitBtn = new JButton("提交申请");
         btnRow.add(cancelBtn);
         btnRow.add(submitBtn);
@@ -734,8 +771,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
                     JOptionPane.showMessageDialog(appDialog,
                             "跨学科课程引入申请已提交！\n待开课学院（" + course.departmentName() + "）管理员审批并分配名额后，课程将自动加入培养方案。",
                             "申请已提交", JOptionPane.INFORMATION_MESSAGE);
-                    appDialog.dispose();
-                    parent.dispose();
+                    editorHost.completeAndClose();
                 } else {
                     JOptionPane.showMessageDialog(appDialog, "提交申请失败: " + res.message(), "错误", JOptionPane.ERROR_MESSAGE);
                 }
@@ -744,14 +780,12 @@ public final class TrainingPlanManagementPanel extends JPanel {
 
         appDialog.add(form, BorderLayout.CENTER);
         appDialog.add(btnRow, BorderLayout.SOUTH);
-        appDialog.setVisible(true);
+        editorHost.showEditor(new CrossDisciplineRequestPanel(appDialog,
+                () -> !reasonArea.getText().isBlank()));
     }
 
-    private void showDirectAddCourseFromPoolDialog(JDialog parent, CoursePoolItemView course) {
-        JDialog addDialog = new JDialog(parent, "引入本院课程", true);
-        addDialog.setSize(420, 260);
-        addDialog.setLocationRelativeTo(parent);
-        addDialog.setLayout(new BorderLayout(8, 8));
+    private void showDirectAddCourseFromPoolDialog(CoursePoolItemView course) {
+        JPanel addDialog = new JPanel(new BorderLayout(8, 8));
 
         JPanel form = new JPanel(new GridBagLayout());
         GridBagConstraints c = new GridBagConstraints();
@@ -786,7 +820,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
 
         JPanel btnRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 8));
         JButton cancelBtn = new JButton("取消");
-        cancelBtn.addActionListener(e -> addDialog.dispose());
+        cancelBtn.addActionListener(e -> editorHost.requestClose());
         JButton okBtn = new JButton("确定引入");
         btnRow.add(cancelBtn);
         btnRow.add(okBtn);
@@ -803,8 +837,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
                     loadPlanDetail(currentPlan.planId());
                     statusLabel.setText("已成功引入课程: " + course.courseName());
                     JOptionPane.showMessageDialog(addDialog, "课程已成功引入培养方案！", "提示", JOptionPane.INFORMATION_MESSAGE);
-                    addDialog.dispose();
-                    parent.dispose();
+                    editorHost.completeAndClose();
                 } else {
                     JOptionPane.showMessageDialog(addDialog, "引入失败: " + res.message(), "错误", JOptionPane.ERROR_MESSAGE);
                 }
@@ -813,14 +846,11 @@ public final class TrainingPlanManagementPanel extends JPanel {
 
         addDialog.add(form, BorderLayout.CENTER);
         addDialog.add(btnRow, BorderLayout.SOUTH);
-        addDialog.setVisible(true);
+        editorHost.showEditor(new TrainingPlanCourseEditorPanel(addDialog, () -> false));
     }
 
     private void openCrossCourseReviewDialog() {
-        JDialog reviewDialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "跨学科选课申请审批", true);
-        reviewDialog.setSize(950, 520);
-        reviewDialog.setLocationRelativeTo(this);
-        reviewDialog.setLayout(new BorderLayout(8, 8));
+        JPanel reviewDialog = new JPanel(new BorderLayout(8, 8));
 
         JPanel topFilter = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 8));
         JComboBox<String> statusFilterBox = new JComboBox<>(new String[]{"待审批", "已同意", "已驳回", "全部"});
@@ -871,7 +901,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
         JButton approveBtn = new JButton("同意并分配名额");
         JButton rejectBtn = new JButton("驳回申请");
         JButton closeBtn = new JButton("关闭");
-        closeBtn.addActionListener(e -> reviewDialog.dispose());
+        closeBtn.addActionListener(e -> editorHost.requestClose());
         bottomBar.add(approveBtn);
         bottomBar.add(rejectBtn);
         bottomBar.add(closeBtn);
@@ -888,34 +918,9 @@ public final class TrainingPlanManagementPanel extends JPanel {
                 JOptionPane.showMessageDialog(reviewDialog, "该申请已审批，无法重复审批！", "提示", JOptionPane.WARNING_MESSAGE);
                 return;
             }
-            String quotaStr = JOptionPane.showInputDialog(reviewDialog,
-                    "申请学院: " + app.targetDepartmentName()
-                    + "\n课程: " + app.courseName() + " (" + app.courseCode() + ")"
-                    + "\n申请名额: " + app.requestedQuota()
-                    + "\n\n请输入分配给该学院的选课名额:",
-                    String.valueOf(app.requestedQuota()));
-            if (quotaStr == null) return;
-            int quota;
-            try {
-                quota = Integer.parseInt(quotaStr.trim());
-                if (quota <= 0) throw new NumberFormatException();
-            } catch (Exception ex) {
-                JOptionPane.showMessageDialog(reviewDialog, "分配名额必须是大于0的正整数！", "提示", JOptionPane.WARNING_MESSAGE);
-                return;
-            }
-            ReviewCrossCourseApplicationCommand cmd = new ReviewCrossCourseApplicationCommand(
-                    app.applicationId(), true, quota, null);
-            students.reviewCrossCourseApplication(cmd).thenAccept(r -> SwingUtilities.invokeLater(() -> {
-                if (r.success()) {
-                    JOptionPane.showMessageDialog(reviewDialog,
-                            "审批成功！已分配名额 " + quota + "，该课程已自动加入目标培养方案。",
-                            "审批成功", JOptionPane.INFORMATION_MESSAGE);
-                    loadApps.run();
-                    if (currentPlan != null) loadPlanDetail(currentPlan.planId());
-                } else {
-                    JOptionPane.showMessageDialog(reviewDialog, "审批操作失败: " + r.message(), "错误", JOptionPane.ERROR_MESSAGE);
-                }
-            }));
+            editorHost.showEditor(new CrossCourseDecisionPanel(students, app, true, () -> {
+                loadApps.run(); if (currentPlan != null) loadPlanDetail(currentPlan.planId());
+            }, () -> editorHost.completeAndClose()));
         });
 
         rejectBtn.addActionListener(e -> {
@@ -929,25 +934,11 @@ public final class TrainingPlanManagementPanel extends JPanel {
                 JOptionPane.showMessageDialog(reviewDialog, "该申请已审批，无法重复审批！", "提示", JOptionPane.WARNING_MESSAGE);
                 return;
             }
-            String reason = JOptionPane.showInputDialog(reviewDialog,
-                    "申请学院: " + app.targetDepartmentName()
-                    + "\n课程: " + app.courseName()
-                    + "\n\n请输入驳回原因:",
-                    "本学期选课容量已满");
-            if (reason == null || reason.trim().isEmpty()) return;
-            ReviewCrossCourseApplicationCommand cmd = new ReviewCrossCourseApplicationCommand(
-                    app.applicationId(), false, null, reason.trim());
-            students.reviewCrossCourseApplication(cmd).thenAccept(r -> SwingUtilities.invokeLater(() -> {
-                if (r.success()) {
-                    JOptionPane.showMessageDialog(reviewDialog, "已驳回该申请。", "提示", JOptionPane.INFORMATION_MESSAGE);
-                    loadApps.run();
-                } else {
-                    JOptionPane.showMessageDialog(reviewDialog, "驳回操作失败: " + r.message(), "错误", JOptionPane.ERROR_MESSAGE);
-                }
-            }));
+            editorHost.showEditor(new CrossCourseDecisionPanel(students, app, false,
+                    loadApps, () -> editorHost.completeAndClose()));
         });
 
-        reviewDialog.setVisible(true);
+        editorHost.showEditor(new CrossDisciplineRequestPanel(reviewDialog, () -> false));
     }
 
     private record DepartmentFilterItem(String id, String name) {

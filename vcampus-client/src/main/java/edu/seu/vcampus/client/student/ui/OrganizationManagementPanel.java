@@ -6,6 +6,7 @@ import edu.seu.vcampus.client.core.ui.theme.UiBorders;
 import edu.seu.vcampus.client.core.ui.theme.UiColors;
 import edu.seu.vcampus.client.core.ui.theme.UiSpacing;
 import edu.seu.vcampus.client.core.ui.theme.UiTypography;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.student.*;
@@ -45,6 +46,7 @@ public final class OrganizationManagementPanel extends JPanel {
     private final JButton addStudentButton = new JButton("新增学生");
     private final JButton batchAssignButton = new JButton("批量分班");
     private final JPanel editPanel = new JPanel(new BorderLayout());
+    private EmbeddedEditorHost editorHost;
 
     private DefaultMutableTreeNode selectedNode;
     private Object editingTarget;
@@ -145,7 +147,9 @@ public final class OrganizationManagementPanel extends JPanel {
         editPanel.setOpaque(false);
         editPanel.setPreferredSize(new Dimension(360, 0));
         showPlaceholder();
-        add(editPanel, BorderLayout.CENTER);
+        editorHost = new EmbeddedEditorHost(editPanel);
+        editorHost.setOpaque(false);
+        add(editorHost, BorderLayout.CENTER);
 
         JPanel bottom = new JPanel(new BorderLayout(UiSpacing.SPACE_3, 0));
         bottom.setOpaque(false);
@@ -204,7 +208,7 @@ public final class OrganizationManagementPanel extends JPanel {
             }
             treeModel.reload();
             expandAll();
-            statusLabel.setText(connection.state() == ConnectionState.CONNECTED ? "已加载" : "已断开连接");
+            statusLabel.setText(connection.state() == ConnectionState.CONNECTED ? " " : "已断开连接");
             errorLabel.setText(" ");
             updateAddButtons();
             if (onComplete != null) onComplete.run();
@@ -668,8 +672,16 @@ public final class OrganizationManagementPanel extends JPanel {
             }
         }
         if (major == null || department == null) return;
-        new ManualStudentCreationDialog(SwingUtilities.getWindowAncestor(this), students,
-                department, major, cls).setVisible(true);
+        MajorView targetMajor = major;
+        DepartmentView targetDepartment = department;
+        editorHost.showEditor((complete, cancel) -> new ManualStudentCreationPanel(students,
+                targetDepartment, targetMajor, cls,
+                result -> { studentCreated(result); complete.run(); }, cancel));
+    }
+
+    private void studentCreated(StudentAdmissionResult result) {
+        errorLabel.setText("新增成功：一卡通号 " + result.campusCardNumber()
+                + "，学号 " + result.studentNumber() + "，初始密码 12345678");
     }
 
     private MajorView resolveMajor() {
@@ -702,9 +714,15 @@ public final class OrganizationManagementPanel extends JPanel {
                 return;
             }
             errorLabel.setText(" ");
-            new BatchClassAssignmentDialog(SwingUtilities.getWindowAncestor(this),
-                    students, selectedMajor, classes).setVisible(true);
+            editorHost.showEditor((complete, cancel) -> new BatchClassAssignmentPanel(students,
+                    selectedMajor, classes,
+                    result -> { batchImportCompleted(result); complete.run(); }, cancel));
         }));
+    }
+
+    private void batchImportCompleted(BatchImportResult result) {
+        errorLabel.setText("批量导入完成：成功 " + result.totalCreated()
+                + " 条，失败 " + result.totalFailed() + " 条");
     }
 
     private void connectionChanged(ConnectionState state) {

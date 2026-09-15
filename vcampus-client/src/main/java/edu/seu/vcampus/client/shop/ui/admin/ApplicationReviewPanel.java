@@ -4,6 +4,7 @@ import edu.seu.vcampus.client.shop.ui.*;
 import edu.seu.vcampus.client.shop.ui.async.LatestRequest;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
 import edu.seu.vcampus.client.shop.ui.style.ShopComponentStyle;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
 import edu.seu.vcampus.common.shop.*;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -36,6 +37,7 @@ public final class ApplicationReviewPanel extends JPanel {
     private long refreshGeneration;
     private int refreshOutstanding;
     private boolean disposed;
+    private EmbeddedEditorHost editorHost;
     public ApplicationReviewPanel(AdminShopClientPort port, ShopUiKit uiKit, Runnable sessionExpired) {
         this(port, uiKit, sessionExpired,
                 (parent, application, reviewable) ->
@@ -72,12 +74,14 @@ public final class ApplicationReviewPanel extends JPanel {
         approve.setEnabled(false); reject.setEnabled(false);
         refresh.addActionListener(event -> load());
         approve.addActionListener(event -> review(SellerReviewDecision.APPROVE, null));
-        reject.addActionListener(event -> { String reason = JOptionPane.showInputDialog(this, "请输入驳回原因");
-            if (reason != null && !reason.isBlank()) review(SellerReviewDecision.REJECT, reason.strip()); });
+        reject.addActionListener(event -> editorHost.showEditor(new ShopReasonEditorPanel(
+                "驳回原因", reason -> review(SellerReviewDecision.REJECT, reason),
+                () -> editorHost.requestClose())));
         JPanel actions = uiKit.filterPanel("admin.applications.actions", new FlowLayout());
         actions.add(refresh); actions.add(approve); actions.add(reject);
         JPanel south = uiKit.filterPanel("admin.applications.south", new BorderLayout()); south.add(detail); south.add(actions, BorderLayout.SOUTH);
-        add(tabs); add(south, BorderLayout.SOUTH);
+        JPanel list = new JPanel(new BorderLayout(8, 8)); list.add(tabs); list.add(south, BorderLayout.SOUTH);
+        editorHost = new EmbeddedEditorHost(list); add(editorHost);
     }
     public void load() {
         if (disposed) return;
@@ -113,7 +117,8 @@ public final class ApplicationReviewPanel extends JPanel {
         review(pendingRows.get(row), decision, reason); }
     private void review(SellerApplicationView value, SellerReviewDecision decision, String reason) {
         port.reviewApplication(new ReviewSellerApplicationCommand(value.applicationId(), decision, reason, value.rowVersion()))
-                .whenComplete((ignored, failure) -> SwingUtilities.invokeLater(() -> { if (disposed) return; if (failure != null) fail(failure); else load(); })); }
+                .whenComplete((ignored, failure) -> SwingUtilities.invokeLater(() -> { if (disposed) return;
+                    if (failure != null) fail(failure); else { editorHost.completeAndClose(); load(); } })); }
     private java.awt.event.MouseAdapter doubleClick(java.util.function.Supplier<SellerApplicationView> selected,
             boolean reviewable) { return new java.awt.event.MouseAdapter() {
         @Override public void mouseClicked(java.awt.event.MouseEvent event) {

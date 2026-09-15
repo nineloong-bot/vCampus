@@ -340,7 +340,7 @@ class LibraryUiTest {
         first(search, JTable.class).setRowSelectionInterval(0, 0);
         SwingUtilities.invokeAndWait(() -> { });
 
-        assertThat(labels(search)).contains("图书详情已加载").doesNotContain("正在加载图书详情");
+        assertThat(labels(search)).doesNotContain("正在加载图书详情", "图书详情已加载");
     }
 
     @Test

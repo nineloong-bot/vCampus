@@ -89,7 +89,7 @@ public final class BookSearchPanel extends LibraryDataPanel {
         service.getBook(book.bookId()).whenComplete((result, failure) -> SwingUtilities.invokeLater(() -> {
             if (!accepts(request)) return;
             if (failure != null) LibraryFeedback.failure(this, status, failure, "图书详情加载失败，请重试。");
-            else { detail.showBook(result); status.setText("图书详情已加载"); }
+            else { detail.showBook(result); status.setText(" "); }
         }));
     }
 }

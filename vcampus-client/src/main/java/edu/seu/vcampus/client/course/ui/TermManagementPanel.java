@@ -1,6 +1,7 @@
 package edu.seu.vcampus.client.course.ui;
 
 import edu.seu.vcampus.client.core.ui.theme.UiColors;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
 import edu.seu.vcampus.client.core.ui.theme.UiSpacing;
 import edu.seu.vcampus.common.course.TermView;
 
@@ -25,9 +26,10 @@ public final class TermManagementPanel extends AbstractCoursePanel {
     private final DefaultTableModel model = readOnlyModel("学期代码", "学期名称 / 培养方案映射", "开学日期", "结束日期", "状态", "版本");
     private final JTable table = table(new Object[0][0], new Object[0]);
     private final List<TermView> terms = new ArrayList<>();
+    private final EmbeddedEditorHost editorHost;
 
     public TermManagementPanel(CourseUiGateway gateway) {
-        super("学期管理", "维护学期名称、教学日期和状态；选课开放请前往“选课阶段”。");
+        super("学期管理");
         this.gateway = gateway;
         JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.RIGHT, UiSpacing.SM, 0));
         toolbar.setOpaque(false);
@@ -40,13 +42,17 @@ public final class TermManagementPanel extends AbstractCoursePanel {
         JButton create = primary("新建学期");
         create.addActionListener(event -> openEditor(null));
         toolbar.add(create);
-        body.add(toolbar, BorderLayout.NORTH);
         table.setModel(model);
         table.getTableHeader().setBackground(UiColors.BACKGROUND_SUBTLE);
         table.getAccessibleContext().setAccessibleName("学期配置列表");
         JScrollPane scroll = new JScrollPane(table);
         scroll.setBorder(BorderFactory.createLineBorder(UiColors.BORDER_DEFAULT));
-        body.add(scroll, BorderLayout.CENTER);
+        JPanel listing = new JPanel(new BorderLayout(0, UiSpacing.MD));
+        listing.setOpaque(false);
+        listing.add(toolbar, BorderLayout.NORTH);
+        listing.add(scroll, BorderLayout.CENTER);
+        editorHost = new EmbeddedEditorHost(listing);
+        body.add(editorHost, BorderLayout.CENTER);
         load();
     }
 
@@ -77,7 +83,10 @@ public final class TermManagementPanel extends AbstractCoursePanel {
     }
 
     private void openEditor(TermView term) {
-        new TermEditorDialog(SwingUtilities.getWindowAncestor(this), gateway, term, this::load).setVisible(true);
+        editorHost.showEditor((complete, cancel) -> new TermEditorPanel(gateway, term, () -> {
+            load();
+            complete.run();
+        }, cancel));
     }
 
     private static String window(java.time.Instant start, java.time.Instant end) { return TIME.format(start) + " 至 " + TIME.format(end); }
