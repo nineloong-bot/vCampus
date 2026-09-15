@@ -135,8 +135,11 @@ public final class MainFrame extends JFrame {
         installPage("library", new LibraryWorkspacePanel(
                 Objects.requireNonNull(library, "library"),
                 Objects.requireNonNull(permissions, "permissions"), user.role()));
-        ShopUiInstaller.install(this, user, Objects.requireNonNull(shop, "shop"),
-                new SharedShopUiKitAdapter(), onAuthenticationFailure);
+        if (PermissionNavigation.visibleItems(user.role()).stream()
+                .anyMatch(item -> "shop".equals(item.id()))) {
+            ShopUiInstaller.install(this, user, Objects.requireNonNull(shop, "shop"),
+                    new SharedShopUiKitAdapter(), onAuthenticationFailure);
+        }
     }
 
     static void configureLoggedInContent(JPanel header, PageNavigator pageNavigator, UserView user) {
