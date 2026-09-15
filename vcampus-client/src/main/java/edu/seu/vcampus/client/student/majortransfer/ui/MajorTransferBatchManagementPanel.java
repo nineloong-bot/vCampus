@@ -1,67 +1,92 @@
 package edu.seu.vcampus.client.student.majortransfer.ui;
 
+import edu.seu.vcampus.client.core.ui.theme.UiBorders;
 import edu.seu.vcampus.client.core.ui.theme.UiColors;
 import edu.seu.vcampus.client.core.ui.theme.UiSpacing;
+import edu.seu.vcampus.client.core.ui.theme.UiTypography;
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.common.protocol.ResponseBody;
-import edu.seu.vcampus.common.student.majortransfer.MajorTransferBatchStatus;
 import edu.seu.vcampus.common.student.majortransfer.MajorTransferBatchView;
 import edu.seu.vcampus.common.student.majortransfer.SaveMajorTransferBatchCommand;
 
 import javax.swing.*;
-import javax.swing.border.EmptyBorder;
 import java.awt.*;
-import java.time.Instant;
-import java.time.ZoneId;
 import java.util.Objects;
 
-/** Manages only school-wide transfer batches for the central student administrator. */
+/** Manages school-wide transfer batches for central student admin with in-workspace editing. */
 public final class MajorTransferBatchManagementPanel extends JPanel {
     private final StudentClientService students;
     private final DefaultListModel<MajorTransferBatchView> model = new DefaultListModel<>();
     private final JList<MajorTransferBatchView> batches = new JList<>(model);
+    private final MajorTransferBatchFormCardPanel formCard = new MajorTransferBatchFormCardPanel();
     private final JLabel status = new JLabel(" ");
+    private final JButton createButton = new JButton("新建批次");
+    private final JButton refreshButton = new JButton("刷新");
+    private int refreshSequence;
 
-    /** Creates the global transfer-batch workspace. */
+    /** Creates the in-workspace batch management workspace. */
     public MajorTransferBatchManagementPanel(StudentClientService students) {
-        super(new BorderLayout(UiSpacing.SPACE_2, UiSpacing.SPACE_2));
-        this.students = Objects.requireNonNull(students);
+        super(new BorderLayout(UiSpacing.SPACE_3, 0));
+        this.students = Objects.requireNonNull(students, "students");
         setName("major-transfer.batch-management");
         setBackground(UiColors.BACKGROUND_PAGE);
-        setBorder(new EmptyBorder(UiSpacing.SPACE_3, UiSpacing.SPACE_3,
-                UiSpacing.SPACE_3, UiSpacing.SPACE_3));
+        setBorder(UiBorders.pageInset());
         build();
     }
 
     private void build() {
-        JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        toolbar.setOpaque(false);
-        JButton create = new JButton("新建批次");
-        create.setName("saveBatchButton");
-        create.addActionListener(event -> edit(null));
-        JButton update = new JButton("编辑批次");
-        update.setName("editBatchButton");
-        update.addActionListener(event -> {
-            if (batches.getSelectedValue() != null) edit(batches.getSelectedValue());
-        });
-        JButton refresh = new JButton("刷新");
-        refresh.addActionListener(event -> refresh());
-        toolbar.add(create);
-        toolbar.add(update);
-        toolbar.add(refresh);
+        JPanel left = new JPanel(new BorderLayout(0, UiSpacing.SPACE_2));
+        left.setOpaque(false);
+        left.setPreferredSize(new Dimension(320, 0));
+
+        JLabel title = new JLabel("转专业批次");
+        title.setFont(UiTypography.PAGE_TITLE);
+        title.setForeground(UiColors.TEXT_PRIMARY);
+        left.add(title, BorderLayout.NORTH);
+
         batches.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        batches.setName("major-transfer.batch-list");
         batches.setCellRenderer(new DefaultListCellRenderer() {
             @Override public Component getListCellRendererComponent(JList<?> list, Object value,
                     int index, boolean selected, boolean focus) {
                 super.getListCellRendererComponent(list, value, index, selected, focus);
                 if (value instanceof MajorTransferBatchView batch) {
-                    setText(batch.batchName() + " [" + batch.status() + "]");
+                    setText(batch.batchName() + " · "
+                            + MajorTransferBatchStatusRenderer.text(batch.status()));
                 }
                 return this;
             }
         });
-        add(toolbar, BorderLayout.NORTH);
-        add(new JScrollPane(batches), BorderLayout.CENTER);
+        batches.addListSelectionListener(event -> {
+            if (!event.getValueIsAdjusting()) {
+                formCard.loadBatch(batches.getSelectedValue());
+            }
+        });
+
+        JScrollPane scrollPane = new JScrollPane(batches);
+        scrollPane.setBorder(UiBorders.LINE);
+        left.add(scrollPane, BorderLayout.CENTER);
+
+        JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, UiSpacing.SPACE_2, 0));
+        toolbar.setOpaque(false);
+        createButton.setName("major-transfer.batch-create");
+        createButton.addActionListener(event -> {
+            batches.clearSelection();
+            formCard.clearForNew();
+        });
+        refreshButton.setName("major-transfer.batch-refresh");
+        refreshButton.addActionListener(event -> refresh());
+        toolbar.add(createButton);
+        toolbar.add(refreshButton);
+        left.add(toolbar, BorderLayout.SOUTH);
+
+        formCard.saveButton().addActionListener(event -> saveBatch());
+
+        add(left, BorderLayout.WEST);
+        add(formCard, BorderLayout.CENTER);
+        status.setName("major-transfer.batch-status");
+        status.setFont(UiTypography.CAPTION);
+        status.setForeground(UiColors.TEXT_SECONDARY);
         add(status, BorderLayout.SOUTH);
     }
 
@@ -71,75 +96,79 @@ public final class MajorTransferBatchManagementPanel extends JPanel {
     }
 
     private void refresh() {
+        MajorTransferBatchView selected = batches.getSelectedValue();
+        refresh(selected == null ? null : selected.batchId());
+    }
+
+    private void refresh(String preferredBatchId) {
+        int requestSequence = ++refreshSequence;
+        status.setText("正在加载批次列表…");
+        setBusy(true);
         students.listTransferBatches().whenComplete((response, failure) ->
                 SwingUtilities.invokeLater(() -> {
+                    if (requestSequence != refreshSequence) return;
+                    setBusy(false);
                     if (response == null || !response.success()) {
-                        status.setText(message(response, "批次加载失败"));
+                        status.setText(message(response, failure, "批次加载失败，请稍后重试"));
+                        return;
+                    }
+                    if (response.data() == null) {
+                        status.setText("批次加载失败：服务端未返回数据");
                         return;
                     }
                     model.clear();
                     response.data().forEach(model::addElement);
+                    selectBatch(preferredBatchId);
+                    status.setText("批次列表已更新，共 " + model.size() + " 个批次");
                 }));
     }
 
-    private void edit(MajorTransferBatchView batch) {
-        JTextField name = new JTextField(batch == null ? "" : batch.batchName(), 24);
-        JComboBox<MajorTransferBatchStatus> batchStatus =
-                new JComboBox<>(MajorTransferBatchStatus.values());
-        batchStatus.setSelectedItem(batch == null
-                ? MajorTransferBatchStatus.DRAFT : batch.status());
-        JTextField start = date(batch == null ? Instant.now() : batch.applicationStart());
-        JTextField end = date(batch == null ? Instant.now().plusSeconds(604800)
-                : batch.applicationEnd());
-        JTextField publicityStart = date(batch == null ? null : batch.publicityStart());
-        JTextField publicityEnd = date(batch == null ? null : batch.publicityEnd());
-        JTextField effective = date(batch == null ? null : batch.effectiveDate());
-        JPanel form = new JPanel(new GridLayout(0, 2, 6, 6));
-        addField(form, "批次名称", name);
-        addField(form, "状态", batchStatus);
-        addField(form, "报名开始", start);
-        addField(form, "报名结束", end);
-        addField(form, "公示开始", publicityStart);
-        addField(form, "公示结束", publicityEnd);
-        addField(form, "生效时间", effective);
-        if (JOptionPane.showConfirmDialog(this, form, "转专业批次",
-                JOptionPane.OK_CANCEL_OPTION) != JOptionPane.OK_OPTION) return;
-        try {
-            var command = new SaveMajorTransferBatchCommand(
-                    batch == null ? null : batch.batchId(), name.getText().trim(),
-                    (MajorTransferBatchStatus) batchStatus.getSelectedItem(), parse(start),
-                    parse(end), parse(publicityStart), parse(publicityEnd), parse(effective),
-                    batch == null ? 0 : batch.rowVersion());
-            students.saveTransferBatch(command).whenComplete((response, failure) ->
-                    SwingUtilities.invokeLater(() -> {
-                        status.setText(response != null && response.success()
-                                ? "保存成功" : message(response, "保存失败"));
-                        if (response != null && response.success()) refresh();
-                    }));
-        } catch (RuntimeException error) {
-            JOptionPane.showMessageDialog(this, "请检查字段：" + error.getMessage());
+    private void selectBatch(String batchId) {
+        if (batchId == null) return;
+        for (int index = 0; index < model.size(); index++) {
+            if (batchId.equals(model.get(index).batchId())) {
+                batches.setSelectedIndex(index);
+                batches.ensureIndexIsVisible(index);
+                return;
+            }
         }
     }
 
-    private static JTextField date(Instant value) {
-        var format = java.time.format.DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm");
-        return new JTextField(value == null ? ""
-                : format.format(value.atZone(ZoneId.of("Asia/Shanghai"))), 18);
+    private void saveBatch() {
+        SaveMajorTransferBatchCommand command;
+        try {
+            command = formCard.buildCommand();
+        } catch (IllegalArgumentException ex) {
+            formCard.showFeedback(ex.getMessage(), true);
+            return;
+        }
+        formCard.showFeedback("正在保存…", false);
+        setBusy(true);
+        students.saveTransferBatch(command).whenComplete((response, failure) ->
+                SwingUtilities.invokeLater(() -> {
+                    if (response != null && response.success()) {
+                        MajorTransferBatchView saved = response.data();
+                        if (saved != null) formCard.loadBatch(saved);
+                        formCard.showFeedback("批次保存成功", false);
+                        refresh(saved == null ? command.batchId() : saved.batchId());
+                    } else {
+                        setBusy(false);
+                        formCard.showFeedback(message(response, failure, "保存失败，请稍后重试"), true);
+                    }
+                }));
     }
 
-    private static Instant parse(JTextField field) {
-        if (field.getText().isBlank()) return null;
-        return java.time.LocalDateTime.parse(field.getText().trim(),
-                java.time.format.DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm"))
-                .atZone(ZoneId.of("Asia/Shanghai")).toInstant();
+    private void setBusy(boolean busy) {
+        createButton.setEnabled(!busy);
+        refreshButton.setEnabled(!busy);
+        batches.setEnabled(!busy);
+        formCard.setBusy(busy);
     }
 
-    private static void addField(JPanel panel, String label, Component field) {
-        panel.add(new JLabel(label));
-        panel.add(field);
-    }
-
-    private static String message(ResponseBody<?> response, String fallback) {
-        return response == null || response.message() == null ? fallback : response.message();
+    private static String message(ResponseBody<?> response, Throwable failure, String fallback) {
+        if (response != null && response.message() != null && !response.message().isBlank()) {
+            return response.message();
+        }
+        return failure == null ? fallback : "网络请求失败，请稍后重试";
     }
 }

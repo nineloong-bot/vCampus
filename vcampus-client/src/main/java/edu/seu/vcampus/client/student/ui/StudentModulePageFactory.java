@@ -28,10 +28,9 @@ public final class StudentModulePageFactory {
         return switch (user.role()) {
             case STUDENT -> createStudentPage(user, students, connection);
             case TEACHER -> createTeacherPage(students, connection);
-            case STUDENT_ADMIN -> createAdminPage(students, connection);
+            case STUDENT_ADMIN, ADMIN, SUPER_ADMIN -> createAdminPage(students, connection);
             case COLLEGE_ADMIN -> createCollegePage(students, connection);
-            case ADMIN, SUPER_ADMIN, COURSE_ADMIN,
-                    LIBRARY_ADMIN, SHOP_ADMIN, USER_ADMIN ->
+            case COURSE_ADMIN, LIBRARY_ADMIN, SHOP_ADMIN, USER_ADMIN ->
                     new ModulePlaceholderPage(TITLE, DESCRIPTION);
         };
     }

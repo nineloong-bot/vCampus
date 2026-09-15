@@ -278,6 +278,70 @@ class StudentHandlersTest {
         assertThat(called).isFalse();
     }
 
+    @Test
+    void studentCanRequestOwnChangeHistory() {
+        var called = new AtomicBoolean();
+        StudentService service = new StudentService() {
+            public edu.seu.vcampus.common.student.StudentView getStudent(String id) {
+                return new edu.seu.vcampus.common.student.StudentView(id, "student-user-1", "09024101",
+                        "213240001", StudentType.UNDERGRADUATE, "学生", "MALE", null, null,
+                        "m1", "c1", java.time.LocalDate.now(), edu.seu.vcampus.common.student.StudentStatus.ACTIVE,
+                        1, "计算机", "软件", "计科1班");
+            }
+            public edu.seu.vcampus.common.student.StudentView getStudent(String id, String dept) { return getStudent(id); }
+            public edu.seu.vcampus.common.student.StudentView getCurrentStudent(String id) { return null; }
+            public edu.seu.vcampus.common.paging.PageResult<edu.seu.vcampus.common.student.StudentSummary> searchStudents(edu.seu.vcampus.common.student.StudentSearchQuery q) { return null; }
+            public edu.seu.vcampus.common.student.StudentView updateContact(edu.seu.vcampus.common.student.UpdateStudentContactCommand c) { return null; }
+            public edu.seu.vcampus.common.student.StudentView updateEnrollment(edu.seu.vcampus.common.student.UpdateStudentEnrollmentCommand c) { return null; }
+            public edu.seu.vcampus.common.student.StudentView changeStatus(edu.seu.vcampus.common.student.ChangeStudentStatusCommand c) { return null; }
+            public java.util.List<edu.seu.vcampus.common.student.StudentChangeView> listChanges(String id) {
+                called.set(true);
+                return java.util.List.of();
+            }
+        };
+        var router = new MessageRouter(Map.of());
+        new StudentHandlers((command, context) -> null, service, organizationQuery(),
+                token -> new StudentPrincipal("student-user-1", Set.of("STUDENT"), Set.of())).register(router);
+
+        var response = router.route(request("STUDENT_GET_CHANGES",
+                new edu.seu.vcampus.common.student.EntityIdRequest("student-1")), client());
+
+        assertThat(response.success()).isTrue();
+        assertThat(called).isTrue();
+    }
+
+    @Test
+    void studentCannotRequestOtherStudentChangeHistory() {
+        var called = new AtomicBoolean();
+        StudentService service = new StudentService() {
+            public edu.seu.vcampus.common.student.StudentView getStudent(String id) {
+                return new edu.seu.vcampus.common.student.StudentView(id, "other-user", "09024102",
+                        "213240002", StudentType.UNDERGRADUATE, "他人", "MALE", null, null,
+                        "m1", "c1", java.time.LocalDate.now(), edu.seu.vcampus.common.student.StudentStatus.ACTIVE,
+                        1, "计算机", "软件", "计科1班");
+            }
+            public edu.seu.vcampus.common.student.StudentView getStudent(String id, String dept) { return getStudent(id); }
+            public edu.seu.vcampus.common.student.StudentView getCurrentStudent(String id) { return null; }
+            public edu.seu.vcampus.common.paging.PageResult<edu.seu.vcampus.common.student.StudentSummary> searchStudents(edu.seu.vcampus.common.student.StudentSearchQuery q) { return null; }
+            public edu.seu.vcampus.common.student.StudentView updateContact(edu.seu.vcampus.common.student.UpdateStudentContactCommand c) { return null; }
+            public edu.seu.vcampus.common.student.StudentView updateEnrollment(edu.seu.vcampus.common.student.UpdateStudentEnrollmentCommand c) { return null; }
+            public edu.seu.vcampus.common.student.StudentView changeStatus(edu.seu.vcampus.common.student.ChangeStudentStatusCommand c) { return null; }
+            public java.util.List<edu.seu.vcampus.common.student.StudentChangeView> listChanges(String id) {
+                called.set(true);
+                return java.util.List.of();
+            }
+        };
+        var router = new MessageRouter(Map.of());
+        new StudentHandlers((command, context) -> null, service, organizationQuery(),
+                token -> new StudentPrincipal("student-user-1", Set.of("STUDENT"), Set.of())).register(router);
+
+        var response = router.route(request("STUDENT_GET_CHANGES",
+                new edu.seu.vcampus.common.student.EntityIdRequest("other-student")), client());
+
+        assertThat(response.code()).isEqualTo("COMMON_FORBIDDEN");
+        assertThat(called).isFalse();
+    }
+
     private static Message request(String command, java.io.Serializable body) {
         return new Message("8e7c1a21-9d44-4c82-978b-df34326a0341", MessageType.REQUEST,
                 command, "token", body, System.currentTimeMillis());

@@ -1,6 +1,7 @@
 -- ============================================================
 -- 025_major_transfer_demo.sql
--- Rich demo data covering the full transfer workflow
+-- Transfer batch and option catalog, with a batch of submitted
+-- applications targeting Electronic Information Engineering
 -- ============================================================
 
 -- ── Batch 1: CLOSED (historical) ──
@@ -83,34 +84,35 @@ VALUES
      '电子信息工程', '信息科学与工程学院', '1,2',
      4, 3, 55, 55,
      60, 40, FALSE,
-     '欢迎有硬件兴趣的同学申请', TRUE,
+     '欢迎有硬件与通信兴趣的同学申请', TRUE,
      0, #2026-02-15 10:00:00#, #2026-02-15 10:00:00#);
 
 -- ============================================================
--- Applications in various workflow states
+-- Submitted Applications targeting 电子信息工程 (Option C)
+-- All applicants are eligible 2023 undergraduate students from 计科
 -- ============================================================
 
--- App 1: 李明(213230001) -> DRAFT (理由为空，等待学生填写)
+-- App 1: 李明(09023101) -> SUBMITTED
 INSERT INTO tblMajorTransferApplication
     (applicationId, batchId, studentId, applicationType, applicationStatus,
      optionId, fromDepartmentId, fromDepartmentName, fromMajorId, fromMajorName,
      fromClassId, fromClassName, fromStudentNumber, fromGrade,
      studentName, reason, baseStudentVersion, applicationVersion,
-     createdAt, updatedAt)
+     submittedAt, createdAt, updatedAt)
 VALUES
     ('00000000-0000-0000-0000-000000001021',
      '00000000-0000-0000-0000-000000001001',
      '00000000-0000-0000-0000-000000000104',
-     'ORDINARY', 'DRAFT',
-     '00000000-0000-0000-0000-000000001011',
+     'ORDINARY', 'SUBMITTED',
+     '00000000-0000-0000-0000-000000001013',
      '00000000-0000-0000-0000-000000000101', '计算机科学与工程学院',
      '00000000-0000-0000-0000-000000000102', '计算机科学与技术',
      '00000000-0000-0000-0000-000000000103', '计算机科学与技术2301班',
      '09023101', '2023',
-     '李明', '',
-     0, 0, #2026-03-05 09:00:00#, #2026-03-05 09:00:00#);
+     '李明', '对硬件系统与嵌入式软件开发兴趣浓厚，希望转入电子信息工程专业深入学习电路与通信技术。',
+     0, 1, #2026-03-05 10:00:00#, #2026-03-05 09:00:00#, #2026-03-05 10:00:00#);
 
--- App 2: 张伟(213230002) -> SUBMITTED (目标: 软件工程)
+-- App 2: 张伟(09023102) -> SUBMITTED
 INSERT INTO tblMajorTransferApplication
     (applicationId, batchId, studentId, applicationType, applicationStatus,
      optionId, fromDepartmentId, fromDepartmentName, fromMajorId, fromMajorName,
@@ -122,15 +124,15 @@ VALUES
      '00000000-0000-0000-0000-000000001001',
      '00000000-0000-0000-0000-000000000210',
      'ORDINARY', 'SUBMITTED',
-     '00000000-0000-0000-0000-000000001011',
+     '00000000-0000-0000-0000-000000001013',
      '00000000-0000-0000-0000-000000000101', '计算机科学与工程学院',
      '00000000-0000-0000-0000-000000000102', '计算机科学与技术',
      '00000000-0000-0000-0000-000000000103', '计算机科学与技术2301班',
      '09023102', '2023',
-     '张伟', '希望从计科转到软工，对软件架构设计有浓厚兴趣，在校期间自学了Java和Spring框架，希望系统学习软件工程方法论。',
-     0, 1, #2026-03-10 14:30:00#, #2026-03-08 10:00:00#, #2026-03-10 14:30:00#);
+     '张伟', '希望从事软硬件协同开发，在校自学了单片机和数字电路，申请转入电子信息工程专业。',
+     0, 1, #2026-03-06 11:30:00#, #2026-03-06 10:00:00#, #2026-03-06 11:30:00#);
 
--- App 3: 李娜(213230003) -> SUBMITTED (目标: 数学)
+-- App 3: 李娜(09023103) -> SUBMITTED
 INSERT INTO tblMajorTransferApplication
     (applicationId, batchId, studentId, applicationType, applicationStatus,
      optionId, fromDepartmentId, fromDepartmentName, fromMajorId, fromMajorName,
@@ -142,111 +144,95 @@ VALUES
      '00000000-0000-0000-0000-000000001001',
      '00000000-0000-0000-0000-000000000211',
      'ORDINARY', 'SUBMITTED',
-     '00000000-0000-0000-0000-000000001012',
+     '00000000-0000-0000-0000-000000001013',
      '00000000-0000-0000-0000-000000000101', '计算机科学与工程学院',
      '00000000-0000-0000-0000-000000000102', '计算机科学与技术',
      '00000000-0000-0000-0000-000000000103', '计算机科学与技术2301班',
      '09023103', '2023',
-     '李娜', '对数学研究有强烈兴趣，高等数学和线性代数均取得95分以上成绩，希望转入数学学院深入学习纯数学方向。',
-     0, 1, #2026-03-12 09:00:00#, #2026-03-11 16:00:00#, #2026-03-12 09:00:00#);
+     '李娜', '对信号处理和现代通信系统有极高热情，高数与线代成绩优秀，申请转入电子信息工程专业。',
+     0, 1, #2026-03-07 14:00:00#, #2026-03-07 12:00:00#, #2026-03-07 14:00:00#);
 
--- App 4: 王强(213230004) -> SOURCE_APPROVED (目标: 软件工程，原学院已通过)
+-- App 4: 王强(09023104) -> SUBMITTED
 INSERT INTO tblMajorTransferApplication
     (applicationId, batchId, studentId, applicationType, applicationStatus,
      optionId, fromDepartmentId, fromDepartmentName, fromMajorId, fromMajorName,
      fromClassId, fromClassName, fromStudentNumber, fromGrade,
      studentName, reason, baseStudentVersion, applicationVersion,
-     submittedAt, sourceReviewerUserId, sourceReviewedAt, sourceComment,
-     createdAt, updatedAt)
+     submittedAt, createdAt, updatedAt)
 VALUES
     ('00000000-0000-0000-0000-000000001024',
      '00000000-0000-0000-0000-000000001001',
      '00000000-0000-0000-0000-000000000212',
-     'ORDINARY', 'SOURCE_APPROVED',
-     '00000000-0000-0000-0000-000000001011',
+     'ORDINARY', 'SUBMITTED',
+     '00000000-0000-0000-0000-000000001013',
      '00000000-0000-0000-0000-000000000101', '计算机科学与工程学院',
      '00000000-0000-0000-0000-000000000102', '计算机科学与技术',
      '00000000-0000-0000-0000-000000000103', '计算机科学与技术2301班',
      '09023104', '2023',
-     '王强', '对软件工程方向有浓厚兴趣，参加了ACM程序设计竞赛并获得省级奖项，希望转入软件工程专业进一步提升编程能力。',
-     0, 2, #2026-03-09 11:00:00#,
-     '00000000-0000-0000-0000-000000000001', #2026-03-15 09:00:00#, '学籍审核合格，无违纪记录，招生类别允许',
-     #2026-03-07 14:00:00#, #2026-03-15 09:00:00#);
+     '王强', '积极参与电子设计竞赛，对微控制器及传感器通信兴趣浓厚，申请转入电子信息工程。',
+     0, 1, #2026-03-08 09:30:00#, #2026-03-08 09:00:00#, #2026-03-08 09:30:00#);
 
--- App 5: 刘洋(213230005) -> QUALIFIED (目标: 数学，两级审核都通过)
+-- App 5: 刘洋(09023105) -> SUBMITTED
 INSERT INTO tblMajorTransferApplication
     (applicationId, batchId, studentId, applicationType, applicationStatus,
      optionId, fromDepartmentId, fromDepartmentName, fromMajorId, fromMajorName,
      fromClassId, fromClassName, fromStudentNumber, fromGrade,
      studentName, reason, baseStudentVersion, applicationVersion,
-     submittedAt, sourceReviewerUserId, sourceReviewedAt, sourceComment,
-     qualificationReviewerUserId, qualificationReviewedAt, qualificationComment,
-     createdAt, updatedAt)
+     submittedAt, createdAt, updatedAt)
 VALUES
     ('00000000-0000-0000-0000-000000001025',
      '00000000-0000-0000-0000-000000001001',
      '00000000-0000-0000-0000-000000000213',
-     'ORDINARY', 'QUALIFIED',
-     '00000000-0000-0000-0000-000000001012',
+     'ORDINARY', 'SUBMITTED',
+     '00000000-0000-0000-0000-000000001013',
      '00000000-0000-0000-0000-000000000101', '计算机科学与工程学院',
      '00000000-0000-0000-0000-000000000102', '计算机科学与技术',
      '00000000-0000-0000-0000-000000000103', '计算机科学与技术2301班',
      '09023105', '2023',
-     '刘洋', '数学分析和概率论成绩优异，对应用数学方向有浓厚兴趣，希望转入数学学院学习金融数学方向。',
-     0, 3, #2026-03-08 10:00:00#,
-     '00000000-0000-0000-0000-000000000001', #2026-03-14 09:00:00#, '学籍审核合格，无违纪记录，招生类别允许',
-     '00000000-0000-0000-0000-000000000001', #2026-03-16 14:00:00#, '成绩优良，符合转入条件',
-     #2026-03-06 16:00:00#, #2026-03-16 14:00:00#);
+     '刘洋', '立志从事智能硬件与物联网感知技术研究，申请转入电信工程专业。',
+     0, 1, #2026-03-09 15:20:00#, #2026-03-09 14:00:00#, #2026-03-09 15:20:00#);
 
--- App 6: 陈晨(213230006) -> QUALIFIED (目标: 电信，两级审核都通过)
+-- App 6: 陈晨(09023106) -> SUBMITTED
 INSERT INTO tblMajorTransferApplication
     (applicationId, batchId, studentId, applicationType, applicationStatus,
      optionId, fromDepartmentId, fromDepartmentName, fromMajorId, fromMajorName,
      fromClassId, fromClassName, fromStudentNumber, fromGrade,
      studentName, reason, baseStudentVersion, applicationVersion,
-     submittedAt, sourceReviewerUserId, sourceReviewedAt, sourceComment,
-     qualificationReviewerUserId, qualificationReviewedAt, qualificationComment,
-     createdAt, updatedAt)
+     submittedAt, createdAt, updatedAt)
 VALUES
     ('00000000-0000-0000-0000-000000001026',
      '00000000-0000-0000-0000-000000001001',
      '00000000-0000-0000-0000-000000000214',
-     'ORDINARY', 'QUALIFIED',
+     'ORDINARY', 'SUBMITTED',
      '00000000-0000-0000-0000-000000001013',
      '00000000-0000-0000-0000-000000000101', '计算机科学与工程学院',
-     '00000000-0000-0000-0000-000000000112', '软件工程',
-     '00000000-0000-0000-0000-000000000114', '软件工程2301班',
-     '09123101', '2023',
-     '陈晨', '对嵌入式系统和硬件开发有浓厚兴趣，参加了电子设计竞赛，希望转入电子信息工程专业学习硬件与通信技术。',
-     0, 3, #2026-03-10 09:00:00#,
-     '00000000-0000-0000-0000-000000000001', #2026-03-16 09:00:00#, '学籍审核合格，无违纪记录，招生类别允许',
-     '00000000-0000-0000-0000-000000000001', #2026-03-18 14:00:00#, '符合转入条件',
-     #2026-03-09 11:00:00#, #2026-03-18 14:00:00#);
+     '00000000-0000-0000-0000-000000000102', '计算机科学与技术',
+     '00000000-0000-0000-0000-000000000103', '计算机科学与技术2301班',
+     '09023106', '2023',
+     '陈晨', '对无线通信与高频电路有深厚兴趣，申请转入电子信息工程专业。',
+     0, 1, #2026-03-10 10:00:00#, #2026-03-10 09:30:00#, #2026-03-10 10:00:00#);
 
--- App 7: 赵敏(213230007) -> REJECTED (目标: 软件工程，原学院审核不通过)
+-- App 7: 周婷(09023107) -> SUBMITTED
 INSERT INTO tblMajorTransferApplication
     (applicationId, batchId, studentId, applicationType, applicationStatus,
      optionId, fromDepartmentId, fromDepartmentName, fromMajorId, fromMajorName,
      fromClassId, fromClassName, fromStudentNumber, fromGrade,
      studentName, reason, baseStudentVersion, applicationVersion,
-     submittedAt, sourceReviewerUserId, sourceReviewedAt, sourceComment,
-     createdAt, updatedAt)
+     submittedAt, createdAt, updatedAt)
 VALUES
     ('00000000-0000-0000-0000-000000001027',
      '00000000-0000-0000-0000-000000001001',
-     '00000000-0000-0000-0000-000000000215',
-     'ORDINARY', 'REJECTED',
-     '00000000-0000-0000-0000-000000001011',
+     '00000000-0000-0000-0000-000000000226',
+     'ORDINARY', 'SUBMITTED',
+     '00000000-0000-0000-0000-000000001013',
      '00000000-0000-0000-0000-000000000101', '计算机科学与工程学院',
-     '00000000-0000-0000-0000-000000000112', '软件工程',
-     '00000000-0000-0000-0000-000000000114', '软件工程2301班',
-     '09123102', '2023',
-     '赵敏', '希望从软工转到计科，对底层系统开发更感兴趣。',
-     0, 2, #2026-03-11 10:00:00#,
-     '00000000-0000-0000-0000-000000000001', #2026-03-17 09:00:00#, '本学期有一门课程不及格，学籍审核未通过',
-     #2026-03-09 15:00:00#, #2026-03-17 09:00:00#);
+     '00000000-0000-0000-0000-000000000102', '计算机科学与技术',
+     '00000000-0000-0000-0000-000000000103', '计算机科学与技术2301班',
+     '09023107', '2023',
+     '周婷', '希望从事智能仪器与信号处理方向，特申请转入电子信息工程专业。',
+     0, 1, #2026-03-11 16:45:00#, #2026-03-11 16:00:00#, #2026-03-11 16:45:00#);
 
--- App 8: 杨帆(213240001) -> SUBMITTED (目标: 软件工程，学困生类型)
+-- App 8: 吴浩(09023108) -> SUBMITTED
 INSERT INTO tblMajorTransferApplication
     (applicationId, batchId, studentId, applicationType, applicationStatus,
      optionId, fromDepartmentId, fromDepartmentName, fromMajorId, fromMajorName,
@@ -256,17 +242,17 @@ INSERT INTO tblMajorTransferApplication
 VALUES
     ('00000000-0000-0000-0000-000000001028',
      '00000000-0000-0000-0000-000000001001',
-     '00000000-0000-0000-0000-000000000223',
-     'DIFFICULTY', 'SUBMITTED',
-     '00000000-0000-0000-0000-000000001011',
+     '00000000-0000-0000-0000-000000000227',
+     'ORDINARY', 'SUBMITTED',
+     '00000000-0000-0000-0000-000000001013',
      '00000000-0000-0000-0000-000000000101', '计算机科学与工程学院',
      '00000000-0000-0000-0000-000000000102', '计算机科学与技术',
-     '00000000-0000-0000-0000-000000000105', '计算机科学与技术2302班',
-     '09023201', '2023',
-     '杨帆', '因个人发展方向调整，希望从计科转到软工。已提交学困生证明材料。',
-     0, 1, #2026-03-15 10:00:00#, #2026-03-14 09:00:00#, #2026-03-15 10:00:00#);
+     '00000000-0000-0000-0000-000000000103', '计算机科学与技术2301班',
+     '09023108', '2023',
+     '吴浩', '对集成电路设计与数字电子技术充满向往，申请转入电信专业系统学习。',
+     0, 1, #2026-03-12 11:10:00#, #2026-03-12 10:30:00#, #2026-03-12 11:10:00#);
 
--- App 9: 林峰(213230013) -> CANCELLED (目标: 软件工程，学生撤回后管理员取消)
+-- App 9: 孙丽(09023109) -> SUBMITTED
 INSERT INTO tblMajorTransferApplication
     (applicationId, batchId, studentId, applicationType, applicationStatus,
      optionId, fromDepartmentId, fromDepartmentName, fromMajorId, fromMajorName,
@@ -276,17 +262,37 @@ INSERT INTO tblMajorTransferApplication
 VALUES
     ('00000000-0000-0000-0000-000000001029',
      '00000000-0000-0000-0000-000000001001',
-     '00000000-0000-0000-0000-000000000221',
-     'ORDINARY', 'CANCELLED',
-     '00000000-0000-0000-0000-000000001011',
-     '00000000-0000-0000-0000-000000000131', '信息科学与工程学院',
-     '00000000-0000-0000-0000-000000000132', '电子信息工程',
-     '00000000-0000-0000-0000-000000000133', '电子信息工程2301班',
-     '04023101', '2023',
-     '林峰', '原计划转到软工，但经过考虑决定留在电信专业深耕。',
-     0, 2, #2026-03-12 14:00:00#, #2026-03-10 09:00:00#, #2026-03-20 10:00:00#);
+     '00000000-0000-0000-0000-000000000228',
+     'ORDINARY', 'SUBMITTED',
+     '00000000-0000-0000-0000-000000001013',
+     '00000000-0000-0000-0000-000000000101', '计算机科学与工程学院',
+     '00000000-0000-0000-0000-000000000102', '计算机科学与技术',
+     '00000000-0000-0000-0000-000000000103', '计算机科学与技术2301班',
+     '09023109', '2023',
+     '孙丽', '对现代通信网络与信息传输算法有浓厚研究兴趣，申请转专业。',
+     0, 1, #2026-03-13 14:30:00#, #2026-03-13 14:00:00#, #2026-03-13 14:30:00#);
 
--- App 10: 许晴(213240002) -> DRAFT (目标: 数学，年级不匹配，24级不在允许范围)
+-- App 10: 郑鑫(09023110) -> SUBMITTED
+INSERT INTO tblMajorTransferApplication
+    (applicationId, batchId, studentId, applicationType, applicationStatus,
+     optionId, fromDepartmentId, fromDepartmentName, fromMajorId, fromMajorName,
+     fromClassId, fromClassName, fromStudentNumber, fromGrade,
+     studentName, reason, baseStudentVersion, applicationVersion,
+     submittedAt, createdAt, updatedAt)
+VALUES
+    ('00000000-0000-0000-0000-000000001030',
+     '00000000-0000-0000-0000-000000001001',
+     '00000000-0000-0000-0000-000000000229',
+     'ORDINARY', 'SUBMITTED',
+     '00000000-0000-0000-0000-000000001013',
+     '00000000-0000-0000-0000-000000000101', '计算机科学与工程学院',
+     '00000000-0000-0000-0000-000000000102', '计算机科学与技术',
+     '00000000-0000-0000-0000-000000000103', '计算机科学与技术2301班',
+     '09023110', '2023',
+     '郑鑫', '希望在信息与通信工程学科进一步发展，申请转入电子信息工程专业。',
+     0, 1, #2026-03-14 09:15:00#, #2026-03-14 08:30:00#, #2026-03-14 09:15:00#);
+
+-- App 11: 朱琳(09023111) -> DRAFT (用于测试草稿隔离)
 INSERT INTO tblMajorTransferApplication
     (applicationId, batchId, studentId, applicationType, applicationStatus,
      optionId, fromDepartmentId, fromDepartmentName, fromMajorId, fromMajorName,
@@ -294,98 +300,14 @@ INSERT INTO tblMajorTransferApplication
      studentName, reason, baseStudentVersion, applicationVersion,
      createdAt, updatedAt)
 VALUES
-    ('00000000-0000-0000-0000-000000001030',
+    ('00000000-0000-0000-0000-000000001031',
      '00000000-0000-0000-0000-000000001001',
-     '00000000-0000-0000-0000-000000000224',
+     '00000000-0000-0000-0000-000000000230',
      'ORDINARY', 'DRAFT',
-     '00000000-0000-0000-0000-000000001012',
+     '00000000-0000-0000-0000-000000001013',
      '00000000-0000-0000-0000-000000000101', '计算机科学与工程学院',
-     '00000000-0000-0000-0000-000000000112', '软件工程',
-     '00000000-0000-0000-0000-000000000116', '软件工程2401班',
-     '09124101', '2024',
-     '许晴', '',
-     0, 0, #2026-03-20 10:00:00#, #2026-03-20 10:00:00#);
-
--- ── Review records for completed reviews ──
-
--- App 4 (王强): source review
-INSERT INTO tblMajorTransferReview
-    (reviewId, applicationId, reviewStage, decision, reviewerUserId, comment,
-     sourceVerified, noMisconduct, admissionAllowed, createdAt)
-VALUES
-    ('00000000-0000-0000-0000-000000001040',
-     '00000000-0000-0000-0000-000000001024',
-     'SOURCE_REVIEW', 'APPROVE',
-     '00000000-0000-0000-0000-000000000001',
-     '学籍审核合格，无违纪记录，招生类别允许',
-     TRUE, TRUE, TRUE, #2026-03-15 09:00:00#);
-
--- App 5 (刘洋): source + qualification reviews
-INSERT INTO tblMajorTransferReview
-    (reviewId, applicationId, reviewStage, decision, reviewerUserId, comment,
-     sourceVerified, noMisconduct, admissionAllowed, createdAt)
-VALUES
-    ('00000000-0000-0000-0000-000000001041',
-     '00000000-0000-0000-0000-000000001025',
-     'SOURCE_REVIEW', 'APPROVE',
-     '00000000-0000-0000-0000-000000000001',
-     '学籍审核合格，无违纪记录，招生类别允许',
-     TRUE, TRUE, TRUE, #2026-03-14 09:00:00#);
-
-INSERT INTO tblMajorTransferReview
-    (reviewId, applicationId, reviewStage, decision, reviewerUserId, comment,
-     sourceVerified, noMisconduct, admissionAllowed, createdAt)
-VALUES
-    ('00000000-0000-0000-0000-000000001042',
-     '00000000-0000-0000-0000-000000001025',
-     'QUALIFICATION_REVIEW', 'APPROVE',
-     '00000000-0000-0000-0000-000000000001',
-     '成绩优良，符合转入条件',
-     NULL, NULL, NULL, #2026-03-16 14:00:00#);
-
--- App 6 (陈晨): source + qualification reviews
-INSERT INTO tblMajorTransferReview
-    (reviewId, applicationId, reviewStage, decision, reviewerUserId, comment,
-     sourceVerified, noMisconduct, admissionAllowed, createdAt)
-VALUES
-    ('00000000-0000-0000-0000-000000001043',
-     '00000000-0000-0000-0000-000000001026',
-     'SOURCE_REVIEW', 'APPROVE',
-     '00000000-0000-0000-0000-000000000001',
-     '学籍审核合格，无违纪记录，招生类别允许',
-     TRUE, TRUE, TRUE, #2026-03-16 09:00:00#);
-
-INSERT INTO tblMajorTransferReview
-    (reviewId, applicationId, reviewStage, decision, reviewerUserId, comment,
-     sourceVerified, noMisconduct, admissionAllowed, createdAt)
-VALUES
-    ('00000000-0000-0000-0000-000000001044',
-     '00000000-0000-0000-0000-000000001026',
-     'QUALIFICATION_REVIEW', 'APPROVE',
-     '00000000-0000-0000-0000-000000000001',
-     '符合转入条件',
-     NULL, NULL, NULL, #2026-03-18 14:00:00#);
-
--- App 7 (赵敏): source review rejected
-INSERT INTO tblMajorTransferReview
-    (reviewId, applicationId, reviewStage, decision, reviewerUserId, comment,
-     sourceVerified, noMisconduct, admissionAllowed, createdAt)
-VALUES
-    ('00000000-0000-0000-0000-000000001045',
-     '00000000-0000-0000-0000-000000001027',
-     'SOURCE_REVIEW', 'REJECT',
-     '00000000-0000-0000-0000-000000000001',
-     '本学期有一门课程不及格，学籍审核未通过',
-     TRUE, TRUE, TRUE, #2026-03-17 09:00:00#);
-
--- App 9 (林峰): cancel review
-INSERT INTO tblMajorTransferReview
-    (reviewId, applicationId, reviewStage, decision, reviewerUserId, comment,
-     sourceVerified, noMisconduct, admissionAllowed, createdAt)
-VALUES
-    ('00000000-0000-0000-0000-000000001046',
-     '00000000-0000-0000-0000-000000001029',
-     'SOURCE_REVIEW', 'REJECT',
-     '00000000-0000-0000-0000-000000000001',
-     '学生本人申请取消转专业申请',
-     NULL, NULL, NULL, #2026-03-20 10:00:00#);
+     '00000000-0000-0000-0000-000000000102', '计算机科学与技术',
+     '00000000-0000-0000-0000-000000000103', '计算机科学与技术2301班',
+     '09023111', '2023',
+     '朱琳', '',
+     0, 0, #2026-03-15 10:00:00#, #2026-03-15 10:00:00#);

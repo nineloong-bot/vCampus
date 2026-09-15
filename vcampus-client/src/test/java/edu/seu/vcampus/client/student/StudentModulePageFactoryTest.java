@@ -92,6 +92,25 @@ class StudentModulePageFactoryTest {
     }
 
     @Test
+    void generalAdminAndSuperAdminReceiveAdminPage() throws Exception {
+        StudentClientService students = students(new AtomicInteger(), new CountDownLatch(1));
+
+        JPanel adminPage = onEdt(() -> StudentModulePageFactory.create(
+                user(UserRole.ADMIN), students, connection()));
+        assertThat(adminPage.getName()).isEqualTo("student.module");
+        JTabbedPane adminTabs = findTabbedPane(adminPage);
+        assertThat(adminTabs).isNotNull();
+        assertThat(adminTabs.getTabCount()).isEqualTo(3);
+
+        JPanel superAdminPage = onEdt(() -> StudentModulePageFactory.create(
+                user(UserRole.SUPER_ADMIN), students, connection()));
+        assertThat(superAdminPage.getName()).isEqualTo("student.module");
+        JTabbedPane superTabs = findTabbedPane(superAdminPage);
+        assertThat(superTabs).isNotNull();
+        assertThat(superTabs.getTabCount()).isEqualTo(3);
+    }
+
+    @Test
     void collegeAdminReceivesTheCompleteCollegeStudentWorkspace() throws Exception {
         JPanel page = onEdt(() -> StudentModulePageFactory.create(
                 user(UserRole.COLLEGE_ADMIN),

@@ -824,15 +824,28 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
         items.add(new MajorTransferEligibilityItem("学生类型",
                 student.studentType() == StudentType.UNDERGRADUATE,
                 student.studentType() == StudentType.UNDERGRADUATE ? "本科生" : "仅面向本科生"));
+        boolean enrolledOnCampus = isStudentEnrolledAndOnCampus(connection, student.studentId());
+        boolean active = student.status() == StudentStatus.ACTIVE;
         items.add(new MajorTransferEligibilityItem("学籍状态",
-                student.status() == StudentStatus.ACTIVE,
-                student.status() == StudentStatus.ACTIVE ? "正常" : "学籍状态异常"));
+                active && enrolledOnCampus,
+                !active ? "学籍状态异常" : !enrolledOnCampus ? "未在籍或未在校" : "正常"));
         if (repository.hasSuccessfulTransfer(connection, student.studentId())) {
             items.add(new MajorTransferEligibilityItem("转专业记录", false, "已有生效的转专业记录"));
         } else {
             items.add(new MajorTransferEligibilityItem("转专业记录", true, "无生效记录"));
         }
         return List.copyOf(items);
+    }
+
+    private static boolean isStudentEnrolledAndOnCampus(Connection c, String studentId) {
+        try (var statement = c.prepareStatement("SELECT enrolled, onCampus FROM tblStudent WHERE studentId=?")) {
+            statement.setString(1, studentId);
+            try (var row = statement.executeQuery()) {
+                return row.next() && !isFalse(row.getObject(1)) && !isFalse(row.getObject(2));
+            }
+        } catch (java.sql.SQLException error) {
+            return false;
+        }
     }
 
     private void validateBatchOpen(MajorTransferRepository.BatchRow batch, Instant now) {
@@ -846,13 +859,8 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
             MajorTransferRepository.OptionRow option) {
         if (student.studentType() != StudentType.UNDERGRADUATE || student.status() != StudentStatus.ACTIVE)
             throw error("TRANSFER_INELIGIBLE", "仅允许正常在籍的本科生申请");
-        try (var statement = c.prepareStatement("SELECT enrolled, onCampus FROM tblStudent WHERE studentId=?")) {
-            statement.setString(1, student.studentId());
-            try (var row = statement.executeQuery()) {
-                if (!row.next() || isFalse(row.getObject(1)) || isFalse(row.getObject(2)))
-                    throw error("TRANSFER_INELIGIBLE", "学生必须在籍且在校");
-            }
-        } catch (java.sql.SQLException error) { throw new IllegalStateException("无法核实在籍在校状态", error); }
+        if (!isStudentEnrolledAndOnCampus(c, student.studentId()))
+            throw error("TRANSFER_INELIGIBLE", "学生必须在籍且在校");
         if (!option.active() || !option.batchId().equals(batch.batchId()) || option.targetMajorId().equals(student.majorId()))
             throw error("TRANSFER_INVALID_TARGET", "目标专业不可用或与当前专业相同");
         var major = organizations.findMajor(c, option.targetMajorId()).orElseThrow();

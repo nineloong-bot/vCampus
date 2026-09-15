@@ -44,6 +44,8 @@ public final class StudentSearchPanel extends JPanel {
     private JLabel statusLabel;
     private JLabel errorLabel;
     private JSplitPane splitPane;
+    private CardLayout rightCards;
+    private JPanel rightPanel;
     private StudentDetailPanel detailPanel;
 
     public StudentSearchPanel(StudentClientService students, ClientConnection connection,
@@ -160,7 +162,14 @@ public final class StudentSearchPanel extends JPanel {
         placeholderLabel.setForeground(UiColors.TEXT_SECONDARY);
         placeholder.add(placeholderLabel, BorderLayout.CENTER);
 
-        splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, placeholder);
+        rightCards = new CardLayout();
+        rightPanel = new JPanel(rightCards);
+        rightPanel.setOpaque(false);
+        rightPanel.add(placeholder, "PLACEHOLDER");
+        detailPanel = new StudentDetailPanel(students, connection, null, canEdit);
+        rightPanel.add(detailPanel, "DETAIL");
+
+        splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, leftPanel, rightPanel);
         splitPane.setDividerSize(6);
         splitPane.setResizeWeight(0.55);
         splitPane.setOneTouchExpandable(true);
@@ -180,21 +189,16 @@ public final class StudentSearchPanel extends JPanel {
     }
 
     private void showDetail(String studentId) {
-        if (detailPanel == null) {
-            // Save divider location before replacing component to prevent layout jump
-            int savedLocation = splitPane.getDividerLocation();
-            detailPanel = new StudentDetailPanel(students, connection, studentId, canEdit);
-            splitPane.setRightComponent(detailPanel);
-            // Restore divider location after component swap
-            SwingUtilities.invokeLater(() -> splitPane.setDividerLocation(savedLocation));
-        } else {
-            detailPanel.loadStudent(studentId);
-        }
+        detailPanel.loadStudent(studentId);
+        rightCards.show(rightPanel, "DETAIL");
     }
 
     private void showPlaceholder() {
         if (detailPanel != null) {
             detailPanel.clear();
+        }
+        if (rightCards != null && rightPanel != null) {
+            rightCards.show(rightPanel, "PLACEHOLDER");
         }
     }
 
@@ -475,7 +479,7 @@ public final class StudentSearchPanel extends JPanel {
         currentResults.clear();
         for (StudentSummary s : page.items()) {
             tableModel.addRow(new Object[]{s.campusCardNumber(), s.studentNumber(), s.studentName(),
-                    classDisplayName(s.studentNumber()), statusText(s.status())});
+                    classDisplayName(s), statusText(s.status())});
         }
         currentResults.addAll(page.items());
         if (page.items().isEmpty()) {
@@ -570,7 +574,10 @@ public final class StudentSearchPanel extends JPanel {
         };
     }
 
-    private static String classDisplayName(String studentNumber) {
+    private static String classDisplayName(StudentSummary s) {
+        if (s == null) return "";
+        if (s.className() != null && !s.className().isBlank()) return s.className();
+        String studentNumber = s.studentNumber();
         if (studentNumber == null || studentNumber.length() < 6) return "";
         return studentNumber.substring(0, 6) + "班";
     }

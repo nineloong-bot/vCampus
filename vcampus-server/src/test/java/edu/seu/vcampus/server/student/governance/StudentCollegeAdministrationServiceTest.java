@@ -101,6 +101,14 @@ class StudentCollegeAdministrationServiceTest {
     }
 
     @Test
+    void transferRejectsSameSourceAndTargetDepartment() {
+        assertThatThrownBy(() -> service.transfer(ACTOR, new TransferStudentCollegeAdministratorCommand(
+                CS_ADMIN, CS, CS, 0, 0)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("调动目标学院不能与当前学院相同");
+    }
+
+    @Test
     void provisionsNewCollegeAdministratorWithoutAssignment() {
         var create = new edu.seu.vcampus.common.student.governance.CreateCollegeAdministratorCommand(
                 "NEW_UNASSIGNED_ADMIN", "Pass1234", null);

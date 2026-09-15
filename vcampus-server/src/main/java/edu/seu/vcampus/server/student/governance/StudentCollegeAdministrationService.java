@@ -112,7 +112,7 @@ public final class StudentCollegeAdministrationService {
         require(command.sourceDepartmentId(), command.userId());
         require(command.targetDepartmentId(), command.userId());
         if (command.sourceDepartmentId().equals(command.targetDepartmentId())) {
-            throw new IllegalArgumentException("COMMON_VALIDATION_FAILED");
+            throw new IllegalArgumentException("调动目标学院不能与当前学院相同");
         }
         List<ResourceKey> keys = List.of(
                 key("DEPARTMENT", command.sourceDepartmentId()),

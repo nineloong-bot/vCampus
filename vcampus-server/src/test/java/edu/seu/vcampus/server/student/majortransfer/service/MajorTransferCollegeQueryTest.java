@@ -25,6 +25,8 @@ import static org.mockito.Mockito.mock;
 class MajorTransferCollegeQueryTest {
     private static final String OPEN_BATCH = "00000000-0000-0000-0000-000000001001";
     private static final String MATH = "00000000-0000-0000-0000-000000000111";
+    private static final String EE = "00000000-0000-0000-0000-000000000131";
+    private static final String CS = "00000000-0000-0000-0000-000000000101";
     private MajorTransferService service;
 
     @BeforeEach
@@ -45,17 +47,19 @@ class MajorTransferCollegeQueryTest {
     @Test
     void collegeListContainsOnlySourceOrTargetMatches() {
         var visible = service.listApplicationsForCollege(
-                new MajorTransferApplicationQuery(OPEN_BATCH, null, null), MATH);
+                new MajorTransferApplicationQuery(OPEN_BATCH, null, null), EE);
 
         assertThat(visible).extracting(MajorTransferApplicationView::applicationId)
-                .containsExactlyInAnyOrder(
-                        "00000000-0000-0000-0000-000000001023",
-                        "00000000-0000-0000-0000-000000001025")
-                .doesNotContain("00000000-0000-0000-0000-000000001022");
+                .contains(
+                        "00000000-0000-0000-0000-000000001021",
+                        "00000000-0000-0000-0000-000000001022");
         assertThat(visible).allSatisfy(application -> {
             assertThat(application.sourceApprovalAllowed()).isFalse();
             assertThat(application.targetApprovalAllowed()).isTrue();
         });
+        var mathVisible = service.listApplicationsForCollege(
+                new MajorTransferApplicationQuery(OPEN_BATCH, null, null), MATH);
+        assertThat(mathVisible).isEmpty();
     }
 
     @Test
@@ -63,11 +67,11 @@ class MajorTransferCollegeQueryTest {
         var allApplications = service.listApplications(
                 new MajorTransferApplicationQuery(OPEN_BATCH, null, null));
         var collegeApplications = service.listApplicationsForCollege(
-                new MajorTransferApplicationQuery(OPEN_BATCH, null, null), MATH);
+                new MajorTransferApplicationQuery(OPEN_BATCH, null, null), CS);
 
-        assertThat(allApplications).noneMatch(application ->
+        assertThat(allApplications).isNotEmpty().noneMatch(application ->
                 application.status() == edu.seu.vcampus.common.student.majortransfer.MajorTransferStatus.DRAFT);
-        assertThat(collegeApplications).noneMatch(application ->
+        assertThat(collegeApplications).isNotEmpty().noneMatch(application ->
                 application.status() == edu.seu.vcampus.common.student.majortransfer.MajorTransferStatus.DRAFT);
     }
 
