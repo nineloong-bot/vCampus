@@ -18,8 +18,8 @@ class MajorTransferCollegeAuthorizationServiceTest {
     private static final String CS_ADMIN = "00000000-0000-0000-0000-000000000202";
     private static final String MATH_ADMIN = "00000000-0000-0000-0000-000000000203";
     private static final String EE_ADMIN = "00000000-0000-0000-0000-000000000208";
-    private static final String APPLICATION_TO_MATH = "00000000-0000-0000-0000-000000001023";
-    private static final String DRAFT_APPLICATION = "00000000-0000-0000-0000-000000001021";
+    private static final String APPLICATION_TO_EE = "00000000-0000-0000-0000-000000001021";
+    private static final String DRAFT_APPLICATION = "00000000-0000-0000-0000-000000001031";
 
     private MajorTransferCollegeAuthorizationService authorization;
     private TransactionManager transactions;
@@ -39,18 +39,18 @@ class MajorTransferCollegeAuthorizationServiceTest {
 
     @Test
     void sourceAdministratorCanApproveOnlyTheSourceStage() {
-        assertThatCode(() -> authorization.requireSourceApproval(CS_ADMIN, APPLICATION_TO_MATH))
+        assertThatCode(() -> authorization.requireSourceApproval(CS_ADMIN, APPLICATION_TO_EE))
                 .doesNotThrowAnyException();
-        assertThatThrownBy(() -> authorization.requireTargetApproval(CS_ADMIN, APPLICATION_TO_MATH))
+        assertThatThrownBy(() -> authorization.requireTargetApproval(CS_ADMIN, APPLICATION_TO_EE))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("COMMON_FORBIDDEN");
     }
 
     @Test
     void targetAdministratorCanApproveOnlyTheTargetStage() {
-        assertThatCode(() -> authorization.requireTargetApproval(MATH_ADMIN, APPLICATION_TO_MATH))
+        assertThatCode(() -> authorization.requireTargetApproval(EE_ADMIN, APPLICATION_TO_EE))
                 .doesNotThrowAnyException();
-        assertThatThrownBy(() -> authorization.requireSourceApproval(MATH_ADMIN, APPLICATION_TO_MATH))
+        assertThatThrownBy(() -> authorization.requireSourceApproval(EE_ADMIN, APPLICATION_TO_EE))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("COMMON_FORBIDDEN");
     }
@@ -79,7 +79,7 @@ class MajorTransferCollegeAuthorizationServiceTest {
 
     @Test
     void unrelatedAdministratorCannotReadApplication() {
-        assertThatThrownBy(() -> authorization.requireCanRead(EE_ADMIN, APPLICATION_TO_MATH))
+        assertThatThrownBy(() -> authorization.requireCanRead(MATH_ADMIN, APPLICATION_TO_EE))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("COMMON_FORBIDDEN");
     }
@@ -97,21 +97,21 @@ class MajorTransferCollegeAuthorizationServiceTest {
             try (var statement = connection.prepareStatement("""
                     INSERT INTO tblMajorTransferAttachment
                     (attachmentId, applicationId, fileName, contentType, fileSize, content, createdAt)
-                    VALUES ('attachment-math', ?, 'proof.txt', 'text/plain', 1, ?, NOW())
+                    VALUES ('attachment-ee', ?, 'proof.txt', 'text/plain', 1, ?, NOW())
                     """)) {
-                statement.setString(1, APPLICATION_TO_MATH);
+                statement.setString(1, APPLICATION_TO_EE);
                 statement.setBytes(2, new byte[] { 1 });
                 statement.executeUpdate();
             }
             return null;
         });
 
-        assertThatCode(() -> authorization.requireCanReadAttachment(MATH_ADMIN, "attachment-math"))
+        assertThatCode(() -> authorization.requireCanReadAttachment(EE_ADMIN, "attachment-ee"))
                 .doesNotThrowAnyException();
-        assertThatThrownBy(() -> authorization.requireCanReadAttachment(EE_ADMIN, "attachment-math"))
+        assertThatThrownBy(() -> authorization.requireCanReadAttachment(MATH_ADMIN, "attachment-ee"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("COMMON_FORBIDDEN");
-        assertThatThrownBy(() -> authorization.requireCanReadAttachment(EE_ADMIN, "missing"))
+        assertThatThrownBy(() -> authorization.requireCanReadAttachment(MATH_ADMIN, "missing"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("COMMON_FORBIDDEN");
     }
