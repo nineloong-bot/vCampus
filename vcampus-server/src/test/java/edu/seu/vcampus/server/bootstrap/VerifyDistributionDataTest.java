@@ -2,6 +2,7 @@ package edu.seu.vcampus.server.bootstrap;
 
 import org.junit.jupiter.api.Test;
 import java.sql.DriverManager;
+import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class VerifyDistributionDataTest {
