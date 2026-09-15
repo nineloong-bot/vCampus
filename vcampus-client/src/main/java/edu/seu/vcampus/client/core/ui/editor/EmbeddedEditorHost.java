@@ -105,6 +105,9 @@ public final class EmbeddedEditorHost extends JPanel {
     /** Returns whether a captured generation still belongs to the current state. */
     public boolean isCurrent(long candidate) { return generation == candidate; }
 
+    /** Returns whether the supplied editor instance is still the visible editor. */
+    public boolean isCurrent(EmbeddedEditor candidate) { return editor == candidate; }
+
     void setAvailableWidthForTest(int width) {
         widthOverride = width;
         updatePlacement();

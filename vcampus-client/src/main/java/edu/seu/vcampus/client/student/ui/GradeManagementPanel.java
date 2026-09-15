@@ -100,10 +100,9 @@ public final class GradeManagementPanel extends JPanel {
             return;
         }
         String studentId = currentStudentId;
-        editorHost.showEditor(new GradeEntryPanel(students, studentId, () -> {
-            loadTranscript(studentId);
-            statusLabel.setText("成绩录入成功");
-        }, () -> editorHost.completeAndClose()));
+        editorHost.showEditor((complete, cancel) -> new GradeEntryPanel(students, studentId, () -> {
+            complete.run(); loadTranscript(studentId); statusLabel.setText("成绩录入成功");
+        }, cancel));
     }
 
     private static class GradeTableModel extends AbstractTableModel {

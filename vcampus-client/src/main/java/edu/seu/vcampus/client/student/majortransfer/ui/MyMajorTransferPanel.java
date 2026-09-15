@@ -45,6 +45,7 @@ public final class MyMajorTransferPanel extends JPanel {
     private EmbeddedEditorHost editorHost;
     private JPanel applicationEditorPanel;
     private JButton editApplicationButton;
+    private MajorTransferApplicationEditorPanel applicationEditor;
 
     public MyMajorTransferPanel(StudentClientService students, ClientConnection connection) {
         super(new BorderLayout(0, UiSpacing.SPACE_4));
@@ -104,9 +105,7 @@ public final class MyMajorTransferPanel extends JPanel {
         content.add(sectionHeader("申请信息"));
         editApplicationButton = new JButton("新建申请");
         editApplicationButton.setName("major-transfer.student.edit-application");
-        editApplicationButton.addActionListener(event -> editorHost.showEditor(
-                new MajorTransferApplicationEditorPanel(applicationEditorPanel,
-                        this::applicationDirty, () -> editorHost.requestClose())));
+        editApplicationButton.addActionListener(event -> openApplicationEditor());
         JPanel applicationAction = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         applicationAction.setOpaque(false);
         applicationAction.add(editApplicationButton);
@@ -394,6 +393,7 @@ public final class MyMajorTransferPanel extends JPanel {
     }
 
     private void saveDraft() {
+        MajorTransferApplicationEditorPanel expectedEditor = applicationEditor;
         OptionItem selected = (OptionItem) targetMajorCombo.getSelectedItem();
         if (selected == null) {
             errorLabel.setText("请选择目标专业");
@@ -410,14 +410,22 @@ public final class MyMajorTransferPanel extends JPanel {
         errorLabel.setText(" ");
         students.saveTransferDraft(cmd).whenComplete((response, error) ->
                 SwingUtilities.invokeLater(() -> {
+                    if (expectedEditor != null && !editorHost.isCurrent(expectedEditor)) return;
                     setFormEnabled(true);
                     if (response != null && response.success()) {
                         errorLabel.setText(" ");
-                        editorHost.completeAndClose();
+                        editorHost.completeAndClose(expectedEditor);
                         refresh();
                     }
                     else errorLabel.setText(response != null ? response.message() : "网络错误");
                 }));
+    }
+
+    private void openApplicationEditor() {
+        MajorTransferApplicationEditorPanel[] expected = new MajorTransferApplicationEditorPanel[1];
+        expected[0] = new MajorTransferApplicationEditorPanel(applicationEditorPanel,
+                this::applicationDirty, () -> editorHost.requestClose(expected[0]));
+        if (editorHost.showEditor(expected[0])) applicationEditor = expected[0];
     }
 
     private void submit() {

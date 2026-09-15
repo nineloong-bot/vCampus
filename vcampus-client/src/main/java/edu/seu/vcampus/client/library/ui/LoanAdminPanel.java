@@ -60,14 +60,17 @@ public final class LoanAdminPanel extends LibraryDataPanel {
     private void resolveSelected(LoanStatus resolution) {
         LoanView loan = selectedActiveLoan();
         if (loan != null) resolve(loan, resolution,
-                resolution == LoanStatus.LOST ? ReturnCondition.LOST : ReturnCondition.NORMAL);
+                resolution == LoanStatus.LOST ? ReturnCondition.LOST : ReturnCondition.NORMAL, null);
     }
 
     private void confirmSelected(LoanStatus resolution) {
         LoanView loan = selectedActiveLoan();
         if (loan == null) return;
-        editorHost.showEditor(new LoanActionPanel(loan, resolution,
-                condition -> resolve(loan, resolution, condition), () -> editorHost.requestClose()));
+        LoanActionPanel[] expected = new LoanActionPanel[1];
+        expected[0] = new LoanActionPanel(loan, resolution,
+                condition -> resolve(loan, resolution, condition, expected[0]),
+                () -> editorHost.requestClose(expected[0]));
+        editorHost.showEditor(expected[0]);
     }
 
     private LoanView selectedActiveLoan() {
@@ -80,19 +83,21 @@ public final class LoanAdminPanel extends LibraryDataPanel {
         return loan;
     }
 
-    private void resolve(LoanView loan, LoanStatus resolution, ReturnCondition condition) {
+    private void resolve(LoanView loan, LoanStatus resolution, ReturnCondition condition,
+                         LoanActionPanel expected) {
         long request = beginMutation();
         status.setText(resolution == LoanStatus.RETURNED ? "正在办理归还……" : "正在标记遗失……");
         service.resolveLoan(new AdminResolveLoanCommand(loan.loanId(), resolution, loan.rowVersion(),
                 condition))
                 .whenComplete((resolved, failure) -> SwingUtilities.invokeLater(() -> {
+                    if (expected != null && !editorHost.isCurrent(expected)) return;
                     if (!acceptsMutation(request)) return;
                     if (failure != null) {
                         LibraryFeedback.failure(this, status, failure, "借阅处理失败，请刷新后重试。");
                         return;
                     }
                     status.setText(resolution == LoanStatus.RETURNED ? "归还已办理，用户借阅已同步" : "遗失已登记，用户借阅已同步");
-                    editorHost.completeAndClose();
+                    if (expected != null) editorHost.completeAndClose(expected);
                     refresh();
                     mutationSucceeded();
                 }));

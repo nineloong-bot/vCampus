@@ -18,6 +18,7 @@ public final class GradeEntryPanel implements EmbeddedEditor {
     private final JComboBox<GradeResult> result = new JComboBox<>(GradeResult.values());
     private final JTextField semester = new JTextField(DEFAULT_SEMESTER, 12);
     private final JLabel status = new JLabel(" ");
+    private boolean active;
 
     /** Creates an editor bound to a student and completion callback. */
     public GradeEntryPanel(StudentClientService students, String studentId,
@@ -53,6 +54,7 @@ public final class GradeEntryPanel implements EmbeddedEditor {
         students.recordGrade(new RecordStudentGradeCommand(studentId, courseId,
                 (GradeResult) result.getSelectedItem(), term))
                 .whenComplete((response, failure) -> SwingUtilities.invokeLater(() -> {
+                    if (!active) return;
                     if (failure != null || response == null || !response.success()) {
                         status.setText(response != null && response.message() != null
                                 ? response.message() : "成绩录入失败");
@@ -79,6 +81,8 @@ public final class GradeEntryPanel implements EmbeddedEditor {
 
     @Override public JComponent component() { return root; }
     @Override public EditorSize size() { return EditorSize.WIDE; }
+    @Override public void onOpened() { active = true; }
+    @Override public void onClosed() { active = false; }
     @Override public boolean isDirty() {
         return !planCourseId.getText().isBlank()
                 || result.getSelectedIndex() != 0

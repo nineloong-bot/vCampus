@@ -2,6 +2,7 @@ package edu.seu.vcampus.client.student.ui;
 
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditor;
 import edu.seu.vcampus.common.student.*;
 
 import javax.swing.*;
@@ -41,6 +42,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
     private boolean isEditingPlan;
     private EmbeddedEditorHost editorHost;
     private boolean workspaceDirty;
+    private EmbeddedEditor workspaceEditor;
 
     public TrainingPlanManagementPanel(StudentClientService students) {
         this.students = students;
@@ -383,8 +385,10 @@ public final class TrainingPlanManagementPanel extends JPanel {
             statusLabel.setText("请先查询并选择一个培养方案");
             return;
         }
-        if (!editorHost.showEditor(new TrainingPlanCourseEditorPanel(
-                workspaceCardPanel, () -> workspaceDirty))) return;
+        EmbeddedEditor editor = new TrainingPlanCourseEditorPanel(
+                workspaceCardPanel, () -> workspaceDirty);
+        if (!editorHost.showEditor(editor)) return;
+        workspaceEditor = editor;
         editingCourse = existing;
         boolean isEdit = existing != null;
         courseBorder.setTitle(isEdit ? "编辑课程" : "添加课程");
@@ -414,6 +418,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
     }
 
     private void saveCourse() {
+        EmbeddedEditor expectedEditor = workspaceEditor;
         if (currentPlan == null) {
             courseMsgLabel.setText("未选择有效方案");
             return;
@@ -449,6 +454,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
                 editingCourse != null ? editingCourse.allocatedQuota() : null);
         courseMsgLabel.setText("正在保存...");
         students.saveTrainingPlanCourse(cmd).thenAccept(r -> SwingUtilities.invokeLater(() -> {
+            if (expectedEditor != null && !editorHost.isCurrent(expectedEditor)) return;
             if (r.success()) {
                 loadPlanDetail(currentPlan.planId());
                 statusLabel.setText(editingCourse != null ? "课程修改成功" : "课程添加成功");
@@ -467,8 +473,9 @@ public final class TrainingPlanManagementPanel extends JPanel {
             statusLabel.setText("请先选择院系、专业和年级");
             return;
         }
-        if (!editorHost.showEditor(new TrainingPlanEditorPanel(
-                workspaceCardPanel, () -> workspaceDirty))) return;
+        EmbeddedEditor editor = new TrainingPlanEditorPanel(workspaceCardPanel, () -> workspaceDirty);
+        if (!editorHost.showEditor(editor)) return;
+        workspaceEditor = editor;
         int year = Integer.parseInt(yearStr.replace("级", ""));
         isEditingPlan = false;
         planBorder.setTitle("新建培养方案");
@@ -487,8 +494,9 @@ public final class TrainingPlanManagementPanel extends JPanel {
             statusLabel.setText("请先查询并选择一个方案");
             return;
         }
-        if (!editorHost.showEditor(new TrainingPlanEditorPanel(
-                workspaceCardPanel, () -> workspaceDirty))) return;
+        EmbeddedEditor editor = new TrainingPlanEditorPanel(workspaceCardPanel, () -> workspaceDirty);
+        if (!editorHost.showEditor(editor)) return;
+        workspaceEditor = editor;
         isEditingPlan = true;
         planBorder.setTitle("编辑培养方案");
         workspaceCardPanel.repaint();
@@ -502,6 +510,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
     }
 
     private void savePlan() {
+        EmbeddedEditor expectedEditor = workspaceEditor;
         MajorView major = (MajorView) majorBox.getSelectedItem();
         String yearStr = (String) yearBox.getSelectedItem();
         if (!isEditingPlan && (major == null || yearStr == null)) {
@@ -536,6 +545,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
                     name, minCount, minCredits, true, currentPlan.rowVersion());
             planMsgLabel.setText("正在保存...");
             students.saveTrainingPlan(cmd).thenAccept(r -> SwingUtilities.invokeLater(() -> {
+                if (expectedEditor != null && !editorHost.isCurrent(expectedEditor)) return;
                 if (r.success()) {
                     loadPlanDetail(currentPlan.planId());
                     statusLabel.setText("方案更新成功");
@@ -551,6 +561,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
                     year, name, minCount, minCredits, true, 0);
             planMsgLabel.setText("正在创建...");
             students.saveTrainingPlan(cmd).thenAccept(r -> SwingUtilities.invokeLater(() -> {
+                if (expectedEditor != null && !editorHost.isCurrent(expectedEditor)) return;
                 if (r.success()) {
                     loadPlanDetail(r.data().planId());
                     statusLabel.setText("方案创建成功");
