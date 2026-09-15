@@ -23,7 +23,7 @@ final class AdminEnrollmentControl extends JPanel {
     private final Runnable onSuccess;
     private final Consumer<String> onError;
     private final JTextField studentNumber = new JTextField(10);
-    private final JButton submit = AbstractCoursePanel.secondary("添加重修学生");
+    private final JButton submit = AbstractCoursePanel.secondary("确认添加");
 
     AdminEnrollmentControl(CourseUiGateway gateway, Supplier<OfferingSummary> selectedOffering,
                            Runnable onSuccess, Consumer<String> onError) {
@@ -38,12 +38,14 @@ final class AdminEnrollmentControl extends JPanel {
         studentNumber.setFont(UiTypography.BODY);
         studentNumber.setPreferredSize(new java.awt.Dimension(150, UiDimensions.CONTROL_HEIGHT));
         studentNumber.getAccessibleContext().setAccessibleName("学生学号");
-        submit.getAccessibleContext().setAccessibleName("添加重修学生");
+        submit.getAccessibleContext().setAccessibleName("确认添加重修学生");
         submit.addActionListener(event -> submit());
         add(label);
         add(studentNumber);
         add(submit);
     }
+
+    boolean isDirty() { return !studentNumber.getText().isBlank(); }
 
     private void submit() {
         OfferingSummary offering = selectedOffering.get();

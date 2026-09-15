@@ -1,6 +1,7 @@
 package edu.seu.vcampus.client.course.ui;
 
 import edu.seu.vcampus.client.core.ui.theme.UiColors;
+import edu.seu.vcampus.client.core.ui.editor.*;
 import edu.seu.vcampus.client.core.ui.theme.UiDimensions;
 import edu.seu.vcampus.client.core.ui.theme.UiSpacing;
 import edu.seu.vcampus.client.core.ui.theme.UiTypography;
@@ -32,23 +33,24 @@ public final class OfferingManagementPanel extends AbstractCoursePanel {
     private final JTable table = table(new Object[0][0], new Object[0]);
     private final List<OfferingSummary> offerings = new ArrayList<>();
     private final CoursePager pager;
+    private final EmbeddedEditorHost editorHost;
 
     public OfferingManagementPanel(CourseUiGateway gateway) {
         super("教学班管理", "维护教学班容量、教师、上课时间地点与开放状态。");
         this.gateway = gateway;
         this.pager = new CoursePager(50, this::search);
-        body.add(filters(), BorderLayout.NORTH);
         table.setModel(model);
         table.getTableHeader().setBackground(UiColors.BACKGROUND_SUBTLE);
         table.getAccessibleContext().setAccessibleName("教学班管理列表");
         JScrollPane scroll = new JScrollPane(table);
         scroll.setBorder(BorderFactory.createLineBorder(UiColors.BORDER_DEFAULT));
-        JPanel listing = new JPanel(new BorderLayout(0, UiSpacing.MD));
-        listing.setOpaque(false);
-        listing.add(scroll, BorderLayout.CENTER);
-        listing.add(pager, BorderLayout.SOUTH);
-        body.add(listing, BorderLayout.CENTER);
-        body.add(actions(), BorderLayout.SOUTH);
+        JPanel listing = new JPanel(new BorderLayout(0, UiSpacing.MD)); listing.setOpaque(false);
+        listing.add(filters(), BorderLayout.NORTH);
+        JPanel tableArea = new JPanel(new BorderLayout(0, UiSpacing.MD)); tableArea.setOpaque(false);
+        tableArea.add(scroll, BorderLayout.CENTER); tableArea.add(pager, BorderLayout.SOUTH);
+        listing.add(tableArea, BorderLayout.CENTER); listing.add(actions(), BorderLayout.SOUTH);
+        editorHost = new EmbeddedEditorHost(listing);
+        body.add(editorHost, BorderLayout.CENTER);
         initializeTerm();
     }
 
@@ -57,10 +59,9 @@ public final class OfferingManagementPanel extends AbstractCoursePanel {
         panel.setOpaque(false);
         panel.setLayout(new BoxLayout(panel, BoxLayout.X_AXIS));
         panel.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, UiColors.BORDER_DEFAULT));
-        panel.add(label("保存时整体校验并更新教学班及全部上课安排", UiTypography.CAPTION, UiColors.TEXT_SECONDARY));
-        panel.add(Box.createHorizontalStrut(UiSpacing.MD));
-        panel.add(new AdminEnrollmentControl(gateway, this::selectedOffering,
-                () -> search(pager.currentPage()), message -> showState(ViewState.ERROR, message)));
+        JButton addRetake = secondary("添加重修学生");
+        addRetake.addActionListener(event -> openRetakeEditor());
+        panel.add(addRetake);
         panel.add(Box.createHorizontalGlue());
         JButton edit = secondary("编辑所选");
         edit.addActionListener(event -> editSelected());
@@ -146,8 +147,21 @@ public final class OfferingManagementPanel extends AbstractCoursePanel {
     }
 
     private void openEditor(OfferingSummary offering) {
-        new OfferingEditorDialog(SwingUtilities.getWindowAncestor(this), gateway, offering,
-                () -> search(pager.currentPage())).setVisible(true);
+        editorHost.showEditor(new OfferingEditorPanel(gateway, offering, () -> {
+            search(pager.currentPage()); editorHost.completeAndClose();
+        }, editorHost::requestClose));
+    }
+
+    private void openRetakeEditor() {
+        if (selectedOffering() == null) { showState(ViewState.ERROR, "请先选择要添加学生的教学班"); return; }
+        AdminEnrollmentControl control = new AdminEnrollmentControl(gateway, this::selectedOffering, () -> {
+            search(pager.currentPage()); editorHost.completeAndClose();
+        }, message -> showState(ViewState.ERROR, message));
+        editorHost.showEditor(new EmbeddedEditor() {
+            @Override public javax.swing.JComponent component() { return control; }
+            @Override public EditorSize size() { return EditorSize.COMPACT; }
+            @Override public boolean isDirty() { return control.isDirty(); }
+        });
     }
 
     private static JTextField field(String name, String value) {
