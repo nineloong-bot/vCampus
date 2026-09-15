@@ -20,6 +20,9 @@ public final class MajorTransferBatchManagementPanel extends JPanel {
     private final JList<MajorTransferBatchView> batches = new JList<>(model);
     private final MajorTransferBatchFormCardPanel formCard = new MajorTransferBatchFormCardPanel();
     private final JLabel status = new JLabel(" ");
+    private final JButton createButton = new JButton("新建批次");
+    private final JButton refreshButton = new JButton("刷新");
+    private int refreshSequence;
 
     /** Creates the in-workspace batch management workspace. */
     public MajorTransferBatchManagementPanel(StudentClientService students) {
@@ -42,12 +45,14 @@ public final class MajorTransferBatchManagementPanel extends JPanel {
         left.add(title, BorderLayout.NORTH);
 
         batches.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        batches.setName("major-transfer.batch-list");
         batches.setCellRenderer(new DefaultListCellRenderer() {
             @Override public Component getListCellRendererComponent(JList<?> list, Object value,
                     int index, boolean selected, boolean focus) {
                 super.getListCellRendererComponent(list, value, index, selected, focus);
                 if (value instanceof MajorTransferBatchView batch) {
-                    setText(batch.batchName() + " [" + batch.status() + "]");
+                    setText(batch.batchName() + " · "
+                            + MajorTransferBatchStatusRenderer.text(batch.status()));
                 }
                 return this;
             }
@@ -64,21 +69,24 @@ public final class MajorTransferBatchManagementPanel extends JPanel {
 
         JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT, UiSpacing.SPACE_2, 0));
         toolbar.setOpaque(false);
-        JButton create = new JButton("新建批次");
-        create.addActionListener(event -> {
+        createButton.setName("major-transfer.batch-create");
+        createButton.addActionListener(event -> {
             batches.clearSelection();
             formCard.clearForNew();
         });
-        JButton refresh = new JButton("刷新");
-        refresh.addActionListener(event -> refresh());
-        toolbar.add(create);
-        toolbar.add(refresh);
+        refreshButton.setName("major-transfer.batch-refresh");
+        refreshButton.addActionListener(event -> refresh());
+        toolbar.add(createButton);
+        toolbar.add(refreshButton);
         left.add(toolbar, BorderLayout.SOUTH);
 
         formCard.saveButton().addActionListener(event -> saveBatch());
 
         add(left, BorderLayout.WEST);
         add(formCard, BorderLayout.CENTER);
+        status.setName("major-transfer.batch-status");
+        status.setFont(UiTypography.CAPTION);
+        status.setForeground(UiColors.TEXT_SECONDARY);
         add(status, BorderLayout.SOUTH);
     }
 
@@ -88,17 +96,42 @@ public final class MajorTransferBatchManagementPanel extends JPanel {
     }
 
     private void refresh() {
+        MajorTransferBatchView selected = batches.getSelectedValue();
+        refresh(selected == null ? null : selected.batchId());
+    }
+
+    private void refresh(String preferredBatchId) {
+        int requestSequence = ++refreshSequence;
         status.setText("正在加载批次列表…");
+        setBusy(true);
         students.listTransferBatches().whenComplete((response, failure) ->
                 SwingUtilities.invokeLater(() -> {
+                    if (requestSequence != refreshSequence) return;
+                    setBusy(false);
                     if (response == null || !response.success()) {
-                        status.setText(message(response, "批次加载失败"));
+                        status.setText(message(response, failure, "批次加载失败，请稍后重试"));
+                        return;
+                    }
+                    if (response.data() == null) {
+                        status.setText("批次加载失败：服务端未返回数据");
                         return;
                     }
                     model.clear();
                     response.data().forEach(model::addElement);
+                    selectBatch(preferredBatchId);
                     status.setText("批次列表已更新，共 " + model.size() + " 个批次");
                 }));
+    }
+
+    private void selectBatch(String batchId) {
+        if (batchId == null) return;
+        for (int index = 0; index < model.size(); index++) {
+            if (batchId.equals(model.get(index).batchId())) {
+                batches.setSelectedIndex(index);
+                batches.ensureIndexIsVisible(index);
+                return;
+            }
+        }
     }
 
     private void saveBatch() {
@@ -110,20 +143,32 @@ public final class MajorTransferBatchManagementPanel extends JPanel {
             return;
         }
         formCard.showFeedback("正在保存…", false);
-        formCard.saveButton().setEnabled(false);
+        setBusy(true);
         students.saveTransferBatch(command).whenComplete((response, failure) ->
                 SwingUtilities.invokeLater(() -> {
-                    formCard.saveButton().setEnabled(true);
                     if (response != null && response.success()) {
+                        MajorTransferBatchView saved = response.data();
+                        if (saved != null) formCard.loadBatch(saved);
                         formCard.showFeedback("批次保存成功", false);
-                        refresh();
+                        refresh(saved == null ? command.batchId() : saved.batchId());
                     } else {
-                        formCard.showFeedback(message(response, "保存失败"), true);
+                        setBusy(false);
+                        formCard.showFeedback(message(response, failure, "保存失败，请稍后重试"), true);
                     }
                 }));
     }
 
-    private static String message(ResponseBody<?> response, String fallback) {
-        return response == null || response.message() == null ? fallback : response.message();
+    private void setBusy(boolean busy) {
+        createButton.setEnabled(!busy);
+        refreshButton.setEnabled(!busy);
+        batches.setEnabled(!busy);
+        formCard.setBusy(busy);
+    }
+
+    private static String message(ResponseBody<?> response, Throwable failure, String fallback) {
+        if (response != null && response.message() != null && !response.message().isBlank()) {
+            return response.message();
+        }
+        return failure == null ? fallback : "网络请求失败，请稍后重试";
     }
 }

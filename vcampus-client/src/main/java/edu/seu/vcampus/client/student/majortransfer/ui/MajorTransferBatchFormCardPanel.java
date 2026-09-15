@@ -45,6 +45,16 @@ public final class MajorTransferBatchFormCardPanel extends JPanel {
                 BorderFactory.createEmptyBorder(UiSpacing.SPACE_3, UiSpacing.SPACE_4,
                         UiSpacing.SPACE_3, UiSpacing.SPACE_4)));
         saveButton.setName("saveBatchButton");
+        resetButton.setName("major-transfer.batch-reset");
+        nameField.setName("major-transfer.batch-name");
+        statusCombo.setName("major-transfer.batch-state");
+        startField.setName("major-transfer.batch-application-start");
+        endField.setName("major-transfer.batch-application-end");
+        pubStartField.setName("major-transfer.batch-publicity-start");
+        pubEndField.setName("major-transfer.batch-publicity-end");
+        effectiveField.setName("major-transfer.batch-effective-time");
+        feedbackLabel.setName("major-transfer.batch-feedback");
+        statusCombo.setRenderer(new MajorTransferBatchStatusRenderer());
         resetButton.addActionListener(e -> resetToCurrent());
         buildLayout();
         clearForNew();
@@ -127,7 +137,8 @@ public final class MajorTransferBatchFormCardPanel extends JPanel {
         pubStartField.setText(formatDate(batch.publicityStart()));
         pubEndField.setText(formatDate(batch.publicityEnd()));
         effectiveField.setText(formatDate(batch.effectiveDate()));
-        showFeedback("正在编辑批次 [" + batch.status() + "]", false);
+        showFeedback("正在编辑批次 ["
+                + MajorTransferBatchStatusRenderer.text(batch.status()) + "]", false);
     }
 
     private void resetToCurrent() {
@@ -171,6 +182,12 @@ public final class MajorTransferBatchFormCardPanel extends JPanel {
     public void showFeedback(String text, boolean isError) {
         feedbackLabel.setForeground(isError ? UiColors.ERROR_FG : UiColors.TEXT_SECONDARY);
         feedbackLabel.setText(text == null || text.isBlank() ? " " : text);
+    }
+
+    void setBusy(boolean busy) {
+        JComponent[] controls = {nameField, statusCombo, startField, endField, pubStartField,
+                pubEndField, effectiveField, saveButton, resetButton};
+        for (JComponent control : controls) control.setEnabled(!busy);
     }
 
     /** Returns the save button to attach listeners. */
