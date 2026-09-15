@@ -22,6 +22,7 @@ public final class OutcomeImportEditorPanel implements EmbeddedEditor {
     private final JTextArea input = new JTextArea(10, 72);
     private final JLabel status = AbstractCoursePanel.label(" ", UiTypography.BODY, UiColors.ACCENT);
     private final JButton submit = AbstractCoursePanel.primary("执行导入");
+    private boolean active;
 
     /** Creates an import editor that reports successful completion and cancellation. */
     public OutcomeImportEditorPanel(CourseUiGateway gateway, Runnable saved, Runnable cancelled) {
@@ -42,6 +43,8 @@ public final class OutcomeImportEditorPanel implements EmbeddedEditor {
     @Override public JComponent component() { return root; }
     @Override public EditorSize size() { return EditorSize.WIDE; }
     @Override public boolean isDirty() { return !input.getText().isBlank(); }
+    @Override public void onOpened() { active = true; }
+    @Override public void onClosed() { active = false; }
 
     private JPanel actions() {
         JPanel panel = new JPanel(); panel.setOpaque(false); panel.setLayout(new BoxLayout(panel, BoxLayout.X_AXIS));
@@ -57,6 +60,7 @@ public final class OutcomeImportEditorPanel implements EmbeddedEditor {
         submit.setEnabled(false); status.setText("正在导入…");
         gateway.importOutcomes(new ImportCourseOutcomesCommand(entries)).whenComplete((ignored, failure) ->
                 SwingUtilities.invokeLater(() -> {
+                    if (!active) return;
                     submit.setEnabled(true);
                     if (failure != null) { status.setText("导入失败，请检查内容或连接后重试"); return; }
                     status.setText("已导入 " + entries.size() + " 条课程结果"); input.setText(""); saved.run();

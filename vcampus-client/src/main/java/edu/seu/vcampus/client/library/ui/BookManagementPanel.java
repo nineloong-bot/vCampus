@@ -13,7 +13,6 @@ public final class BookManagementPanel extends LibraryDataPanel {
     private final JComboBox<String> field = new JComboBox<>(new String[]{
             "全部栏目", "书名", "作者", "ISBN", "分类", "出版社"});
     private CopyManagementPanel copiesPanel;
-    private final BookFormCardPanel bookFormCard;
     private final EmbeddedEditorHost editorHost;
     private boolean refreshing;
     private List<BookSummary> books = List.of();
@@ -33,8 +32,6 @@ public final class BookManagementPanel extends LibraryDataPanel {
         buttons.add(edit); buttons.add(create);
         actions.add(filters); actions.add(buttons); add(actions, BorderLayout.SOUTH);
         editorHost = installEditorHost();
-        bookFormCard = new BookFormCardPanel(this::create, this::update,
-                () -> editorHost.requestClose());
         keyword.addActionListener(event -> refresh());
         table.getSelectionModel().addListSelectionListener(event -> {
             if (!event.getValueIsAdjusting() && !refreshing && copiesPanel != null)
@@ -50,17 +47,23 @@ public final class BookManagementPanel extends LibraryDataPanel {
     }
 
     public void create(CreateBookCommand command) {
+        create(command, null);
+    }
+    private void create(CreateBookCommand command, BookEditorPanel expected) {
         long request = beginMutation();
         status.setText("正在新增书目……");
         service.createBook(command).whenComplete((book, failure) -> SwingUtilities.invokeLater(() -> {
             if (!acceptsMutation(request)) return;
             if (failure == null) {
-                status.setText("书目已新增"); editorHost.completeAndClose(); mutationSucceeded();
+                status.setText("书目已新增"); close(expected); mutationSucceeded();
             }
             else LibraryFeedback.failure(this, status, failure, "新增书目失败，请检查输入后重试。");
         }));
     }
     public void update(UpdateBookCommand command) {
+        update(command, null);
+    }
+    private void update(UpdateBookCommand command, BookEditorPanel expected) {
         long request = beginMutation();
         status.setText("正在保存书目……");
         service.updateBook(command).whenComplete((book, failure) -> SwingUtilities.invokeLater(() -> {
@@ -84,7 +87,7 @@ public final class BookManagementPanel extends LibraryDataPanel {
                 break;
             }
             status.setText("书目已保存");
-            editorHost.completeAndClose();
+            close(expected);
             mutationSucceeded();
         }));
     }
@@ -124,14 +127,29 @@ public final class BookManagementPanel extends LibraryDataPanel {
                     if (!accepts(request)) return;
                     if (failure != null) LibraryFeedback.failure(this, status, failure, "书目详情加载失败，请重试。");
                     else {
-                        bookFormCard.prepareEdit(book);
-                        editorHost.showEditor(new BookEditorPanel(bookFormCard));
+                        editorHost.showEditor(editor(book));
                     }
                 }));
     }
 
     private void openCreateDialog() {
-        bookFormCard.prepareCreate();
-        editorHost.showEditor(new BookEditorPanel(bookFormCard));
+        editorHost.showEditor(editor(null));
+    }
+
+    private BookEditorPanel editor(BookDetail book) {
+        BookEditorPanel[] expected = new BookEditorPanel[1];
+        BookFormCardPanel form = new BookFormCardPanel(
+                command -> create(command, expected[0]),
+                command -> update(command, expected[0]),
+                () -> editorHost.requestClose(expected[0]));
+        BookEditorPanel result = new BookEditorPanel(form);
+        expected[0] = result;
+        if (book == null) form.prepareCreate(); else form.prepareEdit(book);
+        return result;
+    }
+
+    private void close(BookEditorPanel expected) {
+        if (expected == null) editorHost.completeAndClose();
+        else editorHost.completeAndClose(expected);
     }
 }

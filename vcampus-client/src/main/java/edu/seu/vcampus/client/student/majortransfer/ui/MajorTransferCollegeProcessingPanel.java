@@ -12,6 +12,8 @@ import java.awt.*;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiFunction;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditor;
 
 /** Processes transfer options and related applications for one college. */
 public final class MajorTransferCollegeProcessingPanel extends JPanel {
@@ -32,7 +34,7 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
         super(new BorderLayout(UiSpacing.SPACE_2, UiSpacing.SPACE_2));
         this.students = Objects.requireNonNull(students);
         collegeActions = new MajorTransferCollegeActions(this, students, actions, status,
-                this::loadDetail, this::loadSelectedBatch, this::openEditor, this::closeEditor);
+                this::loadDetail, this::loadSelectedBatch, this::openEditor);
         setName("major-transfer.college-processing");
         setBackground(UiColors.BACKGROUND_PAGE);
         setBorder(new EmptyBorder(UiSpacing.SPACE_2, UiSpacing.SPACE_2,
@@ -47,8 +49,8 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
         option.setName("saveOptionButton");
         option.addActionListener(event -> {
             MajorTransferBatchView batch = (MajorTransferBatchView) batches.getSelectedItem();
-            if (batch != null) openEditor(new MajorTransferOptionEditorPanel(
-                    students, batch, this::loadSelectedBatch, this::closeEditor));
+            if (batch != null) openEditor((complete, cancel) -> new MajorTransferOptionEditorPanel(
+                    students, batch, () -> { complete.run(); loadSelectedBatch(); }, cancel));
         });
         JButton refresh = new JButton("刷新");
         refresh.addActionListener(event -> refresh());
@@ -94,12 +96,8 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
         add(editorHost, BorderLayout.CENTER);
     }
 
-    private void openEditor(edu.seu.vcampus.client.core.ui.editor.EmbeddedEditor editor) {
-        editorHost.showEditor(editor);
-    }
-
-    private void closeEditor() {
-        editorHost.completeAndClose();
+    private void openEditor(BiFunction<Runnable, Runnable, EmbeddedEditor> factory) {
+        editorHost.showEditor(factory);
     }
 
     @Override public void addNotify() {

@@ -8,6 +8,8 @@ import java.awt.Dimension;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 
 /** Keeps a list stable while opening its editor inside the same page. */
 public final class EmbeddedEditorHost extends JPanel {
@@ -55,6 +57,17 @@ public final class EmbeddedEditorHost extends JPanel {
         return true;
     }
 
+    /** Builds an editor with completion and cancellation actions bound to that exact editor instance. */
+    public boolean showEditor(BiFunction<Runnable, Runnable, EmbeddedEditor> factory) {
+        Objects.requireNonNull(factory, "factory");
+        AtomicReference<EmbeddedEditor> expected = new AtomicReference<>();
+        EmbeddedEditor next = factory.apply(
+                () -> completeAndClose(expected.get()),
+                () -> requestClose(expected.get()));
+        expected.set(next);
+        return showEditor(next);
+    }
+
     /** Requests closure, asking before dirty state is discarded. */
     public boolean requestClose() {
         if (editor == null) return true;
@@ -63,11 +76,21 @@ public final class EmbeddedEditorHost extends JPanel {
         return true;
     }
 
+    /** Requests closure only when the expected editor is still current. */
+    public boolean requestClose(EmbeddedEditor expected) {
+        return editor == expected && requestClose();
+    }
+
     /** Closes an editor after a successful save or completed workflow. */
     public boolean completeAndClose() {
         if (editor == null) return false;
         closeEditor();
         return true;
+    }
+
+    /** Completes only the expected editor, rejecting a stale asynchronous callback. */
+    public boolean completeAndClose(EmbeddedEditor expected) {
+        return editor == expected && completeAndClose();
     }
 
     /** Returns whether an editor is currently visible. */

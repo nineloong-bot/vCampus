@@ -24,6 +24,7 @@ public final class SelectionPhaseEditorPanel implements EmbeddedEditor {
     private final JLabel error = AbstractCoursePanel.label(" ", UiTypography.BODY, UiColors.ACCENT);
     private final JButton save;
     private Snapshot initial;
+    private boolean active;
 
     /** Creates a selection-phase editor from already loaded term references. */
     public SelectionPhaseEditorPanel(CourseUiGateway gateway, List<TermView> terms,
@@ -51,6 +52,8 @@ public final class SelectionPhaseEditorPanel implements EmbeddedEditor {
     @Override public JComponent component() { return root; }
     @Override public EditorSize size() { return EditorSize.COMPACT; }
     @Override public boolean isDirty() { return !snapshot().equals(initial); }
+    @Override public void onOpened() { active = true; }
+    @Override public void onClosed() { active = false; }
 
     private JPanel form() {
         JPanel panel = new JPanel(new GridLayout(0, 1, 0, UiSpacing.SM)); panel.setOpaque(false);
@@ -79,14 +82,22 @@ public final class SelectionPhaseEditorPanel implements EmbeddedEditor {
         if (existing == null) {
             operation = gateway.createSelectionPhase(new CreateSelectionPhaseCommand(
                     value.termId, value.typeIndex == 0 ? "ENROLLMENT" : "ADJUSTMENT", value.title));
-        } else if (!statusCode(value.statusIndex).equals(existing.phaseStatus())) {
-            operation = gateway.changeSelectionPhaseStatus(new ChangeSelectionPhaseStatusCommand(
-                    existing.phaseId(), statusCode(value.statusIndex), existing.rowVersion()));
         } else {
-            operation = gateway.updateSelectionPhase(new UpdateSelectionPhaseCommand(
-                    existing.phaseId(), value.title, existing.rowVersion()));
+            java.util.concurrent.CompletableFuture<SelectionPhaseView> updated =
+                    java.util.concurrent.CompletableFuture.completedFuture(existing);
+            if (!value.title.equals(existing.displayTitle())) {
+                updated = gateway.updateSelectionPhase(new UpdateSelectionPhaseCommand(
+                        existing.phaseId(), value.title, existing.rowVersion()));
+            }
+            if (!statusCode(value.statusIndex).equals(existing.phaseStatus())) {
+                updated = updated.thenCompose(current -> gateway.changeSelectionPhaseStatus(
+                        new ChangeSelectionPhaseStatusCommand(existing.phaseId(),
+                                statusCode(value.statusIndex), current.rowVersion())));
+            }
+            operation = updated;
         }
         operation.whenComplete((result, failure) -> SwingUtilities.invokeLater(() -> {
+            if (!active) return;
             save.setEnabled(true);
             if (failure != null) { error.setText("保存失败，请刷新后重试"); return; }
             initial = snapshot(); saved.run();

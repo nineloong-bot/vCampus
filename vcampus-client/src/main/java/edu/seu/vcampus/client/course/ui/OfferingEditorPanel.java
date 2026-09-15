@@ -28,7 +28,7 @@ public final class OfferingEditorPanel implements EmbeddedEditor {
     private final OfferingScheduleEditorPanel schedules = new OfferingScheduleEditorPanel();
     private final JLabel error = AbstractCoursePanel.label(" ", UiTypography.BODY, UiColors.ACCENT);
     private final JButton save;
-    private String initialClass;
+    private Snapshot initial;
     private boolean active;
 
     /** Creates an offering editor; reference suggestions are loaded through the existing gateway. */
@@ -59,13 +59,15 @@ public final class OfferingEditorPanel implements EmbeddedEditor {
         save.addActionListener(event -> submit());
         root.add(actions(), BorderLayout.SOUTH);
         if (existing == null) schedules.addDefaultRow(); else fill(existing);
-        initialClass = className.getText();
+        initial = existing == null ? snapshot() : new Snapshot(existing.termId(), existing.courseId(),
+                existing.teacherUserId(), existing.className(), existing.capacity(),
+                existing.retakeCapacity(), Status.valueOf(existing.offeringStatus()), schedules.fingerprint());
         root.setMinimumSize(new Dimension(760, 520));
     }
 
     @Override public JComponent component() { return root; }
     @Override public EditorSize size() { return EditorSize.WIDE; }
-    @Override public boolean isDirty() { return !Objects.equals(initialClass, className.getText()); }
+    @Override public boolean isDirty() { return !snapshot().equals(initial); }
     @Override public void onOpened() { active = true; guard.activate(); loadTerms(); resolveExistingTeacher(); }
     @Override public void onClosed() { active = false; guard.deactivate(); }
 
@@ -108,6 +110,9 @@ public final class OfferingEditorPanel implements EmbeddedEditor {
                     term.removeAllItems();
                     data.terms.forEach(value -> term.addItem(new TermChoice(value.termId(), value.termName())));
                     selectTerm(data.selectedId);
+                    initial = new Snapshot(data.selectedId, initial.courseId, initial.teacherId,
+                            initial.className, initial.capacity, initial.retakeCapacity,
+                            initial.status, initial.schedules);
                 }));
     }
 
@@ -116,8 +121,9 @@ public final class OfferingEditorPanel implements EmbeddedEditor {
         course.setSelection(existing.courseId(), existing.courseCode() + " · " + existing.courseName());
         teacher.setSelection(existing.teacherUserId(), existing.teacherUserId());
         gateway.resolveTeacher(existing.teacherUserId()).whenComplete((value, failure) -> SwingUtilities.invokeLater(() -> {
-            if (active && failure == null && value.isPresent())
+            if (active && failure == null && value.isPresent()) {
                 teacher.setSelection(value.get().userId(), value.get().loginId());
+            }
         }));
     }
 
@@ -146,15 +152,25 @@ public final class OfferingEditorPanel implements EmbeddedEditor {
         operation.whenComplete((result, failure) -> SwingUtilities.invokeLater(() -> {
             if (!guard.accepts(request)) return; save.setEnabled(true);
             if (failure != null) { error.setText("保存失败，请刷新后重试"); return; }
-            initialClass = className.getText(); saved.run();
+            initial = snapshot(); saved.run();
         }));
     }
 
     private void fill(OfferingSummary value) { className.setText(value.className()); capacity.setValue(value.capacity());
         retakeCapacity.setValue(value.retakeCapacity()); status.setSelectedItem(Status.valueOf(value.offeringStatus())); schedules.setSchedules(value.schedules()); }
+    private Snapshot snapshot() {
+        TermChoice selectedTerm = (TermChoice) term.getSelectedItem();
+        return new Snapshot(selectedTerm == null ? null : selectedTerm.id,
+                course.selectedId().orElse(null), teacher.selectedId().orElse(null),
+                className.getText(), ((Number) capacity.getValue()).intValue(),
+                ((Number) retakeCapacity.getValue()).intValue(), status.getSelectedItem(),
+                schedules.fingerprint());
+    }
     private void selectTerm(String id) { for (int i = 0; i < term.getItemCount(); i++) if (term.getItemAt(i).id.equals(id)) term.setSelectedIndex(i); }
     private static JSpinner spinner(int value, int minimum, String name) { JSpinner spinner = new JSpinner(new SpinnerNumberModel(value, minimum, 10_000, 1)); spinner.getAccessibleContext().setAccessibleName(name); return spinner; }
     private record TermChoice(String id, String label) { @Override public String toString() { return label; } }
     private record TermData(List<TermView> terms, String selectedId) { }
+    private record Snapshot(String termId, String courseId, String teacherId, String className,
+                            int capacity, int retakeCapacity, Object status, String schedules) { }
     private enum Status { DRAFT, OPEN, CLOSED, CANCELLED }
 }

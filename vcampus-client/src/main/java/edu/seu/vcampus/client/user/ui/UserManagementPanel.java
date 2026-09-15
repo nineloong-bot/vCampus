@@ -122,10 +122,10 @@ public final class UserManagementPanel extends JPanel {
     private void openRoleEditor() {
         UserSummary selected = selectedRow();
         if (!roleWritable(selected)) { state.setText("请选择教师或管理员账户"); return; }
-        editorHost.showEditor(new UserRoleEditorPanel(users, selected, () -> {
-            editorHost.completeAndClose();
+        editorHost.showEditor((complete, cancel) -> new UserRoleEditorPanel(users, selected, () -> {
+            complete.run();
             load("角色修改成功");
-        }, editorHost::requestClose));
+        }, cancel));
     }
 
     private void load(String message) {

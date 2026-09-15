@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import javax.swing.Action;
 import javax.swing.SwingUtilities;
 import java.awt.event.ActionEvent;
+import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -75,6 +76,24 @@ class AutocompleteSelectionFieldTest {
 
         assertThat(field.selectedId()).contains("teacher-7");
         assertThat(field.inputForTest().getText()).isEqualTo("张老师 · 10007");
+    }
+
+    @Test
+    void mousePressAcceptsSuggestionStableId() throws Exception {
+        ManualDebouncer debouncer = new ManualDebouncer();
+        ControlledLoader loader = new ControlledLoader();
+        AutocompleteSelectionField field = new AutocompleteSelectionField(loader, debouncer);
+        onEdt(() -> field.inputForTest().setText("高数"));
+        debouncer.fire();
+        loader.responses.get(0).complete(List.of(
+                new AutocompleteChoice("course-1", "高等数学 A", "5 学分")));
+        flushEdt();
+
+        onEdt(() -> field.suggestionListForTest().dispatchEvent(new MouseEvent(
+                field.suggestionListForTest(), MouseEvent.MOUSE_PRESSED,
+                System.currentTimeMillis(), 0, 2, 2, 1, false)));
+
+        assertThat(field.selectedId()).contains("course-1");
     }
 
     private static void invoke(AutocompleteSelectionField field, String key) throws Exception {

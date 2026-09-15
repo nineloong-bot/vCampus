@@ -606,9 +606,8 @@ public final class MyStudentProfilePanel extends JPanel {
         StudentProfileApplicationView app = workspace.application(); boolean draft = app != null && app.status() == StudentProfileApplicationStatus.DRAFT;
         AttendanceMode initial = draft ? app.attendanceMode() : workspace.formalProfile().academic().attendanceMode();
         long expected = draft ? app.applicationVersion() : 0;
-        AttendanceModeDraftEditor editor = new AttendanceModeDraftEditor(students, initial,
-                expected, this::render, () -> editorHost.completeAndClose());
-        editorHost.showEditor(editor);
+        editorHost.showEditor((complete, cancel) -> new AttendanceModeDraftEditor(
+                students, initial, expected, this::render, cancel));
     }
 
     private void submitOrWithdraw() {

@@ -131,10 +131,10 @@ public final class CourseCatalogPanel extends AbstractCoursePanel {
     }
 
     private void openEditor(CourseView course) {
-        editorHost.showEditor(new CourseEditorPanel(gateway, course, () -> {
+        editorHost.showEditor((complete, cancel) -> new CourseEditorPanel(gateway, course, () -> {
             search(pager.currentPage());
-            editorHost.completeAndClose();
-        }, editorHost::requestClose));
+            complete.run();
+        }, cancel));
     }
 
     private static DefaultTableModel readOnlyModel(Object... columns) {

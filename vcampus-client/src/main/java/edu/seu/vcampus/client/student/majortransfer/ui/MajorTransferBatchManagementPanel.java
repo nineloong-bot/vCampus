@@ -24,6 +24,7 @@ public final class MajorTransferBatchManagementPanel extends JPanel {
     private final JButton createButton = new JButton("新建批次");
     private final JButton refreshButton = new JButton("刷新");
     private EmbeddedEditorHost editorHost;
+    private MajorTransferBatchEditorPanel currentEditor;
     private int refreshSequence;
 
     /** Creates the in-workspace batch management workspace. */
@@ -67,6 +68,7 @@ public final class MajorTransferBatchManagementPanel extends JPanel {
         toolbar.setOpaque(false);
         createButton.setName("major-transfer.batch-create");
         createButton.addActionListener(event -> {
+            if (!editorHost.requestClose()) return;
             batches.clearSelection();
             formCard.clearForNew();
             showForm();
@@ -79,6 +81,7 @@ public final class MajorTransferBatchManagementPanel extends JPanel {
                 status.setText("请先选择一个批次");
                 return;
             }
+            if (!editorHost.requestClose()) return;
             formCard.loadBatch(selected);
             showForm();
         });
@@ -146,6 +149,7 @@ public final class MajorTransferBatchManagementPanel extends JPanel {
     }
 
     private void saveBatch() {
+        MajorTransferBatchEditorPanel expected = currentEditor;
         SaveMajorTransferBatchCommand command;
         try {
             command = formCard.buildCommand();
@@ -161,7 +165,7 @@ public final class MajorTransferBatchManagementPanel extends JPanel {
                         MajorTransferBatchView saved = response.data();
                         if (saved != null) formCard.loadBatch(saved);
                         formCard.showFeedback("批次保存成功", false);
-                        editorHost.completeAndClose();
+                        editorHost.completeAndClose(expected);
                         refresh(saved == null ? command.batchId() : saved.batchId());
                     } else {
                         setBusy(false);
@@ -171,8 +175,11 @@ public final class MajorTransferBatchManagementPanel extends JPanel {
     }
 
     private void showForm() {
-        editorHost.showEditor(new MajorTransferBatchEditorPanel(
-                formCard, () -> editorHost.requestClose()));
+        MajorTransferBatchEditorPanel[] expected = new MajorTransferBatchEditorPanel[1];
+        expected[0] = new MajorTransferBatchEditorPanel(formCard,
+                () -> editorHost.requestClose(expected[0]));
+        currentEditor = expected[0];
+        editorHost.showEditor(currentEditor);
     }
 
     private void setBusy(boolean busy) {

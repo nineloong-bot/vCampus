@@ -147,21 +147,18 @@ public final class OfferingManagementPanel extends AbstractCoursePanel {
     }
 
     private void openEditor(OfferingSummary offering) {
-        editorHost.showEditor(new OfferingEditorPanel(gateway, offering, () -> {
-            search(pager.currentPage()); editorHost.completeAndClose();
-        }, editorHost::requestClose));
+        editorHost.showEditor((complete, cancel) -> new OfferingEditorPanel(gateway, offering, () -> {
+            search(pager.currentPage()); complete.run();
+        }, cancel));
     }
 
     private void openRetakeEditor() {
-        if (selectedOffering() == null) { showState(ViewState.ERROR, "请先选择要添加学生的教学班"); return; }
-        AdminEnrollmentControl control = new AdminEnrollmentControl(gateway, this::selectedOffering, () -> {
-            search(pager.currentPage()); editorHost.completeAndClose();
-        }, message -> showState(ViewState.ERROR, message));
-        editorHost.showEditor(new EmbeddedEditor() {
-            @Override public javax.swing.JComponent component() { return control; }
-            @Override public EditorSize size() { return EditorSize.COMPACT; }
-            @Override public boolean isDirty() { return control.isDirty(); }
-        });
+        OfferingSummary offering = selectedOffering();
+        if (offering == null) { showState(ViewState.ERROR, "请先选择要添加学生的教学班"); return; }
+        editorHost.showEditor((complete, cancel) -> new AdminEnrollmentEditorPanel(
+                new AdminEnrollmentControl(gateway, offering, () -> {
+                    search(pager.currentPage()); complete.run();
+                }, cancel, message -> showState(ViewState.ERROR, message))));
     }
 
     private static JTextField field(String name, String value) {

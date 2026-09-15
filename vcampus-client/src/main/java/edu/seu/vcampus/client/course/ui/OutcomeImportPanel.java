@@ -26,7 +26,7 @@ public final class OutcomeImportPanel extends AbstractCoursePanel {
     }
 
     private void openEditor() {
-        editorHost.showEditor(new OutcomeImportEditorPanel(gateway,
-                editorHost::completeAndClose, editorHost::requestClose));
+        editorHost.showEditor((complete, cancel) ->
+                new OutcomeImportEditorPanel(gateway, complete, cancel));
     }
 }

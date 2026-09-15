@@ -11,15 +11,9 @@ import edu.seu.vcampus.common.student.majortransfer.SaveMajorTransferBatchComman
 import javax.swing.*;
 import java.awt.*;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 
 /** In-workspace card panel for creating and editing major transfer batches without popups. */
 public final class MajorTransferBatchFormCardPanel extends JPanel {
-    private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm");
-    private static final ZoneId SHANGHAI = ZoneId.of("Asia/Shanghai");
-
     private final JLabel cardTitle = new JLabel("新建转专业批次");
     private final JTextField nameField = new JTextField(20);
     private final JComboBox<MajorTransferBatchStatus> statusCombo =
@@ -34,6 +28,7 @@ public final class MajorTransferBatchFormCardPanel extends JPanel {
     private final JLabel feedbackLabel = new JLabel(" ");
 
     private MajorTransferBatchView currentBatch;
+    private String initialFingerprint = "";
 
     /** Creates the in-workspace batch editor card. */
     public MajorTransferBatchFormCardPanel() {
@@ -114,12 +109,13 @@ public final class MajorTransferBatchFormCardPanel extends JPanel {
         nameField.setText("");
         statusCombo.setSelectedItem(MajorTransferBatchStatus.DRAFT);
         Instant now = Instant.now();
-        startField.setText(FMT.format(now.atZone(SHANGHAI)));
-        endField.setText(FMT.format(now.plusSeconds(604800).atZone(SHANGHAI)));
+        startField.setText(MajorTransferBatchDates.format(now));
+        endField.setText(MajorTransferBatchDates.format(now.plusSeconds(604800)));
         pubStartField.setText("");
         pubEndField.setText("");
         effectiveField.setText("");
         showFeedback(" ", false);
+        initialFingerprint = fingerprint();
     }
 
     /** Populates the form card with an existing batch for editing. */
@@ -132,12 +128,13 @@ public final class MajorTransferBatchFormCardPanel extends JPanel {
         cardTitle.setText("编辑转专业批次：" + batch.batchName());
         nameField.setText(batch.batchName());
         statusCombo.setSelectedItem(batch.status());
-        startField.setText(formatDate(batch.applicationStart()));
-        endField.setText(formatDate(batch.applicationEnd()));
-        pubStartField.setText(formatDate(batch.publicityStart()));
-        pubEndField.setText(formatDate(batch.publicityEnd()));
-        effectiveField.setText(formatDate(batch.effectiveDate()));
+        startField.setText(MajorTransferBatchDates.format(batch.applicationStart()));
+        endField.setText(MajorTransferBatchDates.format(batch.applicationEnd()));
+        pubStartField.setText(MajorTransferBatchDates.format(batch.publicityStart()));
+        pubEndField.setText(MajorTransferBatchDates.format(batch.publicityEnd()));
+        effectiveField.setText(MajorTransferBatchDates.format(batch.effectiveDate()));
         showFeedback(" ", false);
+        initialFingerprint = fingerprint();
     }
 
     private void resetToCurrent() {
@@ -149,32 +146,18 @@ public final class MajorTransferBatchFormCardPanel extends JPanel {
     public SaveMajorTransferBatchCommand buildCommand() {
         String name = nameField.getText().trim();
         if (name.isBlank()) throw new IllegalArgumentException("批次名称不能为空");
-        Instant start = parseDate(startField, "报名开始时间");
-        Instant end = parseDate(endField, "报名结束时间");
+        Instant start = MajorTransferBatchDates.parse(startField, "报名开始时间");
+        Instant end = MajorTransferBatchDates.parse(endField, "报名结束时间");
         if (start == null || end == null) throw new IllegalArgumentException("报名开始与结束时间必填");
         if (end.isBefore(start)) throw new IllegalArgumentException("报名结束时间不得早于开始时间");
-        Instant pubStart = parseDate(pubStartField, "公示开始时间");
-        Instant pubEnd = parseDate(pubEndField, "公示结束时间");
-        Instant eff = parseDate(effectiveField, "生效时间");
+        Instant pubStart = MajorTransferBatchDates.parse(pubStartField, "公示开始时间");
+        Instant pubEnd = MajorTransferBatchDates.parse(pubEndField, "公示结束时间");
+        Instant eff = MajorTransferBatchDates.parse(effectiveField, "生效时间");
         return new SaveMajorTransferBatchCommand(
                 currentBatch == null ? null : currentBatch.batchId(), name,
                 (MajorTransferBatchStatus) statusCombo.getSelectedItem(),
                 start, end, pubStart, pubEnd, eff,
                 currentBatch == null ? 0 : currentBatch.rowVersion());
-    }
-
-    private static String formatDate(Instant instant) {
-        return instant == null ? "" : FMT.format(instant.atZone(SHANGHAI));
-    }
-
-    private static Instant parseDate(JTextField field, String label) {
-        String text = field.getText().trim();
-        if (text.isBlank()) return null;
-        try {
-            return LocalDateTime.parse(text, FMT).atZone(SHANGHAI).toInstant();
-        } catch (Exception ex) {
-            throw new IllegalArgumentException(label + " 格式错误，应为 yyyy-MM-dd HH:mm");
-        }
     }
 
     /** Displays a message in the card feedback area. */
@@ -191,4 +174,12 @@ public final class MajorTransferBatchFormCardPanel extends JPanel {
 
     /** Returns the save button to attach listeners. */
     public JButton saveButton() { return saveButton; }
+
+    boolean hasChanges() { return !initialFingerprint.equals(fingerprint()); }
+
+    private String fingerprint() {
+        return String.join("\u0000", nameField.getText(), String.valueOf(statusCombo.getSelectedItem()),
+                startField.getText(), endField.getText(), pubStartField.getText(),
+                pubEndField.getText(), effectiveField.getText());
+    }
 }

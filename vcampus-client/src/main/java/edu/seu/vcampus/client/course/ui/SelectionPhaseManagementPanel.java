@@ -78,9 +78,8 @@ public final class SelectionPhaseManagementPanel extends AbstractCoursePanel {
     }
 
     private void openEditor(SelectionPhaseView phase) {
-        editorHost.showEditor(new SelectionPhaseEditorPanel(gateway, List.copyOf(terms), phase, () -> {
-            load(); editorHost.completeAndClose();
-        }, editorHost::requestClose));
+        editorHost.showEditor((complete, cancel) -> new SelectionPhaseEditorPanel(
+                gateway, List.copyOf(terms), phase, () -> { load(); complete.run(); }, cancel));
     }
 
     private String termName(String id) { return terms.stream().filter(term -> term.termId().equals(id))

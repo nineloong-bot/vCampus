@@ -7,7 +7,10 @@ import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.util.List;
+import java.util.function.Consumer;
 
 /** Page-local suggestion popup owned by an autocomplete field. */
 final class SuggestionPopup {
@@ -16,7 +19,7 @@ final class SuggestionPopup {
     private final JList<AutocompleteChoice> list = new JList<>(model);
     private boolean requestedVisible;
 
-    SuggestionPopup() {
+    SuggestionPopup(Consumer<AutocompleteChoice> accepted) {
         list.setVisibleRowCount(8);
         list.setCellRenderer((source, value, index, selected, focused) -> {
             DefaultListCellRenderer renderer = new DefaultListCellRenderer();
@@ -27,6 +30,12 @@ final class SuggestionPopup {
         JScrollPane scroll = new JScrollPane(list);
         scroll.setPreferredSize(new Dimension(420, 190));
         popup.add(scroll);
+        list.addMouseListener(new MouseAdapter() {
+            @Override public void mousePressed(MouseEvent event) {
+                int index = list.locationToIndex(event.getPoint());
+                if (index >= 0) accepted.accept(model.get(index));
+            }
+        });
     }
 
     void show(JComponentOwner owner) {
@@ -60,6 +69,7 @@ final class SuggestionPopup {
 
     AutocompleteChoice selected() { return list.getSelectedValue(); }
     boolean isVisible() { return requestedVisible; }
+    JList<AutocompleteChoice> listForTest() { return list; }
 
     interface JComponentOwner {
         javax.swing.JComponent component();

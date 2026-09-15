@@ -356,10 +356,8 @@ public final class StudentDetailPanel extends JPanel {
 
     private void editAcademic() {
         if (profile == null || connection.state() != ConnectionState.CONNECTED) return;
-        AdminStudentInfoEditPanel editor = new AdminStudentInfoEditPanel(students,
-                profile.core(), profile.academic(), saved -> loadProfile(),
-                () -> editorHost.completeAndClose());
-        editorHost.showEditor(editor);
+        editorHost.showEditor((complete, cancel) -> new AdminStudentInfoEditPanel(students,
+                profile.core(), profile.academic(), saved -> { loadProfile(); complete.run(); }, cancel));
     }
 
     private void openChangeDetail() {

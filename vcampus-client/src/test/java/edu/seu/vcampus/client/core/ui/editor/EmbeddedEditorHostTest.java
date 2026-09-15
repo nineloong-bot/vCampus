@@ -7,6 +7,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JSplitPane;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -67,6 +68,23 @@ class EmbeddedEditorHostTest {
         assertThat(wide.opened).isEqualTo(1);
         assertThat(host.isCurrent(firstGeneration)).isFalse();
         assertThat(host.isCurrent(host.generation())).isTrue();
+    }
+
+    @Test
+    void staleCompletionCannotCloseReplacementEditor() {
+        EmbeddedEditorHost host = new EmbeddedEditorHost(new JPanel(), owner -> true);
+        AtomicReference<Runnable> firstCompletion = new AtomicReference<>();
+        RecordingEditor second = new RecordingEditor(EditorSize.COMPACT, false);
+        host.showEditor((complete, cancel) -> {
+            firstCompletion.set(complete);
+            return new RecordingEditor(EditorSize.COMPACT, false);
+        });
+        host.showEditor(second);
+
+        firstCompletion.get().run();
+
+        assertThat(host.isEditorOpen()).isTrue();
+        assertThat(second.closed).isZero();
     }
 
     private static JSplitPane split(EmbeddedEditorHost host) {

@@ -113,10 +113,10 @@ public final class ModulePermissionManagementPanel extends JPanel {
     private void openAssignment() {
         ModuleAdministratorView selected = selectedOne();
         if (selected == null) { state.setText("请先选择一名管理员"); return; }
-        editorHost.showEditor(new ModuleAdministratorEditorPanel(users, selected, () -> {
-            editorHost.completeAndClose();
+        editorHost.showEditor((complete, cancel) -> new ModuleAdministratorEditorPanel(users, selected, () -> {
+            complete.run();
             load("权限调整成功");
-        }, editorHost::requestClose));
+        }, cancel));
     }
 
     private void remove() {

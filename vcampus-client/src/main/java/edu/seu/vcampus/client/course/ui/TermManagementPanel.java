@@ -83,10 +83,10 @@ public final class TermManagementPanel extends AbstractCoursePanel {
     }
 
     private void openEditor(TermView term) {
-        editorHost.showEditor(new TermEditorPanel(gateway, term, () -> {
+        editorHost.showEditor((complete, cancel) -> new TermEditorPanel(gateway, term, () -> {
             load();
-            editorHost.completeAndClose();
-        }, editorHost::requestClose));
+            complete.run();
+        }, cancel));
     }
 
     private static String window(java.time.Instant start, java.time.Instant end) { return TIME.format(start) + " 至 " + TIME.format(end); }

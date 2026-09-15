@@ -672,10 +672,11 @@ public final class OrganizationManagementPanel extends JPanel {
             }
         }
         if (major == null || department == null) return;
-        ManualStudentCreationPanel editor = new ManualStudentCreationPanel(students,
-                department, major, cls, this::studentCreated,
-                () -> editorHost.completeAndClose());
-        editorHost.showEditor(editor);
+        MajorView targetMajor = major;
+        DepartmentView targetDepartment = department;
+        editorHost.showEditor((complete, cancel) -> new ManualStudentCreationPanel(students,
+                targetDepartment, targetMajor, cls,
+                result -> { studentCreated(result); complete.run(); }, cancel));
     }
 
     private void studentCreated(StudentAdmissionResult result) {
@@ -713,10 +714,9 @@ public final class OrganizationManagementPanel extends JPanel {
                 return;
             }
             errorLabel.setText(" ");
-            BatchClassAssignmentPanel editor = new BatchClassAssignmentPanel(students,
-                    selectedMajor, classes, this::batchImportCompleted,
-                    () -> editorHost.completeAndClose());
-            editorHost.showEditor(editor);
+            editorHost.showEditor((complete, cancel) -> new BatchClassAssignmentPanel(students,
+                    selectedMajor, classes,
+                    result -> { batchImportCompleted(result); complete.run(); }, cancel));
         }));
     }
 

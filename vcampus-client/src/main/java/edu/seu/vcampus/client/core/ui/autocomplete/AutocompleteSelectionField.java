@@ -24,7 +24,7 @@ public final class AutocompleteSelectionField extends JPanel {
     private final Debouncer debouncer;
     private final JTextField input = new JTextField();
     private final JLabel status = new JLabel(" ");
-    private final SuggestionPopup suggestions = new SuggestionPopup();
+    private final SuggestionPopup suggestions;
     private AutocompleteChoice selection;
     private long requestSequence;
     private boolean programmaticChange;
@@ -38,6 +38,7 @@ public final class AutocompleteSelectionField extends JPanel {
         super(new BorderLayout(0, 3));
         this.loader = Objects.requireNonNull(loader, "loader");
         this.debouncer = Objects.requireNonNull(debouncer, "debouncer");
+        suggestions = new SuggestionPopup(this::acceptSelection);
         add(input, BorderLayout.CENTER);
         add(status, BorderLayout.SOUTH);
         input.getDocument().addDocumentListener(new DocumentListener() {
@@ -84,6 +85,7 @@ public final class AutocompleteSelectionField extends JPanel {
     JTextField inputForTest() { return input; }
     List<AutocompleteChoice> suggestionsForTest() { return suggestions.choices(); }
     boolean isSuggestionVisibleForTest() { return suggestions.isVisible(); }
+    javax.swing.JList<AutocompleteChoice> suggestionListForTest() { return suggestions.listForTest(); }
 
     private void changed() {
         if (programmaticChange) return;
@@ -136,7 +138,11 @@ public final class AutocompleteSelectionField extends JPanel {
 
     private void acceptSelection() {
         AutocompleteChoice selected = suggestions.selected();
-        if (selected != null) setSelection(selected.id(), selected.label());
+        if (selected != null) acceptSelection(selected);
+    }
+
+    private void acceptSelection(AutocompleteChoice selected) {
+        setSelection(selected.id(), selected.label());
     }
 
     private static void onEdt(Runnable action) {

@@ -3,7 +3,6 @@ package edu.seu.vcampus.client.course.ui;
 import java.awt.FlowLayout;
 import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import javax.swing.JButton;
 import javax.swing.JLabel;
@@ -19,18 +18,21 @@ import edu.seu.vcampus.common.course.OfferingSummary;
 /** Compact administrator control for exceptional retake placement. */
 final class AdminEnrollmentControl extends JPanel {
     private final CourseUiGateway gateway;
-    private final Supplier<OfferingSummary> selectedOffering;
+    private final OfferingSummary offering;
     private final Runnable onSuccess;
+    private final Runnable onCancel;
     private final Consumer<String> onError;
     private final JTextField studentNumber = new JTextField(10);
     private final JButton submit = AbstractCoursePanel.secondary("确认添加");
+    private boolean active;
 
-    AdminEnrollmentControl(CourseUiGateway gateway, Supplier<OfferingSummary> selectedOffering,
-                           Runnable onSuccess, Consumer<String> onError) {
+    AdminEnrollmentControl(CourseUiGateway gateway, OfferingSummary offering,
+                           Runnable onSuccess, Runnable onCancel, Consumer<String> onError) {
         super(new FlowLayout(FlowLayout.LEFT, 8, 0));
         this.gateway = Objects.requireNonNull(gateway);
-        this.selectedOffering = Objects.requireNonNull(selectedOffering);
+        this.offering = Objects.requireNonNull(offering);
         this.onSuccess = Objects.requireNonNull(onSuccess);
+        this.onCancel = Objects.requireNonNull(onCancel);
         this.onError = Objects.requireNonNull(onError);
         setOpaque(false);
         JLabel label = new JLabel("学生学号");
@@ -42,17 +44,17 @@ final class AdminEnrollmentControl extends JPanel {
         submit.addActionListener(event -> submit());
         add(label);
         add(studentNumber);
+        JButton cancel = AbstractCoursePanel.secondary("取消");
+        cancel.addActionListener(event -> onCancel.run());
+        add(cancel);
         add(submit);
     }
 
     boolean isDirty() { return !studentNumber.getText().isBlank(); }
+    void activate() { active = true; }
+    void deactivate() { active = false; }
 
     private void submit() {
-        OfferingSummary offering = selectedOffering.get();
-        if (offering == null) {
-            onError.accept("请先选择要添加学生的教学班");
-            return;
-        }
         String number = studentNumber.getText().trim();
         if (number.isEmpty()) {
             onError.accept("请输入学生学号");
@@ -61,6 +63,7 @@ final class AdminEnrollmentControl extends JPanel {
         submit.setEnabled(false);
         gateway.adminEnrollStudent(new AdminEnrollStudentCommand(number, offering.offeringId()))
                 .whenComplete((ignored, error) -> SwingUtilities.invokeLater(() -> {
+                    if (!active) return;
                     submit.setEnabled(true);
                     if (error != null) {
                         onError.accept("添加失败，请核对学号、重修资格和教学班状态");
