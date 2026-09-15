@@ -55,6 +55,7 @@ class StudentProfileUiTest {
                 ResponseBody.success(workspace(StudentProfileApplicationStatus.PENDING, null))), new CountDownLatch(0));
         SwingUtilities.invokeAndWait(pending::addNotify);
         awaitText(pending, "student.profile.application.status", "审核中");
+        awaitEnabled(pending, "student.profile.personal.edit");
         assertThat(button(pending, "student.profile.personal.edit").isEnabled()).isTrue();
         assertThat(button(pending, "student.profile.personal.edit").getToolTipText()).contains("撤回");
         assertThat(button(pending, "student.profile.academic.edit").isEnabled()).isTrue();
@@ -240,6 +241,17 @@ class StudentProfileUiTest {
             Thread.sleep(10);
         }
         assertThat(find(root, name, JLabel.class).getText()).contains(expected);
+    }
+
+    private static void awaitEnabled(Container root, String name) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+        while (System.nanoTime() < deadline) {
+            SwingUtilities.invokeAndWait(() -> { });
+            JButton target = button(root, name);
+            if (target != null && target.isEnabled()) return;
+            Thread.sleep(10);
+        }
+        assertThat(button(root, name).isEnabled()).isTrue();
     }
     private static void setConnected(ClientConnection value) {
         try { var field = ClientConnection.class.getDeclaredField("state"); field.setAccessible(true); field.set(value, ConnectionState.CONNECTED); }
