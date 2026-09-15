@@ -7,8 +7,6 @@ import edu.seu.vcampus.client.course.ui.CourseUiComposition;
 import edu.seu.vcampus.client.library.service.LibraryClientService;
 import edu.seu.vcampus.client.library.ui.LibraryWorkspacePanel;
 import edu.seu.vcampus.client.shop.service.ShopClientService;
-import edu.seu.vcampus.client.shop.ui.ShopUiInstaller;
-import edu.seu.vcampus.client.shop.ui.style.SharedShopUiKitAdapter;
 import edu.seu.vcampus.client.core.ui.shell.ApplicationStatusBar;
 import edu.seu.vcampus.client.core.ui.shell.IdentityHeader;
 import edu.seu.vcampus.client.core.ui.shell.PermissionNavigation;
@@ -135,7 +133,11 @@ public final class MainFrame extends JFrame {
         installPage("library", new LibraryWorkspacePanel(
                 Objects.requireNonNull(library, "library"),
                 Objects.requireNonNull(permissions, "permissions"), user.role()));
-        edu.seu.vcampus.client.shop.commerce.CommerceInstaller.install(this, user, connection, onAuthenticationFailure);
+        if (PermissionNavigation.visibleItems(user.role()).stream()
+                .anyMatch(item -> "shop".equals(item.id()))) {
+            edu.seu.vcampus.client.shop.commerce.CommerceInstaller.install(
+                    this, user, connection, onAuthenticationFailure);
+        }
     }
 
     static void configureLoggedInContent(JPanel header, PageNavigator pageNavigator, UserView user) {

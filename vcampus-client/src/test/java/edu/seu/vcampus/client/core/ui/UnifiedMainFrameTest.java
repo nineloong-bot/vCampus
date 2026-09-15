@@ -13,12 +13,15 @@ import edu.seu.vcampus.common.user.UserView;
 import org.junit.jupiter.api.Test;
 
 import javax.swing.SwingUtilities;
+import javax.swing.AbstractButton;
 import java.awt.GraphicsEnvironment;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -53,9 +56,41 @@ class UnifiedMainFrameTest {
         }
     }
 
+    @Test
+    void specializedAdministratorCanOpenTheRoleFilteredProductionShell() {
+        assumeFalse(GraphicsEnvironment.isHeadless());
+        ClientConnection connection = mock(ClientConnection.class);
+        when(connection.state()).thenReturn(ConnectionState.CONNECTED);
+        Duration timeout = Duration.ofSeconds(1);
+        UserClientService users = new UserClientService(connection, "client", timeout);
+        MainFrame[] frame = new MainFrame[1];
+
+        assertThatCode(() -> SwingUtilities.invokeAndWait(() -> frame[0] = new MainFrame(
+                user(UserRole.STUDENT_ADMIN), connection,
+                new StudentClientService(connection, timeout),
+                new CourseClientService(connection),
+                new LibraryClientService(connection, timeout),
+                new ShopClientService(connection, timeout), users,
+                Set.of(), () -> { }))).doesNotThrowAnyException();
+
+        try {
+            assertThat(Arrays.stream(frame[0].navigation().getComponents())
+                    .filter(AbstractButton.class::isInstance)
+                    .map(AbstractButton.class::cast)
+                    .map(AbstractButton::getName))
+                    .containsExactly("navigation.student", "navigation.account");
+        } finally {
+            if (frame[0] != null) frame[0].dispose();
+        }
+    }
+
     private static UserView admin() {
+        return user(UserRole.ADMIN);
+    }
+
+    private static UserView user(UserRole role) {
         LocalDateTime now = LocalDateTime.of(2026, 9, 2, 12, 0);
-        return new UserView("admin", "ADMIN001", UserRole.ADMIN, AccountStatus.ACTIVE,
+        return new UserView("admin", "ADMIN001", role, AccountStatus.ACTIVE,
                 false, now, 0, now, now);
     }
 }

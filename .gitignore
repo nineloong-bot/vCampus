@@ -15,6 +15,7 @@ vcampus-distribution/logs/
 /artifacts/
 /logs/
 /.superpowers/brainstorm/
+/.codex_doc_review/
 **/__pycache__/
 *.laccdb
 *.pdf
