@@ -79,6 +79,8 @@ public final class AdminStudentInfoEditDialog extends JDialog {
         this.academic = Objects.requireNonNull(academic, "academic");
         this.saved = Objects.requireNonNull(saved, "saved");
         studentNumberField.setText(initial.studentNumber());
+        studentNumberField.setEditable(false);
+        studentNumberField.setToolTipText("学号为主标识码，不可直接修改");
         studentTypeCombo.setSelectedItem(studentTypeLabel(initial.studentType()));
         statusCombo.setSelectedItem(statusLabel(initial.status()));
         enrolledCombo.setSelectedItem(academic.enrolled() ? "是" : "否");

@@ -77,9 +77,13 @@ public final class StudentServiceImpl implements StudentService, StudentQueryPor
                 .filter(s -> query.status() == null || query.status() == s.status()).toList();
         int from = Math.min((query.page() - 1) * query.pageSize(), matches.size());
         int to = Math.min(from + query.pageSize(), matches.size());
-        var summaries = matches.subList(from, to).stream().map(s -> new StudentSummary(s.studentId(),
-                loginId(s.userId()), s.studentNumber(), s.studentName(),
-                s.majorId(), s.classId(), s.status())).toList();
+        var summaries = matches.subList(from, to).stream().map(s -> {
+            String className = transactions.inTransaction(connection ->
+                    organizations.findClass(connection, s.classId()).map(c -> c.className()).orElse(null));
+            return new StudentSummary(s.studentId(),
+                    loginId(s.userId()), s.studentNumber(), s.studentName(),
+                    s.majorId(), s.classId(), s.status(), className);
+        }).toList();
         return new PageResult<>(summaries, query.page(), query.pageSize(), matches.size());
     }
 

@@ -91,7 +91,9 @@ public final class StudentProfileHandlers {
     private ResponseBody<? extends Serializable> scoped(Message message,
             java.util.function.Function<String, ? extends Serializable> action) {
         StudentPrincipal actor = principal(message);
-        if (actor.hasRole("ADMIN")) return success(action.apply(null));
+        if (actor.hasRole("ADMIN") || actor.hasRole("SUPER_ADMIN")) {
+            return success(action.apply(null));
+        }
         if (!actor.hasRole("COLLEGE_ADMIN") || collegeScope == null) return forbidden();
         try { return success(action.apply(collegeScope.requireActiveDepartment(actor.userId()))); }
         catch (IllegalArgumentException error) {

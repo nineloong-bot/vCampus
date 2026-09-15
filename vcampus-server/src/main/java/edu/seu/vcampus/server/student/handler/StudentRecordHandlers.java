@@ -65,15 +65,30 @@ public final class StudentRecordHandlers {
                 (message, body) -> write(message, () -> scoped(message, departmentId ->
                         students.updateStudentAcademic(body, principal(message).userId(), departmentId)))));
         router.register("STUDENT_GET_CHANGES", typed(EntityIdRequest.class,
-                (message, body) -> scoped(message, departmentId ->
-                        new ArrayList<>(students.listChanges(body.entityId(), departmentId)))));
+                (message, body) -> getChanges(message, body.entityId())));
+    }
+
+    private ResponseBody<? extends Serializable> getChanges(Message message, String studentId) {
+        StudentPrincipal actor = principal(message);
+        if (actor.hasRole("STUDENT")) {
+            try {
+                StudentView student = students.getStudent(studentId);
+                if (student != null && actor.userId().equals(student.userId())) {
+                    return success(new ArrayList<>(students.listChanges(studentId, null)));
+                }
+            } catch (Exception ignored) {
+            }
+            return forbidden();
+        }
+        return scoped(message, departmentId ->
+                new ArrayList<>(students.listChanges(studentId, departmentId)));
     }
 
     private ResponseBody<? extends Serializable> updateContact(Message message,
             UpdateStudentContactCommand body) {
         StudentPrincipal actor = principal(message);
         StudentView student = students.getStudent(body.studentId());
-        if (actor.userId().equals(student.userId()) || actor.hasRole("ADMIN"))
+        if (actor.userId().equals(student.userId()) || isSystemAdmin(actor))
             return success(students.updateContact(body));
         String departmentId = actor.hasRole("COLLEGE_ADMIN") ? department(actor) : null;
         return departmentId == null ? forbidden()
@@ -83,7 +98,7 @@ public final class StudentRecordHandlers {
     private ResponseBody<? extends Serializable> scoped(Message message,
             java.util.function.Function<String, ? extends Serializable> action) {
         StudentPrincipal actor = principal(message);
-        if (actor.hasRole("ADMIN")) return success(action.apply(null));
+        if (isSystemAdmin(actor)) return success(action.apply(null));
         String departmentId = actor.hasRole("COLLEGE_ADMIN") ? department(actor) : null;
         return departmentId == null ? forbidden() : success(action.apply(departmentId));
     }
@@ -105,8 +120,12 @@ public final class StudentRecordHandlers {
         return actor;
     }
 
+    private static boolean isSystemAdmin(StudentPrincipal actor) {
+        return actor.hasRole("ADMIN") || actor.hasRole("SUPER_ADMIN");
+    }
+
     private static boolean staff(StudentPrincipal actor) {
-        return actor.hasRole("TEACHER") || actor.hasRole("ADMIN");
+        return actor.hasRole("TEACHER") || isSystemAdmin(actor);
     }
 
     private static StudentView withoutContact(StudentView value) {

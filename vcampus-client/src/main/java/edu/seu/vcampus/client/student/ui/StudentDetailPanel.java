@@ -84,7 +84,7 @@ public final class StudentDetailPanel extends JPanel {
 
         JScrollPane scroll = new JScrollPane(content,
                 ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
-                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
         scroll.setName("student.detail.fields.scroll");
         scroll.setBorder(new EmptyBorder(0, 0, 0, 0));
         scroll.setOpaque(false);
@@ -466,7 +466,9 @@ public final class StudentDetailPanel extends JPanel {
         @Override public Dimension getPreferredScrollableViewportSize() { return getPreferredSize(); }
         @Override public int getScrollableUnitIncrement(Rectangle visible, int orientation, int direction) { return 18; }
         @Override public int getScrollableBlockIncrement(Rectangle visible, int orientation, int direction) { return Math.max(18, visible.height - 18); }
-        @Override public boolean getScrollableTracksViewportWidth() { return true; }
+        @Override public boolean getScrollableTracksViewportWidth() {
+            return getParent() == null || getParent().getWidth() >= getPreferredSize().width;
+        }
         @Override public boolean getScrollableTracksViewportHeight() { return false; }
     }
 }
