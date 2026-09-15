@@ -2,6 +2,7 @@ package edu.seu.vcampus.client.student.ui;
 
 import edu.seu.vcampus.client.core.ui.theme.UiColors;
 import edu.seu.vcampus.client.core.ui.theme.UiSpacing;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.common.student.DepartmentView;
 import edu.seu.vcampus.common.student.governance.AssignStudentCollegeAdministratorCommand;
@@ -27,6 +28,7 @@ public final class CollegeAdministratorManagementPanel extends JPanel {
     private final JTable table = new JTable(model);
     private final JComboBox<DepartmentView> departments = new JComboBox<>();
     private final JLabel status = new JLabel(" ");
+    private EmbeddedEditorHost editorHost;
     private List<StudentCollegeAdministratorView> administrators = List.of();
 
     /** Creates the college-administrator governance workspace. */
@@ -57,9 +59,14 @@ public final class CollegeAdministratorManagementPanel extends JPanel {
         toolbar.add(deactivate);
         toolbar.add(refresh);
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        add(toolbar, BorderLayout.NORTH);
-        add(new JScrollPane(table), BorderLayout.CENTER);
-        add(status, BorderLayout.SOUTH);
+        JPanel list = new JPanel(new BorderLayout(UiSpacing.SPACE_2, UiSpacing.SPACE_2));
+        list.setOpaque(false);
+        list.add(toolbar, BorderLayout.NORTH);
+        list.add(new JScrollPane(table), BorderLayout.CENTER);
+        list.add(status, BorderLayout.SOUTH);
+        editorHost = new EmbeddedEditorHost(list);
+        editorHost.setOpaque(false);
+        add(editorHost, BorderLayout.CENTER);
     }
 
     @Override public void addNotify() {
@@ -83,7 +90,7 @@ public final class CollegeAdministratorManagementPanel extends JPanel {
                     departments.removeAllItems();
                     response.data().departments().stream().filter(DepartmentView::active)
                             .forEach(departments::addItem);
-                    status.setText("已加载 " + administrators.size() + " 名学院管理员");
+                    status.setText(" ");
                 }));
     }
 
@@ -125,8 +132,10 @@ public final class CollegeAdministratorManagementPanel extends JPanel {
     }
 
     private void showCreateDialog() {
-        CollegeAdministratorCreationDialog.show(this, students, departments.getModel(),
-                status, this::complete);
+        CollegeAdministratorCreationPanel editor = new CollegeAdministratorCreationPanel(
+                students, departments.getModel(), this::complete,
+                () -> editorHost.completeAndClose());
+        editorHost.showEditor(editor);
     }
 
     private StudentCollegeAdministratorView selected() {

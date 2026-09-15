@@ -2,6 +2,8 @@ package edu.seu.vcampus.client.student;
 
 import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.core.network.ConnectionState;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
+import edu.seu.vcampus.client.core.ui.editor.EditorPlacement;
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.client.student.service.StudentRequestClient;
 import edu.seu.vcampus.client.student.ui.AttendanceModeEditPanel;
@@ -79,6 +81,22 @@ class StudentProfileUiTest {
                 .containsExactly("走读", "住校", "借宿", "其他");
         assertThat(all(editor, JTextField.class)).isEmpty();
         assertThat(editor.selectedMode()).isEqualTo(AttendanceMode.RESIDENT);
+    }
+
+    @Test void attendanceEditorIsHiddenUntilAcademicEditIsRequested() throws Exception {
+        MyStudentProfilePanel panel = panel(CompletableFuture.completedFuture(
+                ResponseBody.success(workspace(StudentProfileApplicationStatus.DRAFT, null))),
+                new CountDownLatch(0));
+        SwingUtilities.invokeAndWait(panel::addNotify);
+        awaitEnabled(panel, "student.profile.academic.edit");
+        EmbeddedEditorHost host = all(panel, EmbeddedEditorHost.class).getFirst();
+        assertThat(host.isEditorOpen()).isFalse();
+
+        SwingUtilities.invokeAndWait(() -> button(panel, "student.profile.academic.edit").doClick());
+
+        assertThat(host.isEditorOpen()).isTrue();
+        assertThat(host.currentPlacement()).isEqualTo(EditorPlacement.BOTTOM);
+        assertThat(find(panel, "student.profile.attendance.mode", JComboBox.class)).isNotNull();
     }
 
     @Test void personalEditorUsesGuidedDropdownsAndFormatTooltips() {

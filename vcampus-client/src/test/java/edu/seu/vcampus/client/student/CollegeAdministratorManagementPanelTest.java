@@ -3,6 +3,8 @@ package edu.seu.vcampus.client.student;
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.client.student.service.StudentRequestClient;
 import edu.seu.vcampus.client.student.ui.CollegeAdministratorManagementPanel;
+import edu.seu.vcampus.client.core.ui.editor.EditorPlacement;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
 import edu.seu.vcampus.common.protocol.EmptyResponse;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.student.DepartmentView;
@@ -22,6 +24,22 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class CollegeAdministratorManagementPanelTest {
+    @Test
+    void creationEditorIsCompactAndHiddenUntilRequested() throws Exception {
+        RecordingClient client = new RecordingClient();
+        CollegeAdministratorManagementPanel[] holder = new CollegeAdministratorManagementPanel[1];
+        SwingUtilities.invokeAndWait(() -> holder[0] = new CollegeAdministratorManagementPanel(
+                new StudentClientService(client, Duration.ofSeconds(1))));
+
+        EmbeddedEditorHost host = find(holder[0], EmbeddedEditorHost.class);
+        assertThat(host.isEditorOpen()).isFalse();
+        SwingUtilities.invokeAndWait(() -> find(holder[0], "collegeAdminCreateButton").doClick());
+
+        assertThat(host.isEditorOpen()).isTrue();
+        assertThat(host.currentPlacement()).isEqualTo(EditorPlacement.BOTTOM);
+        assertThat(findNamed(holder[0], "newAdminLoginField")).isInstanceOf(JTextField.class);
+    }
+
     @Test
     void assignmentUsesSelectedUnassignedAdministratorAndDepartment() throws Exception {
         RecordingClient client = new RecordingClient();
@@ -70,6 +88,17 @@ class CollegeAdministratorManagementPanelTest {
             if (component instanceof JButton button && name.equals(button.getName())) return button;
             if (component instanceof Container child) {
                 JButton found = find(child, name);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    private static Component findNamed(Container root, String name) {
+        for (Component component : root.getComponents()) {
+            if (name.equals(component.getName())) return component;
+            if (component instanceof Container child) {
+                Component found = findNamed(child, name);
                 if (found != null) return found;
             }
         }

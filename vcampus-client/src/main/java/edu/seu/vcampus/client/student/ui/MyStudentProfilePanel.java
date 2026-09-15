@@ -2,6 +2,7 @@ package edu.seu.vcampus.client.student.ui;
 
 import edu.seu.vcampus.client.core.network.ClientConnection;
 import edu.seu.vcampus.client.core.network.ConnectionState;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
 import edu.seu.vcampus.client.core.ui.theme.*;
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.common.protocol.ResponseBody;
@@ -48,6 +49,7 @@ public final class MyStudentProfilePanel extends JPanel {
     private JButton refreshButton, personalEdit, personalSave, academicEdit, exportButton, submitButton;
     private CardLayout personalCardLayout;
     private JPanel personalCardContainer;
+    private EmbeddedEditorHost editorHost;
     private boolean isPersonalEditing;
 
     public MyStudentProfilePanel(StudentClientService students, ClientConnection connection) {
@@ -58,13 +60,15 @@ public final class MyStudentProfilePanel extends JPanel {
     }
 
     private void build() {
+        JPanel page = new JPanel(new BorderLayout(0, UiSpacing.SPACE_4));
+        page.setOpaque(false);
         JPanel top = new JPanel(new BorderLayout(UiSpacing.SPACE_3, 0)); top.setOpaque(false);
         JPanel titleBox = new JPanel(); titleBox.setOpaque(false); titleBox.setLayout(new BoxLayout(titleBox, BoxLayout.Y_AXIS));
         JLabel title = text("我的学籍档案", UiTypography.PAGE_TITLE, UiColors.TEXT_PRIMARY);
         titleBox.add(title); titleBox.add(statuses.loadingGap()); titleBox.add(statuses.loadingLabel()); top.add(titleBox);
         refreshButton = new JButton("刷新"); refreshButton.setName("student.profile.refresh");
         refreshButton.getAccessibleContext().setAccessibleName("刷新学籍档案"); refreshButton.addActionListener(e -> refreshProfile());
-        top.add(refreshButton, BorderLayout.EAST); add(top, BorderLayout.NORTH);
+        top.add(refreshButton, BorderLayout.EAST); page.add(top, BorderLayout.NORTH);
 
         JPanel content = new ScrollContent(); content.setName("student.profile.fields");
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
@@ -85,7 +89,7 @@ public final class MyStudentProfilePanel extends JPanel {
                 ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
         scroll.setName("student.profile.fields.scroll"); scroll.setBorder(new EmptyBorder(0, 0, 0, 0));
         scroll.getViewport().setBackground(UiColors.BACKGROUND_PAGE); scroll.getVerticalScrollBar().setUnitIncrement(18);
-        scroll.getAccessibleContext().setAccessibleName("学籍档案字段"); add(scroll, BorderLayout.CENTER);
+        scroll.getAccessibleContext().setAccessibleName("学籍档案字段"); page.add(scroll, BorderLayout.CENTER);
 
         JPanel footer = new JPanel(new BorderLayout(UiSpacing.SPACE_3, UiSpacing.SPACE_2)); footer.setOpaque(false);
         JPanel messages = new JPanel(); messages.setOpaque(false); messages.setLayout(new BoxLayout(messages, BoxLayout.Y_AXIS));
@@ -95,7 +99,11 @@ public final class MyStudentProfilePanel extends JPanel {
         exportButton = action("导出基本信息 PDF", "student.profile.export"); exportButton.addActionListener(e -> exportPdf());
         submitButton = action("提交审核", "student.profile.submit"); submitButton.addActionListener(e -> submitOrWithdraw());
         actions.add(exportButton, BorderLayout.WEST); actions.add(submitButton, BorderLayout.EAST); footer.add(actions);
-        add(footer, BorderLayout.SOUTH); setControls(false);
+        page.add(footer, BorderLayout.SOUTH);
+        editorHost = new EmbeddedEditorHost(page);
+        editorHost.setOpaque(false);
+        add(editorHost, BorderLayout.CENTER);
+        setControls(false);
     }
 
     private JPanel sectionHeader(String title, boolean personal) {
@@ -598,7 +606,9 @@ public final class MyStudentProfilePanel extends JPanel {
         StudentProfileApplicationView app = workspace.application(); boolean draft = app != null && app.status() == StudentProfileApplicationStatus.DRAFT;
         AttendanceMode initial = draft ? app.attendanceMode() : workspace.formalProfile().academic().attendanceMode();
         long expected = draft ? app.applicationVersion() : 0;
-        new AttendanceModeEditDialog(SwingUtilities.getWindowAncestor(this), students, initial, expected, this::render).setVisible(true);
+        AttendanceModeDraftEditor editor = new AttendanceModeDraftEditor(students, initial,
+                expected, this::render, () -> editorHost.completeAndClose());
+        editorHost.showEditor(editor);
     }
 
     private void submitOrWithdraw() {
