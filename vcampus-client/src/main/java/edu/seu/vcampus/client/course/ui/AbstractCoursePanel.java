@@ -43,7 +43,7 @@ abstract class AbstractCoursePanel extends JPanel {
         body.setOpaque(false);
         breadcrumbTitle = label("课程中心  /  " + title, UiTypography.CAPTION, UiColors.TEXT_SECONDARY);
         pageTitle = label(title, UiTypography.PAGE_TITLE, UiColors.TEXT_PRIMARY);
-        add(heading(description), BorderLayout.NORTH);
+        add(heading(), BorderLayout.NORTH);
         add(body, BorderLayout.CENTER);
         stateNotice.setOpaque(true);
         stateNotice.setBackground(UiColors.BACKGROUND_SUBTLE);
@@ -110,17 +110,13 @@ abstract class AbstractCoursePanel extends JPanel {
         pageTitle.setFont(font);
     }
 
-    private JPanel heading(String description) {
+    private JPanel heading() {
         JPanel panel = new JPanel();
         panel.setOpaque(false);
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
         panel.add(breadcrumbTitle);
         panel.add(Box.createVerticalStrut(UiSpacing.SM));
         panel.add(pageTitle);
-        if (description != null && !description.isBlank()) {
-            panel.add(Box.createVerticalStrut(UiSpacing.SM));
-            panel.add(label(description, UiTypography.BODY, UiColors.TEXT_SECONDARY));
-        }
         return panel;
     }
 

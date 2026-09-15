@@ -1,6 +1,7 @@
 package edu.seu.vcampus.client.course.ui;
 
 import edu.seu.vcampus.client.core.ui.theme.UiColors;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
 import edu.seu.vcampus.client.core.ui.theme.UiDimensions;
 import edu.seu.vcampus.client.core.ui.theme.UiSpacing;
 import edu.seu.vcampus.client.core.network.ClientConnection;
@@ -390,15 +391,17 @@ class CourseUiTest {
     }
 
     @Test
-    void phaseManagementKeepsEveryStateControlInsideTheToolbarAtDesktopWidth() throws Exception {
+    void phaseManagementShowsEditingControlsOnlyInsideTheRequestedWorkspace() throws Exception {
         SelectionPhaseManagementPanel panel = onEdt(() -> new SelectionPhaseManagementPanel(CourseUiGateway.preview()));
         SwingUtilities.invokeAndWait(() -> { });
         SwingUtilities.invokeAndWait(() -> {
             panel.setSize(1100, 650);
             layoutTree(panel);
+            button(panel, "新建阶段").doClick();
+            layoutTree(panel);
         });
 
-        for (String text : List.of("新建阶段", "应用状态", "保存标题", "刷新")) {
+        for (String text : List.of("新建阶段", "编辑所选", "刷新", "创建阶段", "取消")) {
             JButton control = button(panel, text);
             assertThat(control.getHeight()).as(text).isPositive();
             assertThat(control.getY() + control.getHeight()).as(text)
@@ -1905,9 +1908,12 @@ class CourseUiTest {
             }
         };
         OutcomeImportPanel panel = onEdt(() -> new OutcomeImportPanel(gateway));
+        EmbeddedEditorHost host = descendants(panel).stream().filter(EmbeddedEditorHost.class::isInstance)
+                .map(EmbeddedEditorHost.class::cast).findFirst().orElseThrow();
+        SwingUtilities.invokeAndWait(() -> button(panel, "导入课程结果").doClick());
         JTextArea input = descendants(panel).stream().filter(JTextArea.class::isInstance).map(JTextArea.class::cast).findFirst().orElseThrow();
         JButton submit = descendants(panel).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
-                .filter(button -> "导入课程结果".equals(button.getText())).findFirst().orElseThrow();
+                .filter(button -> "执行导入".equals(button.getText())).findFirst().orElseThrow();
 
         SwingUtilities.invokeAndWait(() -> {
             input.setText("student-1,course-1,term-1,FAILED,registrar-2026-001");
@@ -1917,8 +1923,7 @@ class CourseUiTest {
 
         assertThat(submitted.get()).isEqualTo(new ImportCourseOutcomesCommand(List.of(
                 new ImportCourseOutcomesCommand.OutcomeEntry("student-1", "course-1", "term-1", CourseOutcome.FAILED, "registrar-2026-001"))));
-        assertThat(labels(panel)).anyMatch(text -> text.contains("已导入 1 条"));
-        assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.NORMAL);
+        assertThat(host.isEditorOpen()).isFalse();
     }
 
     @Test
@@ -1958,10 +1963,12 @@ class CourseUiTest {
 
     @Test
     void courseAndTermEditorsUseStructuredControlsWithLocalizedStatusChoices() throws Exception {
-        CourseEditorDialog course = onEdt(() -> new CourseEditorDialog(
-                null, CourseUiGateway.preview(), null, () -> { }));
-        TermEditorDialog term = onEdt(() -> new TermEditorDialog(
-                null, CourseUiGateway.preview(), null, () -> { }));
+        CourseEditorPanel courseEditor = onEdt(() -> new CourseEditorPanel(
+                CourseUiGateway.preview(), null, () -> { }, () -> { }));
+        TermEditorPanel termEditor = onEdt(() -> new TermEditorPanel(
+                CourseUiGateway.preview(), null, () -> { }, () -> { }));
+        Container course = courseEditor.component();
+        Container term = termEditor.component();
 
         JSpinner credit = component(course, "学分", JSpinner.class);
         JSpinner hours = component(course, "总学时", JSpinner.class);
@@ -1987,16 +1994,14 @@ class CourseUiTest {
         assertThat(IntStream.range(0, status.getItemCount()).mapToObj(index -> status.getItemAt(index).toString()))
                 .containsExactly("计划中", "进行中", "已关闭");
 
-        SwingUtilities.invokeAndWait(() -> {
-            course.dispose();
-            term.dispose();
-        });
+        SwingUtilities.invokeAndWait(() -> { courseEditor.onClosed(); termEditor.onClosed(); });
     }
 
     @Test
     void creditSpinnerStepsByHalfWithoutJdkNumericTypeFailures() throws Exception {
-        CourseEditorDialog dialog = onEdt(() -> new CourseEditorDialog(
-                null, CourseUiGateway.preview(), null, () -> { }));
+        CourseEditorPanel editor = onEdt(() -> new CourseEditorPanel(
+                CourseUiGateway.preview(), null, () -> { }, () -> { }));
+        Container dialog = editor.component();
         JSpinner credit = component(dialog, "学分", JSpinner.class);
 
         Object[] steps = onEdt(() -> {
@@ -2011,7 +2016,7 @@ class CourseUiTest {
         });
 
         assertThat(steps).containsExactly(new BigDecimal("1.5"), new BigDecimal("0.5"), null, null);
-        SwingUtilities.invokeAndWait(dialog::dispose);
+        SwingUtilities.invokeAndWait(editor::onClosed);
     }
 
     @ParameterizedTest
@@ -2027,7 +2032,9 @@ class CourseUiTest {
                 return CompletableFuture.failedFuture(new AssertionError("invalid ordering was submitted"));
             }
         };
-        TermEditorDialog dialog = onEdt(() -> new TermEditorDialog(null, gateway, null, () -> { }));
+        TermEditorPanel editor = onEdt(() -> new TermEditorPanel(gateway, null, () -> { }, () -> { }));
+        editor.onOpened();
+        Container dialog = editor.component();
 
         SwingUtilities.invokeAndWait(() -> {
             textField(dialog, "学期代码").setText("2027-2028-1");
@@ -2046,7 +2053,7 @@ class CourseUiTest {
 
         assertThat(submitted.get()).isNull();
         assertThat(labels(dialog)).contains(expectedMessage);
-        SwingUtilities.invokeAndWait(dialog::dispose);
+        SwingUtilities.invokeAndWait(editor::onClosed);
     }
 
     @Test
@@ -2065,7 +2072,9 @@ class CourseUiTest {
                         command.description(), command.active(), 0, Instant.now(), Instant.now()));
             }
         };
-        CourseEditorDialog dialog = onEdt(() -> new CourseEditorDialog(null, gateway, null, () -> saved.set(true)));
+        CourseEditorPanel editor = onEdt(() -> new CourseEditorPanel(gateway, null, () -> saved.set(true), () -> { }));
+        editor.onOpened();
+        Container dialog = editor.component();
 
         SwingUtilities.invokeAndWait(() -> {
             textField(dialog, "课程代码").setText(" SE101 ");
@@ -2084,7 +2093,7 @@ class CourseUiTest {
         assertThat(submitted.get()).isEqualTo(new CreateCourseCommand(
                 "SE101", "软件工程导论", new BigDecimal("4.5"), 72, "软件工程基础课程", true));
         assertThat(saved.get()).isTrue();
-        SwingUtilities.invokeAndWait(dialog::dispose);
+        SwingUtilities.invokeAndWait(editor::onClosed);
     }
 
     @Test
@@ -2097,7 +2106,9 @@ class CourseUiTest {
                 return pending;
             }
         };
-        CourseEditorDialog dialog = onEdt(() -> new CourseEditorDialog(null, gateway, null, () -> saved.set(true)));
+        CourseEditorPanel editor = onEdt(() -> new CourseEditorPanel(gateway, null, () -> saved.set(true), () -> { }));
+        editor.onOpened();
+        Container dialog = editor.component();
         SwingUtilities.invokeAndWait(() -> {
             textField(dialog, "课程代码").setText("LATE101");
             textField(dialog, "课程名称").setText("迟到响应测试");
@@ -2105,7 +2116,7 @@ class CourseUiTest {
             component(dialog, "总学时", JSpinner.class).setValue(32);
             descendants(dialog).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
                     .filter(button -> "创建课程".equals(button.getText())).findFirst().orElseThrow().doClick();
-            dialog.dispose();
+            editor.onClosed();
         });
 
         pending.complete(courseView("late", "LATE101", "迟到响应测试"));
@@ -2129,7 +2140,9 @@ class CourseUiTest {
                 return CompletableFuture.completedFuture(existing);
             }
         };
-        CourseEditorDialog dialog = onEdt(() -> new CourseEditorDialog(null, gateway, existing, () -> { }));
+        CourseEditorPanel editor = onEdt(() -> new CourseEditorPanel(gateway, existing, () -> { }, () -> { }));
+        editor.onOpened();
+        Container dialog = editor.component();
 
         SwingUtilities.invokeAndWait(() -> {
             textField(dialog, "课程名称").setText("软件工程基础");
@@ -2140,7 +2153,7 @@ class CourseUiTest {
 
         assertThat(submitted.get()).isEqualTo(new UpdateCourseCommand(
                 "course-7", "SE101", "软件工程基础", new BigDecimal("4.5"), 72, "原简介", true, 7));
-        SwingUtilities.invokeAndWait(dialog::dispose);
+        SwingUtilities.invokeAndWait(editor::onClosed);
     }
 
     @Test
@@ -2155,7 +2168,9 @@ class CourseUiTest {
                         command.adjustmentStartAt(), command.adjustmentEndAt(), command.termStatus(), 0, Instant.now(), Instant.now()));
             }
         };
-        TermEditorDialog dialog = onEdt(() -> new TermEditorDialog(null, gateway, null, () -> { }));
+        TermEditorPanel editor = onEdt(() -> new TermEditorPanel(gateway, null, () -> { }, () -> { }));
+        editor.onOpened();
+        Container dialog = editor.component();
 
         SwingUtilities.invokeAndWait(() -> {
             textField(dialog, "学期代码").setText(" 2027-2028-1 ");
@@ -2173,7 +2188,7 @@ class CourseUiTest {
                 LocalDate.parse("2027-09-01"), LocalDate.parse("2028-01-15"),
                 Instant.parse("2027-08-29T16:00:00Z"), Instant.parse("2027-08-30T16:00:00Z"),
                 Instant.parse("2027-08-31T16:00:00Z"), Instant.parse("2027-09-01T16:00:00Z"), "ACTIVE"));
-        SwingUtilities.invokeAndWait(dialog::dispose);
+        SwingUtilities.invokeAndWait(editor::onClosed);
     }
 
     @Test
@@ -2187,7 +2202,9 @@ class CourseUiTest {
                 return CompletableFuture.completedFuture(existing);
             }
         };
-        TermEditorDialog dialog = onEdt(() -> new TermEditorDialog(null, gateway, existing, () -> { }));
+        TermEditorPanel editor = onEdt(() -> new TermEditorPanel(gateway, existing, () -> { }, () -> { }));
+        editor.onOpened();
+        Container dialog = editor.component();
 
         SwingUtilities.invokeAndWait(() -> {
             textField(dialog, "学期名称").setText("秋季学期（调整）");
@@ -2200,7 +2217,7 @@ class CourseUiTest {
                 "秋季学期（调整）", existing.startDate(), existing.endDate(),
                 existing.enrollmentStartAt(), existing.enrollmentEndAt(), existing.adjustmentStartAt(),
                 existing.adjustmentEndAt(), existing.termStatus(), existing.rowVersion()));
-        SwingUtilities.invokeAndWait(dialog::dispose);
+        SwingUtilities.invokeAndWait(editor::onClosed);
     }
 
     @Test
