@@ -1,0 +1,49 @@
+package edu.seu.vcampus.common.student.majortransfer;
+
+import edu.seu.vcampus.common.student.StudentType;
+import org.junit.jupiter.api.Test;
+
+import java.time.LocalDate;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class MajorTransferEligibilityPolicyTest {
+    private final MajorTransferEligibilityPolicy policy = new MajorTransferEligibilityPolicy();
+
+    @Test
+    void rejectsSecondYearStudentEvenWhenTargetCollegeDiffers() {
+        var result = policy.check(input(2025, LocalDate.of(2006, 5, 1), "dept-cs", "dept-math"));
+
+        assertThat(result.eligible()).isFalse();
+        assertThat(result.reasonCode()).isEqualTo("TRANSFER_INELIGIBLE");
+    }
+
+    @Test
+    void acceptsAgeBoundariesAndRejectsSameDepartment() {
+        assertThat(policy.check(input(2026, LocalDate.of(2009, 9, 1), "dept-cs", "dept-math")).eligible())
+                .isTrue();
+        assertThat(policy.check(input(2026, LocalDate.of(2006, 9, 1), "dept-cs", "dept-math")).eligible())
+                .isTrue();
+
+        var sameCollege = policy.check(input(2026, LocalDate.of(2008, 9, 1), "dept-cs", "dept-cs"));
+        assertThat(sameCollege.eligible()).isFalse();
+        assertThat(sameCollege.reasonCode()).isEqualTo("TRANSFER_INVALID_TARGET");
+    }
+
+    @Test
+    void rejectsAgeOutsideFirstYearRange() {
+        assertThat(policy.check(input(2026, LocalDate.of(2009, 10, 1), "dept-cs", "dept-math")).eligible())
+                .isFalse();
+        assertThat(policy.check(input(2026, LocalDate.of(2005, 9, 1), "dept-cs", "dept-math")).eligible())
+                .isFalse();
+    }
+
+    private static MajorTransferEligibilityInput input(int enrollmentYear, LocalDate birthDate,
+                                                         String currentDepartmentId,
+                                                         String targetDepartmentId) {
+        return new MajorTransferEligibilityInput(
+                StudentType.UNDERGRADUATE, true, true, true, birthDate,
+                LocalDate.of(2026, 9, 15), enrollmentYear,
+                currentDepartmentId, targetDepartmentId, "major-current", "major-target");
+    }
+}

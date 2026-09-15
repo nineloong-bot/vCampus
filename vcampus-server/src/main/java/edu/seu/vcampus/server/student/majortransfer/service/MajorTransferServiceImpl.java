@@ -44,6 +44,8 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
     private final StudentChangeRepository changes;
     private final AccessOrganizationRepository organizations;
     private final UserQueryPort users;
+    private final MajorTransferEligibilityPolicy eligibilityPolicy =
+            new MajorTransferEligibilityPolicy();
 
     public MajorTransferServiceImpl(TransactionManager transactions, ResourceLockManager locks,
                                      MajorTransferRepository repository, StudentRepository students,
@@ -82,7 +84,8 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
                     activeBatch.batchId()).stream()
                     .filter(MajorTransferRepository.OptionRow::active)
                     .map(this::toOptionView).toList();
-            List<MajorTransferEligibilityItem> eligibility = checkEligibility(connection, student, activeBatch);
+            List<MajorTransferEligibilityItem> eligibility = checkEligibility(connection, student,
+                    activeBatch, options);
             MajorTransferApplicationView application = repository.findApplicationByBatchStudent(
                     connection, activeBatch.batchId(), student.studentId())
                     .map(row -> toApplicationView(connection, row)).orElse(null);
@@ -814,7 +817,8 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
 
     private List<MajorTransferEligibilityItem> checkEligibility(Connection connection,
                                                                  Student student,
-                                                                 MajorTransferBatchView batch) {
+                                                                 MajorTransferBatchView batch,
+                                                                 List<MajorTransferOptionView> options) {
         List<MajorTransferEligibilityItem> items = new ArrayList<>();
         Instant now = Instant.now();
         items.add(new MajorTransferEligibilityItem("报名时间",
@@ -829,6 +833,13 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
         items.add(new MajorTransferEligibilityItem("学籍状态",
                 active && enrolledOnCampus,
                 !active ? "学籍状态异常" : !enrolledOnCampus ? "未在籍或未在校" : "正常"));
+        if (options != null && !options.isEmpty()) {
+            MajorTransferOptionView option = options.get(0);
+            MajorTransferEligibilityPolicy.Result result = evaluateEligibility(connection, student,
+                    batch.applicationStart(), option.targetMajorId());
+            items.add(new MajorTransferEligibilityItem("年级、年龄与学院",
+                    result.eligible(), result.message()));
+        }
         if (repository.hasSuccessfulTransfer(connection, student.studentId())) {
             items.add(new MajorTransferEligibilityItem("转专业记录", false, "已有生效的转专业记录"));
         } else {
@@ -866,17 +877,28 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
         var major = organizations.findMajor(c, option.targetMajorId()).orElseThrow();
         if (!major.active() || !organizations.findDepartment(c, major.departmentId()).orElseThrow().active())
             throw error("TRANSFER_INVALID_TARGET", "目标学院或专业未启用");
-        int year = organizations.findClass(c, student.classId()).orElseThrow().enrollmentYear();
-        var term = batch.applicationStart().atZone(java.time.ZoneId.of("Asia/Shanghai"));
-        int grade = term.getYear() - (term.getMonthValue() < 9 ? 1 : 0) - year + 1;
-        if (Arrays.stream(option.grades().split(",")).map(String::trim)
-                .noneMatch(value -> value.equals(String.valueOf(year)) || value.equals(String.valueOf(grade))))
-            throw error("TRANSFER_INELIGIBLE", "当前年级不在该专业允许申请范围内");
+        MajorTransferEligibilityPolicy.Result result = evaluateEligibility(c, student,
+                batch.applicationStart(), option.targetMajorId());
+        if (!result.eligible()) throw error(result.reasonCode(), result.message());
         if (repository.hasSuccessfulTransfer(c, student.studentId()))
             throw error("TRANSFER_ALREADY_TRANSFERRED", "已有生效的转专业记录");
         if (repository.listApplicationsByStudent(c, student.studentId()).stream().anyMatch(a ->
                 !a.batchId().equals(batch.batchId()) && a.status() != REJECTED && a.status() != CANCELLED && a.status() != EFFECTIVE))
             throw error("TRANSFER_DUPLICATE_APPLICATION", "已有其他批次进行中的申请");
+    }
+
+    private MajorTransferEligibilityPolicy.Result evaluateEligibility(Connection connection,
+            Student student, Instant applicationStart, String targetMajorId) {
+        Major currentMajor = organizations.findMajor(connection, student.majorId()).orElseThrow();
+        Major targetMajor = organizations.findMajor(connection, targetMajorId).orElseThrow();
+        return eligibilityPolicy.check(new MajorTransferEligibilityInput(
+                student.studentType(), student.status() == StudentStatus.ACTIVE,
+                isStudentEnrolledAndOnCampus(connection, student.studentId()),
+                isStudentEnrolledAndOnCampus(connection, student.studentId()),
+                students.findBirthDate(connection, student.studentId()).orElse(null),
+                applicationStart.atZone(java.time.ZoneId.of("Asia/Shanghai")).toLocalDate(),
+                organizations.findClass(connection, student.classId()).orElseThrow().enrollmentYear(),
+                currentMajor.departmentId(), targetMajor.departmentId(), student.majorId(), targetMajorId));
     }
 
     private int changeStatus(Connection connection, String id, MajorTransferStatus from,

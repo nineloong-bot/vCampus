@@ -16,10 +16,6 @@ final class MajorTransferBatchStatusRenderer extends DefaultListCellRenderer {
     }
 
     static String text(MajorTransferBatchStatus status) {
-        return switch (status) {
-            case DRAFT -> "草稿";
-            case OPEN -> "开放报名";
-            case CLOSED -> "已关闭";
-        };
+        return MajorTransferStatusText.batchStatus(status);
     }
 }

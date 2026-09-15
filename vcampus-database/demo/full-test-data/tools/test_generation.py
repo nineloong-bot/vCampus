@@ -2,12 +2,14 @@
 import unittest
 from collections import Counter, defaultdict
 from datetime import datetime
+from decimal import Decimal
 from unittest.mock import patch
 
 import courses
 import library
 import people
 import shop
+import major_transfer
 
 
 class GenerationTest(unittest.TestCase):
@@ -17,7 +19,7 @@ class GenerationTest(unittest.TestCase):
                   datetime(2026, 9, 7, 12))
         return rows
 
-    def test_students_cover_four_cohorts_and_ten_majors_evenly(self):
+    def test_students_cover_four_cohorts_and_sixteen_majors_evenly(self):
         fast_password = dict(passwordHash="hash", passwordSalt="salt", passwordIterations=1)
         with patch.object(people, "credentials", return_value=fast_password):
             rows = self.capture(people.generate)
@@ -26,9 +28,9 @@ class GenerationTest(unittest.TestCase):
         cohorts = Counter(class_year[row["classId"]] for row in rows["tblStudent"])
         majors = Counter(class_major[row["classId"]] for row in rows["tblStudent"])
 
-        self.assertEqual({2023: 250, 2024: 250, 2025: 250, 2026: 250}, cohorts)
-        self.assertEqual({100}, set(majors.values()))
-        self.assertEqual(40, len(rows["tblClass"]))
+        self.assertEqual({2023: 600, 2024: 600, 2025: 600, 2026: 600}, cohorts)
+        self.assertEqual({150}, set(majors.values()))
+        self.assertEqual(64, len(rows["tblClass"]))
 
     def test_testadmin_is_the_super_admin(self):
         fast_password = dict(passwordHash="hash", passwordSalt="salt", passwordIterations=1)
@@ -55,11 +57,21 @@ class GenerationTest(unittest.TestCase):
         plan_codes = {row["courseCode"] for row in rows["tblTrainingPlanCourse"]}
 
         self.assertEqual({"SUMMER", "AUTUMN", "SPRING"}, seasons)
-        self.assertEqual(40, len(rows["tblTrainingPlan"]))
-        self.assertEqual(4_800, len(rows["tblTrainingPlanCourse"]))
+        self.assertEqual(64, len(rows["tblTrainingPlan"]))
+        self.assertEqual(3_840, len(rows["tblTrainingPlanCourse"]))
         self.assertEqual(catalog_codes, plan_codes)
-        self.assertGreaterEqual(len(rows["tblCourseOffering"]), 290)
+        self.assertEqual(240, len(catalog_codes))
+        self.assertGreaterEqual(len(rows["tblCourseOffering"]), 580)
         self.assertGreater(len(rows["tblTrainingPlanPrerequisite"]), 0)
+
+    def test_each_plan_has_fifteen_credits_in_semesters_one_to_eight(self):
+        rows = self.capture(courses.generate)
+        credits = defaultdict(lambda: Decimal("0"))
+        for row in rows["tblTrainingPlanCourse"]:
+            if 1 <= row["semester"] <= 8:
+                credits[(row["planId"], row["semester"])] += row["credits"]
+        self.assertEqual({Decimal("15.0")}, set(credits.values()))
+        self.assertEqual(64 * 8, len(credits))
 
     def test_every_offering_has_five_independent_retake_seats(self):
         rows = self.capture(courses.generate)
@@ -118,11 +130,24 @@ class GenerationTest(unittest.TestCase):
                     or enrollment["enrollmentType"] != "NORMAL"):
                 continue
             student = int(enrollment["studentId"].rsplit("-", 1)[1])
-            cohort = 2023 + ((student - 1) % 100) // 25
+            cohort = 2023 + (student - 1) % 4
             academic_year = 2026 - cohort + 1
             course = int(offering_courses[enrollment["offeringId"]].rsplit("-", 1)[1])
-            semester = ((course - 1) // 30) * 3 + ((course - 1) % 30) // 10 + 1
+            semester = (course - 1) // 20 + 1
             self.assertEqual((academic_year - 1) * 3 + 2, semester)
+
+    def test_major_transfer_fixture_has_many_valid_computer_to_math_applications(self):
+        rows = self.capture(major_transfer.generate)
+        applications = rows["tblMajorTransferApplication"]
+        options = {row["optionId"]: row for row in rows["tblMajorTransferOption"]}
+        self.assertGreaterEqual(len(applications), 200)
+        self.assertEqual({"SUBMITTED"}, {row["applicationStatus"] for row in applications})
+        self.assertEqual({"计算机学院"}, {row["fromDepartmentName"] for row in applications})
+        self.assertEqual({"数学学院"}, {options[row["optionId"]]["targetDepartmentName"]
+                                         for row in applications})
+        self.assertEqual({"1"}, {row["fromGrade"] for row in applications})
+        self.assertTrue(all(row["fromDepartmentId"] != options[row["optionId"]]["targetDepartmentId"]
+                            for row in applications))
 
 
 if __name__ == "__main__":

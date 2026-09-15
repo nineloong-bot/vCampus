@@ -14,6 +14,7 @@ public final class PageNavigator {
     private final JPanel container;
     private final CardLayout layout;
     private final Map<String, JComponent> pages = new HashMap<>();
+    private String currentPage;
 
     /** Creates a navigator and installs CardLayout on the supplied container. */
     public PageNavigator(JPanel container) {
@@ -38,9 +39,13 @@ public final class PageNavigator {
         Objects.requireNonNull(page, "page");
         JComponent previous = pages.get(pageId);
         if (previous == null) throw new IllegalArgumentException("Unknown page id: " + pageId);
+        boolean replacingCurrentPage = pageId.equals(currentPage);
         container.remove(previous);
         pages.put(pageId, page);
         container.add(page, pageId);
+        if (replacingCurrentPage) {
+            layout.show(container, pageId);
+        }
         container.revalidate();
         container.repaint();
     }
@@ -50,6 +55,7 @@ public final class PageNavigator {
         if (!pages.containsKey(pageId)) {
             throw new IllegalArgumentException("Unknown page id: " + pageId);
         }
+        currentPage = pageId;
         Runnable display = () -> layout.show(container, pageId);
         if (SwingUtilities.isEventDispatchThread()) {
             display.run();

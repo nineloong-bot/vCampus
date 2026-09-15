@@ -28,7 +28,7 @@ class SmokeDataset {
                 Path.of(args[1]),Clock.systemUTC());
         try(var c=DriverManager.getConnection("jdbc:ucanaccess://"+args[0]);var s=c.createStatement();
             var r=s.executeQuery("SELECT currentValue FROM tblNumberSequence WHERE sequenceKey='CAMPUS_CARD_GLOBAL'")) {
-            r.next();require(r.getInt(1)==1000,"startup preserves sequence 1000");
+            r.next();require(r.getInt(1)==2640,"startup preserves sequence 2640");
         }
         try(var server=new SocketServer(0,4,20,runtime.router())) {
             var executor=Executors.newSingleThreadExecutor();

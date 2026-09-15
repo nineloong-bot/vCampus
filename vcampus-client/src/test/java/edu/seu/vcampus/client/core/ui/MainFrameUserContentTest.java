@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.time.LocalDateTime;
@@ -32,6 +33,26 @@ class MainFrameUserContentTest {
         assertThat(header.getComponentCount()).isEqualTo(1);
         assertThat(((JLabel) header.getComponent(0)).getText())
                 .contains("DEMO_ADMIN", "ADMIN");
+    }
+
+    @Test
+    void replacingTheCurrentlyVisiblePageKeepsThatModuleVisible() throws Exception {
+        JPanel content = new JPanel();
+        PageNavigator navigator = new PageNavigator(content);
+        navigator.register("student", new JPanel());
+        navigator.register("course", new JPanel());
+        JPanel library = new JPanel();
+        navigator.register("library", library);
+        navigator.register("shop", new JPanel());
+        navigator.register("account", new JPanel());
+        JPanel replacement = new JPanel();
+
+        SwingUtilities.invokeAndWait(() -> {
+            navigator.show("library");
+            navigator.replace("library", replacement);
+        });
+
+        assertThat(replacement.isVisible()).isTrue();
     }
 
     private static UserView demoUser() {

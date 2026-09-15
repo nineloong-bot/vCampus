@@ -88,6 +88,20 @@ public final class StudentRepository {
         return find(connection, "s.studentNumber = ?", studentNumber);
     }
 
+    /** Returns the student's birth date for rules that require age validation. */
+    public Optional<LocalDate> findBirthDate(Connection connection, String studentId) {
+        try (var statement = connection.prepareStatement(
+                "SELECT birthDate FROM tblStudent WHERE studentId=?")) {
+            statement.setString(1, studentId);
+            try (var result = statement.executeQuery()) {
+                if (!result.next()) return Optional.empty();
+                return Optional.ofNullable(localDate(result, "birthDate"));
+            }
+        } catch (SQLException error) {
+            throw new OrganizationPersistenceException("Cannot read student birth date", error);
+        }
+    }
+
     public List<Student> findAll(Connection connection) {
         String sql = "SELECT s.*, c.majorId FROM tblStudent s INNER JOIN tblClass c ON s.classId = c.classId ORDER BY s.studentNumber";
         return list(connection, sql, null);

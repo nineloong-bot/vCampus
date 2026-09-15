@@ -63,7 +63,7 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
                 super.getListCellRendererComponent(list, value, index, selected, focus);
                 if (value instanceof MajorTransferApplicationView app) {
                     setText(app.studentName() + "  " + app.fromMajorName() + " → "
-                            + app.targetMajorName() + "  [" + app.status() + "]");
+                            + app.targetMajorName() + "  [" + MajorTransferStatusText.status(app.status()) + "]");
                 }
                 return this;
             }
@@ -144,7 +144,7 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
         detail.setText("学生：" + app.studentName() + "（" + app.fromStudentNumber() + "）\n"
                 + "原学院/专业：" + app.fromDepartmentName() + " / " + app.fromMajorName() + "\n"
                 + "目标学院/专业：" + app.targetDepartmentName() + " / " + app.targetMajorName() + "\n"
-                + "状态：" + app.status() + "\n申请理由：" + app.reason());
+                + "状态：" + MajorTransferStatusText.status(app.status()) + "\n申请理由：" + app.reason());
         MajorTransferAttachmentDownloader.render(
                 this, students, attachments, status, app.attachments());
         collegeActions.render(app, ownedOptions.contains(app.optionId()));

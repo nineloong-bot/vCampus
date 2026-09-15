@@ -4,6 +4,11 @@ import base64
 from datetime import date
 
 PASSWORD = 'Test12345'
+DEPARTMENTS = ['计算机', '数学', '外国语', '经济管理', '艺术设计', '物理', '生命科学', '法学']
+MAJORS = ['软件工程', '计算机科学', '数学应用', '统计学', '英语', '日语',
+          '经济学', '管理学', '视觉传达', '产品设计', '物理学', '电子信息科学',
+          '生物科学', '生物技术', '法学', '知识产权']
+STUDENT_COUNT = 2400
 
 
 def credentials(key):
@@ -29,13 +34,10 @@ def generate(add, now):
     for i in range(1, 51):
         user(f'bulk-teacher-{i:03}', f'TESTTEACHER{i:03}', 'TEACHER', f'任课教师{i:03}',
              '课程管理、图书借阅、普通买家')
-    departments = ['计算机', '数学', '外国语', '经济管理', '艺术设计']
-    majors = ['软件工程', '计算机科学', '数学应用', '统计学', '英语', '日语',
-              '经济学', '管理学', '视觉传达', '产品设计']
-    for i, name in enumerate(departments, 1):
+    for i, name in enumerate(DEPARTMENTS, 1):
         add('tblDepartment', departmentId=f'bulk-dept-{i:02}', departmentCode=f'TEST{i:02}',
             departmentName=f'{name}学院', isActive=True, rowVersion=0)
-    for i, name in enumerate(majors, 1):
+    for i, name in enumerate(MAJORS, 1):
         add('tblMajor', majorId=f'bulk-major-{i:02}', departmentId=f'bulk-dept-{(i+1)//2:02}',
             majorCode=str(800+i), majorName=name, isActive=True, rowVersion=0)
         for cohort in range(2023, 2027):
@@ -45,19 +47,19 @@ def generate(add, now):
                 classNumber=1, isActive=True, rowVersion=0)
     surnames = '赵钱孙李周吴郑王冯陈褚卫蒋沈韩杨'
     names = ['明轩', '雨桐', '子涵', '思远', '欣然', '浩宇', '若宁', '文博']
-    for i in range(1, 1001):
-        major, local = (i-1)//100+1, (i-1)%100
-        cohort, serial = 2023 + local//25, local%25+1
+    for i in range(1, STUDENT_COUNT + 1):
+        major, local = (i-1)//150+1, (i-1)%150
+        cohort, serial = 2023 + (i - 1) % 4, local + 1
         login, uid = f'21326{i:04}', f'bulk-student-user-{i:04}'
         name = surnames[(i-1)%len(surnames)] + names[(i-1)//len(surnames)%len(names)]
-        status = 'ACTIVE' if i <= 900 else ('SUSPENDED' if i <= 930 else
-                 ('GRADUATED' if i <= 970 else 'WITHDRAWN'))
+        status = 'ACTIVE' if i <= 2160 else ('SUSPENDED' if i <= 2220 else
+                 ('GRADUATED' if i <= 2320 else 'WITHDRAWN'))
         scenario = ('店主' if i <= 30 else '开店申请' if i <= 45 else
                     '订单与购物车' if 101 <= i <= 700 else '普通学生')
         # 末尾十名专门覆盖首次改密，其他账号可直接进入业务页面。
         user(uid, login, 'STUDENT', name, scenario + '；学籍=' + status, i > 990)
         add('tblStudent', studentId=f'bulk-student-{i:04}', userId=uid,
-            studentNumber=f'{800+major}{cohort % 100:02}1{serial:02}', studentType='UNDERGRADUATE',
+            studentNumber=f'{major:02}{cohort % 100:02}1{serial:03}', studentType='UNDERGRADUATE',
             studentName=name, gender='男' if i%2 else '女',
             email=f'student{i:04}@example.com', phone=f'139000{i:05}',
             idDocumentType='护照', idDocumentNumber=f'TEST{i:08}',

@@ -333,8 +333,9 @@ public final class MyMajorTransferPanel extends JPanel {
             addTimelineItem(timelinePanel, "提交", app.submittedAt(), "已提交");
         }
         for (var review : app.reviews()) {
-            addTimelineItem(timelinePanel, review.reviewStage().name(), review.createdAt(),
-                    review.decision().name() + (review.comment() != null ? ": " + review.comment() : ""));
+            addTimelineItem(timelinePanel, MajorTransferStatusText.reviewStage(review.reviewStage()), review.createdAt(),
+                    MajorTransferStatusText.decision(review.decision())
+                            + (review.comment() != null ? ": " + review.comment() : ""));
         }
         timelinePanel.revalidate();
         timelinePanel.repaint();
@@ -359,18 +360,7 @@ public final class MyMajorTransferPanel extends JPanel {
     }
 
     private String statusLabel(MajorTransferStatus status) {
-        return switch (status) {
-            case DRAFT -> "草稿";
-            case SUBMITTED -> "已提交";
-            case SOURCE_APPROVED -> "原学院审核通过";
-            case QUALIFIED -> "转入学院审核通过";
-            case ASSESSED -> "已考核，待终审";
-            case PENDING_EFFECTIVE -> "待生效";
-            case EFFECTIVE -> "已生效";
-            case REJECTED -> "已驳回";
-            case CANCELLED -> "已取消";
-            case EXECUTION_FAILED -> "执行失败";
-        };
+        return MajorTransferStatusText.status(status);
     }
 
     private void saveDraft() {

@@ -43,19 +43,21 @@ class MajorTransferStudentWorkflowTest {
             orgs.insertDepartment(connection, new Department("dept-2", "SE", "软件学院", true, 0));
             orgs.insertMajor(connection, new Major("major-1", "dept-1", "090", "计算机科学", "1,2,3,4", true, 0));
             orgs.insertMajor(connection, new Major("major-2", "dept-2", "085", "软件工程", "1,2,3,4", true, 0));
-            orgs.insertClass(connection, new StudentClass("class-1", "major-1", "090-24-1", "计科2401", 2024, 1, true, 0));
-            orgs.insertClass(connection, new StudentClass("class-2", "major-2", "085-24-1", "软工2401", 2024, 1, true, 0));
+            orgs.insertMajor(connection, new Major("major-3", "dept-1", "086", "人工智能", "1,2,3,4", true, 0));
+            orgs.insertClass(connection, new StudentClass("class-1", "major-1", "090-26-1", "计科2601", 2026, 1, true, 0));
+            orgs.insertClass(connection, new StudentClass("class-2", "major-2", "085-26-1", "软工2601", 2026, 1, true, 0));
             studentRepo.insert(connection, new Student("student-1", "user-1", "21324001",
                     StudentType.UNDERGRADUATE, "张三", "男", "zhang@seu.edu.cn", "13800000000",
-                    "major-1", "class-1", LocalDate.of(2024, 9, 1), StudentStatus.ACTIVE,
+                    "major-1", "class-1", LocalDate.of(2026, 9, 1), StudentStatus.ACTIVE,
                     0, NOW, NOW));
             studentRepo.insert(connection, new Student("student-2", "user-2", "21324002",
                     StudentType.UNDERGRADUATE, "李四", "男", "li@seu.edu.cn", "13800000001",
-                    "major-1", "class-1", LocalDate.of(2024, 9, 1), StudentStatus.ACTIVE,
+                    "major-1", "class-1", LocalDate.of(2026, 9, 1), StudentStatus.ACTIVE,
                     0, NOW, NOW));
             return null;
         });
         sql("UPDATE tblStudent SET enrolled=1, onCampus=1");
+        sql("UPDATE tblStudent SET birthDate=#2008-09-01#");
         assertThat(database.stringValue("SELECT enrolled FROM tblStudent WHERE studentId='student-1'")).isEqualTo("TRUE");
         UserQueryPort users = new UserQueryPort() {
             @Override public Optional<UserIdentity> findActiveUser(String userId) {
@@ -86,7 +88,7 @@ class MajorTransferStudentWorkflowTest {
                     YESTERDAY, TOMORROW, null, null, null, 0, NOW, NOW));
             repository.insertOption(connection, new MajorTransferRepository.OptionRow(
                     "opt-1", "batch-1", "major-2", "dept-2", "软件工程", "软件学院",
-                    "2024", 10, 5, 60.0, 60.0, 60, 40, false, null, true, 0, NOW, NOW));
+                    "2026", 10, 5, 60.0, 60.0, 60, 40, false, null, true, 0, NOW, NOW));
             return null;
         });
     }
@@ -126,6 +128,32 @@ class MajorTransferStudentWorkflowTest {
         sql("UPDATE tblStudent SET studentStatus='SUSPENDED' WHERE studentId='student-1'");
         assertThatThrownBy(() -> service.submit("user-1", new SubmitMajorTransferCommand(app.applicationId(), 0)))
                 .isInstanceOf(MajorTransferException.class);
+    }
+
+    @Test void sameCollegeTargetIsRejectedBeforeDraftIsPersisted() throws Exception {
+        seedOpenBatchWithOption();
+        sql("UPDATE tblMajorTransferOption SET targetMajorId='major-3', targetDepartmentId='dept-1' WHERE optionId='opt-1'");
+
+        assertThatThrownBy(() -> service.saveDraft("user-1", new SaveMajorTransferDraftCommand(
+                null, "batch-1", "opt-1", MajorTransferApplicationType.ORDINARY,
+                "希望拓展学习方向", 0)))
+                .isInstanceOf(MajorTransferException.class)
+                .extracting(error -> ((MajorTransferException) error).code())
+                .isEqualTo("TRANSFER_INVALID_TARGET");
+        assertThat(database.count("tblMajorTransferApplication")).isZero();
+    }
+
+    @Test void secondYearStudentIsRejectedBeforeDraftIsPersisted() throws Exception {
+        seedOpenBatchWithOption();
+        sql("UPDATE tblClass SET enrollmentYear=2025 WHERE classId='class-1'");
+
+        assertThatThrownBy(() -> service.saveDraft("user-1", new SaveMajorTransferDraftCommand(
+                null, "batch-1", "opt-1", MajorTransferApplicationType.ORDINARY,
+                "希望拓展学习方向", 0)))
+                .isInstanceOf(MajorTransferException.class)
+                .extracting(error -> ((MajorTransferException) error).code())
+                .isEqualTo("TRANSFER_INELIGIBLE");
+        assertThat(database.count("tblMajorTransferApplication")).isZero();
     }
 
     @Test void submitRejectsSameMajorAndWrongGrade() {

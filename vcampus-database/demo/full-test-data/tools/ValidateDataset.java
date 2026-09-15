@@ -62,12 +62,12 @@ class ValidateDataset {
             for(var a:links) require(count(c,"SELECT COUNT(*) FROM "+a[0]+" a LEFT JOIN "+a[2]
                     +" b ON a."+a[1]+"=b."+a[3]+" WHERE b."+a[3]+" IS NULL")==0,"Orphans "+a[0]);
             require(count(c,"SELECT COUNT(*) FROM (SELECT enrollmentYear FROM tblClass c "
-                    +"INNER JOIN tblStudent s ON c.classId=s.classId WHERE s.studentId LIKE 'bulk-%' "
+                    +"INNER JOIN tblStudent s ON c.classId=s.classId WHERE s.studentId LIKE 'bulk-student-%' "
                     +"GROUP BY enrollmentYear)")==4,"Cohort coverage");
             for(int cohort=2023;cohort<=2026;cohort++) {
                 require(count(c,"SELECT COUNT(*) FROM tblStudent s INNER JOIN tblClass c "
-                        +"ON s.classId=c.classId WHERE s.studentId LIKE 'bulk-%' AND c.enrollmentYear="
-                        +cohort)==250,"Student cohort "+cohort);
+                        +"ON s.classId=c.classId WHERE s.studentId LIKE 'bulk-student-%' AND c.enrollmentYear="
+                        +cohort)==600,"Student cohort "+cohort);
                 int semester=(2026-cohort)*3+2;
                 require(count(c,"SELECT COUNT(*) FROM ((tblTrainingPlan p INNER JOIN "
                         +"tblTrainingPlanCourse pc ON p.planId=pc.planId) INNER JOIN tblCourse x "
@@ -166,7 +166,7 @@ class ValidateDataset {
                 }
             }
             int accounts=0;
-            try(var s=c.createStatement();var r=s.executeQuery("SELECT loginId,passwordHash,passwordSalt,passwordIterations FROM tblUser")) {
+            try(var s=c.createStatement();var r=s.executeQuery("SELECT loginId,passwordHash,passwordSalt,passwordIterations FROM tblUser WHERE userId LIKE 'bulk-%'")) {
                 while(r.next()) {
                     var spec=new PBEKeySpec("Test12345".toCharArray(),Base64.getDecoder().decode(r.getString(3)),r.getInt(4),256);
                     byte[] hash=SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).getEncoded();

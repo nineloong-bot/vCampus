@@ -84,6 +84,31 @@ class UnifiedMainFrameTest {
         }
     }
 
+    @Test
+    void specializedAdministratorStartsOnItsOwnModuleAfterProductionPagesAreInstalled() throws Exception {
+        assumeFalse(GraphicsEnvironment.isHeadless());
+        ClientConnection connection = mock(ClientConnection.class);
+        when(connection.state()).thenReturn(ConnectionState.CONNECTED);
+        Duration timeout = Duration.ofSeconds(1);
+        UserClientService users = new UserClientService(connection, "client", timeout);
+        MainFrame[] frame = new MainFrame[1];
+
+        SwingUtilities.invokeAndWait(() -> frame[0] = new MainFrame(
+                user(UserRole.LIBRARY_ADMIN), connection,
+                new StudentClientService(connection, timeout),
+                new CourseClientService(connection),
+                new LibraryClientService(connection, timeout),
+                new ShopClientService(connection, timeout), users,
+                Set.of("LIBRARY_ADMIN"), () -> { }));
+
+        try {
+            assertThat(frame[0].pageNavigator().page("library").isVisible()).isTrue();
+            assertThat(frame[0].pageNavigator().page("shop").isVisible()).isFalse();
+        } finally {
+            frame[0].dispose();
+        }
+    }
+
     private static UserView admin() {
         return user(UserRole.ADMIN);
     }
