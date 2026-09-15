@@ -147,6 +147,13 @@ final class UnifiedModuleRegistry {
                 new AccessLibraryPolicyRepository(), transactions, locks, clock,
                 () -> UUID.randomUUID().toString());
         LibraryHandlers.register(router, library, libraryAuthorization, deduplicator);
+        edu.seu.vcampus.server.library.handler.LibraryFineHandlers.register(router,
+                new edu.seu.vcampus.server.library.service.LibraryFineService(
+                        libraryAuthorization, new AccessLoanRepository(),
+                        new edu.seu.vcampus.server.library.repository.AccessLibraryFineRepository(),
+                        transactions, new edu.seu.vcampus.server.concurrency.StripedResourceLockManager(),
+                        new edu.seu.vcampus.server.wallet.service.WalletFineService(clock)),
+                libraryAuthorization);
     }
 
     private static void registerShop(MessageRouter router, TransactionManager transactions,

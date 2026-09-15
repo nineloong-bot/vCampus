@@ -28,7 +28,7 @@ public record LoanView(String loanId, String copyId, String bookId, String borro
                 java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO, ReturnCondition.NORMAL);
     }
 
-    /** Assessed amount for future payment-module integration; no debit is performed here. */
+    /** Final assessed amount; payment is a separate borrower-confirmed wallet operation. */
     public java.math.BigDecimal totalFine() { return overdueFine.add(damageFine); }
 
     public String displayLoanNumber() {

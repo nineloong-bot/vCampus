@@ -15,7 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 final class AccessLoanQueries {
-    private static final String SELECT_JOINED = "SELECT l.*, c.bookId, c.barcode, b.title, "
+    static final String SELECT_JOINED = "SELECT l.*, c.bookId, c.barcode, b.title, "
             + "u.loginId FROM ((tblBookLoan l INNER JOIN tblBookCopy c ON l.copyId = c.copyId) "
             + "INNER JOIN tblBook b ON c.bookId = b.bookId) "
             + "LEFT JOIN tblUser u ON l.borrowerUserId = u.userId";
@@ -69,7 +69,7 @@ final class AccessLoanQueries {
         }
     }
 
-    private static List<LoanView> read(ResultSet result, Instant now) throws SQLException {
+    static List<LoanView> read(ResultSet result, Instant now) throws SQLException {
         try (result) {
             List<LoanView> records = new ArrayList<>();
             while (result.next()) {

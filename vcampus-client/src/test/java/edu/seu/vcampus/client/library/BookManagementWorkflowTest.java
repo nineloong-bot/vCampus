@@ -100,6 +100,8 @@ class BookManagementWorkflowTest {
 
     @Test
     void borrowingRefreshesCatalogSelectedDetailAndCurrentLoans() throws Exception {
+        when(service.getMyFines(any())).thenReturn(CompletableFuture.completedFuture(
+                new PageResult<>(List.of(), 1, 20, 0)));
         when(service.searchBooks(any())).thenReturn(CompletableFuture.completedFuture(
                 new PageResult<>(List.of(book), 1, 20, 1)));
         BookDetail before = new BookDetail("book-1", book.isbn(), "Java", "Author", "Press", LocalDate.of(2026, 1, 1),
@@ -134,6 +136,8 @@ class BookManagementWorkflowTest {
 
     @Test
     void creatingBookRefreshesEveryLibraryPage() throws Exception {
+        when(service.getAllFines(any())).thenReturn(CompletableFuture.completedFuture(
+                new PageResult<>(List.of(), 1, 20, 0)));
         when(service.searchBooks(any())).thenReturn(CompletableFuture.completedFuture(
                 new PageResult<>(List.of(book), 1, 20, 1)));
         when(service.searchManagedBooks(any())).thenReturn(CompletableFuture.completedFuture(
