@@ -119,7 +119,7 @@ public final class MajorTransferBatchFormCardPanel extends JPanel {
         pubStartField.setText("");
         pubEndField.setText("");
         effectiveField.setText("");
-        showFeedback("请填写批次信息后保存", false);
+        showFeedback(" ", false);
     }
 
     /** Populates the form card with an existing batch for editing. */
@@ -137,8 +137,7 @@ public final class MajorTransferBatchFormCardPanel extends JPanel {
         pubStartField.setText(formatDate(batch.publicityStart()));
         pubEndField.setText(formatDate(batch.publicityEnd()));
         effectiveField.setText(formatDate(batch.effectiveDate()));
-        showFeedback("正在编辑批次 ["
-                + MajorTransferBatchStatusRenderer.text(batch.status()) + "]", false);
+        showFeedback(" ", false);
     }
 
     private void resetToCurrent() {

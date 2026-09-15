@@ -1,6 +1,7 @@
 package edu.seu.vcampus.client.student.ui;
 
 import edu.seu.vcampus.client.student.majortransfer.ui.MajorTransferFlowChartPanel;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.student.DepartmentView;
@@ -50,53 +51,53 @@ class NewFeaturesUiTest {
     }
 
     @Test
-    void trainingPlanWorkspacePanelCanOpenAndCancel() {
+    void trainingPlanWorkspacePanelIsHiddenUntilNewPlanIsRequested() throws Exception {
         StudentClientService mockService = mock(StudentClientService.class);
-        ArrayList<DepartmentView> depts = new ArrayList<>();
+        DepartmentView department = new DepartmentView("d", "CS", "计算机学院", true, 0);
+        ArrayList<DepartmentView> depts = new ArrayList<>(List.of(department));
         when(mockService.listDepartments(anyBoolean())).thenReturn(CompletableFuture.completedFuture(ResponseBody.success(depts)));
+        when(mockService.listMajors("d")).thenReturn(CompletableFuture.completedFuture(ResponseBody.success(
+                new ArrayList<>(List.of(new edu.seu.vcampus.common.student.MajorView(
+                        "m", "d", "090", "计算机科学", null, true, 0))))));
 
         TrainingPlanManagementPanel panel = new TrainingPlanManagementPanel(mockService);
-        assertThat(panel).isNotNull();
+        SwingUtilities.invokeAndWait(() -> { });
+        EmbeddedEditorHost host = descendants(panel).stream().filter(EmbeddedEditorHost.class::isInstance)
+                .map(EmbeddedEditorHost.class::cast).findFirst().orElseThrow();
+        assertThat(host.isEditorOpen()).isFalse();
+        JButton create = descendants(panel).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
+                .filter(button -> "新建方案".equals(button.getText())).findFirst().orElseThrow();
+        SwingUtilities.invokeAndWait(create::doClick);
+        assertThat(host.isEditorOpen()).isTrue();
+    }
 
-        // Verify left panel has workspaceCardPanel with CardLayout
-        CardLayout cardLayout = null;
-        JPanel workspaceCard = null;
-        for (Component c : panel.getComponents()) {
-            if (c instanceof JSplitPane split) {
-                Component left = split.getLeftComponent();
-                if (left instanceof JPanel leftPanel) {
-                    for (Component sub : leftPanel.getComponents()) {
-                        if (sub instanceof JPanel subPanel && subPanel.getLayout() instanceof CardLayout cl) {
-                            cardLayout = cl;
-                            workspaceCard = subPanel;
-                        }
-                    }
-                }
-            }
+    @Test
+    void gradeEntryWorkspaceIsHiddenUntilRecordIsRequested() throws Exception {
+        StudentClientService mockService = mock(StudentClientService.class);
+        GradeManagementPanel panel = new GradeManagementPanel(mockService);
+        EmbeddedEditorHost host = descendants(panel).stream().filter(EmbeddedEditorHost.class::isInstance)
+                .map(EmbeddedEditorHost.class::cast).findFirst().orElseThrow();
+        assertThat(host.isEditorOpen()).isFalse();
+
+        var studentField = GradeManagementPanel.class.getDeclaredField("currentStudentId");
+        studentField.setAccessible(true);
+        studentField.set(panel, "student-1");
+        JButton record = descendants(panel).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
+                .filter(button -> "录入成绩".equals(button.getText())).findFirst().orElseThrow();
+        SwingUtilities.invokeAndWait(record::doClick);
+
+        assertThat(host.isEditorOpen()).isTrue();
+        assertThat(host.currentPlacement()).isEqualTo(
+                edu.seu.vcampus.client.core.ui.editor.EditorPlacement.BOTTOM);
+    }
+
+    private static List<Component> descendants(Container root) {
+        List<Component> result = new ArrayList<>();
+        for (Component child : root.getComponents()) {
+            result.add(child);
+            if (child instanceof Container nested) result.addAll(descendants(nested));
         }
-
-        assertThat(workspaceCard).isNotNull();
-        assertThat(cardLayout).isNotNull();
-
-        // Verify top bar buttons
-        boolean hasPoolBtn = false;
-        boolean hasReviewBtn = false;
-        for (Component c : panel.getComponents()) {
-            if (c instanceof JSplitPane split) {
-                if (split.getRightComponent() instanceof JPanel rightPanel) {
-                    for (Component sub : rightPanel.getComponents()) {
-                        if (sub instanceof JPanel bar) {
-                            for (Component b : bar.getComponents()) {
-                                if (b instanceof JButton btn && "全校课程库引入".equals(btn.getText())) hasPoolBtn = true;
-                                if (b instanceof JButton btn && "跨学科审批".equals(btn.getText())) hasReviewBtn = true;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        assertThat(hasPoolBtn).isTrue();
-        assertThat(hasReviewBtn).isTrue();
+        return result;
     }
 
     @Test

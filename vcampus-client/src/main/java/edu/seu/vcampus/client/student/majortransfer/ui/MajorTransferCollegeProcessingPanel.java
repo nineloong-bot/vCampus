@@ -2,6 +2,7 @@ package edu.seu.vcampus.client.student.majortransfer.ui;
 
 import edu.seu.vcampus.client.core.ui.theme.UiColors;
 import edu.seu.vcampus.client.core.ui.theme.UiSpacing;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.common.student.majortransfer.*;
 
@@ -24,13 +25,14 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
     private final JLabel status = new JLabel(" ");
     private final Set<String> ownedOptions = new HashSet<>();
     private final MajorTransferCollegeActions collegeActions;
+    private EmbeddedEditorHost editorHost;
 
     /** Creates the college-scoped transfer workspace. */
     public MajorTransferCollegeProcessingPanel(StudentClientService students) {
         super(new BorderLayout(UiSpacing.SPACE_2, UiSpacing.SPACE_2));
         this.students = Objects.requireNonNull(students);
         collegeActions = new MajorTransferCollegeActions(this, students, actions, status,
-                this::loadDetail, this::loadSelectedBatch);
+                this::loadDetail, this::loadSelectedBatch, this::openEditor, this::closeEditor);
         setName("major-transfer.college-processing");
         setBackground(UiColors.BACKGROUND_PAGE);
         setBorder(new EmptyBorder(UiSpacing.SPACE_2, UiSpacing.SPACE_2,
@@ -45,8 +47,8 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
         option.setName("saveOptionButton");
         option.addActionListener(event -> {
             MajorTransferBatchView batch = (MajorTransferBatchView) batches.getSelectedItem();
-            if (batch != null) MajorTransferCollegeDialogs.addOption(
-                    this, students, batch, this::loadSelectedBatch);
+            if (batch != null) openEditor(new MajorTransferOptionEditorPanel(
+                    students, batch, this::loadSelectedBatch, this::closeEditor));
         });
         JButton refresh = new JButton("刷新");
         refresh.addActionListener(event -> refresh());
@@ -84,9 +86,20 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
         JPanel bottom = new JPanel(new BorderLayout());
         bottom.add(actions, BorderLayout.CENTER);
         bottom.add(status, BorderLayout.SOUTH);
-        add(toolbar, BorderLayout.NORTH);
-        add(split, BorderLayout.CENTER);
-        add(bottom, BorderLayout.SOUTH);
+        JPanel list = new JPanel(new BorderLayout());
+        list.add(toolbar, BorderLayout.NORTH);
+        list.add(split, BorderLayout.CENTER);
+        list.add(bottom, BorderLayout.SOUTH);
+        editorHost = new EmbeddedEditorHost(list);
+        add(editorHost, BorderLayout.CENTER);
+    }
+
+    private void openEditor(edu.seu.vcampus.client.core.ui.editor.EmbeddedEditor editor) {
+        editorHost.showEditor(editor);
+    }
+
+    private void closeEditor() {
+        editorHost.completeAndClose();
     }
 
     @Override public void addNotify() {

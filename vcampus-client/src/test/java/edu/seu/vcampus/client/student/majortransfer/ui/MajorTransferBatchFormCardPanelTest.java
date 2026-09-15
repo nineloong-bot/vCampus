@@ -42,7 +42,7 @@ class MajorTransferBatchFormCardPanelTest {
     }
 
     @Test
-    void editingFeedbackUsesTheSameChineseStatusLabel() throws Exception {
+    void editingDoesNotShowRedundantGuidanceText() throws Exception {
         onEdt(() -> {
             MajorTransferBatchFormCardPanel card = new MajorTransferBatchFormCardPanel();
             Instant start = Instant.parse("2026-09-01T00:00:00Z");
@@ -50,7 +50,7 @@ class MajorTransferBatchFormCardPanelTest {
                     "batch", "测试批次", MajorTransferBatchStatus.OPEN,
                     start, start.plusSeconds(3600), null, null, null, 1));
             JLabel feedback = component(card, "major-transfer.batch-feedback", JLabel.class);
-            assertThat(feedback.getText()).isEqualTo("正在编辑批次 [开放报名]");
+            assertThat(feedback.getText()).isBlank();
         });
     }
 

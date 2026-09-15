@@ -1,5 +1,6 @@
 package edu.seu.vcampus.client.student.ui;
 
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.common.student.*;
 
@@ -15,6 +16,7 @@ public final class GradeManagementPanel extends JPanel {
     private final JLabel statusLabel = new JLabel("输入学号查询学生成绩单");
     private final GradeTableModel gradeModel = new GradeTableModel();
     private final JTextField searchField = new JTextField(12);
+    private EmbeddedEditorHost editorHost;
     private String currentStudentId;
 
     public GradeManagementPanel(StudentClientService students) {
@@ -25,6 +27,7 @@ public final class GradeManagementPanel extends JPanel {
     }
 
     private void buildUi() {
+        JPanel list = new JPanel(new BorderLayout(8, 8));
         JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         topPanel.add(new JLabel("学号:"));
         topPanel.add(searchField);
@@ -36,7 +39,7 @@ public final class GradeManagementPanel extends JPanel {
         JButton recordBtn = new JButton("录入成绩");
         recordBtn.addActionListener(e -> showRecordGradeDialog());
         topPanel.add(recordBtn);
-        add(topPanel, BorderLayout.NORTH);
+        list.add(topPanel, BorderLayout.NORTH);
 
         JTable table = new JTable(gradeModel);
         table.setRowHeight(26);
@@ -48,8 +51,10 @@ public final class GradeManagementPanel extends JPanel {
         table.getColumnModel().getColumn(4).setPreferredWidth(60);
         table.getColumnModel().getColumn(5).setPreferredWidth(80);
         JScrollPane scrollPane = new JScrollPane(table);
-        add(scrollPane, BorderLayout.CENTER);
-        add(statusLabel, BorderLayout.SOUTH);
+        list.add(scrollPane, BorderLayout.CENTER);
+        list.add(statusLabel, BorderLayout.SOUTH);
+        editorHost = new EmbeddedEditorHost(list);
+        add(editorHost, BorderLayout.CENTER);
     }
 
     private void searchStudent() {
@@ -94,34 +99,11 @@ public final class GradeManagementPanel extends JPanel {
             statusLabel.setText("请先查询学生");
             return;
         }
-        JTextField coursePlanIdField = new JTextField(20);
-        JComboBox<GradeResult> resultBox = new JComboBox<>(GradeResult.values());
-        JTextField semesterField = new JTextField("2024-2025-1", 12);
-
-        JPanel panel = new JPanel(new GridLayout(0, 2, 4, 4));
-        panel.add(new JLabel("方案课程ID:"));
-        panel.add(coursePlanIdField);
-        panel.add(new JLabel("结果:"));
-        panel.add(resultBox);
-        panel.add(new JLabel("修读学期:"));
-        panel.add(semesterField);
-
-        int result = JOptionPane.showConfirmDialog(this, panel, "录入成绩",
-                JOptionPane.OK_CANCEL_OPTION);
-        if (result == JOptionPane.OK_OPTION) {
-            RecordStudentGradeCommand cmd = new RecordStudentGradeCommand(currentStudentId,
-                    coursePlanIdField.getText().trim(),
-                    (GradeResult) resultBox.getSelectedItem(),
-                    semesterField.getText().trim());
-            students.recordGrade(cmd).thenAccept(r -> SwingUtilities.invokeLater(() -> {
-                if (r.success()) {
-                    loadTranscript(currentStudentId);
-                    statusLabel.setText("成绩录入成功");
-                } else {
-                    statusLabel.setText("录入失败: " + r.message());
-                }
-            }));
-        }
+        String studentId = currentStudentId;
+        editorHost.showEditor(new GradeEntryPanel(students, studentId, () -> {
+            loadTranscript(studentId);
+            statusLabel.setText("成绩录入成功");
+        }, () -> editorHost.completeAndClose()));
     }
 
     private static class GradeTableModel extends AbstractTableModel {
