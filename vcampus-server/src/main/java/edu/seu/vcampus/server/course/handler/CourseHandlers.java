@@ -22,6 +22,7 @@ public final class CourseHandlers {
   r.register("COURSE_CATALOG_SEARCH",read(CourseCatalogQuery.class,Set.of("ADMIN"),(m,b)->service.searchCatalog(b)));
   r.register("COURSE_CURRICULUM_CANDIDATE_SEARCH",read(CurriculumCourseCandidateQuery.class,Set.of("ADMIN"),(m,b)->service.searchCurriculumCandidates(b)));
   r.register("COURSE_ADJUSTMENT_AUDIT_SEARCH",read(AdjustmentAuditQuery.class,Set.of("ADMIN"),(m,b)->service.searchAdjustmentAudits(b)));
+  r.register("COURSE_STUDENT_CANDIDATE_SEARCH",read(CourseStudentCandidateQuery.class,Set.of("ADMIN"),(m,b)->service.searchStudentCandidates(b)));
   r.register("COURSE_GET_TERM_PHASE",read(EntityIdRequest.class,Set.of("STUDENT","TEACHER","ADMIN"),(m,b)->service.getTermPhase(b.entityId())));
   r.register("COURSE_SEARCH_OFFERINGS",read(OfferingSearchQuery.class,Set.of("STUDENT","TEACHER","ADMIN"),(m,b)->service.searchOfferings(b)));
   r.register("COURSE_STUDENT_SELECTION_CONTEXT",read(EmptyRequest.class,Set.of("STUDENT"),(m,b)->service.getStudentSelectionContext(m.sessionToken())));
@@ -34,7 +35,6 @@ public final class CourseHandlers {
   r.register("COURSE_RETAKE_ENROLL",write(RetakeCommand.class,Set.of("STUDENT"),(m,b)->service.enrollRetake(m.sessionToken(),b)));
   r.register("COURSE_GET_MY_SCHEDULE",read(EmptyRequest.class,Set.of("STUDENT","TEACHER"),(m,b)->(Serializable)new ArrayList<>(service.getCurrentSchedule(m.sessionToken()))));
   r.register("COURSE_GET_MY_ENROLLMENTS",read(EmptyRequest.class,Set.of("STUDENT"),(m,b)->(Serializable)new ArrayList<>(service.getCurrentEnrollments(m.sessionToken()))));
-  r.register("COURSE_IMPORT_OUTCOMES",write(ImportCourseOutcomesCommand.class,Set.of("ADMIN"),(m,b)->{service.importCourseOutcomes(b);return EmptyResponse.INSTANCE;}));
   r.register("COURSE_CREATE_OFFERING",write(CreateOfferingCommand.class,Set.of("ADMIN"),(m,b)->service.createOffering(b)));
   r.register("COURSE_UPDATE_OFFERING",write(UpdateOfferingCommand.class,Set.of("ADMIN"),(m,b)->service.updateOffering(b)));
   r.register("COURSE_ADMIN_ENROLL_STUDENT",write(AdminEnrollStudentCommand.class,Set.of("ADMIN"),(m,b)->service.adminEnrollStudent(b)));

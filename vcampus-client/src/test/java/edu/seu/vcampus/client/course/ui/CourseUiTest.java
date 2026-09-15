@@ -263,9 +263,9 @@ class CourseUiTest {
         return Stream.of(
                 Arguments.of(UserRole.STUDENT, List.of("选课", "我的选课", "我的课表")),
                 Arguments.of(UserRole.TEACHER, List.of("教学班查询", "教师课表")),
-                Arguments.of(UserRole.ADMIN, List.of("学期管理", "选课阶段", "课程目录", "教学班管理", "修读结果导入", "选退记录")),
-                Arguments.of(UserRole.SUPER_ADMIN, List.of("学期管理", "选课阶段", "课程目录", "教学班管理", "修读结果导入", "选退记录")),
-                Arguments.of(UserRole.COURSE_ADMIN, List.of("学期管理", "选课阶段", "课程目录", "教学班管理", "修读结果导入", "选退记录")));
+                Arguments.of(UserRole.ADMIN, List.of("学期管理", "选课阶段", "课程目录", "教学班管理", "选退记录")),
+                Arguments.of(UserRole.SUPER_ADMIN, List.of("学期管理", "选课阶段", "课程目录", "教学班管理", "选退记录")),
+                Arguments.of(UserRole.COURSE_ADMIN, List.of("学期管理", "选课阶段", "课程目录", "教学班管理", "选退记录")));
     }
 
     @ParameterizedTest
@@ -747,10 +747,10 @@ class CourseUiTest {
     }
 
     @Test
-    void publishesAllElevenCourseSurfaces() throws Exception {
+    void publishesAllCurrentCourseSurfaces() throws Exception {
         List<String> names = List.of("OfferingSearchPanel", "OfferingDetailDialog", "MyEnrollmentPanel",
                 "MySchedulePanel", "AdjustmentPanel", "RetakePanel", "TermManagementPanel",
-                "CourseCatalogPanel", "OfferingManagementPanel", "OutcomeImportPanel", "AdjustmentAuditPanel");
+                "CourseCatalogPanel", "OfferingManagementPanel", "AdjustmentAuditPanel");
         for (String name : names) {
             assertThat(Class.forName(getClass().getPackageName() + "." + name)).isNotNull();
         }
@@ -1777,6 +1777,7 @@ class CourseUiTest {
 
         assertThat(captured.get()).isEqualTo(new AdjustmentAuditQuery(null, null, null, null, 0, 50));
         assertThat(table.getRowCount()).isEqualTo(1);
+        assertThat(table.getColumnName(1)).isEqualTo("学号");
         assertThat(table.getValueAt(0, 1)).isEqualTo("20260001");
         assertThat(table.getValueAt(0, 2)).isEqualTo("改选");
         assertThat(table.getValueAt(0, 5)).isEqualTo("成功");

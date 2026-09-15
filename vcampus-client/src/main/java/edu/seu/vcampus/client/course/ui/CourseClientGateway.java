@@ -11,6 +11,8 @@ import edu.seu.vcampus.common.course.RetakeCommand;
 import edu.seu.vcampus.common.course.RetakeEligibility;
 import edu.seu.vcampus.common.course.AdjustmentAuditQuery;
 import edu.seu.vcampus.common.course.AdjustmentAuditView;
+import edu.seu.vcampus.common.course.CourseStudentCandidate;
+import edu.seu.vcampus.common.course.CourseStudentCandidateQuery;
 import edu.seu.vcampus.common.course.CourseCatalogQuery;
 import edu.seu.vcampus.common.course.CourseView;
 import edu.seu.vcampus.common.course.CurriculumCourseCandidate;
@@ -87,6 +89,8 @@ public final class CourseClientGateway implements CourseUiGateway {
     public CompletableFuture<RetakeEligibility> checkRetake(String courseId) { return client.checkRetakeEligibility(courseId); }
     public CompletableFuture<EnrollmentView> enrollRetake(RetakeCommand command) { return client.enrollRetake(command); }
     public CompletableFuture<PageResult<AdjustmentAuditView>> searchAdjustmentAudits(AdjustmentAuditQuery query) { return client.searchAdjustmentAudits(query); }
+    public CompletableFuture<PageResult<CourseStudentCandidate>> searchStudentCandidates(
+            CourseStudentCandidateQuery query) { return client.searchStudentCandidates(query); }
     public CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery query) { return client.searchCatalog(query); }
     public CompletableFuture<PageResult<CurriculumCourseCandidate>> searchCurriculumCandidates(CurriculumCourseCandidateQuery query) { return client.searchCurriculumCandidates(query); }
     public CompletableFuture<PageResult<UserSummary>> searchTeachers(String keyword) {

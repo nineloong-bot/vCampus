@@ -53,7 +53,6 @@ public final class CourseWorkspacePanel extends JPanel {
                 addTab("选课阶段", () -> new SelectionPhaseManagementPanel(gateway));
                 addTab("课程目录", () -> new CourseCatalogPanel(gateway));
                 addTab("教学班管理", () -> new OfferingManagementPanel(gateway));
-                addTab("修读结果导入", () -> new OutcomeImportPanel(gateway));
                 addTab("选退记录", () -> new AdjustmentAuditPanel(gateway));
             }
         }

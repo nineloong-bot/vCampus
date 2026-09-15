@@ -430,7 +430,10 @@ class CourseManagementServiceTest {
         assertThat(phase.serverTime()).isEqualTo(NOW);
         assertThat(phase.phase()).isEqualTo("ENROLLMENT");
         assertThat(service.searchAdjustmentAudits(new AdjustmentAuditQuery("student-1", term.termId(), "ADD", "FAILED", 0, 20)).items())
-                .singleElement().satisfies(row -> assertThat(row.failureCode()).isEqualTo("COURSE_OFFERING_FULL"));
+                .singleElement().satisfies(row -> {
+                    assertThat(row.failureCode()).isEqualTo("COURSE_OFFERING_FULL");
+                    assertThat(row.targetOfferingDisplay()).isEqualTo("CS101 · 01班");
+                });
         assertThat(service.searchAdjustmentAudits(new AdjustmentAuditQuery("other", null, null, null, 0, 20)).total()).isZero();
     }
 

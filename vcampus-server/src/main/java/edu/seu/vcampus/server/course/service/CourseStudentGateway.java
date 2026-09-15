@@ -1,5 +1,9 @@
 package edu.seu.vcampus.server.course.service;
 
+import edu.seu.vcampus.common.course.CourseStudentCandidate;
+import edu.seu.vcampus.common.course.CourseStudentCandidateQuery;
+import edu.seu.vcampus.common.paging.PageResult;
+
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -18,6 +22,16 @@ public interface CourseStudentGateway {
     /** Resolves an active student by the student number entered by an administrator. */
     default StudentEnrollmentEligibility findActiveByStudentNumber(String studentNumber) {
         throw new IllegalStateException("Student-number lookup is not configured");
+    }
+
+    /** Searches active students by student number for administrator selection. */
+    default PageResult<CourseStudentCandidate> searchActiveStudents(CourseStudentCandidateQuery query) {
+        throw new IllegalStateException("Student search is not configured");
+    }
+
+    /** Resolves an internal student identifier to its stable student number. */
+    default String findStudentNumber(String studentId) {
+        throw new IllegalStateException("Student display lookup is not configured");
     }
 
     /** Adapts the two read-only student-module queries to the course boundary. */

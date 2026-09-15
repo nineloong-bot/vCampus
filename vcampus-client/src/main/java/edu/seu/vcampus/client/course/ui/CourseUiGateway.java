@@ -9,6 +9,8 @@ import edu.seu.vcampus.common.course.RetakeCommand;
 import edu.seu.vcampus.common.course.RetakeEligibility;
 import edu.seu.vcampus.common.course.AdjustmentAuditQuery;
 import edu.seu.vcampus.common.course.AdjustmentAuditView;
+import edu.seu.vcampus.common.course.CourseStudentCandidate;
+import edu.seu.vcampus.common.course.CourseStudentCandidateQuery;
 import edu.seu.vcampus.common.course.CourseCatalogQuery;
 import edu.seu.vcampus.common.course.CourseView;
 import edu.seu.vcampus.common.course.CurriculumCourseCandidate;
@@ -57,6 +59,8 @@ public interface CourseUiGateway {
     default CompletableFuture<RetakeEligibility> checkRetake(String courseId) { return unsupported(); }
     default CompletableFuture<EnrollmentView> enrollRetake(RetakeCommand command) { return unsupported(); }
     default CompletableFuture<PageResult<AdjustmentAuditView>> searchAdjustmentAudits(AdjustmentAuditQuery query) { return unsupported(); }
+    default CompletableFuture<PageResult<CourseStudentCandidate>> searchStudentCandidates(
+            CourseStudentCandidateQuery query) { return unsupported(); }
     default CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery query) { return unsupported(); }
     default CompletableFuture<PageResult<CurriculumCourseCandidate>> searchCurriculumCandidates(CurriculumCourseCandidateQuery query) { return unsupported(); }
     default CompletableFuture<PageResult<UserSummary>> searchTeachers(String keyword) { return unsupported(); }
@@ -167,8 +171,19 @@ public interface CourseUiGateway {
             }
             public CompletableFuture<PageResult<AdjustmentAuditView>> searchAdjustmentAudits(AdjustmentAuditQuery query) {
                 return CompletableFuture.completedFuture(new PageResult<>(List.of(new AdjustmentAuditView(
-                        "preview-adjustment", "20260001", "CHANGE", "o1", "o2", "SUCCEEDED", null,
+                        "preview-adjustment", "20260001", "CHANGE",
+                        "CS101 · 程序设计A班", "CS101 · 程序设计B班", "SUCCEEDED", null,
                         java.time.Instant.parse("2026-08-27T06:32:00Z"))), 0, query.pageSize(), 1));
+            }
+            public CompletableFuture<PageResult<CourseStudentCandidate>> searchStudentCandidates(
+                    CourseStudentCandidateQuery query) {
+                List<CourseStudentCandidate> candidates = List.of(
+                        new CourseStudentCandidate("213260001", "赵明轩", "软件工程一班"),
+                        new CourseStudentCandidate("213260002", "钱思远", "软件工程一班"));
+                List<CourseStudentCandidate> matches = candidates.stream()
+                        .filter(row -> row.studentNumber().contains(query.studentNumber())).toList();
+                return CompletableFuture.completedFuture(
+                        new PageResult<>(matches, query.page(), query.pageSize(), matches.size()));
             }
             public CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery query) {
                 List<CourseView> courses = List.of(

@@ -27,12 +27,15 @@ public interface CourseService {
     default PageResult<CurriculumCourseCandidate> searchCurriculumCandidates(
             CurriculumCourseCandidateQuery query) { throw new UnsupportedOperationException(); }
     PageResult<AdjustmentAuditView> searchAdjustmentAudits(AdjustmentAuditQuery query);
+    /** Searches active students by student number for administrator class placement. */
+    default PageResult<CourseStudentCandidate> searchStudentCandidates(
+            CourseStudentCandidateQuery query) { throw new UnsupportedOperationException(); }
     TermPhaseView getTermPhase(String termId);
     CourseView createCourse(CreateCourseCommand command);
     CourseView updateCourse(UpdateCourseCommand command);
     OfferingView createOffering(CreateOfferingCommand command);
     OfferingView updateOffering(UpdateOfferingCommand command);
-    /** Places one eligible retake student into an offering as an administrator exception. */
+    /** Places one eligible student into an offering as an administrator exception. */
     default EnrollmentView adminEnrollStudent(AdminEnrollStudentCommand command) {
         throw new UnsupportedOperationException();
     }

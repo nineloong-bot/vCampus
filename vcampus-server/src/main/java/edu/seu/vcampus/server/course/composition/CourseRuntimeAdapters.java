@@ -1,5 +1,12 @@
 package edu.seu.vcampus.server.course.composition;
 
+import edu.seu.vcampus.common.course.CourseStudentCandidate;
+import edu.seu.vcampus.common.course.CourseStudentCandidateQuery;
+import edu.seu.vcampus.common.paging.PageResult;
+import edu.seu.vcampus.common.student.StudentSearchQuery;
+import edu.seu.vcampus.common.student.StudentStatus;
+import edu.seu.vcampus.common.student.StudentSummary;
+import edu.seu.vcampus.common.student.StudentView;
 import edu.seu.vcampus.server.course.domain.CourseForbiddenException;
 import edu.seu.vcampus.server.course.service.CourseAuthorizationGateway;
 import edu.seu.vcampus.server.course.service.CourseSessionIdentity;
@@ -93,5 +100,47 @@ public final class CourseRuntimeAdapters {
                         getEnrollmentEligibility.apply(userId), "student eligibility")),
                 activeStudentExists,
                 number -> projection.apply(getEligibilityByStudentNumber.apply(number)));
+    }
+
+    /** Curriculum-aware adapter with student-number search and audit display lookup. */
+    public static <E> CourseStudentGateway students(
+            Function<String, E> getEnrollmentEligibility,
+            Function<String, E> getEligibilityByStudentNumber,
+            Function<E, String> studentId,
+            Function<E, String> status,
+            Function<E, String> majorCode,
+            java.util.function.ToIntFunction<E> cohortYear,
+            Predicate<String> activeStudentExists,
+            Function<StudentSearchQuery, PageResult<StudentSummary>> searchStudents,
+            Function<String, StudentView> getStudent) {
+        CourseStudentGateway base = students(getEnrollmentEligibility, getEligibilityByStudentNumber,
+                studentId, status, majorCode, cohortYear, activeStudentExists);
+        Objects.requireNonNull(searchStudents);
+        Objects.requireNonNull(getStudent);
+        return new CourseStudentGateway() {
+            @Override public StudentEnrollmentEligibility getEnrollmentEligibility(String userId) {
+                return base.getEnrollmentEligibility(userId);
+            }
+            @Override public boolean existsActiveStudent(String id) { return base.existsActiveStudent(id); }
+            @Override public StudentEnrollmentEligibility findActiveByStudentNumber(String number) {
+                return base.findActiveByStudentNumber(number);
+            }
+            @Override public PageResult<CourseStudentCandidate> searchActiveStudents(
+                    CourseStudentCandidateQuery query) {
+                PageResult<StudentSummary> page = searchStudents.apply(new StudentSearchQuery(
+                        query.studentNumber(), null, null, null, StudentStatus.ACTIVE,
+                        query.page() + 1, query.pageSize()));
+                var items = page.items().stream()
+                        .filter(row -> query.studentNumber() == null || query.studentNumber().isBlank()
+                                || row.studentNumber().contains(query.studentNumber()))
+                        .map(row -> new CourseStudentCandidate(row.studentNumber(),
+                                row.studentName(), row.className()))
+                        .toList();
+                return new PageResult<>(items, query.page(), query.pageSize(), items.size());
+            }
+            @Override public String findStudentNumber(String id) {
+                return getStudent.apply(id).studentNumber();
+            }
+        };
     }
 }

@@ -132,7 +132,9 @@ public final class ApplicationRuntime implements AutoCloseable {
                         eligibility -> eligibility.status().name(),
                         eligibility -> eligibility.majorCode(),
                         eligibility -> eligibility.cohortYear(),
-                        studentQueries::existsActiveStudent)
+                        studentQueries::existsActiveStudent,
+                        studentQueries::searchStudents,
+                        studentQueries::getStudent)
                 : Objects.requireNonNull(studentGatewayFactory.apply(users), "studentGateway");
         CourseComposition courses = CourseComposition.create(connections, courseAuthorization,
                 students, clock, locks);

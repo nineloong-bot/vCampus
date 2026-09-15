@@ -56,6 +56,11 @@ public final class CourseClientService {
     /** Searches course definitions approved by college training plans. */
     public CompletableFuture<PageResult<CurriculumCourseCandidate>> searchCurriculumCandidates(CurriculumCourseCandidateQuery q) { return callPage("COURSE_CURRICULUM_CANDIDATE_SEARCH", q, READ, CurriculumCourseCandidate.class); }
     public CompletableFuture<PageResult<AdjustmentAuditView>> searchAdjustmentAudits(AdjustmentAuditQuery q) { return callPage("COURSE_ADJUSTMENT_AUDIT_SEARCH", q, READ, AdjustmentAuditView.class); }
+    /** Searches active students by student number for administrator class placement. */
+    public CompletableFuture<PageResult<CourseStudentCandidate>> searchStudentCandidates(
+            CourseStudentCandidateQuery q) {
+        return callPage("COURSE_STUDENT_CANDIDATE_SEARCH", q, READ, CourseStudentCandidate.class);
+    }
     public CompletableFuture<TermPhaseView> getTermPhase(String id) { return call("COURSE_GET_TERM_PHASE", new EntityIdRequest(id), READ, TermPhaseView.class); }
     public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery q) { return callPage("COURSE_SEARCH_OFFERINGS", q, READ, OfferingSummary.class); }
     public CompletableFuture<EnrollmentView> enroll(EnrollCommand c) { return call("COURSE_ENROLL", c, WRITE, EnrollmentView.class); }

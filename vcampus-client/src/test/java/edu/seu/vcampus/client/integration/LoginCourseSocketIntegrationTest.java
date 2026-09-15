@@ -128,7 +128,7 @@ class LoginCourseSocketIntegrationTest {
         LoginResult administrator = login("ADMIN1");
         assertThat(administrator.user().role()).isEqualTo(UserRole.SUPER_ADMIN);
         assertWorkspaceTabs(administrator, List.of(
-                "学期管理", "选课阶段", "课程目录", "教学班管理", "修读结果导入", "选退记录"));
+                "学期管理", "选课阶段", "课程目录", "教学班管理", "选退记录"));
         var term = courses.createTerm(term()).join();
         var phase = courses.createSelectionPhase(new CreateSelectionPhaseCommand(
                 term.termId(), "ENROLLMENT", "端到端测试选课")).join();

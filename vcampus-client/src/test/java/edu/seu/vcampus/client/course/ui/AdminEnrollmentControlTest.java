@@ -11,6 +11,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.swing.JButton;
+import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 
@@ -21,6 +22,18 @@ import edu.seu.vcampus.common.course.EnrollmentView;
 import edu.seu.vcampus.common.course.OfferingSummary;
 
 class AdminEnrollmentControlTest {
+    @Test
+    void showsAStudentCandidateListBelowTheNumberInput() throws Exception {
+        AdminEnrollmentControl control = new AdminEnrollmentControl(
+                CourseUiGateway.preview(), offering(), () -> { }, () -> { }, ignored -> { });
+
+        List<JTable> tables = descendants(control, JTable.class);
+
+        assertThat(tables).singleElement().satisfies(table ->
+                assertThat(List.of(table.getColumnName(0), table.getColumnName(1),
+                        table.getColumnName(2))).containsExactly("学号", "姓名", "班级"));
+    }
+
     @Test
     void submitsSelectedOfferingAndStudentNumberThenRefreshes() throws Exception {
         AtomicReference<AdminEnrollStudentCommand> submitted = new AtomicReference<>();
@@ -48,11 +61,8 @@ class AdminEnrollmentControlTest {
                 throw new UnsupportedOperationException();
             }
         };
-        OfferingSummary offering = new OfferingSummary("offering-1", "term-1", "course-1",
-                "CS101", "程序设计", "teacher-1", "A班", 40, 20, 5, 5,
-                "OPEN", 0, List.of());
         AdminEnrollmentControl control = new AdminEnrollmentControl(
-                gateway, offering, refreshes::incrementAndGet, () -> { }, ignored -> { });
+                gateway, offering(), refreshes::incrementAndGet, () -> { }, ignored -> { });
         control.activate();
 
         field(control).setText("213260001");
@@ -62,6 +72,12 @@ class AdminEnrollmentControlTest {
         assertThat(submitted.get()).isEqualTo(
                 new AdminEnrollStudentCommand("213260001", "offering-1"));
         assertThat(refreshes).hasValue(1);
+    }
+
+    private static OfferingSummary offering() {
+        return new OfferingSummary("offering-1", "term-1", "course-1",
+                "CS101", "程序设计", "teacher-1", "A班", 40, 20, 5, 5,
+                "OPEN", 0, List.of());
     }
 
     private static JTextField field(Container root) {

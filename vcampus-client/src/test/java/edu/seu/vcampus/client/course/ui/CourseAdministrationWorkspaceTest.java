@@ -40,23 +40,17 @@ class CourseAdministrationWorkspaceTest {
     }
 
     @Test
-    void phaseAndOutcomeEditorsAreHiddenUntilRequested() throws Exception {
+    void phaseEditorIsHiddenUntilRequested() throws Exception {
         SelectionPhaseManagementPanel phases = onEdt(
                 () -> new SelectionPhaseManagementPanel(CourseUiGateway.preview()));
-        OutcomeImportPanel outcomes = onEdt(() -> new OutcomeImportPanel(CourseUiGateway.preview()));
         flushEdt();
 
         EmbeddedEditorHost phaseHost = descendant(phases, EmbeddedEditorHost.class);
-        EmbeddedEditorHost outcomeHost = descendant(outcomes, EmbeddedEditorHost.class);
         assertThat(phaseHost.isEditorOpen()).isFalse();
-        assertThat(outcomeHost.isEditorOpen()).isFalse();
 
         onEdt(() -> button(phases, "新建阶段").doClick());
-        onEdt(() -> button(outcomes, "导入课程结果").doClick());
 
         assertThat(phaseHost.isEditorOpen()).isTrue();
-        assertThat(outcomeHost.isEditorOpen()).isTrue();
-        assertThat(outcomeHost.currentPlacement()).isEqualTo(EditorPlacement.BOTTOM);
     }
 
     private static JButton button(Container root, String text) {

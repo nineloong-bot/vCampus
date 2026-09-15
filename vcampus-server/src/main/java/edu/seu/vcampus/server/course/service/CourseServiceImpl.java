@@ -63,6 +63,7 @@ public final class CourseServiceImpl implements CourseService, CourseQueryPort {
     private final CurriculumSelectionPolicy curriculumPolicy;
     private final AdminEnrollmentService adminEnrollments;
     private final CurriculumCatalogCandidateService curriculumCandidates;
+    private final AdjustmentAuditService adjustmentAudits;
     private final boolean enforceCurriculumCatalog;
 
     /** Creates an enrollment service from course-owned infrastructure and gateway boundaries. */
@@ -105,6 +106,7 @@ public final class CourseServiceImpl implements CourseService, CourseQueryPort {
         this.curriculumCandidates = new CurriculumCatalogCandidateService(
                 new edu.seu.vcampus.server.course.repository.CurriculumCatalogCandidateRepository(),
                 repository, transactions);
+        this.adjustmentAudits = new AdjustmentAuditService(repository, students, transactions);
     }
     @Override public List<TermView> listTerms(){return transactions.inTransaction(c->repository.findTerms(c).stream().map(CourseServiceImpl::toView).toList());}
     @Override public TermView getCurrentTerm(){return transactions.inTransaction(c->toView(currentTerm(c)));}
@@ -116,7 +118,8 @@ public final class CourseServiceImpl implements CourseService, CourseQueryPort {
     @Override public SelectionPhaseView changeSelectionPhaseStatus(ChangeSelectionPhaseStatusCommand x){return selectionPhases.changeStatus(x);}
     @Override public PageResult<CourseView> searchCatalog(CourseCatalogQuery q){return transactions.inTransaction(c->{var all=repository.findCourses(c).stream().filter(x->q.keyword()==null||x.courseCode().contains(q.keyword())||x.courseName().contains(q.keyword())).filter(x->!Boolean.TRUE.equals(q.activeOnly())||x.active()).map(CourseServiceImpl::toView).toList();int from=Math.min(all.size(),q.page()*q.pageSize());return new PageResult<>(all.subList(from,Math.min(all.size(),from+q.pageSize())),q.page(),q.pageSize(),all.size());});}
     @Override public PageResult<CurriculumCourseCandidate> searchCurriculumCandidates(CurriculumCourseCandidateQuery q){return curriculumCandidates.search(q);}
-    @Override public PageResult<AdjustmentAuditView> searchAdjustmentAudits(AdjustmentAuditQuery q){Objects.requireNonNull(q,"query");return transactions.inTransaction(c->{var filtered=repository.findAdjustments(c).stream().filter(x->blank(q.studentId())||x.studentId().equals(q.studentId())).filter(x->blank(q.adjustmentType())||x.adjustmentType().equals(q.adjustmentType())).filter(x->blank(q.operationResult())||x.operationResult().equals(q.operationResult())).filter(x->blank(q.termId())||adjustmentBelongsToTerm(c,x,q.termId())).map(CourseServiceImpl::toView).toList();int from=Math.min(filtered.size(),Math.multiplyExact(q.page(),q.pageSize()));return new PageResult<>(filtered.subList(from,Math.min(filtered.size(),from+q.pageSize())),q.page(),q.pageSize(),filtered.size());});}
+    @Override public PageResult<AdjustmentAuditView> searchAdjustmentAudits(AdjustmentAuditQuery q){return adjustmentAudits.search(q);}
+    @Override public PageResult<CourseStudentCandidate> searchStudentCandidates(CourseStudentCandidateQuery q){return students.searchActiveStudents(q);}
     @Override public TermPhaseView getTermPhase(String id){return transactions.inTransaction(c->{var t=repository.requireTerm(c,id);var now=clock.instant();String p="CLOSED";if(!"CLOSED".equals(t.termStatus())){if(!now.isBefore(t.enrollmentStartAt())&&now.isBefore(t.enrollmentEndAt()))p="ENROLLMENT";else if(!now.isBefore(t.adjustmentStartAt())&&now.isBefore(t.adjustmentEndAt()))p="ADJUSTMENT";else p="READ_ONLY";}return new TermPhaseView(id,t.termStatus(),p,now,t.enrollmentStartAt(),t.enrollmentEndAt(),t.adjustmentStartAt(),t.adjustmentEndAt());});}
     private static TermView toView(edu.seu.vcampus.server.course.repository.Term t){return new TermView(t.termId(),t.termCode(),t.termName(),t.startDate(),t.endDate(),t.academicYearStart(),t.season(),t.enrollmentStartAt(),t.enrollmentEndAt(),t.adjustmentStartAt(),t.adjustmentEndAt(),t.termStatus(),t.rowVersion(),t.createdAt(),t.updatedAt());}
 
@@ -197,10 +200,7 @@ public final class CourseServiceImpl implements CourseService, CourseQueryPort {
     private static List<ScheduleItem> toScheduleItems(List<Schedule> values,Offering o,edu.seu.vcampus.server.course.repository.Course c){return values.stream().map(s->new ScheduleItem(s.scheduleId(),o.offeringId(),c.courseCode(),c.courseName(),o.className(),o.teacherUserId(),s.dayOfWeek().name(),s.startPeriod(),s.endPeriod(),s.startWeek(),s.endWeek(),s.classroom())).toList();}
     private static CourseView toView(edu.seu.vcampus.server.course.repository.Course c){return new CourseView(c.courseId(),c.courseCode(),c.courseName(),c.departmentId(),c.departmentName(),c.credit(),c.totalHours(),c.description(),c.active(),c.rowVersion(),c.createdAt(),c.updatedAt());}
     private static OfferingView toView(Offering o,List<Schedule> s,edu.seu.vcampus.server.course.repository.Course course,edu.seu.vcampus.server.course.repository.RetakeQuota quota){return new OfferingView(o.offeringId(),o.termId(),o.courseId(),o.teacherUserId(),o.className(),o.capacity(),o.enrolledCount(),quota.capacity(),quota.enrolledCount(),o.offeringStatus(),o.rowVersion(),o.createdAt(),o.updatedAt(),toScheduleItems(s,o,course));}
-    private static AdjustmentAuditView toView(edu.seu.vcampus.server.course.repository.EnrollmentAdjustment x){return new AdjustmentAuditView(x.adjustmentId(),x.studentId(),x.adjustmentType(),x.sourceOfferingId(),x.targetOfferingId(),x.operationResult(),x.failureCode(),x.operatedAt());}
     private static boolean blank(String value){return value==null||value.isBlank();}
-    private boolean adjustmentBelongsToTerm(Connection c,edu.seu.vcampus.server.course.repository.EnrollmentAdjustment x,String termId){String offeringId=x.targetOfferingId()!=null?x.targetOfferingId():x.sourceOfferingId();return offeringId!=null&&repository.requireOffering(c,offeringId).termId().equals(termId);}
-
     /** Uses the declared student-then-offering lock order and repeats mutable validation. */
     @Override
     public EnrollmentView enroll(String sessionToken, EnrollCommand command) {

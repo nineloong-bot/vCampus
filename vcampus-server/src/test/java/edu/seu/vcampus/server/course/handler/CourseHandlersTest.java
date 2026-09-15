@@ -36,7 +36,8 @@ class CourseHandlersTest {
                 "COURSE_SELECTION_PHASE_CHANGE_STATUS", "COURSE_STUDENT_SELECTION_CONTEXT", "COURSE_STUDENT_COURSE_SEARCH",
                 "COURSE_ADJUSTMENT_ADD", "COURSE_DROP", "COURSE_ADJUSTMENT_DROP",
                 "COURSE_RETAKE_CHECK", "COURSE_RETAKE_ENROLL", "COURSE_GET_MY_SCHEDULE",
-                "COURSE_GET_MY_ENROLLMENTS", "COURSE_IMPORT_OUTCOMES",
+                "COURSE_GET_MY_ENROLLMENTS",
+                "COURSE_STUDENT_CANDIDATE_SEARCH",
                 "COURSE_CREATE_OFFERING", "COURSE_UPDATE_OFFERING");
         commands.forEach(command -> assertThat(route(router, command, "student", validBody(command)).code())
                 .isNotEqualTo("COMMON_INTERNAL_ERROR"));
@@ -61,6 +62,13 @@ class CourseHandlersTest {
                 .isInstanceOf(CommandNotFoundException.class);
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> route(
                         router, "COURSE_UPDATE", "admin", validBody("COURSE_UPDATE")))
+                .isInstanceOf(CommandNotFoundException.class);
+    }
+
+    @Test void doesNotPublishManualOutcomeImport() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> route(
+                        router(), "COURSE_IMPORT_OUTCOMES", "admin",
+                        validBody("COURSE_IMPORT_OUTCOMES")))
                 .isInstanceOf(CommandNotFoundException.class);
     }
 
@@ -140,8 +148,6 @@ class CourseHandlersTest {
             assertThat(route(router, command, "admin", validBody(command)).code())
                     .as(command).isEqualTo("COMMON_FORBIDDEN");
         }
-        assertThat(route(router, "COURSE_IMPORT_OUTCOMES", "student", validBody("COURSE_IMPORT_OUTCOMES")).code()).isEqualTo("COMMON_FORBIDDEN");
-        assertThat(route(router, "COURSE_IMPORT_OUTCOMES", "admin", validBody("COURSE_IMPORT_OUTCOMES")).success()).isTrue();
     }
 
     @Test void validatesExactBodyAndMapsDomainAndUnknownFailuresSafely() {
@@ -179,9 +185,7 @@ class CourseHandlersTest {
                 .isEqualTo(EmptyResponse.INSTANCE);
         assertThat(route(router, "COURSE_ADJUSTMENT_DROP", "student", new DropCommand("e-alias", 2)).data())
                 .isEqualTo(EmptyResponse.INSTANCE);
-        assertThat(route(router, "COURSE_IMPORT_OUTCOMES", "admin", validBody("COURSE_IMPORT_OUTCOMES")).data())
-                .isEqualTo(EmptyResponse.INSTANCE);
-        assertThat(ids).contains("r-COURSE_DROP", "r-COURSE_ADJUSTMENT_DROP", "r-COURSE_IMPORT_OUTCOMES");
+        assertThat(ids).contains("r-COURSE_DROP", "r-COURSE_ADJUSTMENT_DROP");
         assertThat(service.dropTokens).containsExactly("student", "student");
         assertThat(service.dropCommands).containsExactly(
                 new DropCommand("e-primary", 1), new DropCommand("e-alias", 2));
@@ -225,6 +229,7 @@ class CourseHandlersTest {
             case "COURSE_TERM_UPDATE" -> new UpdateTermCommand("t","2026-1","秋",java.time.LocalDate.of(2026,9,1),java.time.LocalDate.of(2027,1,1),java.time.Instant.EPOCH,java.time.Instant.EPOCH.plusSeconds(1),java.time.Instant.EPOCH.plusSeconds(2),java.time.Instant.EPOCH.plusSeconds(3),"ACTIVE",0);
             case "COURSE_CATALOG_SEARCH" -> new CourseCatalogQuery(null,null,0,20);
             case "COURSE_ADJUSTMENT_AUDIT_SEARCH" -> new AdjustmentAuditQuery(null,null,null,null,0,20);
+            case "COURSE_STUDENT_CANDIDATE_SEARCH" -> new CourseStudentCandidateQuery("213",0,20);
             case "COURSE_GET_TERM_PHASE" -> new EntityIdRequest("t");
             case "COURSE_ENROLL" -> new EnrollCommand("o-1");
             case "COURSE_ADJUSTMENT_ADD" -> new LateAddCommand("o-1");
@@ -268,6 +273,7 @@ class CourseHandlersTest {
         public List<TermView> listTerms(){listTermsCalls++;return termListResult;} public TermView getCurrentTerm(){currentTermCalls++;return currentTermResult;} public TermView createTerm(CreateTermCommand c){createTermCommands.add(c);return createdTermResult;} public TermView updateTerm(UpdateTermCommand c){updateTermCommands.add(c);return updatedTermResult;}
         public edu.seu.vcampus.common.paging.PageResult<CourseView> searchCatalog(CourseCatalogQuery q){catalogQueries.add(q);return catalogResult;}
         public edu.seu.vcampus.common.paging.PageResult<AdjustmentAuditView> searchAdjustmentAudits(AdjustmentAuditQuery q){auditQueries.add(q);return auditResult;}
+        public edu.seu.vcampus.common.paging.PageResult<CourseStudentCandidate> searchStudentCandidates(CourseStudentCandidateQuery q){return new edu.seu.vcampus.common.paging.PageResult<>(List.of(),0,20,0);}
         public TermPhaseView getTermPhase(String id){phaseTermIds.add(id);return phaseResult;}
         public StudentSelectionContextView getStudentSelectionContext(String token){return new StudentSelectionContextView("t","Fall","ACTIVE","p","ENROLLMENT","Fall selection","OPEN",TIME,true,null);}
         public edu.seu.vcampus.common.paging.PageResult<CourseSelectionView> searchStudentCourses(String token,CourseSelectionQuery query){return new edu.seu.vcampus.common.paging.PageResult<>(List.of(),0,20,0);}

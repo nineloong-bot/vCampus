@@ -28,11 +28,11 @@ public final class AdjustmentAuditPanel extends AbstractCoursePanel {
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
             .withZone(ZoneId.systemDefault());
     private final CourseUiGateway gateway;
-    private final JTextField student = field("学生编号");
+    private final JTextField student = field("学生学号");
     private final JTextField term = field("学期编号");
     private final JComboBox<String> type = combo("操作类型", "全部操作", "补选", "退选", "改选");
     private final JComboBox<String> result = combo("操作结果", "全部结果", "成功", "失败");
-    private final DefaultTableModel model = readOnlyModel("操作时间", "学生", "操作", "原教学班", "目标教学班", "结果", "失败原因");
+    private final DefaultTableModel model = readOnlyModel("操作时间", "学号", "操作", "原教学班", "目标教学班", "结果", "失败原因");
     private final CoursePager pager;
 
     public AdjustmentAuditPanel(CourseUiGateway gateway) {
@@ -59,7 +59,7 @@ public final class AdjustmentAuditPanel extends AbstractCoursePanel {
         panel.setBackground(UiColors.BACKGROUND_SUBTLE);
         panel.setLayout(new BoxLayout(panel, BoxLayout.X_AXIS));
         panel.setBorder(BorderFactory.createEmptyBorder(UiSpacing.LG, UiSpacing.LG, UiSpacing.LG, UiSpacing.LG));
-        panel.add(label("学生编号", UiTypography.CAPTION, UiColors.TEXT_PRIMARY));
+        panel.add(label("学生学号", UiTypography.CAPTION, UiColors.TEXT_PRIMARY));
         panel.add(Box.createHorizontalStrut(UiSpacing.SM));
         panel.add(student);
         panel.add(Box.createHorizontalStrut(UiSpacing.MD));
@@ -92,15 +92,15 @@ public final class AdjustmentAuditPanel extends AbstractCoursePanel {
     }
 
     private void search(int pageNumber) {
-        String studentId = blankToNull(student.getText());
+        String studentNumber = blankToNull(student.getText());
         String termId = blankToNull(term.getText());
-        if (tooLongId(studentId) || tooLongId(termId)) {
-            showState(ViewState.ERROR, "学生编号和学期编号均不能超过 36 个字符");
+        if (studentNumber != null && studentNumber.length() > 32 || tooLongId(termId)) {
+            showState(ViewState.ERROR, "学生学号不能超过 32 个字符，学期编号不能超过 36 个字符");
             return;
         }
         long request = beginAsyncRequest();
         showState(ViewState.LOADING, "正在查询审计记录，请稍候");
-        AdjustmentAuditQuery query = new AdjustmentAuditQuery(studentId, termId,
+        AdjustmentAuditQuery query = new AdjustmentAuditQuery(studentNumber, termId,
                 selected(type, new String[]{null, "ADD", "DROP", "CHANGE"}),
                 selected(result, new String[]{null, "SUCCEEDED", "FAILED"}), pageNumber, 50);
         gateway.searchAdjustmentAudits(query).whenComplete((page, error) -> SwingUtilities.invokeLater(() -> {
@@ -111,8 +111,8 @@ public final class AdjustmentAuditPanel extends AbstractCoursePanel {
             }
             model.setRowCount(0);
             for (AdjustmentAuditView row : page.items()) model.addRow(new Object[]{
-                    TIME.format(row.operatedAt()), row.studentId(), adjustmentType(row.adjustmentType()),
-                    textOrDash(row.sourceOfferingId()), textOrDash(row.targetOfferingId()),
+                    TIME.format(row.operatedAt()), row.studentNumber(), adjustmentType(row.adjustmentType()),
+                    textOrDash(row.sourceOfferingDisplay()), textOrDash(row.targetOfferingDisplay()),
                     operationResult(row.operationResult()), failureReason(row.failureCode())});
             pager.showPage(page.page(), page.total());
             showState(page.items().isEmpty() ? ViewState.EMPTY : ViewState.NORMAL,

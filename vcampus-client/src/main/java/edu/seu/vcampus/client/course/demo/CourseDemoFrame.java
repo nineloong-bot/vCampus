@@ -14,7 +14,6 @@ import edu.seu.vcampus.client.course.ui.MyEnrollmentPanel;
 import edu.seu.vcampus.client.course.ui.MySchedulePanel;
 import edu.seu.vcampus.client.course.ui.OfferingManagementPanel;
 import edu.seu.vcampus.client.course.ui.OfferingSearchPanel;
-import edu.seu.vcampus.client.course.ui.OutcomeImportPanel;
 import edu.seu.vcampus.client.course.ui.RetakePanel;
 import edu.seu.vcampus.client.course.ui.TermManagementPanel;
 import edu.seu.vcampus.client.course.ui.SelectionPhaseManagementPanel;
@@ -99,7 +98,6 @@ public final class CourseDemoFrame extends JFrame {
             addPage(navigation, "学期管理", () -> new TermManagementPanel(gateway));
             addPage(navigation, "课程目录", () -> new CourseCatalogPanel(gateway));
             addPage(navigation, "教学班管理", () -> new OfferingManagementPanel(gateway));
-            addPage(navigation, "结果导入", () -> new OutcomeImportPanel(gateway));
             addPage(navigation, "异动审计", () -> new AdjustmentAuditPanel(gateway));
         } else {
             addPage(navigation, "选课", () -> new StudentCourseSelectionPanel(gateway));
