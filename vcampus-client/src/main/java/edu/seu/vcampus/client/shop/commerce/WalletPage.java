@@ -50,7 +50,7 @@ final class WalletPage {
         footer.add(CommerceTheme.row(previous, counter, next));
         footer.add(CommerceTheme.row(CommerceTheme.button("返回我的", () -> new AccountPages(ui).open()),
                 CommerceTheme.muted("仅用于校园虚拟交易")));
-        ui.modal("我的钱包", body, footer, () -> new AccountPages(ui).open(), 760);
+        ui.display("我的钱包", CommerceTheme.scroll(body), footer, () -> new AccountPages(ui).open());
         ui.fetch("WALLET_GET_BALANCE", EmptyRequest.INSTANCE, data -> {
             WalletBalance value = (WalletBalance) data;
             balanceCents = value.balanceCents();

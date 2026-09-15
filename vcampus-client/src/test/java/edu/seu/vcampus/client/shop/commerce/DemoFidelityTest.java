@@ -7,27 +7,26 @@ import java.util.concurrent.CompletableFuture;
 import static org.assertj.core.api.Assertions.*;
 
 class DemoFidelityTest {
-    @Test void closeRestoresTheSameStorefrontAndKeepsModalFocusContained() throws Exception {
+    @Test void closeRestoresTheSameStorefrontAfterEmbeddedEditing() throws Exception {
         SwingUtilities.invokeAndWait(()->{
             var ui=new CommercePanel((c,b,k)->new CompletableFuture<>(),false);
             JLabel original=new JLabel("当前商品列表");original.setName("original.list");
-            ui.display("首页",original,null,null);new AccountPages(ui).open();
-            assertThat(((Container)find(ui,"commerce.modal")).isFocusCycleRoot()).isTrue();
-            ((JButton)find(ui,"commerce.modal.close")).doClick();
-            assertThat(find(ui,"commerce.modal")).isNull();assertThat(find(ui,"original.list")).isSameAs(original);
+            ui.display("首页",original,null,null);new ProductEditorPage(ui).open(null);
+            assertThat(find(ui,"commerce.editor")).isNotNull();
+            ((JButton)find(ui,"commerce.editor.close")).doClick();
+            assertThat(find(ui,"commerce.editor")).isNull();assertThat(find(ui,"original.list")).isSameAs(original);
         });
     }
-    @Test void myUsesCenteredModalOverExistingStorefront() throws Exception {
+    @Test void myUsesTheFullQueryPageWithoutAnEditor() throws Exception {
         SwingUtilities.invokeAndWait(()->{
             var ui=new CommercePanel((c,b,k)->new CompletableFuture<>(),false);
             ui.setSize(1280,900);
             ui.display("首页",new JLabel("原商品列表"),null,null);
             new AccountPages(ui).open();
             layout(ui);
-            Component modal=find(ui,"commerce.modal");
-            assertThat(modal).as("My must retain storefront beneath a centered modal").isNotNull();
-            assertThat(modal.getWidth()).isEqualTo(620);
-            assertThat(find(ui,"commerce.modal.close")).isNotNull();
+            assertThat(find(ui,"commerce.modal")).isNull();
+            assertThat(find(ui,"commerce.editor")).isNull();
+            assertThat(find(ui,"account.entries")).isNotNull();
         });
     }
     @Test void verticalFormsDoNotStretchActionsToBottom() throws Exception {

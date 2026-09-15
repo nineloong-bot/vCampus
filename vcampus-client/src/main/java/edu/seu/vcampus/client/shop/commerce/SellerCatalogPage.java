@@ -74,9 +74,14 @@ final class SellerCatalogPage {
     }
     private void images(){
         JComboBox<String> picker=new JComboBox<>(new String[]{"book","pen","cup","bag","shirt","box"});
-        if(JOptionPane.showConfirmDialog(ui,picker,"选择预置图片编号",JOptionPane.OK_CANCEL_OPTION)!=JOptionPane.OK_OPTION)return;
-        var ids=java.util.Arrays.stream(table.getSelectedRows()).mapToObj(i->products.get(i).id()).toList();
-        ui.write("SHOP2_PRODUCT_IMAGES",new Images("",ids,(String)picker.getSelectedItem()),images,data->open());
+        JPanel form=CommerceTheme.form();CommerceTheme.field(form,"预置图片",picker);
+        JButton submit=CommerceTheme.primary(new JButton("应用到所选商品"));
+        submit.addActionListener(event->{
+            var ids=java.util.Arrays.stream(table.getSelectedRows()).mapToObj(i->products.get(i).id()).toList();
+            ui.write("SHOP2_PRODUCT_IMAGES",new Images("",ids,(String)picker.getSelectedItem()),submit,data->open());
+        });
+        ui.modal("批量选择商品图片",form,
+                CommerceTheme.row(CommerceTheme.button("取消",ui::closeModal),submit),ui::closeModal,620);
     }
     static String status(String value){return switch(value){case "ACTIVE"->"在售";case "DRAFT"->"草稿";
         case "INACTIVE"->"已下架";case "QUALIFICATION_EXPIRED"->"资质到期";case "EMERGENCY_BLOCKED"->"紧急下架";default->value;};}
