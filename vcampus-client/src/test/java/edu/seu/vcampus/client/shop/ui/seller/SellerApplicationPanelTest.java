@@ -25,7 +25,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 
-@Disabled("内嵌表单契约已由 SellerApplicationSummaryTest 和 SwingSellerApplicationDialogTest 取代")
+@Disabled("内嵌表单契约已由 SellerApplicationSummaryTest 和 SellerApplicationFormsTest 取代")
 class SellerApplicationPanelTest {
     @Test
     void completeNewApplicationSavesLatestFieldsThenSubmitsReturnedVersion() throws Exception {

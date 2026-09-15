@@ -7,13 +7,11 @@ import edu.seu.vcampus.client.shop.ui.style.ShopComponentStyle;
 import edu.seu.vcampus.common.shop.*;
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
 import java.util.Objects;
 import java.util.Optional;
 
-/** Application-modal editor with explicit draft and submit actions. */
-public final class SwingSellerApplicationDialog implements SellerApplicationDialogPort {
+/** Creates seller-application forms for the embedded editor workspace. */
+public final class SellerApplicationForms {
     public enum CloseChoice { SAVE, DISCARD, CANCEL }
     @FunctionalInterface interface ClosePrompt { CloseChoice choose(Component parent); }
 
@@ -22,38 +20,16 @@ public final class SwingSellerApplicationDialog implements SellerApplicationDial
     private final Runnable sessionExpired;
     private final ClosePrompt closePrompt;
 
-    public SwingSellerApplicationDialog(SellerShopClientPort port, ShopUiKit uiKit,
+    public SellerApplicationForms(SellerShopClientPort port, ShopUiKit uiKit,
             Runnable sessionExpired) {
-        this(port, uiKit, sessionExpired, parent -> {
-            Object[] choices = {"保存草稿", "不保存", "取消"};
-            int selected = JOptionPane.showOptionDialog(parent, "申请内容尚未保存，是否保存草稿？",
-                    "关闭开店申请", JOptionPane.DEFAULT_OPTION, JOptionPane.WARNING_MESSAGE,
-                    null, choices, choices[0]);
-            return selected == 0 ? CloseChoice.SAVE
-                    : selected == 1 ? CloseChoice.DISCARD : CloseChoice.CANCEL;
-        });
+        this(port, uiKit, sessionExpired, parent -> CloseChoice.DISCARD);
     }
 
-    SwingSellerApplicationDialog(SellerShopClientPort port, ShopUiKit uiKit,
+    SellerApplicationForms(SellerShopClientPort port, ShopUiKit uiKit,
             Runnable sessionExpired, ClosePrompt closePrompt) {
         this.port = Objects.requireNonNull(port); this.uiKit = Objects.requireNonNull(uiKit);
         this.sessionExpired = Objects.requireNonNull(sessionExpired);
         this.closePrompt = Objects.requireNonNull(closePrompt);
-    }
-
-    @Override public void open(Component parent, Optional<SellerApplicationView> application,
-            Runnable changed) {
-        Window owner = SwingUtilities.getWindowAncestor(parent);
-        JDialog dialog = owner instanceof Frame frame ? new JDialog(frame, "开店申请", true)
-                : new JDialog((Frame) null, "开店申请", true);
-        dialog.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE);
-        Form form = createForm(application, changed, dialog::dispose);
-        dialog.setContentPane(form);
-        dialog.addWindowListener(new WindowAdapter() {
-            @Override public void windowClosing(WindowEvent event) { form.requestClose(); }
-        });
-        dialog.pack(); dialog.setMinimumSize(new Dimension(620, 520));
-        dialog.setLocationRelativeTo(parent); dialog.setVisible(true);
     }
 
     Form createForm(Optional<SellerApplicationView> application, Runnable changed, Runnable closed) {
@@ -170,6 +146,7 @@ public final class SwingSellerApplicationDialog implements SellerApplicationDial
                 Objects.toString(category.getSelectedItem(), "").trim(), contact.getText().trim(), statement.getText().trim()); }
         private void fail(Throwable failure) { String code = ShopUiErrors.code(failure);
             status.setText(ShopUiErrors.message(code)); if (ShopUiErrors.sessionExpired(code)) sessionExpired.run(); }
+        boolean dirty() { return !saved.equals(capture()); }
     }
 
     private record State(String name, String description, String category, String contact, String statement) {

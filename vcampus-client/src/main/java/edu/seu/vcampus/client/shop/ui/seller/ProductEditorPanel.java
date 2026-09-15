@@ -1,6 +1,7 @@
 package edu.seu.vcampus.client.shop.ui.seller;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
 import edu.seu.vcampus.client.shop.ui.style.ShopComponentStyle;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
 import edu.seu.vcampus.common.shop.*;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -22,6 +23,8 @@ public final class ProductEditorPanel extends JPanel {
     private final java.util.List<EditableSku> skus = new ArrayList<>();
     private ProductView current;
     private boolean writable = true;
+    private EmbeddedEditorHost skuHost;
+    private String initialState;
 
     public ProductEditorPanel(ShopUiKit uiKit) {
         super(new BorderLayout(8, 8));
@@ -46,19 +49,21 @@ public final class ProductEditorPanel extends JPanel {
         JPanel varieties = new JPanel(new BorderLayout(0, 6));
         varieties.add(varietyActions, BorderLayout.NORTH);
         varieties.add(new JScrollPane(table), BorderLayout.CENTER);
-        add(fields, BorderLayout.NORTH); add(varieties, BorderLayout.CENTER);
+        JPanel content = new JPanel(new BorderLayout(8, 8));
+        content.add(fields, BorderLayout.NORTH); content.add(varieties, BorderLayout.CENTER);
+        skuHost = new EmbeddedEditorHost(content); add(skuHost, BorderLayout.CENTER);
         clear("文具");
     }
     public void clear(String inheritedCategory) {
         current = null; name.setText(""); category.setText(inheritedCategory); description.setText("");
         covers.setCategory(inheritedCategory); covers.select(null); skus.clear();
-        skus.add(new EditableSku(null, "", java.math.BigDecimal.ZERO, 0, true, 0)); refreshSkus();
+        skus.add(new EditableSku(null, "", java.math.BigDecimal.ZERO, 0, true, 0)); refreshSkus(); initialState = state();
     }
     public void load(ProductView product) {
         current = product; name.setText(product.productName()); category.setText(product.category());
         description.setText(product.description()); covers.setCategory(product.category()); covers.select(product.coverImageUrl());
         skus.clear(); for (ProductSkuView sku : product.skus()) skus.add(new EditableSku(sku.skuId(), sku.skuName(),
-                sku.unitPrice(), sku.stockQuantity(), sku.active(), sku.rowVersion())); refreshSkus();
+                sku.unitPrice(), sku.stockQuantity(), sku.active(), sku.rowVersion())); refreshSkus(); initialState = state();
     }
     public CreateProductCommand createCommand() { return new CreateProductCommand(name.getText(), category.getText(),
             description.getText(), covers.selectedCoverId(), skus.stream().map(EditableSku::create).toList()); }
@@ -71,20 +76,23 @@ public final class ProductEditorPanel extends JPanel {
         description.setEnabled(writable); covers.setWritable(writable); table.setEnabled(writable); }
     private void editSku(int index) {
         EditableSku old = index >= 0 && index < skus.size() ? skus.get(index) : null;
-        SkuEditorDialog.show(this, old == null ? null : old.result()).ifPresent(result -> {
+        skuHost.showEditor(new SkuEditorPanel(old == null ? null : old.result(), result -> {
             EditableSku value = old == null ? EditableSku.created(result) : old.with(result);
-            if (old == null) skus.add(value); else skus.set(index, value); refreshSkus();
-        });
+            if (old == null) skus.add(value); else skus.set(index, value);
+            refreshSkus(); skuHost.completeAndClose();
+        }, () -> skuHost.requestClose()));
     }
     private void refreshSkus() { model.setRowCount(0); for (EditableSku sku : skus) model.addRow(new Object[]{
             sku.name, sku.price, sku.stock, sku.active ? "启用" : "停用", "双击编辑"}); }
     private record EditableSku(String id, String name, java.math.BigDecimal price, long stock, boolean active, long version) {
-        static EditableSku created(SkuEditorDialog.Result v) { return new EditableSku(null, v.name(), v.unitPrice(), v.stockQuantity(), v.active(), 0); }
-        EditableSku with(SkuEditorDialog.Result v) { return new EditableSku(id, v.name(), v.unitPrice(), v.stockQuantity(), v.active(), version); }
-        SkuEditorDialog.Result result() { return new SkuEditorDialog.Result(name, price, stock, active); }
+        static EditableSku created(SkuEditorPanel.Result v) { return new EditableSku(null, v.name(), v.unitPrice(), v.stockQuantity(), v.active(), 0); }
+        EditableSku with(SkuEditorPanel.Result v) { return new EditableSku(id, v.name(), v.unitPrice(), v.stockQuantity(), v.active(), version); }
+        SkuEditorPanel.Result result() { return new SkuEditorPanel.Result(name, price, stock, active); }
         CreateSkuCommand create() { return new CreateSkuCommand(name, price, stock, active); }
         UpsertSkuCommand update() { return new UpsertSkuCommand(id, name, price, stock, active, version); }
     }
     private static void row(JPanel panel, String label, JComponent component) { panel.add(new JLabel(label)); panel.add(component); }
     private static <T extends JComponent> T named(T value, String name) { value.setName(name); return value; }
+    boolean hasChanges() { return !Objects.equals(initialState, state()); }
+    private String state() { return name.getText() + "\0" + description.getText() + "\0" + skus; }
 }

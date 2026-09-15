@@ -5,6 +5,7 @@ import edu.seu.vcampus.client.shop.ui.ShopUiErrors;
 import edu.seu.vcampus.client.shop.ui.async.LatestRequest;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
 import edu.seu.vcampus.client.shop.ui.style.ShopComponentStyle;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
 import edu.seu.vcampus.common.shop.*;
 
 import javax.swing.*;
@@ -25,9 +26,13 @@ public final class ShopProfilePanel extends JPanel {
     private final JTextField contact = named(new JTextField(), "seller.profile.contact");
     private final JLabel status = named(new JLabel(), "seller.profile.status");
     private final JLabel suspension = named(new JLabel(), "seller.profile.suspension");
+    private final JLabel categorySummary = named(new JLabel(), "seller.profile.category-summary");
     private final JButton save;
+    private final JButton edit;
     private ShopView current;
     private boolean disposed;
+    private EmbeddedEditorHost editorHost;
+    private String initialState = "";
 
     public ShopProfilePanel(SellerShopClientPort port, ShopUiKit uiKit,
             Runnable sessionExpired, Consumer<ShopView> loaded) {
@@ -44,10 +49,21 @@ public final class ShopProfilePanel extends JPanel {
         JPanel form = uiKit.filterPanel("seller.profile.form", new GridLayout(0, 2, 8, 6));
         row(form, "店铺名称", name); row(form, "简介", new JScrollPane(description));
         row(form, "批准类别", category); row(form, "联系方式", contact);
-        row(form, "状态", status); row(form, "停业原因", suspension);
         save = uiKit.primaryButton("seller.profile.save", "保存资料");
         save.addActionListener(event -> save());
-        add(form, BorderLayout.CENTER); add(save, BorderLayout.SOUTH);
+        JPanel editor = new JPanel(new BorderLayout(8, 8));
+        editor.add(form); editor.add(save, BorderLayout.SOUTH);
+        JPanel summary = uiKit.filterPanel("seller.profile.summary", new GridLayout(0, 2, 8, 6));
+        row(summary, "批准类别", categorySummary);
+        row(summary, "状态", status); row(summary, "停业原因", suspension);
+        edit = uiKit.primaryButton("seller.profile.edit", "编辑资料");
+        edit.addActionListener(event -> {
+            if (current != null && current.status() == ShopStatus.ACTIVE) {
+                editorHost.showEditor(new ShopProfileEditorPanel(editor, this));
+            }
+        });
+        JPanel list = new JPanel(new BorderLayout(8, 8)); list.add(summary); list.add(edit, BorderLayout.SOUTH);
+        editorHost = new EmbeddedEditorHost(list); add(editorHost, BorderLayout.CENTER);
     }
 
     public void load() {
@@ -65,11 +81,13 @@ public final class ShopProfilePanel extends JPanel {
     private void render(ShopView shop) {
         current = shop; name.setText(shop.shopName()); description.setText(shop.description());
         category.setText(shop.category()); contact.setText(shop.contact());
+        categorySummary.setText(shop.category());
         status.setText(shop.status().name());
         suspension.setText(shop.suspensionReason() == null ? "" : shop.suspensionReason());
         boolean writable = shop.status() == ShopStatus.ACTIVE;
         name.setEnabled(writable); description.setEnabled(writable); contact.setEnabled(writable);
-        save.setEnabled(writable);
+        save.setEnabled(writable); edit.setEnabled(writable);
+        initialState = state();
     }
 
     private void save() {
@@ -78,7 +96,9 @@ public final class ShopProfilePanel extends JPanel {
                 current.category(), contact.getText(), current.rowVersion()))
                 .whenComplete((shop, failure) -> SwingUtilities.invokeLater(() -> {
                     if (disposed) return;
-                    if (failure != null) fail(failure); else { render(shop); loaded.accept(shop); }
+                    if (failure != null) fail(failure); else {
+                        render(shop); editorHost.completeAndClose(); loaded.accept(shop);
+                    }
                 }));
     }
 
@@ -93,4 +113,6 @@ public final class ShopProfilePanel extends JPanel {
     private static <T extends JComponent> T named(T component, String name) {
         component.setName(name); return component;
     }
+    boolean hasChanges() { return !initialState.equals(state()); }
+    private String state() { return name.getText() + "\0" + description.getText() + "\0" + contact.getText(); }
 }

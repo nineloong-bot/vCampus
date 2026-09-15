@@ -45,14 +45,7 @@ final class ApplicationDetailDialog {
             result[0] = new ApplicationReviewPanel.DetailReview(SellerReviewDecision.APPROVE, null);
             dialog.dispose();
         });
-        reject.addActionListener(event -> {
-            String reason = JOptionPane.showInputDialog(dialog, "请输入驳回原因");
-            if (reason != null && !reason.isBlank()) {
-                result[0] = new ApplicationReviewPanel.DetailReview(
-                        SellerReviewDecision.REJECT, reason.strip());
-                dialog.dispose();
-            }
-        });
+        reject.setVisible(false);
         close.addActionListener(event -> dialog.dispose());
         actions.add(close); actions.add(reject); actions.add(approve);
         content.add(actions, BorderLayout.SOUTH);

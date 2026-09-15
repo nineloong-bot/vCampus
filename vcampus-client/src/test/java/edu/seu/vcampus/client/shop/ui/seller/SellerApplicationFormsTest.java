@@ -18,12 +18,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-class SwingSellerApplicationDialogTest {
+class SellerApplicationFormsTest {
     @Test
-    void dialogRetainsLimitsAndMakesPendingReadOnlyButRejectedEditable() throws Exception {
+    void formRetainsLimitsAndMakesPendingReadOnlyButRejectedEditable() throws Exception {
         SellerShopClientPort port = mock(SellerShopClientPort.class);
-        SwingSellerApplicationDialog owner = new SwingSellerApplicationDialog(port,
-                new DefaultShopUiKit(), () -> { }, ignored -> SwingSellerApplicationDialog.CloseChoice.CANCEL);
+        SellerApplicationForms owner = new SellerApplicationForms(port,
+                new DefaultShopUiKit(), () -> { }, ignored -> SellerApplicationForms.CloseChoice.CANCEL);
         SellerApplicationView pending = new SellerApplicationView("a-1", "student-1", "校园店",
                 "简介", "文具", "13800000000", "经营计划", SellerApplicationStatus.PENDING,
                 null, null, null, null, 2);
@@ -53,8 +53,8 @@ class SwingSellerApplicationDialogTest {
         when(port.saveApplication(any())).thenReturn(CompletableFuture.completedFuture(draft(1)));
         AtomicInteger closed = new AtomicInteger();
         AtomicInteger changed = new AtomicInteger();
-        SwingSellerApplicationDialog owner = new SwingSellerApplicationDialog(port,
-                new DefaultShopUiKit(), () -> { }, ignored -> SwingSellerApplicationDialog.CloseChoice.CANCEL);
+        SellerApplicationForms owner = new SellerApplicationForms(port,
+                new DefaultShopUiKit(), () -> { }, ignored -> SellerApplicationForms.CloseChoice.CANCEL);
         var form = ShopSwingTestSupport.onEdt(() -> owner.createForm(Optional.empty(),
                 changed::incrementAndGet, closed::incrementAndGet));
         ShopSwingTestSupport.onEdt(() -> fill(form));
@@ -75,8 +75,8 @@ class SwingSellerApplicationDialogTest {
         when(port.saveApplication(any())).thenReturn(CompletableFuture.completedFuture(draft(3)));
         when(port.submitApplication(new SubmitSellerApplicationCommand("a-1", 3)))
                 .thenReturn(CompletableFuture.completedFuture(draft(4)));
-        SwingSellerApplicationDialog owner = new SwingSellerApplicationDialog(port,
-                new DefaultShopUiKit(), () -> { }, ignored -> SwingSellerApplicationDialog.CloseChoice.CANCEL);
+        SellerApplicationForms owner = new SellerApplicationForms(port,
+                new DefaultShopUiKit(), () -> { }, ignored -> SellerApplicationForms.CloseChoice.CANCEL);
         var form = ShopSwingTestSupport.onEdt(() -> owner.createForm(Optional.empty(), () -> { }, () -> { }));
         ShopSwingTestSupport.onEdt(() -> fill(form));
 
@@ -91,11 +91,11 @@ class SwingSellerApplicationDialogTest {
 
     @Test
     void dirtyCloseCanCancelDiscardOrSave() throws Exception {
-        for (SwingSellerApplicationDialog.CloseChoice choice : SwingSellerApplicationDialog.CloseChoice.values()) {
+        for (SellerApplicationForms.CloseChoice choice : SellerApplicationForms.CloseChoice.values()) {
             SellerShopClientPort port = mock(SellerShopClientPort.class);
             when(port.saveApplication(any())).thenReturn(CompletableFuture.completedFuture(draft(2)));
             AtomicInteger closed = new AtomicInteger();
-            SwingSellerApplicationDialog owner = new SwingSellerApplicationDialog(port,
+            SellerApplicationForms owner = new SellerApplicationForms(port,
                     new DefaultShopUiKit(), () -> { }, ignored -> choice);
             var form = ShopSwingTestSupport.onEdt(() -> owner.createForm(Optional.of(draft(1)),
                     () -> { }, closed::incrementAndGet));
@@ -105,8 +105,8 @@ class SwingSellerApplicationDialogTest {
             ShopSwingTestSupport.onEdt(form::requestClose);
             ShopSwingTestSupport.flushEdt();
 
-            assertThat(closed).hasValue(choice == SwingSellerApplicationDialog.CloseChoice.CANCEL ? 0 : 1);
-            if (choice == SwingSellerApplicationDialog.CloseChoice.SAVE) verify(port).saveApplication(any());
+            assertThat(closed).hasValue(choice == SellerApplicationForms.CloseChoice.CANCEL ? 0 : 1);
+            if (choice == SellerApplicationForms.CloseChoice.SAVE) verify(port).saveApplication(any());
             else verify(port, never()).saveApplication(any());
         }
     }

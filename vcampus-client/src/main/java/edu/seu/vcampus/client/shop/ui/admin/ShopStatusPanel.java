@@ -5,6 +5,7 @@ import edu.seu.vcampus.client.shop.ui.ShopUiErrors;
 import edu.seu.vcampus.client.shop.ui.async.LatestRequest;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
 import edu.seu.vcampus.client.shop.ui.style.ShopComponentStyle;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
 import edu.seu.vcampus.common.shop.*;
 
 import javax.swing.*;
@@ -27,6 +28,7 @@ public final class ShopStatusPanel extends JPanel {
     private final JLabel status = named(new JLabel(), "admin.shops.status");
     private final List<ShopAdminSummary> rows = new ArrayList<>();
     private boolean disposed;
+    private EmbeddedEditorHost editorHost;
 
     public ShopStatusPanel(AdminShopClientPort port, ShopUiKit uiKit, Runnable sessionExpired) {
         super(new BorderLayout(8, 8));
@@ -38,14 +40,15 @@ public final class ShopStatusPanel extends JPanel {
         JButton suspend = uiKit.secondaryButton("admin.shops.suspend", "停业");
         JButton resume = uiKit.primaryButton("admin.shops.resume", "恢复营业");
         suspend.addActionListener(event -> {
-            String reason = JOptionPane.showInputDialog(this, "请输入停业原因");
-            if (reason != null && !reason.isBlank()) suspend(reason.strip());
+            if (selected() != null) editorHost.showEditor(new edu.seu.vcampus.client.shop.ui.ShopReasonEditorPanel(
+                    "停业原因", this::suspend, () -> editorHost.requestClose()));
         });
         resume.addActionListener(event -> resume());
         JPanel actions = uiKit.filterPanel("admin.shops.actions", new java.awt.FlowLayout());
         actions.add(suspend); actions.add(resume); actions.add(status);
-        add(new JScrollPane(table), BorderLayout.CENTER);
-        add(actions, BorderLayout.SOUTH);
+        JPanel list = new JPanel(new BorderLayout(8, 8));
+        list.add(new JScrollPane(table)); list.add(actions, BorderLayout.SOUTH);
+        editorHost = new EmbeddedEditorHost(list); add(editorHost);
     }
 
     public void load() {
@@ -84,7 +87,8 @@ public final class ShopStatusPanel extends JPanel {
     }
 
     private void finishMutation(Throwable failure) {
-        SwingUtilities.invokeLater(() -> { if (failure != null) fail(failure); else load(); });
+        SwingUtilities.invokeLater(() -> { if (failure != null) fail(failure);
+            else { editorHost.completeAndClose(); load(); } });
     }
 
     private void fail(Throwable failure) {

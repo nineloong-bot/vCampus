@@ -5,6 +5,7 @@ import edu.seu.vcampus.client.shop.ui.ShopUiErrors;
 import edu.seu.vcampus.client.shop.ui.async.LatestRequest;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
 import edu.seu.vcampus.client.shop.ui.style.ShopComponentStyle;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
 import edu.seu.vcampus.common.shop.SellerApplicationStatus;
 import edu.seu.vcampus.common.shop.SellerApplicationView;
 import javax.swing.*;
@@ -30,19 +31,20 @@ public final class SellerApplicationPanel extends JPanel {
     private final JLabel name = named(new JLabel(), "seller.application.summary-name");
     private final JButton refresh;
     private final JButton edit;
+    private EmbeddedEditorHost editorHost;
+    private final ShopUiKit uiKit;
     private Optional<SellerApplicationView> current = Optional.empty();
     private boolean disposed;
 
     public SellerApplicationPanel(SellerShopClientPort port, ShopUiKit uiKit, Runnable sessionExpired) {
-        this(port, uiKit, sessionExpired, new SwingSellerApplicationDialog(port, uiKit, sessionExpired),
-                ignored -> { });
+        this(port, uiKit, sessionExpired, null, ignored -> { });
     }
 
     public static SellerApplicationPanel withApprovalNavigation(SellerShopClientPort port,
             ShopUiKit uiKit, Runnable sessionExpired,
             Consumer<SellerApplicationView> applicationApproved) {
         return new SellerApplicationPanel(port, uiKit, sessionExpired,
-                new SwingSellerApplicationDialog(port, uiKit, sessionExpired), applicationApproved);
+                null, applicationApproved);
     }
 
     SellerApplicationPanel(SellerShopClientPort port, ShopUiKit uiKit, Runnable sessionExpired,
@@ -55,7 +57,8 @@ public final class SellerApplicationPanel extends JPanel {
         super(new BorderLayout(8, 8));
         ShopComponentStyle.pagePanel(this);
         this.port = Objects.requireNonNull(port); this.sessionExpired = Objects.requireNonNull(sessionExpired);
-        this.dialog = Objects.requireNonNull(dialog);
+        this.dialog = dialog;
+        this.uiKit = Objects.requireNonNull(uiKit);
         this.applicationApproved = Objects.requireNonNull(applicationApproved);
         Objects.requireNonNull(uiKit);
         JPanel summary = uiKit.filterPanel("seller.application.summary", new GridLayout(0, 2, 8, 8));
@@ -64,16 +67,18 @@ public final class SellerApplicationPanel extends JPanel {
         refresh = uiKit.secondaryButton("seller.application.refresh", "刷新");
         edit = uiKit.primaryButton("seller.application.edit", "填写申请");
         refresh.addActionListener(event -> load());
-        edit.addActionListener(event -> dialog.open(this, current, this::load));
+        edit.addActionListener(event -> openEditor());
         JPanel actions = uiKit.filterPanel("seller.application.actions", new FlowLayout());
         actions.add(refresh); actions.add(edit);
-        add(summary, BorderLayout.CENTER); add(actions, BorderLayout.SOUTH);
+        JPanel list = new JPanel(new BorderLayout(8, 8));
+        list.add(summary, BorderLayout.CENTER); list.add(actions, BorderLayout.SOUTH);
+        editorHost = new EmbeddedEditorHost(list); add(editorHost, BorderLayout.CENTER);
     }
 
     public SellerApplicationPanel(SellerShopClientPort port, ShopUiKit uiKit,
             Runnable sessionExpired, LeavePrompt ignored) {
         this(port, uiKit, sessionExpired,
-                new SwingSellerApplicationDialog(port, uiKit, sessionExpired), value -> { });
+                null, value -> { });
     }
 
     public void load() {
@@ -95,6 +100,14 @@ public final class SellerApplicationPanel extends JPanel {
 
     public void requestLeave(Runnable proceed) { proceed.run(); }
     public void disposePage() { disposed = true; requests.dispose(); }
+
+    private void openEditor() {
+        if (dialog != null) { dialog.open(this, current, this::load); return; }
+        SellerApplicationForms forms = new SellerApplicationForms(port, uiKit, sessionExpired);
+        SellerApplicationForms.Form form = forms.createForm(current, this::load,
+                () -> editorHost.completeAndClose());
+        editorHost.showEditor(new SellerApplicationEditorPanel(form));
+    }
 
     private void render(Optional<SellerApplicationView> value) {
         current = value;

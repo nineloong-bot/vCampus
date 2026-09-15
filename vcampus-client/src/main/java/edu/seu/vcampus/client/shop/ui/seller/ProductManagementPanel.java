@@ -5,6 +5,7 @@ import edu.seu.vcampus.client.shop.ui.ShopUiErrors;
 import edu.seu.vcampus.client.shop.ui.async.LatestRequest;
 import edu.seu.vcampus.client.shop.ui.style.ShopUiKit;
 import edu.seu.vcampus.client.shop.ui.style.ShopComponentStyle;
+import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
 import edu.seu.vcampus.common.shop.*;
 
 import javax.swing.*;
@@ -27,7 +28,8 @@ public final class ProductManagementPanel extends JPanel {
     private final DefaultTableModel activeModel = model(), inactiveModel = model();
     private final JTable activeTable = named(new JTable(activeModel), "seller.products.active-table");
     private final JTable inactiveTable = named(new JTable(inactiveModel), "seller.products.inactive-table");
-    private final ProductEditorDialogPort dialogs;
+    private final ShopUiKit uiKit;
+    private final EmbeddedEditorHost editorHost;
     private final JLabel status = named(new JLabel(), "seller.products.status");
     private final JButton create;
     private final JButton update;
@@ -41,16 +43,11 @@ public final class ProductManagementPanel extends JPanel {
 
     public ProductManagementPanel(SellerShopClientPort port, ShopUiKit uiKit,
             Runnable sessionExpired) {
-        this(port, uiKit, sessionExpired, new SwingProductEditorDialogs(uiKit));
-    }
-
-    ProductManagementPanel(SellerShopClientPort port, ShopUiKit uiKit,
-            Runnable sessionExpired, ProductEditorDialogPort dialogs) {
         super(new BorderLayout(8, 8));
         ShopComponentStyle.pagePanel(this);
         this.port = Objects.requireNonNull(port, "port");
         this.sessionExpired = Objects.requireNonNull(sessionExpired, "sessionExpired");
-        this.dialogs = Objects.requireNonNull(dialogs, "dialogs");
+        this.uiKit = Objects.requireNonNull(uiKit, "uiKit");
         ShopComponentStyle.styleTable(activeTable, true);
         ShopComponentStyle.styleTable(inactiveTable, true);
         installSelection(activeTable, inactiveTable);
@@ -65,8 +62,9 @@ public final class ProductManagementPanel extends JPanel {
         actions.add(create); actions.add(update); actions.add(toggle); actions.add(status);
         JPanel columns = uiKit.filterPanel("seller.products.columns", new java.awt.GridLayout(1, 2, 12, 0));
         columns.add(titled("上架商品", activeTable)); columns.add(titled("下架商品（含草稿）", inactiveTable));
-        add(columns, BorderLayout.CENTER);
-        add(actions, BorderLayout.SOUTH);
+        JPanel list = new JPanel(new BorderLayout(8, 8));
+        list.add(columns, BorderLayout.CENTER); list.add(actions, BorderLayout.SOUTH);
+        editorHost = new EmbeddedEditorHost(list); add(editorHost, BorderLayout.CENTER);
     }
 
     public void load() {
@@ -129,27 +127,31 @@ public final class ProductManagementPanel extends JPanel {
 
     private void create() {
         if (!writable) return;
+        ProductEditorPanel editor = new ProductEditorPanel(uiKit); editor.clear(shopCategory);
+        editorHost.showEditor(new ProductEditorWorkspace(editor, true,
+                this::submitCreate, ignored -> { }, () -> editorHost.requestClose()));
+    }
+    private void update() {
+        if (!writable || selectedProduct == null) return;
+        ProductEditorPanel editor = new ProductEditorPanel(uiKit); editor.load(selectedProduct);
+        editorHost.showEditor(new ProductEditorWorkspace(editor, false,
+                ignored -> { }, this::submitUpdate, () -> editorHost.requestClose()));
+    }
+    private void submitCreate(CreateProductCommand command) {
         try {
-            dialogs.create(this, shopCategory).ifPresent(command ->
-                    port.createOwnedProduct(command).whenComplete((ignored, failure) ->
-                            SwingUtilities.invokeLater(() -> {
-                                if (failure != null) fail(failure); else load();
-                            })));
+            port.createOwnedProduct(command).whenComplete((ignored, failure) -> SwingUtilities.invokeLater(() -> {
+                if (failure != null) fail(failure); else { editorHost.completeAndClose(); load(); }
+            }));
         } catch (RuntimeException failure) {
             status.setText(ShopUiErrors.message("COMMON_VALIDATION_FAILED"));
         }
     }
-    private void update() {
-        if (!writable || selectedProduct == null) return;
+    private void submitUpdate(UpdateProductCommand command) {
         try {
-            dialogs.update(this, selectedProduct).ifPresent(command ->
-                    port.updateOwnedProduct(command).whenComplete((ignored, failure) ->
-                            SwingUtilities.invokeLater(() -> {
-                                if (failure != null) fail(failure); else load();
-                            })));
-        } catch (RuntimeException failure) {
-            status.setText(ShopUiErrors.message("COMMON_VALIDATION_FAILED"));
-        }
+            port.updateOwnedProduct(command).whenComplete((ignored, failure) -> SwingUtilities.invokeLater(() -> {
+                if (failure != null) fail(failure); else { editorHost.completeAndClose(); load(); }
+            }));
+        } catch (RuntimeException failure) { status.setText(ShopUiErrors.message("COMMON_VALIDATION_FAILED")); }
     }
     private void toggle() {
         ProductManagementSummary value = selectedSummary();
