@@ -37,7 +37,9 @@ final class AccessCatalogRepository {
 
     List<Term> findTerms(Connection c) {
         List<Term> values = new ArrayList<>();
-        try (PreparedStatement s = c.prepareStatement("SELECT * FROM tblTerm ORDER BY termCode DESC"); ResultSet r = s.executeQuery()) {
+        try (PreparedStatement s = c.prepareStatement(
+                "SELECT * FROM tblTerm WHERE season IN ('AUTUMN','SPRING') ORDER BY termCode DESC");
+                ResultSet r = s.executeQuery()) {
             while (r.next()) values.add(term(r)); return values;
         } catch (SQLException error) { throw CourseJdbc.failure("list terms", error); }
     }

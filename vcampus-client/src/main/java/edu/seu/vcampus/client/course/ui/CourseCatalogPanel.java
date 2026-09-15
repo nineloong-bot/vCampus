@@ -29,7 +29,7 @@ public final class CourseCatalogPanel extends AbstractCoursePanel {
     private final CourseUiGateway gateway;
     private final JTextField keyword = new JTextField();
     private final JCheckBox activeOnly = new JCheckBox("仅显示启用课程");
-    private final DefaultTableModel model = readOnlyModel("课程代码", "课程名称", "学分", "总学时", "状态", "版本");
+    private final DefaultTableModel model = readOnlyModel("课程代码", "课程名称", "学分", "总学时", "状态", "开课学院");
     private final JTable table = table(new Object[0][0], new Object[0]);
     private final List<CourseView> courses = new ArrayList<>();
     private final CoursePager pager;
@@ -115,7 +115,7 @@ public final class CourseCatalogPanel extends AbstractCoursePanel {
             courses.addAll(page.items());
             for (CourseView row : page.items()) model.addRow(new Object[]{
                     row.courseCode(), row.courseName(), row.credit().stripTrailingZeros().toPlainString(), row.totalHours(),
-                    row.active() ? "启用" : "已停用", "v" + row.rowVersion()});
+                    row.active() ? "启用" : "已停用", college(row)});
             pager.showPage(page.page(), page.total());
             showState(page.items().isEmpty() ? ViewState.EMPTY : ViewState.NORMAL,
                     page.items().isEmpty() ? "未找到符合条件的课程，请调整查询条件" : "");
@@ -139,5 +139,10 @@ public final class CourseCatalogPanel extends AbstractCoursePanel {
 
     private static DefaultTableModel readOnlyModel(Object... columns) {
         return new DefaultTableModel(columns, 0) { public boolean isCellEditable(int row, int column) { return false; } };
+    }
+
+    private static String college(CourseView course) {
+        return course.departmentName() == null || course.departmentName().isBlank()
+                ? "未设置" : course.departmentName();
     }
 }

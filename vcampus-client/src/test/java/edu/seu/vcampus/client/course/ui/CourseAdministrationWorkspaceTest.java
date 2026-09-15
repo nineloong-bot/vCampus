@@ -5,6 +5,7 @@ import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
 import org.junit.jupiter.api.Test;
 
 import javax.swing.JButton;
+import javax.swing.JTable;
 import javax.swing.SwingUtilities;
 import java.awt.Component;
 import java.awt.Container;
@@ -24,6 +25,10 @@ class CourseAdministrationWorkspaceTest {
         EmbeddedEditorHost termHost = descendant(terms, EmbeddedEditorHost.class);
         assertThat(catalogHost.isEditorOpen()).isFalse();
         assertThat(termHost.isEditorOpen()).isFalse();
+        assertThat(columns(descendant(catalog, JTable.class)))
+                .containsExactly("课程代码", "课程名称", "学分", "总学时", "状态", "开课学院");
+        assertThat(columns(descendant(terms, JTable.class)))
+                .containsExactly("学期代码", "学期名称", "开学日期", "结束日期", "状态");
 
         onEdt(() -> button(catalog, "新建课程").doClick());
         onEdt(() -> button(terms, "新建学期").doClick());
@@ -76,6 +81,14 @@ class CourseAdministrationWorkspaceTest {
     }
 
     private static void flushEdt() throws Exception { SwingUtilities.invokeAndWait(() -> { }); }
+
+    private static List<String> columns(JTable table) {
+        List<String> result = new ArrayList<>();
+        for (int index = 0; index < table.getColumnCount(); index++) {
+            result.add(table.getColumnName(index));
+        }
+        return result;
+    }
 
     private static <T> T onEdt(java.util.concurrent.Callable<T> work) throws Exception {
         java.util.concurrent.atomic.AtomicReference<T> result = new java.util.concurrent.atomic.AtomicReference<>();

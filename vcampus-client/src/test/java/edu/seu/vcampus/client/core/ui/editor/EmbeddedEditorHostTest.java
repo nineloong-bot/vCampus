@@ -5,7 +5,6 @@ import org.junit.jupiter.api.Test;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JSplitPane;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -13,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class EmbeddedEditorHostTest {
     @Test
-    void startsClosedAndAdaptsCompactEditorPlacement() {
+    void startsClosedAndReplacesListWithEditor() {
         JPanel list = new JPanel();
         AtomicBoolean confirm = new AtomicBoolean(false);
         EmbeddedEditorHost host = new EmbeddedEditorHost(list, owner -> confirm.get());
@@ -25,13 +24,12 @@ class EmbeddedEditorHostTest {
 
         host.setAvailableWidthForTest(1400);
         host.showEditor(editor);
-        assertThat(host.currentPlacement()).isEqualTo(EditorPlacement.RIGHT);
-        assertThat(split(host).getOrientation()).isEqualTo(JSplitPane.HORIZONTAL_SPLIT);
+        assertThat(host.getComponentCount()).isEqualTo(1);
+        assertThat(host.getComponent(0)).isSameAs(editor.component());
         assertThat(editor.opened).isEqualTo(1);
 
         host.setAvailableWidthForTest(900);
-        assertThat(host.currentPlacement()).isEqualTo(EditorPlacement.BOTTOM);
-        assertThat(split(host).getOrientation()).isEqualTo(JSplitPane.VERTICAL_SPLIT);
+        assertThat(host.getComponent(0)).isSameAs(editor.component());
         assertThat(editor.opened).isEqualTo(1);
 
         assertThat(host.requestClose()).isFalse();
@@ -45,7 +43,7 @@ class EmbeddedEditorHostTest {
     }
 
     @Test
-    void wideEditorAlwaysUsesBottomAndDirtyReplacementNeedsConfirmation() {
+    void wideEditorAlsoReplacesListAndDirtyReplacementNeedsConfirmation() {
         JPanel list = new JPanel();
         AtomicBoolean confirm = new AtomicBoolean(false);
         EmbeddedEditorHost host = new EmbeddedEditorHost(list, owner -> confirm.get());
@@ -62,8 +60,7 @@ class EmbeddedEditorHostTest {
 
         confirm.set(true);
         assertThat(host.showEditor(wide)).isTrue();
-        assertThat(host.currentPlacement()).isEqualTo(EditorPlacement.BOTTOM);
-        assertThat(split(host).getOrientation()).isEqualTo(JSplitPane.VERTICAL_SPLIT);
+        assertThat(host.getComponent(0)).isSameAs(wide.component());
         assertThat(first.closed).isEqualTo(1);
         assertThat(wide.opened).isEqualTo(1);
         assertThat(host.isCurrent(firstGeneration)).isFalse();
@@ -85,10 +82,6 @@ class EmbeddedEditorHostTest {
 
         assertThat(host.isEditorOpen()).isTrue();
         assertThat(second.closed).isZero();
-    }
-
-    private static JSplitPane split(EmbeddedEditorHost host) {
-        return (JSplitPane) host.getComponent(0);
     }
 
     private static final class RecordingEditor implements EmbeddedEditor {

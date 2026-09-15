@@ -16,6 +16,7 @@ public final class LoanAdminPanel extends LibraryDataPanel {
     private final JComboBox<String> loanStatus = new JComboBox<>(new String[]{"全部状态", "ACTIVE", "OVERDUE", "RETURNED", "LOST"});
     private List<LoanView> loans = List.of();
     private final EmbeddedEditorHost editorHost;
+    private final LibraryPagination pagination = new LibraryPagination(this::loadPage);
 
     public LoanAdminPanel(LibraryClientService service) {
         super("library.loan-admin", "借阅管理", "查询全校借阅；归还或遗失登记时计算罚金，仅登记金额。", "借阅号", "借阅人", "副本", "到期时间", "状态", "归还情况", "逾期罚金（元）", "赔偿（元）", "罚金合计（元）");
@@ -25,21 +26,28 @@ public final class LoanAdminPanel extends LibraryDataPanel {
         JButton markLost = new JButton("标记遗失"); markLost.addActionListener(event -> confirmSelected(LoanStatus.LOST));
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT)); actions.setOpaque(false);
         actions.add(new JLabel("账号（精确查询）")); actions.add(borrower); actions.add(loanStatus);
-        actions.add(refresh); actions.add(returnBook); actions.add(markLost); add(actions, BorderLayout.SOUTH);
+        actions.add(refresh); actions.add(returnBook); actions.add(markLost); actions.add(pagination);
+        add(actions, BorderLayout.SOUTH);
         editorHost = installEditorHost();
         borrower.addActionListener(event -> refresh());
     }
 
-    public void refresh() {
+    public void refresh() { loadPage(1); }
+
+    private void loadPage(int pageNumber) {
         long request = beginRequest();
         status.setText("正在加载全校借阅……");
         String selected = (String) loanStatus.getSelectedItem();
         LoanStatus filter = "全部状态".equals(selected) ? null : LoanStatus.valueOf(selected);
         String user = borrower.getText().trim();
-        service.searchAllLoans(new AdminLoanSearchQuery(user.isEmpty() ? null : user, filter, 1, 20)).whenComplete((page, failure) ->
+        pagination.setLoading(true);
+        service.searchAllLoans(new AdminLoanSearchQuery(user.isEmpty() ? null : user, filter,
+                pageNumber, 20)).whenComplete((page, failure) ->
                 SwingUtilities.invokeLater(() -> {
                     if (!accepts(request)) return;
+                    pagination.setLoading(false);
                     if (failure != null) { LibraryFeedback.failure(this, status, failure, "借阅记录加载失败，请重试。"); return; }
+                    pagination.showPage(page.page(), page.pageSize(), page.total());
                     loans = List.copyOf(page.items());
                     DefaultTableModel model = (DefaultTableModel) table.getModel(); model.setRowCount(0);
                     for (LoanView loan : loans) model.addRow(new Object[]{

@@ -16,6 +16,7 @@ public final class BookManagementPanel extends LibraryDataPanel {
     private final EmbeddedEditorHost editorHost;
     private boolean refreshing;
     private List<BookSummary> books = List.of();
+    private final LibraryPagination pagination = new LibraryPagination(this::loadPage);
     public BookManagementPanel(LibraryClientService service) {
         super("library.book-management", "书目管理", "选择左侧书目，在右侧管理馆藏副本。", "ISBN", "书名", "作者", "状态");
         this.service = Objects.requireNonNull(service, "service");
@@ -30,7 +31,8 @@ public final class BookManagementPanel extends LibraryDataPanel {
         filters.add(keyword); filters.add(field); filters.add(refresh);
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT)); buttons.setOpaque(false);
         buttons.add(edit); buttons.add(create);
-        actions.add(filters); actions.add(buttons); add(actions, BorderLayout.SOUTH);
+        actions.add(filters); actions.add(buttons); actions.add(pagination);
+        add(actions, BorderLayout.SOUTH);
         editorHost = installEditorHost();
         keyword.addActionListener(event -> refresh());
         table.getSelectionModel().addListSelectionListener(event -> {
@@ -92,13 +94,18 @@ public final class BookManagementPanel extends LibraryDataPanel {
         }));
     }
 
-    public void refresh() {
+    public void refresh() { loadPage(1); }
+
+    private void loadPage(int pageNumber) {
         long request = beginRequest(); status.setText("正在加载书目……");
+        pagination.setLoading(true);
         service.searchManagedBooks(new BookSearchQuery(keyword.getText().trim(),
-                BookSearchField.values()[field.getSelectedIndex()], null, false, 1, 100)).whenComplete((page, failure) ->
+                BookSearchField.values()[field.getSelectedIndex()], null, false, pageNumber, 20)).whenComplete((page, failure) ->
                 SwingUtilities.invokeLater(() -> {
                     if (!accepts(request)) return;
+                    pagination.setLoading(false);
                     if (failure != null) { LibraryFeedback.failure(this, status, failure, "书目加载失败，请重试。"); return; }
+                    pagination.showPage(page.page(), page.pageSize(), page.total());
                     BookSummary selected = selectedBook();
                     refreshing = true;
                     books = List.copyOf(page.items()); DefaultTableModel model = (DefaultTableModel) table.getModel();

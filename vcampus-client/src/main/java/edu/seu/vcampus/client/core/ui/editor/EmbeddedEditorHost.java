@@ -2,11 +2,7 @@ package edu.seu.vcampus.client.core.ui.editor;
 
 import javax.swing.JComponent;
 import javax.swing.JPanel;
-import javax.swing.JSplitPane;
 import java.awt.BorderLayout;
-import java.awt.Dimension;
-import java.awt.event.ComponentAdapter;
-import java.awt.event.ComponentEvent;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
@@ -17,7 +13,6 @@ public final class EmbeddedEditorHost extends JPanel {
     private final JComponent list;
     private final DiscardChangesConfirmation confirmation;
     private EmbeddedEditor editor;
-    private JSplitPane split;
     private EditorPlacement placement;
     private int widthOverride = -1;
     private long generation;
@@ -33,9 +28,6 @@ public final class EmbeddedEditorHost extends JPanel {
         this.list = Objects.requireNonNull(list, "list");
         this.confirmation = Objects.requireNonNull(confirmation, "confirmation");
         add(list, BorderLayout.CENTER);
-        addComponentListener(new ComponentAdapter() {
-            @Override public void componentResized(ComponentEvent event) { updatePlacement(); }
-        });
     }
 
     /** Opens or replaces the current editor, returning false when discard is rejected. */
@@ -44,13 +36,10 @@ public final class EmbeddedEditorHost extends JPanel {
         if (editor != null && editor.isDirty() && !confirmation.confirm(this)) return false;
         if (editor != null) detachEditor();
         editor = next;
-        split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, list, next.component());
-        split.setResizeWeight(0.68);
-        split.setContinuousLayout(true);
         removeAll();
-        add(split, BorderLayout.CENTER);
+        add(next.component(), BorderLayout.CENTER);
+        placement = resolvePlacement();
         generation++;
-        updatePlacement();
         next.onOpened();
         revalidate();
         repaint();
@@ -110,7 +99,7 @@ public final class EmbeddedEditorHost extends JPanel {
 
     void setAvailableWidthForTest(int width) {
         widthOverride = width;
-        updatePlacement();
+        if (editor != null) placement = resolvePlacement();
     }
 
     private void closeEditor() {
@@ -118,7 +107,6 @@ public final class EmbeddedEditorHost extends JPanel {
         removeAll();
         add(list, BorderLayout.CENTER);
         placement = null;
-        split = null;
         revalidate();
         repaint();
     }
@@ -130,23 +118,11 @@ public final class EmbeddedEditorHost extends JPanel {
         previous.onClosed();
     }
 
-    private void updatePlacement() {
-        if (editor == null || split == null) return;
-        EditorPlacement next = resolvePlacement();
-        if (next == placement) return;
-        placement = next;
-        split.setOrientation(next == EditorPlacement.RIGHT
-                ? JSplitPane.HORIZONTAL_SPLIT : JSplitPane.VERTICAL_SPLIT);
-        split.setDividerLocation(next == EditorPlacement.RIGHT ? 0.68 : 0.55);
-    }
-
     private EditorPlacement resolvePlacement() {
         if (editor.size() == EditorSize.WIDE) return EditorPlacement.BOTTOM;
         int available = widthOverride >= 0 ? widthOverride : getWidth();
-        Dimension listMinimum = list.getMinimumSize();
-        Dimension editorMinimum = editor.component().getMinimumSize();
-        int required = listMinimum.width + editorMinimum.width + 16;
-        return available >= RIGHT_PLACEMENT_WIDTH && available >= required
+        return available <= 0 || available >= RIGHT_PLACEMENT_WIDTH
                 ? EditorPlacement.RIGHT : EditorPlacement.BOTTOM;
     }
+
 }

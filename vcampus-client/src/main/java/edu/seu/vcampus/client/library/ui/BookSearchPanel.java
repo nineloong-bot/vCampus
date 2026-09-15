@@ -16,6 +16,7 @@ public final class BookSearchPanel extends LibraryDataPanel {
     private final JComboBox<String> field = new JComboBox<>(new String[]{
             "全部栏目", "书名", "作者", "ISBN", "分类", "出版社"});
     private final JButton search = new JButton("查询馆藏");
+    private final LibraryPagination pagination = new LibraryPagination(this::loadPage);
     private List<BookSummary> books = List.of();
     private BookDetailPanel detail;
 
@@ -33,7 +34,11 @@ public final class BookSearchPanel extends LibraryDataPanel {
         field.setName("library.book-search-field");
         filters.add(field);
         filters.add(search);
-        add(filters, BorderLayout.SOUTH);
+        JPanel footer = new JPanel(new BorderLayout());
+        footer.setOpaque(false);
+        footer.add(filters, BorderLayout.CENTER);
+        footer.add(pagination, BorderLayout.SOUTH);
+        add(footer, BorderLayout.SOUTH);
         search.addActionListener(event -> search());
         keyword.addActionListener(event -> search());
         table.getSelectionModel().addListSelectionListener(event -> {
@@ -43,22 +48,27 @@ public final class BookSearchPanel extends LibraryDataPanel {
 
     public void connectDetail(BookDetailPanel detail) { this.detail = Objects.requireNonNull(detail); }
 
-    public void search() {
+    public void search() { loadPage(1); }
+
+    private void loadPage(int pageNumber) {
         int selectedRow = table.getSelectedRow();
         String selectedBookId = selectedRow < 0 ? null : books.get(table.convertRowIndexToModel(selectedRow)).bookId();
         long request = beginRequest();
         search.setEnabled(false);
         status.setText("正在加载馆藏……");
+        pagination.setLoading(true);
         service.searchBooks(new BookSearchQuery(keyword.getText().trim(), selectedField(),
-                null, false, 1, 20))
+                null, false, pageNumber, 20))
                 .whenComplete((page, failure) -> SwingUtilities.invokeLater(() -> {
                     if (!accepts(request)) return;
                     search.setEnabled(true);
+                    pagination.setLoading(false);
                     if (failure != null) {
                         LibraryFeedback.failure(this, status, failure, "馆藏加载失败，请重试。");
                         return;
                     }
                     books = List.copyOf(page.items());
+                    pagination.showPage(page.page(), page.pageSize(), page.total());
                     DefaultTableModel model = (DefaultTableModel) table.getModel();
                     model.setRowCount(0);
                     for (BookSummary book : page.items()) model.addRow(new Object[]{book.title(),
