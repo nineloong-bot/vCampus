@@ -237,11 +237,11 @@ class LoginCourseSocketIntegrationTest {
     @Test
     void restrictedAccountCanChangeTheSimplifiedPasswordAcceptedAtLogin() {
         LoginResult restricted = users.login(
-                "RESTRICTED1", "Test12345".toCharArray()).join();
+                "RESTRICTED1", "123456".toCharArray()).join();
         assertThat(restricted.mustChangePassword()).isTrue();
 
         users.changePassword(
-                "Test12345".toCharArray(), "Replacement8".toCharArray()).join();
+                "123456".toCharArray(), "Replacement8".toCharArray()).join();
 
         LoginResult changed = users.login(
                 "RESTRICTED1", "Replacement8".toCharArray()).join();

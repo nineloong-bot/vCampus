@@ -32,6 +32,19 @@ class GenerationTest(unittest.TestCase):
         self.assertEqual({150}, set(majors.values()))
         self.assertEqual(64, len(rows["tblClass"]))
 
+    def test_electronic_information_major_has_its_own_college(self):
+        fast_password = dict(passwordHash="hash", passwordSalt="salt", passwordIterations=1)
+        with patch.object(people, "credentials", return_value=fast_password):
+            rows = self.capture(people.generate)
+
+        departments = {row["departmentId"]: row["departmentName"]
+                       for row in rows["tblDepartment"]}
+        majors = {row["majorId"]: row["departmentId"] for row in rows["tblMajor"]}
+        self.assertEqual(9, len(departments))
+        self.assertEqual("信息科学与工程学院", departments["bulk-dept-09"])
+        self.assertEqual("bulk-dept-09", majors["bulk-major-12"])
+        self.assertEqual("bulk-dept-06", majors["bulk-major-11"])
+
     def test_student_accounts_encode_their_enrollment_year(self):
         fast_password = dict(passwordHash="hash", passwordSalt="salt", passwordIterations=1)
         with patch.object(people, "credentials", return_value=fast_password):

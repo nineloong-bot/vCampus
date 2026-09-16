@@ -12,6 +12,7 @@ import edu.seu.vcampus.server.student.repository.OrganizationRepository;
 import edu.seu.vcampus.server.student.repository.StudentRepository;
 import edu.seu.vcampus.server.student.repository.TrainingPlanException;
 import edu.seu.vcampus.server.student.repository.TrainingPlanRepository;
+import edu.seu.vcampus.server.user.service.UserQueryPort;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -30,27 +31,31 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
     private final TrainingPlanRepository plans;
     private final StudentRepository students;
     private final OrganizationRepository organizations;
+    private final UserQueryPort users;
     private final edu.seu.vcampus.server.student.repository.CoursePoolRepository coursePool;
     private final edu.seu.vcampus.server.student.repository.CrossCourseApplicationRepository crossApplications;
 
     public TrainingPlanServiceImpl(TransactionManager transactions, ResourceLockManager locks,
             TrainingPlanRepository plans, StudentRepository students,
-            OrganizationRepository organizations) {
+            OrganizationRepository organizations, UserQueryPort users) {
         this(transactions, locks, plans, students, organizations,
                 new edu.seu.vcampus.server.student.repository.CoursePoolRepository(),
-                new edu.seu.vcampus.server.student.repository.CrossCourseApplicationRepository());
+                new edu.seu.vcampus.server.student.repository.CrossCourseApplicationRepository(),
+                users);
     }
 
     public TrainingPlanServiceImpl(TransactionManager transactions, ResourceLockManager locks,
             TrainingPlanRepository plans, StudentRepository students,
             OrganizationRepository organizations,
             edu.seu.vcampus.server.student.repository.CoursePoolRepository coursePool,
-            edu.seu.vcampus.server.student.repository.CrossCourseApplicationRepository crossApplications) {
+            edu.seu.vcampus.server.student.repository.CrossCourseApplicationRepository crossApplications,
+            UserQueryPort users) {
         this.transactions = Objects.requireNonNull(transactions);
         this.locks = Objects.requireNonNull(locks);
         this.plans = Objects.requireNonNull(plans);
         this.students = Objects.requireNonNull(students);
         this.organizations = Objects.requireNonNull(organizations);
+        this.users = Objects.requireNonNull(users);
         this.coursePool = Objects.requireNonNull(coursePool);
         this.crossApplications = Objects.requireNonNull(crossApplications);
     }
@@ -265,9 +270,10 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
         return transactions.inTransaction(connection -> {
             Student student = students.findByUserId(connection, userId)
                     .orElseThrow(StudentNotFoundException::new);
+            String campusCardNumber = users.findByUserId(student.userId())
+                    .orElseThrow(StudentNotFoundException::new).loginId();
             TrainingPlan plan = plans.findByMajorAndYear(connection, student.majorId(),
-                            student.studentNumber().isEmpty() ? 0 :
-                            Integer.parseInt("20" + student.studentNumber().substring(3, 5)))
+                            CampusCardEnrollmentYear.from(campusCardNumber))
                     .orElseThrow(() -> new TrainingPlanException("TRAINING_PLAN_NOT_FOUND",
                             "您所在专业年级暂无培养方案"));
             return detailView(connection, plan);

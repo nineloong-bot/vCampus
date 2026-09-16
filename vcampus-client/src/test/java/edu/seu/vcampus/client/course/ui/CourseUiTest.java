@@ -1852,7 +1852,7 @@ class CourseUiTest {
         assertThat(table.getRowCount()).isEqualTo(1);
         assertThat(table.getValueAt(0, 0)).isEqualTo("MATH101");
         assertThat(table.getValueAt(0, 4)).isEqualTo("启用");
-        assertThat(buttons(panel)).contains("新建课程", "编辑所选");
+        assertThat(buttons(panel)).doesNotContain("新建课程", "编辑所选");
         assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.NORMAL);
     }
 
@@ -1910,7 +1910,6 @@ class CourseUiTest {
         assertThat(table.getRowCount()).isEqualTo(1);
         assertThat(table.getValueAt(0, 0)).isEqualTo("2026-2027-1");
         assertThat(table.getValueAt(0, 4)).isEqualTo("进行中");
-        assertThat(table.getValueAt(0, 5)).isEqualTo("v4");
         assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.NORMAL);
     }
 
@@ -1953,7 +1952,7 @@ class CourseUiTest {
 
         assertThat(labels(catalog)).contains("课程关键字");
         assertThat(labels(offerings)).contains("学期编号", "课程或教学班");
-        assertThat(labels(audits)).contains("学生编号", "学期编号", "操作类型", "操作结果");
+        assertThat(labels(audits)).contains("学生学号", "学期编号", "操作类型", "操作结果");
     }
 
     @Test
@@ -1964,7 +1963,7 @@ class CourseUiTest {
         String overlong = "x".repeat(37);
 
         SwingUtilities.invokeAndWait(() -> {
-            textField(audits, "学生编号").setText(overlong);
+            textField(audits, "学生学号").setText(overlong);
             descendants(audits).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
                     .filter(button -> "查询审计记录".equals(button.getText())).findFirst().orElseThrow().doClick();
             textField(offerings, "学期编号").setText(overlong);
@@ -1987,53 +1986,26 @@ class CourseUiTest {
         Container course = courseEditor.component();
         Container term = termEditor.component();
 
-        JSpinner credit = component(course, "学分", JSpinner.class);
-        JSpinner hours = component(course, "总学时", JSpinner.class);
+        JTextField credit = component(course, "学分", JTextField.class);
+        JTextField hours = component(course, "总学时", JTextField.class);
         assertThat(credit).isNotNull();
         assertThat(hours).isNotNull();
-        SpinnerNumberModel creditModel = (SpinnerNumberModel) credit.getModel();
-        SpinnerNumberModel hoursModel = (SpinnerNumberModel) hours.getModel();
-        assertThat(List.of(creditModel.getValue(), creditModel.getMinimum(), creditModel.getMaximum(),
-                creditModel.getStepSize())).containsExactly(new BigDecimal("1.0"), new BigDecimal("0.5"),
-                        new BigDecimal("20.0"), new BigDecimal("0.5"));
-        assertThat(List.of(hoursModel.getValue(), hoursModel.getMinimum(), hoursModel.getMaximum(),
-                hoursModel.getStepSize())).containsExactly(32, 1, 1000, 1);
+        assertThat(credit.isEditable()).isFalse();
+        assertThat(hours.isEditable()).isFalse();
         assertThat(component(term, "开学日期", JSpinner.class)).isNotNull();
         assertThat(component(term, "结束日期", JSpinner.class)).isNotNull();
         assertThat(component(term, "选课开始", JSpinner.class)).isNull();
         assertThat(component(term, "退改补开始", JSpinner.class)).isNull();
-        assertThat(Stream.concat(descendants(course).stream(), descendants(term).stream())
+        assertThat(descendants(term).stream()
                 .filter(JTextField.class::isInstance).map(JTextField.class::cast)
                 .map(field -> field.getAccessibleContext().getAccessibleName()))
-                .doesNotContain("学分", "总学时", "开学日期", "结束日期", "选课开始", "选课结束",
+                .doesNotContain("开学日期", "结束日期", "选课开始", "选课结束",
                         "退改补开始", "退改补结束");
         JComboBox<?> status = component(term, "学期状态", JComboBox.class);
         assertThat(IntStream.range(0, status.getItemCount()).mapToObj(index -> status.getItemAt(index).toString()))
                 .containsExactly("计划中", "进行中", "已关闭");
 
         SwingUtilities.invokeAndWait(() -> { courseEditor.onClosed(); termEditor.onClosed(); });
-    }
-
-    @Test
-    void creditSpinnerStepsByHalfWithoutJdkNumericTypeFailures() throws Exception {
-        CourseEditorPanel editor = onEdt(() -> new CourseEditorPanel(
-                CourseUiGateway.preview(), null, () -> { }, () -> { }));
-        Container dialog = editor.component();
-        JSpinner credit = component(dialog, "学分", JSpinner.class);
-
-        Object[] steps = onEdt(() -> {
-            credit.setValue(new BigDecimal("1.0"));
-            Object next = spinnerStep(credit, true);
-            Object previous = spinnerStep(credit, false);
-            credit.setValue(new BigDecimal("20.0"));
-            Object maximumNext = spinnerStep(credit, true);
-            credit.setValue(new BigDecimal("0.5"));
-            Object minimumPrevious = spinnerStep(credit, false);
-            return new Object[]{next, previous, maximumNext, minimumPrevious};
-        });
-
-        assertThat(steps).containsExactly(new BigDecimal("1.5"), new BigDecimal("0.5"), null, null);
-        SwingUtilities.invokeAndWait(editor::onClosed);
     }
 
     @ParameterizedTest
@@ -2074,9 +2046,8 @@ class CourseUiTest {
     }
 
     @Test
-    void courseEditorSubmitsTypedCreateCommandFromVisibleFields() throws Exception {
+    void courseEditorRejectsFreeTypedCourseWithoutCurriculumSelection() throws Exception {
         AtomicReference<CreateCourseCommand> submitted = new AtomicReference<>();
-        AtomicReference<Boolean> saved = new AtomicReference<>(false);
         CourseUiGateway gateway = new CourseUiGateway() {
             public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) { return CourseUiGateway.preview().searchOfferings(query); }
             public CompletableFuture<List<EnrollmentView>> currentEnrollments() { return CompletableFuture.completedFuture(List.of()); }
@@ -2089,15 +2060,13 @@ class CourseUiTest {
                         command.description(), command.active(), 0, Instant.now(), Instant.now()));
             }
         };
-        CourseEditorPanel editor = onEdt(() -> new CourseEditorPanel(gateway, null, () -> saved.set(true), () -> { }));
+        CourseEditorPanel editor = onEdt(() -> new CourseEditorPanel(gateway, null, () -> { }, () -> { }));
         editor.onOpened();
         Container dialog = editor.component();
 
         SwingUtilities.invokeAndWait(() -> {
             textField(dialog, "课程代码").setText(" SE101 ");
             textField(dialog, "课程名称").setText(" 软件工程导论 ");
-            component(dialog, "学分", JSpinner.class).setValue(new BigDecimal("4.5"));
-            component(dialog, "总学时", JSpinner.class).setValue(72);
             descendants(dialog).stream().filter(JTextArea.class::isInstance).map(JTextArea.class::cast).findFirst().orElseThrow()
                     .setText(" 软件工程基础课程 ");
             descendants(dialog).stream().filter(JCheckBox.class::isInstance).map(JCheckBox.class::cast).findFirst().orElseThrow()
@@ -2105,11 +2074,9 @@ class CourseUiTest {
             descendants(dialog).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
                     .filter(button -> "创建课程".equals(button.getText())).findFirst().orElseThrow().doClick();
         });
-        SwingUtilities.invokeAndWait(() -> { });
 
-        assertThat(submitted.get()).isEqualTo(new CreateCourseCommand(
-                "SE101", "软件工程导论", new BigDecimal("4.5"), 72, "软件工程基础课程", true));
-        assertThat(saved.get()).isTrue();
+        assertThat(submitted.get()).isNull();
+        assertThat(labels(dialog)).contains("请先从匹配结果中选择课程");
         SwingUtilities.invokeAndWait(editor::onClosed);
     }
 
@@ -2117,22 +2084,23 @@ class CourseUiTest {
     void disposedCourseEditorIgnoresALateSaveResult() throws Exception {
         CompletableFuture<CourseView> pending = new CompletableFuture<>();
         AtomicReference<Boolean> saved = new AtomicReference<>(false);
+        CourseView existing = new CourseView("course-late", "SE101", "软件工程导论",
+                new BigDecimal("4.5"), 72, "原简介", true, 7, Instant.now(), Instant.now());
         CourseUiGateway base = CourseUiGateway.preview();
         CourseUiGateway gateway = new DelegatingCourseUiGateway(base) {
-            @Override public CompletableFuture<CourseView> createCourse(CreateCourseCommand command) {
+            @Override public CompletableFuture<CourseView> updateCourse(UpdateCourseCommand command) {
                 return pending;
             }
         };
-        CourseEditorPanel editor = onEdt(() -> new CourseEditorPanel(gateway, null, () -> saved.set(true), () -> { }));
+        CourseEditorPanel editor = onEdt(() -> new CourseEditorPanel(
+                gateway, existing, () -> saved.set(true), () -> { }));
         editor.onOpened();
         Container dialog = editor.component();
         SwingUtilities.invokeAndWait(() -> {
-            textField(dialog, "课程代码").setText("LATE101");
-            textField(dialog, "课程名称").setText("迟到响应测试");
-            component(dialog, "学分", JSpinner.class).setValue(new BigDecimal("2.0"));
-            component(dialog, "总学时", JSpinner.class).setValue(32);
+            descendants(dialog).stream().filter(JTextArea.class::isInstance)
+                    .map(JTextArea.class::cast).findFirst().orElseThrow().setText("更新简介");
             descendants(dialog).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
-                    .filter(button -> "创建课程".equals(button.getText())).findFirst().orElseThrow().doClick();
+                    .filter(button -> "保存修改".equals(button.getText())).findFirst().orElseThrow().doClick();
             editor.onClosed();
         });
 
@@ -2169,7 +2137,7 @@ class CourseUiTest {
         SwingUtilities.invokeAndWait(() -> { });
 
         assertThat(submitted.get()).isEqualTo(new UpdateCourseCommand(
-                "course-7", "SE101", "软件工程基础", new BigDecimal("4.5"), 72, "原简介", true, 7));
+                "course-7", "SE101", "软件工程导论", new BigDecimal("4.5"), 72, "原简介", true, 7));
         SwingUtilities.invokeAndWait(editor::onClosed);
     }
 

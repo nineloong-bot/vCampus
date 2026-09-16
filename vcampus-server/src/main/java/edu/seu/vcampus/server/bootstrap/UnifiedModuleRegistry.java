@@ -128,9 +128,10 @@ final class UnifiedModuleRegistry {
         TrainingPlanRepository plans = new TrainingPlanRepository();
         StudentGradeRepository grades = new StudentGradeRepository();
         StudentGradeServiceImpl gradeService = new StudentGradeServiceImpl(
-                transactions, locks, grades, plans, students);
+                transactions, locks, grades, plans, students, users);
         new TrainingPlanHandlers(
-                new TrainingPlanServiceImpl(transactions, locks, plans, students, organizations),
+                new TrainingPlanServiceImpl(transactions, locks, plans, students, organizations,
+                        users),
                 gradeService,
                 studentAuthorization, new DeduplicatingStudentWriteExecutor(deduplicator),
                 collegeScope)

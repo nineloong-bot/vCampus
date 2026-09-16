@@ -3,13 +3,15 @@ import hashlib
 import base64
 from datetime import date
 
-PASSWORD = 'Test12345'
-DEPARTMENTS = ['计算机', '数学', '外国语', '经济管理', '艺术设计', '物理', '生命科学', '法学']
+PASSWORD = '123456'
+DEPARTMENTS = ['计算机', '数学', '外国语', '经济管理', '艺术设计', '物理', '生命科学', '法学',
+               '信息科学与工程']
 MAJORS = ['软件工程', '计算机科学', '数学应用', '统计学', '英语', '日语',
           '经济学', '管理学', '视觉传达', '产品设计', '物理学', '电子信息科学',
           '生物科学', '生物技术', '法学', '知识产权']
 STUDENT_COUNT = 2400
 SEED_ACCOUNT_SERIAL_OFFSETS = {2023: 1000, 2024: 3000}
+MAJOR_DEPARTMENTS = (1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 9, 7, 7, 8, 8)
 
 
 def credentials(key):
@@ -46,7 +48,8 @@ def generate(add, now):
         add('tblDepartment', departmentId=f'bulk-dept-{i:02}', departmentCode=f'TEST{i:02}',
             departmentName=f'{name}学院', isActive=True, rowVersion=0)
     for i, name in enumerate(MAJORS, 1):
-        add('tblMajor', majorId=f'bulk-major-{i:02}', departmentId=f'bulk-dept-{(i+1)//2:02}',
+        add('tblMajor', majorId=f'bulk-major-{i:02}',
+            departmentId=f'bulk-dept-{MAJOR_DEPARTMENTS[i - 1]:02}',
             majorCode=str(800+i), majorName=name, isActive=True, rowVersion=0)
         for cohort in range(2023, 2027):
             add('tblClass', classId=f'bulk-class-{i:02}-{cohort}',

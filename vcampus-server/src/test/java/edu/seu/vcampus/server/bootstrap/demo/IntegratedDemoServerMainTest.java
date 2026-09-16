@@ -54,7 +54,7 @@ class IntegratedDemoServerMainTest {
         Path database = temporaryDirectory.resolve("course-user-demo.accdb");
         ApplicationRuntime runtime = IntegratedDemoServerMain.prepare(
                 database, databaseRoot(), CLOCK);
-        LoginResult student = login(runtime, "DEMO_STUDENT", DEMO_PASSWORD);
+        LoginResult student = login(runtime, "213240999", DEMO_PASSWORD);
 
         List<TermView> terms = data(route(runtime, "COURSE_TERM_LIST",
                 student.sessionToken(), EmptyRequest.INSTANCE));
@@ -113,7 +113,7 @@ class IntegratedDemoServerMainTest {
         ApplicationRuntime first = IntegratedDemoServerMain.prepare(
                 database, databaseRoot(), CLOCK);
 
-        LoginResult administrator = login(first, "DEMO_ADMIN", "admin123456");
+        LoginResult administrator = login(first, "DEMO_ADMIN", "123456");
         assertThat(administrator.user().role()).isEqualTo(UserRole.SUPER_ADMIN);
         assertThat(administrator.mustChangePassword()).isFalse();
         assertThat(administrator.permissions()).contains(
@@ -122,12 +122,12 @@ class IntegratedDemoServerMainTest {
         assertThat(route(first, "COURSE_SELECTION_PHASE_LIST",
                 administrator.sessionToken(), EmptyRequest.INSTANCE).success()).isTrue();
 
-        LoginResult student = login(first, "DEMO_STUDENT", DEMO_PASSWORD);
+        LoginResult student = login(first, "213240999", DEMO_PASSWORD);
         assertThat(student.user().userId()).isEqualTo("demo-student");
         assertThat(student.user().role()).isEqualTo(UserRole.STUDENT);
         assertThat(student.mustChangePassword()).isFalse();
 
-        LoginResult teacher = login(first, "DEMO_TEACHER", "Teacher123456");
+        LoginResult teacher = login(first, "DEMO_TEACHER", "123456");
         assertThat(teacher.user().userId()).isEqualTo(
                 "00000000-0000-0000-0000-000000000402");
         assertThat(teacher.user().role()).isEqualTo(UserRole.TEACHER);
@@ -152,8 +152,8 @@ class IntegratedDemoServerMainTest {
         DemoSnapshot before = snapshot(database);
         try (Connection connection = connection(database)) {
             assertThat(loginIds(connection))
-                    .contains("DEMO_STUDENT", "DEMO_TEACHER", "DEMO_ADMIN");
-            assertThat(roleOf(connection, "DEMO_STUDENT")).isEqualTo("STUDENT");
+                    .contains("213240999", "DEMO_TEACHER", "DEMO_ADMIN");
+            assertThat(roleOf(connection, "213240999")).isEqualTo("STUDENT");
             assertThat(roleOf(connection, "DEMO_TEACHER")).isEqualTo("TEACHER");
             assertThat(roleOf(connection, "DEMO_ADMIN")).isEqualTo("SUPER_ADMIN");
             assertThat(activeEnrollmentCount(connection, "demo-student")).isZero();
@@ -164,7 +164,7 @@ class IntegratedDemoServerMainTest {
 
         ApplicationRuntime second = IntegratedDemoServerMain.prepare(
                 database, databaseRoot(), CLOCK);
-        LoginResult secondStudent = login(second, "DEMO_STUDENT", DEMO_PASSWORD);
+        LoginResult secondStudent = login(second, "213240999", DEMO_PASSWORD);
         List<TermView> repeatedTerms = data(route(second, "COURSE_TERM_LIST",
                 secondStudent.sessionToken(), EmptyRequest.INSTANCE));
         assertThat(repeatedTerms).hasSize(1);
@@ -179,7 +179,7 @@ class IntegratedDemoServerMainTest {
         assertThat(route(runtime, "USER_LOGIN", null,
                 new LoginCommand("DEMO_ADMIN", DEMO_PASSWORD.toCharArray(), "legacy-password"))
                 .success()).isFalse();
-        LoginResult administrator = login(runtime, "DEMO_ADMIN", "admin123456");
+        LoginResult administrator = login(runtime, "DEMO_ADMIN", "123456");
         assertThat(administrator.mustChangePassword()).isFalse();
         assertThat(administrator.user().role()).isEqualTo(UserRole.SUPER_ADMIN);
     }
@@ -222,7 +222,8 @@ class IntegratedDemoServerMainTest {
     }
 
     private static List<String> loginIds(Connection connection) throws Exception {
-        return ids(connection, "tblUser", "loginId", "loginId LIKE 'DEMO_%'");
+        return ids(connection, "tblUser", "loginId",
+                "loginId LIKE 'DEMO_%' OR loginId='213240999'");
     }
 
     private static String roleOf(Connection connection, String loginId) throws Exception {

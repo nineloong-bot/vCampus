@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /** Verifies the release schema and seed invariants for hierarchical administration. */
 class HierarchicalAdministrationSchemaTest {
     @Test
-    void seedsRolesAndCoversEveryEnabledModuleAndDepartment() throws Exception {
+    void seedsRolesAndKeepsCollegeBindingsCanonical() throws Exception {
         Path database = Path.of("target", "test-data", UUID.randomUUID() + ".accdb");
         Files.createDirectories(database.getParent());
         DatabaseInitializer.main(new String[] {
@@ -50,10 +50,9 @@ class HierarchicalAdministrationSchemaTest {
             assertThat(tableExists(connection, "tblManagedModule")).isFalse();
             assertThat(tableExists(connection, "tblModuleAdministrator")).isFalse();
             assertThat(count(connection, """
-                    SELECT COUNT(*) FROM tblDepartment d
-                    WHERE d.isActive=TRUE AND NOT EXISTS (
-                        SELECT * FROM tblStudentCollegeAdministrator a
-                        WHERE a.departmentId=d.departmentId AND a.isActive=TRUE)
+                    SELECT COUNT(*) FROM tblStudentCollegeAdministrator a
+                    LEFT JOIN tblDepartment d ON d.departmentId=a.departmentId
+                    WHERE a.isActive=TRUE AND (d.departmentId IS NULL OR d.isActive=FALSE)
                     """))
                     .isZero();
             assertThat(count(connection, """

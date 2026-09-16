@@ -23,8 +23,9 @@ class MajorTransferHandlersTest {
                     mock(MajorTransferCollegeAuthorizationService.class)).register(router);
             assertThat(router.route(request("MAJOR_TRANSFER_GET_ATTACHMENT", new EntityIdRequest("attachment")), client()).code())
                     .isEqualTo("COMMON_FORBIDDEN");
-            assertThat(router.route(request("MAJOR_TRANSFER_EXECUTE", new ExecuteMajorTransferCommand("app", "class", 0)), client()).code())
-                    .isEqualTo("COMMON_FORBIDDEN");
+            assertThatThrownBy(() -> router.route(request("MAJOR_TRANSFER_EXECUTE",
+                    new ExecuteMajorTransferCommand("app", "class", 0)), client()))
+                    .isInstanceOf(CommandNotFoundException.class);
         }
         verifyNoInteractions(service);
     }

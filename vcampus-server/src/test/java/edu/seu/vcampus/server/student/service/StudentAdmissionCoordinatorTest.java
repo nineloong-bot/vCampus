@@ -179,6 +179,19 @@ class StudentAdmissionCoordinatorTest {
     }
 
     @Test
+    void batchImportRejectsCampusCardWhoseCohortDoesNotMatchClass() throws Exception {
+        var command = new BatchImportCommand("major-1", List.of("class-1"),
+                List.of(new BatchStudentEntry("213250001", "错年级", "男", 80.0, 0)));
+
+        var result = coordinator.batchImport(command,
+                request(UUID.randomUUID().toString()));
+
+        assertThat(result.totalCreated()).isZero();
+        assertThat(result.totalFailed()).isEqualTo(1);
+        assertThat(result.errors()).singleElement().asString().contains("一卡通号中的入学年份");
+    }
+
+    @Test
     void batchImportRejectsInvalidClassIndex() {
         var entries = List.of(
                 new BatchStudentEntry("213240001", "张三", "男", 90.0, 5));

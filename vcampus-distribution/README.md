@@ -40,7 +40,7 @@ mvn -pl vcampus-server,vcampus-client -am package
 
 打包成功后，Maven 会更新 `vcampus-distribution/lib` 中的两个 JAR。
 
-主要演示账号（当前完整发行库的账号统一密码 `Test12345`）：
+主要演示账号（当前完整发行库的账号统一密码 `123456`）：
 
 - 超级管理员：`DEMO_ADMIN`
 - 学籍管理员：`STUDENT_ADMIN`

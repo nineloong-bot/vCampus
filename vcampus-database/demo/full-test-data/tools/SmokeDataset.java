@@ -38,7 +38,7 @@ class SmokeDataset {
                     try(var connection=new ClientConnection("127.0.0.1",server.localPort())) {
                         connection.connect(Duration.ofSeconds(10));
                         var users=new UserClientService(connection,"bulk-smoke-"+login,Duration.ofSeconds(30));
-                        var logged=result(users.login(login,"Test12345".toCharArray()));
+                        var logged=result(users.login(login,"123456".toCharArray()));
                         require(logged.user().loginId().equals(login),"login "+login);
                         if(login.equals("213262631")) {
                             require(logged.mustChangePassword(),"first password change");

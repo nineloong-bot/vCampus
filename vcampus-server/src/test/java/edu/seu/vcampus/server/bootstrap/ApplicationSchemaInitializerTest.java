@@ -60,6 +60,21 @@ class ApplicationSchemaInitializerTest {
             assertThat(count(connection, "SELECT COUNT(*) FROM tblRolePermission")).isEqualTo(15);
             assertThat(count(connection,
                     "SELECT COUNT(*) FROM tblUser WHERE loginId = 'ADMIN'")).isEqualTo(1);
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblDepartment")).isEqualTo(9);
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblMajor")).isEqualTo(16);
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblDepartment WHERE "
+                    + "departmentId LIKE '00000000-0000-0000-0000-0000000001%'")).isZero();
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblStudentCollegeAdministrator "
+                    + "WHERE departmentId IN ('bulk-dept-01','bulk-dept-02','bulk-dept-03','bulk-dept-09')"))
+                    .isEqualTo(4);
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblTrainingPlan WHERE "
+                    + "planId='00000000-0000-0000-0000-000000000301'")).isZero();
+            assertThat(count(connection, "SELECT c.enrollmentYear FROM (tblUser u INNER JOIN "
+                    + "tblStudent s ON u.userId=s.userId) INNER JOIN tblClass c ON s.classId=c.classId "
+                    + "WHERE u.loginId='213240001'")).isEqualTo(2024);
+            assertThat(count(connection, "SELECT c.enrollmentYear FROM (tblUser u INNER JOIN "
+                    + "tblStudent s ON u.userId=s.userId) INNER JOIN tblClass c ON s.classId=c.classId "
+                    + "WHERE u.loginId='213242478'")).isEqualTo(2024);
             assertThat(uniqueIndexColumns(connection, "tblTrainingPlan"))
                     .contains(java.util.List.of("majorid", "enrollmentyear"));
             assertThat(uniqueIndexColumns(connection, "tblTrainingPlanCourse"))

@@ -48,7 +48,7 @@ class StudentCollegeScopeAuthorizationServiceTest {
     @Test void resolvesExactlyOneLiveCollegeBinding(){
         org.assertj.core.api.Assertions.assertThat(
                 authorization.requireActiveDepartment(CS_ADMIN))
-                .isEqualTo("00000000-0000-0000-0000-000000000101");
+                .isEqualTo("bulk-dept-01");
         transactions.inTransaction(c->{try(var s=c.prepareStatement(
                 "UPDATE tblStudentCollegeAdministrator SET isActive=FALSE WHERE userId=?")){
             s.setString(1,CS_ADMIN);s.executeUpdate();}return null;});
@@ -59,10 +59,10 @@ class StudentCollegeScopeAuthorizationServiceTest {
     @Test void transactionAwareStudentCheckUsesTrustedDepartment(){
         transactions.inTransaction(connection->{
             assertThatCode(()->authorization.requireStudentAccess(connection,
-                    "00000000-0000-0000-0000-000000000101",CS_STUDENT))
+                    "bulk-dept-01",CS_STUDENT))
                     .doesNotThrowAnyException();
             assertThatThrownBy(()->authorization.requireStudentAccess(connection,
-                    "00000000-0000-0000-0000-000000000111",CS_STUDENT))
+                    "bulk-dept-02",CS_STUDENT))
                     .hasMessage("COMMON_FORBIDDEN");
             return null;
         });
@@ -71,19 +71,16 @@ class StudentCollegeScopeAuthorizationServiceTest {
     @Test void validatesMajorClassAndPlanAgainstTrustedDepartment(){
         transactions.inTransaction(connection->{
             assertThatCode(()->authorization.requireMajorAccess(connection,
-                    "00000000-0000-0000-0000-000000000101",
-                    "00000000-0000-0000-0000-000000000102")).doesNotThrowAnyException();
+                    "bulk-dept-01", "bulk-major-02")).doesNotThrowAnyException();
             assertThatCode(()->authorization.requireClassAccess(connection,
-                    "00000000-0000-0000-0000-000000000101",
+                    "bulk-dept-01",
                     "00000000-0000-0000-0000-000000000103")).doesNotThrowAnyException();
             assertThatCode(()->authorization.requirePlanAccess(connection,
-                    "00000000-0000-0000-0000-000000000101",
-                    "00000000-0000-0000-0000-000000000301")).doesNotThrowAnyException();
+                    "bulk-dept-01", "seed-plan-802-2022")).doesNotThrowAnyException();
             assertThatThrownBy(()->authorization.requireMajorAccess(connection,
-                    "00000000-0000-0000-0000-000000000101",
-                    "00000000-0000-0000-0000-000000000113")).hasMessage("COMMON_FORBIDDEN");
+                    "bulk-dept-01", "bulk-major-03")).hasMessage("COMMON_FORBIDDEN");
             assertThatThrownBy(()->authorization.requireClassAccess(connection,
-                    "00000000-0000-0000-0000-000000000101",
+                    "bulk-dept-01",
                     "00000000-0000-0000-0000-000000000115")).hasMessage("COMMON_FORBIDDEN");
             return null;
         });

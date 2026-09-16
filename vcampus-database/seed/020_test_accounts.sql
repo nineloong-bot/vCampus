@@ -1,25 +1,14 @@
-INSERT INTO tblDepartment
-    (departmentId, departmentCode, departmentName, isActive, rowVersion)
-VALUES
-    ('00000000-0000-0000-0000-000000000101', 'CS', '计算机科学与工程学院', TRUE, 0);
-
 INSERT INTO tblStudentCollegeAdministrator
     (departmentId, userId, isActive, rowVersion, createdAt, updatedAt)
 VALUES
-    ('00000000-0000-0000-0000-000000000101',
+    ('bulk-dept-01',
      '00000000-0000-0000-0000-000000000202', TRUE, 0, NOW(), NOW());
-
-INSERT INTO tblMajor
-    (majorId, departmentId, majorCode, majorName, grades, isActive, rowVersion)
-VALUES
-    ('00000000-0000-0000-0000-000000000102', '00000000-0000-0000-0000-000000000101',
-     '090', '计算机科学与技术', '1,2,3,4', TRUE, 0);
 
 INSERT INTO tblClass
     (classId, majorId, classCode, className, enrollmentYear, classNumber, isActive, rowVersion)
 VALUES
-    ('00000000-0000-0000-0000-000000000103', '00000000-0000-0000-0000-000000000102',
-     '090-2023-01', '计算机科学与技术2301班', 2023, 1, TRUE, 0);
+    ('00000000-0000-0000-0000-000000000103', 'bulk-major-02',
+     '090-2023-01', '计算机科学与技术2301班', 2023, 91, TRUE, 0);
 
 INSERT INTO tblUser
     (userId, loginId, passwordHash, passwordSalt, passwordIterations,

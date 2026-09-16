@@ -16,6 +16,9 @@ import edu.seu.vcampus.server.course.composition.CourseComposition;
 import edu.seu.vcampus.server.course.composition.CourseSchemaInitializer;
 import edu.seu.vcampus.server.course.service.CourseAuthorizationGateway;
 import edu.seu.vcampus.server.course.service.CourseService;
+import edu.seu.vcampus.server.course.service.CourseAcademicRecord;
+import edu.seu.vcampus.server.course.service.CourseAcademicRecordGateway;
+import edu.seu.vcampus.server.course.service.CourseAcademicResult;
 import edu.seu.vcampus.server.course.service.CourseSessionIdentity;
 import edu.seu.vcampus.server.course.service.CourseStudentGateway;
 import edu.seu.vcampus.server.course.service.StudentEnrollmentEligibility;
@@ -96,8 +99,17 @@ public final class CourseDemoServerMain {
                     default -> null;
                 }, studentId -> "student-demo-1".equals(studentId) || "student-demo-2".equals(studentId));
         MessageRouter router = new MessageRouter(Map.of());
+        CourseAcademicRecordGateway academicRecords = studentId -> new CourseAcademicRecord(switch (studentId) {
+            case "student-demo-1" -> List.of(
+                    new CourseAcademicResult("demo-passed-1", "BJSL0061", "PASSED"),
+                    new CourseAcademicResult("demo-passed-2", "BJSL0082", "PASSED"));
+            case "student-demo-2" -> List.of(
+                    new CourseAcademicResult("demo-passed-3", "BJSL0082", "PASSED"),
+                    new CourseAcademicResult("demo-failed-1", "BJSL0061", "FAILED"));
+            default -> List.of();
+        });
         CourseComposition courses = CourseComposition.create(connections, authorization, students,
-                Clock.systemUTC(), new StripedResourceLockManager());
+                academicRecords, Clock.systemUTC(), new StripedResourceLockManager());
         courses.register(router);
         seed(connections, courses.service(), phase);
         return new DemoRuntime(router, courses.service(), connections);

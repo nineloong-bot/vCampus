@@ -9,6 +9,7 @@ import edu.seu.vcampus.server.student.domain.StudentGrade;
 import edu.seu.vcampus.server.student.domain.TrainingPlan;
 import edu.seu.vcampus.server.student.domain.TrainingPlanCourse;
 import edu.seu.vcampus.server.student.repository.*;
+import edu.seu.vcampus.server.user.service.UserQueryPort;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -23,15 +24,17 @@ public final class StudentGradeServiceImpl implements StudentGradeService {
     private final StudentGradeRepository grades;
     private final TrainingPlanRepository plans;
     private final StudentRepository students;
+    private final UserQueryPort users;
 
     public StudentGradeServiceImpl(TransactionManager transactions, ResourceLockManager locks,
             StudentGradeRepository grades, TrainingPlanRepository plans,
-            StudentRepository students) {
+            StudentRepository students, UserQueryPort users) {
         this.transactions = Objects.requireNonNull(transactions);
         this.locks = Objects.requireNonNull(locks);
         this.grades = Objects.requireNonNull(grades);
         this.plans = Objects.requireNonNull(plans);
         this.students = Objects.requireNonNull(students);
+        this.users = Objects.requireNonNull(users);
     }
 
     @Override
@@ -120,6 +123,9 @@ public final class StudentGradeServiceImpl implements StudentGradeService {
 
     private StudentTranscriptView buildTranscript(java.sql.Connection connection,
             Student student) {
+        String campusCardNumber = users.findByUserId(student.userId())
+                .orElseThrow(StudentNotFoundException::new).loginId();
+        int enrollmentYear = CampusCardEnrollmentYear.from(campusCardNumber);
         List<StudentGradeView> gradeViews = grades.listByStudent(connection, student.studentId());
         int requiredPassed = 0, requiredTotal = 0, electivePassed = 0, electiveTotal = 0;
         BigDecimal creditsEarned = BigDecimal.ZERO;
@@ -138,8 +144,7 @@ public final class StudentGradeServiceImpl implements StudentGradeService {
                 }
             }
         }
-        var plan = plans.findByMajorAndYear(connection, student.majorId(),
-                Integer.parseInt("20" + student.studentNumber().substring(3, 5)));
+        var plan = plans.findByMajorAndYear(connection, student.majorId(), enrollmentYear);
         long minElectiveCount = plan.map(TrainingPlan::minElectiveCount).orElse(0L);
         BigDecimal minElectiveCredits = plan.map(TrainingPlan::minElectiveCredits)
                 .orElse(BigDecimal.ZERO);
@@ -147,7 +152,7 @@ public final class StudentGradeServiceImpl implements StudentGradeService {
         String majorName = major.map(m -> m.majorName()).orElse(null);
         return new StudentTranscriptView(student.studentId(), student.studentName(),
                 student.studentNumber(), majorName,
-                Integer.parseInt("20" + student.studentNumber().substring(3, 5)),
+                enrollmentYear,
                 minElectiveCount, minElectiveCredits, gradeViews,
                 requiredPassed, requiredTotal, electivePassed, electiveTotal, creditsEarned);
     }

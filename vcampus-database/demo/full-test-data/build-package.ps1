@@ -67,5 +67,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Dataset build failed' }
     (Join-Path $packageRoot 'tools\ValidateDataset.java') $database `
     (Join-Path $packageRoot 'tools\counts.tsv')
 if ($LASTEXITCODE -ne 0) { throw 'Dataset validation failed' }
+& java '-Dfile.encoding=UTF-8' -Xmx1500m --class-path $serverJar `
+    (Join-Path $packageRoot 'tools\ValidateOrganizationMigration.java') $database
+if ($LASTEXITCODE -ne 0) { throw 'Organization migration validation failed' }
 Compress-Archive -LiteralPath $packageRoot -DestinationPath ($packageRoot + '.zip')
 Write-Output "Package ready: $packageRoot"

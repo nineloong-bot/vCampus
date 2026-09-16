@@ -115,6 +115,7 @@ public final class ApplicationSchemaInitializer {
         try (Connection connection = connections.open()) { LibraryReservationSchema.initialize(connection); }
         installSchema(connections, schema("050_shop.sql"));
         installSeeds(connections, seed("010_roles_permissions.sql"));
+        installSeeds(connections, seed("019_canonical_organizations.sql"));
         installSeeds(connections, seed("020_test_accounts.sql"));
         installSeeds(connections, seed("021_more_students.sql"));
         installSeeds(connections, seed("025_major_transfer_demo.sql"));
@@ -122,6 +123,7 @@ public final class ApplicationSchemaInitializer {
         installSeeds(connections, seed("035_course_pool_demo.sql"));
         installSeeds(connections, seed("040_library_policy.sql"));
         installSeeds(connections, seed("060_unified_demo_data.sql"));
+        installSeeds(connections, seed("099_canonical_organization_migration.sql"));
     }
 
     private static void backfillTrainingPlanCourseHours(ConnectionProvider connections)

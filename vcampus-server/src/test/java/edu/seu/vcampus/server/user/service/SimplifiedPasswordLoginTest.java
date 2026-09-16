@@ -79,7 +79,7 @@ class SimplifiedPasswordLoginTest {
         assertThat(adminResult.mustChangePassword()).isFalse();
 
         LoginResult stuResult = service.login(
-                new LoginCommand("stu", "admin123".toCharArray(), "demo-client"),
+                new LoginCommand("stu", "123456".toCharArray(), "demo-client"),
                 new ClientContext("conn-2", "127.0.0.1"));
         assertThat(stuResult.user().loginId()).isEqualTo("STUDENT_ADMIN");
         assertThat(stuResult.mustChangePassword()).isTrue();
@@ -88,12 +88,12 @@ class SimplifiedPasswordLoginTest {
     @Test
     void passwordAcceptedForRestrictedLoginCanCompleteInitialPasswordChange() {
         LoginResult restricted = service.login(
-                new LoginCommand("stu", "admin123".toCharArray(), "demo-client"),
+                new LoginCommand("stu", "123456".toCharArray(), "demo-client"),
                 new ClientContext("conn-1", "127.0.0.1"));
 
         service.changePassword(restricted.sessionToken(),
                 new ChangePasswordCommand(
-                        "admin123".toCharArray(), "Replacement8".toCharArray()));
+                        "123456".toCharArray(), "Replacement8".toCharArray()));
 
         LoginResult changed = service.login(
                 new LoginCommand("stu", "Replacement8".toCharArray(), "demo-client"),

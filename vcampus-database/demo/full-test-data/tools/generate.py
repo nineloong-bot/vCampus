@@ -36,8 +36,9 @@ def main():
 
     def add(table, **fields):
         assert fields and table.startswith('tbl')
-        rows.append(f"INSERT INTO {table} ({','.join(fields)}) VALUES "
-                    f"({','.join(literal(v) for v in fields.values())});")
+        if table not in {"tblDepartment", "tblMajor"}:
+            rows.append(f"INSERT INTO {table} ({','.join(fields)}) VALUES "
+                        f"({','.join(literal(v) for v in fields.values())});")
         generated_rows[table].append(fields)
         counts[table] += 1
 
@@ -60,7 +61,7 @@ def main():
     (output/'counts.json').write_text(json.dumps(counts,ensure_ascii=False,indent=2),encoding='utf-8')
     (output/'counts.tsv').write_text('\n'.join(f'{k}\t{v}' for k,v in counts.items()),encoding='utf-8')
     (output/'accounts.json').write_text(json.dumps(accounts,ensure_ascii=False,indent=2),encoding='utf-8')
-    text = ['全模块合成测试账号；密码统一 Test12345。学生登录用一卡通号。',
+    text = ['全模块合成测试账号；密码统一 123456。学生登录用一卡通号。',
             '账号 | 密码 | 角色 | 姓名/说明 | 场景 | 首次改密']
     text += [' | '.join(a.values()) for a in accounts]
     text += ['原有演示账号 ADMIN、TEACHER01、213230001、SHOPOWNER、SHOPDRAFT、SHOPPENDING',

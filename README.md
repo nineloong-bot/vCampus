@@ -9,7 +9,7 @@ Java 21 校园管理应用，包含统一登录与账户管理、学籍档案、
 1. 运行 `start-server-with-data.bat`，等待服务端监听 8888 端口。
 2. 运行 `start-client.bat`。
 
-默认发行数据库已包含 1,000 名批量测试学生及教师、培养方案、课程、图书和商城数据。管理员 `TESTADMIN`，学生 `213260001`，教师 `TESTTEACHER001`，初始密码均为 `Test12345`。完整运行状态、账号范围和待讨论问题见 [main 运行状态说明](docs/testing/2026-09-12-main运行状态与待讨论问题.md)。
+默认发行数据库已包含 1,000 名批量测试学生及教师、培养方案、课程、图书和商城数据。管理员 `TESTADMIN`，学生 `213260001`，教师 `TESTTEACHER001`，初始密码均为 `123456`。完整运行状态、账号范围和待讨论问题见 [main 运行状态说明](docs/testing/2026-09-12-main运行状态与待讨论问题.md)。
 
 完整独立测试包：[下载压缩包](artifacts/vCampus-full-test-data-20260911.zip)，解压后依次运行 `start-server.bat` 和 `start-client.bat`（端口 18888）。
 
@@ -17,7 +17,10 @@ Java 21 校园管理应用，包含统一登录与账户管理、学籍档案、
 
 ## 全模块批量测试数据
 
-提供 1,000 名学生、50 名教师、40 套培养方案、120 门课程、290 个教学班、500 种图书、30 家店铺及相关选课、借阅和交易记录；学期覆盖暑期、秋季和春季。
+提供 1,000 名学生、50 名教师、40 套培养方案、120 门课程、290 个教学班、500 种图书、30 家店铺及相关选课、借阅和交易记录；学期只覆盖秋季和春季，四年培养方案固定为八个学期。
+
+数据库重建、组织绑定、成绩来源和测试账号以
+[当前数据契约](docs/current-data-contract.md) 为准；历史方案和测试记录不作为数据规范。
 
 在仓库根目录执行：
 
@@ -25,7 +28,7 @@ Java 21 校园管理应用，包含统一登录与账户管理、学籍档案、
 powershell -ExecutionPolicy Bypass -File vcampus-database/demo/full-test-data/build-package.ps1
 ```
 
-脚本使用仓库中的发行 JAR 和 SQL 快照生成独立测试包，默认端口 18888，统一密码 `Test12345`。详见 [全模块测试数据](vcampus-database/demo/full-test-data/README.md)。
+脚本使用仓库中的发行 JAR 和 SQL 快照生成独立测试包，默认端口 18888，统一密码 `123456`。详见 [全模块测试数据](vcampus-database/demo/full-test-data/README.md)。
 
 ## 源码构建
 

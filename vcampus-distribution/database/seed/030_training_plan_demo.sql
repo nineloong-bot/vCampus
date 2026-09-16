@@ -1,22 +1,22 @@
--- 计算机科学与技术 2023 级示例培养方案，供管理员和学生端联调使用。
+-- Canonical pre-2023 plan retained for seed-only environments.
 INSERT INTO tblTrainingPlan
     (planId, majorId, enrollmentYear, planName, minElectiveCount, minElectiveCredits,
      isActive, rowVersion, createdAt, updatedAt)
 VALUES
-    ('00000000-0000-0000-0000-000000000301',
-     '00000000-0000-0000-0000-000000000102', 2023, '计算机科学与技术 2023 级培养方案',
+    ('seed-plan-802-2022',
+     'bulk-major-02', 2022, '计算机科学 2022 级培养方案',
      2, 4.0, TRUE, 0, NOW(), NOW());
 
 INSERT INTO tblTrainingPlanCourse
     (planCourseId, planId, courseCode, courseName, credits, courseType, semester,
      isActive, rowVersion, createdAt, updatedAt)
 VALUES
-    ('00000000-0000-0000-0000-000000000313', '00000000-0000-0000-0000-000000000301',
+    ('seed-plan-course-cs2303', 'seed-plan-802-2022',
      'CS2303', '人工智能导论', 2.0, 'ELECTIVE', 3, TRUE, 0, NOW(), NOW());
 
 INSERT INTO tblTrainingPlanCourse
     (planCourseId, planId, courseCode, courseName, credits, courseType, semester,
      isActive, rowVersion, createdAt, updatedAt)
 VALUES
-    ('00000000-0000-0000-0000-000000000314', '00000000-0000-0000-0000-000000000301',
+    ('seed-plan-course-cs2304', 'seed-plan-802-2022',
      'CS2304', 'Web 应用开发', 2.0, 'ELECTIVE', 4, TRUE, 0, NOW(), NOW());

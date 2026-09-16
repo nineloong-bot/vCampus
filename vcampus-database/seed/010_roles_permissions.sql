@@ -15,7 +15,7 @@ INSERT INTO tblUser
      lockedUntil, lastLoginAt, rowVersion, createdAt, updatedAt)
 VALUES
     ('00000000-0000-0000-0000-000000000001', 'ADMIN',
-     'qX+wANpmojiY0I1qjpBBoUCjiFP6bZJnWg5qgeHmNh4=',
+     'uwuuXT1RFzt46ft+h+UoMwHVwvIs3yrWVW3yaU5BRzA=',
      'mW5pbqIFUpGT2Zlkq7TsSA==', 120000, 'SUPER_ADMIN', 'ACTIVE', TRUE, 0,
      NULL, NULL, 0, NOW(), NOW());
 
@@ -25,7 +25,7 @@ INSERT INTO tblUser
      lockedUntil, lastLoginAt, rowVersion, createdAt, updatedAt)
 VALUES
     ('00000000-0000-0000-0000-000000000201', 'STUDENT_ADMIN',
-     'OlDk8R2oHnN43UJRwIKTgbjZfncjxvp/PmoD2otv3WA=',
+     'TsxZ970Xs6T8QU1REafhi/it3M9hmY2d+bz4eNDfv40=',
      'LuBOl8AL9Kft9pbAdRh+wQ==', 120000, 'STUDENT_ADMIN', 'ACTIVE', FALSE, 0,
      NULL, NULL, 0, NOW(), NOW());
 
@@ -35,7 +35,7 @@ INSERT INTO tblUser
      lockedUntil, lastLoginAt, rowVersion, createdAt, updatedAt)
 VALUES
     ('00000000-0000-0000-0000-000000000204', 'COURSE_ADMIN',
-     'id1XXqwdGPYmErSfRFWiFK6U9dzfIl0mg84YZfLR7So=',
+     'TM89MXt4mofM75XUH3byZyxQiRNl7hnHpHUKuawhbgs=',
      'sEWKGBZ8mnsX7kHD09apGA==', 120000, 'COURSE_ADMIN', 'ACTIVE', FALSE, 0,
      NULL, NULL, 0, NOW(), NOW());
 
@@ -45,7 +45,7 @@ INSERT INTO tblUser
      lockedUntil, lastLoginAt, rowVersion, createdAt, updatedAt)
 VALUES
     ('00000000-0000-0000-0000-000000000205', 'LIBRARY_ADMIN',
-     '2DinkJ+y1Ms6ezWSGyy9djSTHcRARJ2Vh/g62vBovtQ=',
+     '5+iq0myrnoFstN1dGNPRuuNWsVxOgC5mGQdSoI4yASU=',
      'lNUTMAzz1GnPQLJdmUZ2zw==', 120000, 'LIBRARY_ADMIN', 'ACTIVE', FALSE, 0,
      NULL, NULL, 0, NOW(), NOW());
 
@@ -55,7 +55,7 @@ INSERT INTO tblUser
      lockedUntil, lastLoginAt, rowVersion, createdAt, updatedAt)
 VALUES
     ('00000000-0000-0000-0000-000000000206', 'SHOP_ADMIN',
-     'i9UvLSlQ7vtTMbdG4f65Fe4xkZZ3Hz7llPChbbngaZ8=',
+     'y1met7eVngWk0LpJlbMny8l8AamHsa/YIECmq63q1Oc=',
      'LDAY5R25PDQbXVl/JGrh4w==', 120000, 'SHOP_ADMIN', 'ACTIVE', FALSE, 0,
      NULL, NULL, 0, NOW(), NOW());
 
@@ -65,7 +65,7 @@ INSERT INTO tblUser
      lockedUntil, lastLoginAt, rowVersion, createdAt, updatedAt)
 VALUES
     ('00000000-0000-0000-0000-000000000207', 'USER_ADMIN',
-     'N1INQQICyex//tni9dqHj9FNc0IVZQ0aXtv1T7NcgWA=',
+     'Jj7rK/xAKDPBs4iBFQ7S53Zo9RWYku6FKEdK4439dXc=',
      'KXjGQ1/34jcu3Z575iiDCQ==', 120000, 'USER_ADMIN', 'ACTIVE', FALSE, 0,
      NULL, NULL, 0, NOW(), NOW());
 
@@ -75,7 +75,7 @@ INSERT INTO tblUser
      lockedUntil, lastLoginAt, rowVersion, createdAt, updatedAt)
 VALUES
     ('00000000-0000-0000-0000-000000000202', 'CS_COLLEGE_ADMIN',
-     'vyNAV7GH6GDRHfV+RvV++O8zMfx1REP6A4FXjTCr6tA=',
+     'DmgK002eB4QOA7MS8+qtgiI/MLzEScmJJxdvfBtM9GA=',
      'W5S+FoQFDWUsViHY96GM6A==', 120000, 'COLLEGE_ADMIN', 'ACTIVE', FALSE, 0,
      NULL, NULL, 0, NOW(), NOW());
 
@@ -85,7 +85,7 @@ INSERT INTO tblUser
      lockedUntil, lastLoginAt, rowVersion, createdAt, updatedAt)
 VALUES
     ('00000000-0000-0000-0000-000000000203', 'MATH_COLLEGE_ADMIN',
-     'DieURybqMO8qxYsMVmrE7IiHnYw0I7hxZm4yQ4y5E7U=',
+     'SUFUV5rguT7+XqdSlG0AFfVp+TyYj5MaXv7czXHcHSQ=',
      'NOyycieSNU0bm1e5TNCqYA==', 120000, 'COLLEGE_ADMIN', 'ACTIVE', FALSE, 0,
      NULL, NULL, 0, NOW(), NOW());
 
@@ -95,7 +95,7 @@ INSERT INTO tblUser
      lockedUntil, lastLoginAt, rowVersion, createdAt, updatedAt)
 VALUES
     ('00000000-0000-0000-0000-000000000208', 'EE_COLLEGE_ADMIN',
-     'vyNAV7GH6GDRHfV+RvV++O8zMfx1REP6A4FXjTCr6tA=',
+     'DmgK002eB4QOA7MS8+qtgiI/MLzEScmJJxdvfBtM9GA=',
      'W5S+FoQFDWUsViHY96GM6A==', 120000, 'COLLEGE_ADMIN', 'ACTIVE', FALSE, 0,
      NULL, NULL, 0, NOW(), NOW());
 
@@ -105,7 +105,7 @@ INSERT INTO tblUser
      lockedUntil, lastLoginAt, rowVersion, createdAt, updatedAt)
 VALUES
     ('00000000-0000-0000-0000-000000000209', 'FL_COLLEGE_ADMIN',
-     'vyNAV7GH6GDRHfV+RvV++O8zMfx1REP6A4FXjTCr6tA=',
+     'DmgK002eB4QOA7MS8+qtgiI/MLzEScmJJxdvfBtM9GA=',
      'W5S+FoQFDWUsViHY96GM6A==', 120000, 'COLLEGE_ADMIN', 'ACTIVE', FALSE, 0,
      NULL, NULL, 0, NOW(), NOW());
 
@@ -115,7 +115,7 @@ INSERT INTO tblUser
      lockedUntil, lastLoginAt, rowVersion, createdAt, updatedAt)
 VALUES
     ('00000000-0000-0000-0000-000000000401', 'DEMO_ADMIN',
-     'J2gQAOuLOjlxEXcl2dqRTVuLVF3iL8rjCgmmJvJtJ9g=',
+     'whBYxd/uU/rvJKNc/Vq5dlEw+XGtnQyq1Kb8k02U+3E=',
      'YjJJEx6Z0ak5t9I9M+AZvw==', 120000, 'SUPER_ADMIN', 'ACTIVE', FALSE, 0,
      NULL, NULL, 0, NOW(), NOW());
 
@@ -125,7 +125,7 @@ INSERT INTO tblUser
      lockedUntil, lastLoginAt, rowVersion, createdAt, updatedAt)
 VALUES
     ('00000000-0000-0000-0000-000000000402', 'DEMO_TEACHER',
-     '8vSrfuVP5AQ/93ycqeykqLSXA49/93J1NpiUiO1/Fdk=',
+     'HNJTHqhJurDoVwDSrCAVijGS9mwz7qf8P0I86ZfnhSg=',
      'SyrLVrWznBst+9uXhUAkFA==', 120000, 'TEACHER', 'ACTIVE', FALSE, 0,
      NULL, NULL, 0, NOW(), NOW());
 
@@ -135,8 +135,8 @@ INSERT INTO tblUser
      lockedUntil, lastLoginAt, rowVersion, createdAt, updatedAt)
 VALUES
     ('00000000-0000-0000-0000-000000000403', '213242478',
-     'w1z3hWWkFyQHs8ZdiZEqMAs684yPdGHFtNahPD80BqE=',
-     'I3QPbcs0XeUBuZxnmoVqWw==', 120000, 'STUDENT', 'ACTIVE', TRUE, 0,
+     'P2ZhX7POxlikjp8YNrxSWrXYLoNebE3LRNjXU767zy0=',
+     'I3QPbcs0XeUBuZxnmoVqWw==', 120000, 'STUDENT', 'ACTIVE', FALSE, 0,
      NULL, NULL, 0, NOW(), NOW());
 
 INSERT INTO tblPermission (permissionCode, permissionName)

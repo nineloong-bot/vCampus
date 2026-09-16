@@ -110,7 +110,7 @@ final class CredentialAuthenticator {
 
     static boolean isSimplifiedDemoPassword(char[] password) {
         String s = new String(password);
-        return "123456".equals(s) || "admin123".equals(s) || "Test12345".equals(s);
+        return "123456".equals(s);
     }
 
     /** Credential result; only success is audited in this transaction. */

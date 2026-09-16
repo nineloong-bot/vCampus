@@ -187,6 +187,7 @@ public final class StudentAdmissionCoordinator implements StudentAdmissionServic
             }
             try {
                 StudentClass targetClass = classes.get(entry.classIndex());
+                requireMatchingCampusCardCohort(campusCard, targetClass);
                 String studentNumber = studentNumbers.next(tx, major.majorCode(),
                         targetClass.enrollmentYear(), targetClass.classNumber());
                 var account = accounts.createStudentAccount(tx, campusCard,
@@ -206,6 +207,15 @@ public final class StudentAdmissionCoordinator implements StudentAdmissionServic
             }
         }
         return new BatchImportResult(created, errors.size(), errors);
+    }
+
+    private static void requireMatchingCampusCardCohort(String campusCard,
+            StudentClass targetClass) {
+        int campusCardYear = CampusCardEnrollmentYear.from(campusCard);
+        if (campusCardYear != targetClass.enrollmentYear()) {
+            throw new StudentAdmissionException("STUDENT_CAMPUS_CARD_YEAR_MISMATCH",
+                    "一卡通号中的入学年份必须与班级年级一致");
+        }
     }
 
     private StudentAdmissionResult createManualInTransaction(TransactionContext tx,

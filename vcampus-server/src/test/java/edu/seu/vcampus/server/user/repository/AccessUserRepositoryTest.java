@@ -108,7 +108,7 @@ class AccessUserRepositoryTest {
         assertThat(administrator.mustChangePassword()).isTrue();
         assertThat(administrator.passwordIterations()).isEqualTo(120_000);
         byte[] salt = Base64.getDecoder().decode(administrator.passwordSalt());
-        KeySpec spec = new PBEKeySpec("admin123".toCharArray(), salt, 120_000, 256);
+        KeySpec spec = new PBEKeySpec("123456".toCharArray(), salt, 120_000, 256);
         byte[] expectedHash = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
                 .generateSecret(spec).getEncoded();
         assertThat(Base64.getDecoder().decode(administrator.passwordHash()))

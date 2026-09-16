@@ -60,7 +60,7 @@ class UnifiedDemoDatasetTest {
                     .contains("PENDING_PAYMENT", "PAID");
             for (String login : new String[]{"ADMIN", "TEACHER01", "213230001",
                     "SHOPOWNER", "SHOPDRAFT", "SHOPPENDING"}) {
-                assertPassword(connection, login, "admin123");
+                assertPassword(connection, login, "123456");
             }
         }
     }

@@ -34,6 +34,10 @@ class MajorTransferCollegeAuthorizationServiceTest {
         ConnectionProvider provider = () -> DriverManager.getConnection(
                 "jdbc:ucanaccess://" + database + ";immediatelyReleaseResources=true");
         transactions = new TransactionManager(provider);
+        insertApplication(APPLICATION_TO_EE,
+                "00000000-0000-0000-0000-000000000104", "SUBMITTED", "09023101", "李明");
+        insertApplication(DRAFT_APPLICATION,
+                "00000000-0000-0000-0000-000000000230", "DRAFT", "09023111", "朱琳");
         authorization = new MajorTransferCollegeAuthorizationService(transactions);
     }
 
@@ -62,7 +66,7 @@ class MajorTransferCollegeAuthorizationServiceTest {
                     SELECT optionId FROM tblMajorTransferOption
                     WHERE targetDepartmentId=?
                     """)) {
-                statement.setString(1, "00000000-0000-0000-0000-000000000111");
+                statement.setString(1, "bulk-dept-02");
                 try (var result = statement.executeQuery()) {
                     result.next();
                     return result.getString(1);
@@ -121,5 +125,41 @@ class MajorTransferCollegeAuthorizationServiceTest {
         Path databaseModule = current.getFileName().toString().equals("vcampus-server")
                 ? current.resolve("../vcampus-database") : current.resolve("vcampus-database");
         return databaseModule.resolve(child).normalize();
+    }
+
+    private void insertApplication(String id, String studentId, String status,
+                                   String studentNumber, String studentName) {
+        transactions.inTransaction(connection -> {
+            try (var statement = connection.prepareStatement("""
+                    INSERT INTO tblMajorTransferApplication
+                    (applicationId,batchId,studentId,applicationType,applicationStatus,optionId,
+                     fromDepartmentId,fromDepartmentName,fromMajorId,fromMajorName,fromClassId,
+                     fromClassName,fromStudentNumber,fromGrade,studentName,reason,baseStudentVersion,
+                     applicationVersion,submittedAt,createdAt,updatedAt)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW(),NOW())
+                    """)) {
+                int index = 1;
+                statement.setString(index++, id);
+                statement.setString(index++, "00000000-0000-0000-0000-000000001001");
+                statement.setString(index++, studentId);
+                statement.setString(index++, "ORDINARY");
+                statement.setString(index++, status);
+                statement.setString(index++, "00000000-0000-0000-0000-000000001013");
+                statement.setString(index++, "bulk-dept-01");
+                statement.setString(index++, "计算机学院");
+                statement.setString(index++, "bulk-major-02");
+                statement.setString(index++, "计算机科学");
+                statement.setString(index++, "00000000-0000-0000-0000-000000000103");
+                statement.setString(index++, "计算机科学与技术2301班");
+                statement.setString(index++, studentNumber);
+                statement.setString(index++, "2023");
+                statement.setString(index++, studentName);
+                statement.setString(index++, "测试申请");
+                statement.setLong(index++, 0);
+                statement.setLong(index, 1);
+                statement.executeUpdate();
+            }
+            return null;
+        });
     }
 }

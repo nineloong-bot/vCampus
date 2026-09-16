@@ -107,7 +107,26 @@ class TrainingPlanServiceImplTest {
             return null;
         });
         service = new TrainingPlanServiceImpl(database.transactions(), new StripedResourceLockManager(),
-                new TrainingPlanRepository(), new StudentRepository(), organizations);
+                new TrainingPlanRepository(), new StudentRepository(), organizations,
+                StudentFixtures.userQueries("user-2024", "213240001"));
+    }
+
+    @Test
+    void myPlanUsesCampusCardCohortWhenStudentNumberLayoutDiffers() {
+        var plan = service.savePlan(new SaveTrainingPlanCommand(null, "major-1", 2024,
+                "2024级培养方案", 2, new BigDecimal("10.0"), true, 0), "admin");
+        database.transactions().inTransaction(connection -> {
+            try (var classInsert = connection.prepareStatement(
+                    "INSERT INTO tblClass (classId, majorId, classCode, className, enrollmentYear, classNumber, isActive, rowVersion) VALUES ('class-card-year', 'major-1', '090-2024-09', '计算机2024级', 2024, 9, TRUE, 0)");
+                 var studentInsert = connection.prepareStatement(
+                         "INSERT INTO tblStudent (studentId, userId, studentNumber, studentType, studentName, gender, classId, enrollmentDate, studentStatus, rowVersion, createdAt, updatedAt) VALUES ('student-card-year', 'user-2024', '01261004', 'UNDERGRADUATE', '卡号年份学生', '男', 'class-card-year', #2024-09-01#, 'ACTIVE', 0, NOW(), NOW())")) {
+                classInsert.executeUpdate();
+                studentInsert.executeUpdate();
+            }
+            return null;
+        });
+
+        assertThat(service.getMyPlan("user-2024").planId()).isEqualTo(plan.planId());
     }
 
     @Test

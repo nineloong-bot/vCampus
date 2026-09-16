@@ -68,7 +68,7 @@ public final class LoginFrame extends JFrame {
         add(formPanel(connection), split);
         getRootPane().setDefaultButton(submit);
         submit.addActionListener(event -> submitLogin());
-        loginId.setToolTipText("支持所有学号/一卡通号直接登录；快捷账号：admin, stu, course, lib, shop, user, cs, math, ee, fl, teacher, student；密码：123456 或 admin123");
+        loginId.setToolTipText("支持所有学号/一卡通号直接登录；快捷账号：admin, stu, course, lib, shop, user, cs, math, ee, fl, teacher, student；密码：123456");
         setSize(UiDimensions.LOGIN_WINDOW);
         setMinimumSize(UiDimensions.LOGIN_MINIMUM);
         setResizable(true);
@@ -199,7 +199,7 @@ public final class LoginFrame extends JFrame {
         panel.add(demoLabel("教师：teacher / 123456", "login.demoTeacher"));
         panel.add(demoLabel("学生：student 或任意学号 / 123456",
                 "login.demoStudent"));
-        panel.add(demoLabel("演示统一密码：123456 或 admin123",
+        panel.add(demoLabel("演示统一密码：123456",
                 "login.demoManagementPassword"));
         panel.add(demoLabel("模块：学籍 stu ｜ 课程 course",
                 "login.demoModuleAdmins1"));

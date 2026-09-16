@@ -187,4 +187,7 @@ INSERT INTO tblPayment
 VALUES ('demo-payment-paid', 'demo-order-group-paid', 'PAY-DEMO-002', 'WECHAT',
     2.50, 'SUCCEEDED', #2026-08-20#, 0);
 
-UPDATE tblUser SET mustChangePassword=TRUE WHERE roleCode='STUDENT';
+UPDATE tblUser SET passwordHash='uwuuXT1RFzt46ft+h+UoMwHVwvIs3yrWVW3yaU5BRzA=',
+    passwordSalt='mW5pbqIFUpGT2Zlkq7TsSA==', passwordIterations=120000;
+UPDATE tblUser SET mustChangePassword=TRUE
+WHERE roleCode='STUDENT' AND loginId<>'213242478';

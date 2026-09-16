@@ -16,6 +16,7 @@ import edu.seu.vcampus.common.student.majortransfer.ExecuteMajorTransferCommand;
 import edu.seu.vcampus.common.student.majortransfer.SaveMajorTransferOptionCommand;
 import java.math.BigDecimal;
 import edu.seu.vcampus.server.routing.ClientContext;
+import edu.seu.vcampus.server.routing.CommandNotFoundException;
 import edu.seu.vcampus.server.routing.MessageRouter;
 import edu.seu.vcampus.server.student.handler.StudentPrincipal;
 import edu.seu.vcampus.server.student.majortransfer.security.MajorTransferCollegeAuthorizationService;
@@ -28,6 +29,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.doThrow;
@@ -180,10 +182,12 @@ class MajorTransferRoleAuthorizationTest {
     @Test
     void individualFinalizeAndExecuteCommandsAreNotRegistered() {
         Fixture fixture = fixture("COLLEGE_ADMIN");
-        assertThat(fixture.route("MAJOR_TRANSFER_FINALIZE",
-                new FinalizeMajorTransferCommand(APPLICATION, 0)).success()).isFalse();
-        assertThat(fixture.route("MAJOR_TRANSFER_EXECUTE",
-                new ExecuteMajorTransferCommand(APPLICATION, "class-2", 0)).success()).isFalse();
+        assertThatThrownBy(() -> fixture.route("MAJOR_TRANSFER_FINALIZE",
+                new FinalizeMajorTransferCommand(APPLICATION, 0)))
+                .isInstanceOf(CommandNotFoundException.class);
+        assertThatThrownBy(() -> fixture.route("MAJOR_TRANSFER_EXECUTE",
+                new ExecuteMajorTransferCommand(APPLICATION, "class-2", 0)))
+                .isInstanceOf(CommandNotFoundException.class);
     }
 
     @Test

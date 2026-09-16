@@ -10,7 +10,7 @@ import java.util.*;
 
 /** Realistic demo fixture transcribed from the supplied 2024 Computer Science curriculum. */
 public final class CourseDemoDataset {
-    public static final String MAJOR = "090";
+    public static final String MAJOR = "802";
     public static final int COHORT = 2024;
     private static final String UNIT = "计算机科学与工程学院";
 

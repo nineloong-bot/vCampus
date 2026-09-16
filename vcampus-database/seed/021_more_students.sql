@@ -4,101 +4,75 @@
 -- All passwords are "123456"
 -- ============================================================
 
--- ── Departments ──
-INSERT INTO tblDepartment (departmentId, departmentCode, departmentName, isActive, rowVersion)
-VALUES ('00000000-0000-0000-0000-000000000111', 'MATH', '数学学院', TRUE, 0);
-
+-- ── College administrators ──
 INSERT INTO tblStudentCollegeAdministrator
     (departmentId, userId, isActive, rowVersion, createdAt, updatedAt)
 VALUES
-    ('00000000-0000-0000-0000-000000000111',
+    ('bulk-dept-02',
      '00000000-0000-0000-0000-000000000203', TRUE, 0, NOW(), NOW());
 
-INSERT INTO tblDepartment (departmentId, departmentCode, departmentName, isActive, rowVersion)
-VALUES ('00000000-0000-0000-0000-000000000131', 'EE', '信息科学与工程学院', TRUE, 0);
-
 INSERT INTO tblStudentCollegeAdministrator
     (departmentId, userId, isActive, rowVersion, createdAt, updatedAt)
 VALUES
-    ('00000000-0000-0000-0000-000000000131',
+    ('bulk-dept-09',
      '00000000-0000-0000-0000-000000000208', TRUE, 0, NOW(), NOW());
 
-INSERT INTO tblDepartment (departmentId, departmentCode, departmentName, isActive, rowVersion)
-VALUES ('00000000-0000-0000-0000-000000000141', 'FL', '外国语学院', TRUE, 0);
-
 INSERT INTO tblStudentCollegeAdministrator
     (departmentId, userId, isActive, rowVersion, createdAt, updatedAt)
 VALUES
-    ('00000000-0000-0000-0000-000000000141',
+    ('bulk-dept-03',
      '00000000-0000-0000-0000-000000000209', TRUE, 0, NOW(), NOW());
-
--- ── Majors ──
-INSERT INTO tblMajor (majorId, departmentId, majorCode, majorName, grades, isActive, rowVersion)
-VALUES ('00000000-0000-0000-0000-000000000112', '00000000-0000-0000-0000-000000000101',
-        '091', '软件工程', '1,2,3,4', TRUE, 0);
-
-INSERT INTO tblMajor (majorId, departmentId, majorCode, majorName, grades, isActive, rowVersion)
-VALUES ('00000000-0000-0000-0000-000000000113', '00000000-0000-0000-0000-000000000111',
-        '070', '数学与应用数学', '1,2,3', TRUE, 0);
-
-INSERT INTO tblMajor (majorId, departmentId, majorCode, majorName, grades, isActive, rowVersion)
-VALUES ('00000000-0000-0000-0000-000000000132', '00000000-0000-0000-0000-000000000131',
-        '040', '电子信息工程', '1,2,3,4', TRUE, 0);
-
-INSERT INTO tblMajor (majorId, departmentId, majorCode, majorName, grades, isActive, rowVersion)
-VALUES ('00000000-0000-0000-0000-000000000142', '00000000-0000-0000-0000-000000000141',
-        '050', '英语', '1,2,3,4', TRUE, 0);
 
 -- ── Classes ──
 -- 软件工程2301
 INSERT INTO tblClass (classId, majorId, classCode, className, enrollmentYear, classNumber, isActive, rowVersion)
-VALUES ('00000000-0000-0000-0000-000000000114', '00000000-0000-0000-0000-000000000112',
-        '091-2023-01', '软件工程2301班', 2023, 1, TRUE, 0);
+VALUES ('00000000-0000-0000-0000-000000000114', 'bulk-major-01',
+        '091-2023-01', '软件工程2301班', 2023, 91, TRUE, 0);
 
 -- 计科2302
 INSERT INTO tblClass (classId, majorId, classCode, className, enrollmentYear, classNumber, isActive, rowVersion)
-VALUES ('00000000-0000-0000-0000-000000000105', '00000000-0000-0000-0000-000000000102',
+VALUES ('00000000-0000-0000-0000-000000000105', 'bulk-major-02',
         '090-2023-02', '计算机科学与技术2302班', 2023, 2, TRUE, 0);
 
 -- 数学2301
 INSERT INTO tblClass (classId, majorId, classCode, className, enrollmentYear, classNumber, isActive, rowVersion)
-VALUES ('00000000-0000-0000-0000-000000000115', '00000000-0000-0000-0000-000000000113',
-        '070-2023-01', '数学与应用数学2301班', 2023, 1, TRUE, 0);
+VALUES ('00000000-0000-0000-0000-000000000115', 'bulk-major-03',
+        '070-2023-01', '数学与应用数学2301班', 2023, 91, TRUE, 0);
 
 -- 电子信息工程2301
 INSERT INTO tblClass (classId, majorId, classCode, className, enrollmentYear, classNumber, isActive, rowVersion)
-VALUES ('00000000-0000-0000-0000-000000000133', '00000000-0000-0000-0000-000000000132',
-        '040-2023-01', '电子信息工程2301班', 2023, 1, TRUE, 0);
+VALUES ('00000000-0000-0000-0000-000000000133', 'bulk-major-12',
+        '040-2023-01', '电子信息工程2301班', 2023, 91, TRUE, 0);
 
 -- 英语2301
 INSERT INTO tblClass (classId, majorId, classCode, className, enrollmentYear, classNumber, isActive, rowVersion)
-VALUES ('00000000-0000-0000-0000-000000000143', '00000000-0000-0000-0000-000000000142',
-        '050-2023-01', '英语2301班', 2023, 1, TRUE, 0);
+VALUES ('00000000-0000-0000-0000-000000000143', 'bulk-major-05',
+        '050-2023-01', '英语2301班', 2023, 91, TRUE, 0);
 
 -- 软件工程2401
 INSERT INTO tblClass (classId, majorId, classCode, className, enrollmentYear, classNumber, isActive, rowVersion)
-VALUES ('00000000-0000-0000-0000-000000000116', '00000000-0000-0000-0000-000000000112',
-        '091-2024-01', '软件工程2401班', 2024, 1, TRUE, 0);
+VALUES ('00000000-0000-0000-0000-000000000116', 'bulk-major-01',
+        '091-2024-01', '软件工程2401班', 2024, 91, TRUE, 0);
 
 -- 计科2401
 INSERT INTO tblClass (classId, majorId, classCode, className, enrollmentYear, classNumber, isActive, rowVersion)
-VALUES ('00000000-0000-0000-0000-000000000106', '00000000-0000-0000-0000-000000000102',
-        '090-2024-01', '计算机科学与技术2401班', 2024, 1, TRUE, 0);
+VALUES ('00000000-0000-0000-0000-000000000106', 'bulk-major-02',
+        '090-2024-01', '计算机科学与技术2401班', 2024, 91, TRUE, 0);
 
 -- 数学2401
 INSERT INTO tblClass (classId, majorId, classCode, className, enrollmentYear, classNumber, isActive, rowVersion)
-VALUES ('00000000-0000-0000-0000-000000000117', '00000000-0000-0000-0000-000000000113',
-        '070-2024-01', '数学与应用数学2401班', 2024, 1, TRUE, 0);
+VALUES ('00000000-0000-0000-0000-000000000117', 'bulk-major-03',
+        '070-2024-01', '数学与应用数学2401班', 2024, 91, TRUE, 0);
 
 -- 电信2401
 INSERT INTO tblClass (classId, majorId, classCode, className, enrollmentYear, classNumber, isActive, rowVersion)
-VALUES ('00000000-0000-0000-0000-000000000134', '00000000-0000-0000-0000-000000000132',
-        '040-2024-01', '电子信息工程2401班', 2024, 1, TRUE, 0);
+VALUES ('00000000-0000-0000-0000-000000000134', 'bulk-major-12',
+        '040-2024-01', '电子信息工程2401班', 2024, 91, TRUE, 0);
 
 -- 英语2401
 INSERT INTO tblClass (classId, majorId, classCode, className, enrollmentYear, classNumber, isActive, rowVersion)
-VALUES ('00000000-0000-0000-0000-000000000144', '00000000-0000-0000-0000-000000000142',
-        '050-2024-01', '英语2401班', 2024, 1, TRUE, 0);
+VALUES ('00000000-0000-0000-0000-000000000144', 'bulk-major-05',
+        '050-2024-01', '英语2401班', 2024, 91, TRUE, 0);
 
 -- ============================================================
 -- Original16 students (existing accounts, preserved)

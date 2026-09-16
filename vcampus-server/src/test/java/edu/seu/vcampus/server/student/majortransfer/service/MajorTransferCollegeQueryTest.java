@@ -11,6 +11,8 @@ import edu.seu.vcampus.server.student.repository.AccessOrganizationRepository;
 import edu.seu.vcampus.server.student.repository.StudentChangeRepository;
 import edu.seu.vcampus.server.student.repository.StudentRepository;
 import edu.seu.vcampus.server.user.service.UserQueryPort;
+import edu.seu.vcampus.server.security.UserIdentity;
+import edu.seu.vcampus.common.user.UserRole;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -18,15 +20,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.DriverManager;
 import java.util.UUID;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
-
 class MajorTransferCollegeQueryTest {
     private static final String OPEN_BATCH = "00000000-0000-0000-0000-000000001001";
-    private static final String MATH = "00000000-0000-0000-0000-000000000111";
-    private static final String EE = "00000000-0000-0000-0000-000000000131";
-    private static final String CS = "00000000-0000-0000-0000-000000000101";
+    private static final String MATH = "bulk-dept-02";
+    private static final String EE = "bulk-dept-09";
+    private static final String CS = "bulk-dept-01";
     private MajorTransferService service;
 
     @BeforeEach
@@ -38,10 +39,17 @@ class MajorTransferCollegeQueryTest {
         });
         ConnectionProvider provider = () -> DriverManager.getConnection(
                 "jdbc:ucanaccess://" + database + ";immediatelyReleaseResources=true");
-        service = new MajorTransferServiceImpl(new TransactionManager(provider),
+        TransactionManager transactions = new TransactionManager(provider);
+        insertApplication(transactions, "00000000-0000-0000-0000-000000001021",
+                "00000000-0000-0000-0000-000000000104", "SUBMITTED", "09023101", "李明");
+        insertApplication(transactions, "00000000-0000-0000-0000-000000001022",
+                "00000000-0000-0000-0000-000000000210", "SUBMITTED", "09023102", "张伟");
+        insertApplication(transactions, "00000000-0000-0000-0000-000000001031",
+                "00000000-0000-0000-0000-000000000230", "DRAFT", "09023111", "朱琳");
+        service = new MajorTransferServiceImpl(transactions,
                 new StripedResourceLockManager(), new MajorTransferRepository(),
                 new StudentRepository(), new StudentChangeRepository(),
-                new AccessOrganizationRepository(), mock(UserQueryPort.class));
+                new AccessOrganizationRepository(), unusedUsers());
     }
 
     @Test
@@ -88,5 +96,51 @@ class MajorTransferCollegeQueryTest {
         Path databaseModule = current.getFileName().toString().equals("vcampus-server")
                 ? current.resolve("../vcampus-database") : current.resolve("vcampus-database");
         return databaseModule.resolve(child).normalize();
+    }
+
+    private static UserQueryPort unusedUsers() {
+        return new UserQueryPort() {
+            @Override public Optional<UserIdentity> findActiveUser(String userId) { return Optional.empty(); }
+            @Override public Optional<UserIdentity> findByUserId(String userId) { return Optional.empty(); }
+            @Override public Optional<UserIdentity> findByLoginId(String loginId) { return Optional.empty(); }
+            @Override public boolean hasRole(String userId, UserRole role) { return false; }
+        };
+    }
+
+    private static void insertApplication(TransactionManager transactions, String id,
+                                          String studentId, String status,
+                                          String studentNumber, String studentName) {
+        transactions.inTransaction(connection -> {
+            try (var statement = connection.prepareStatement("""
+                    INSERT INTO tblMajorTransferApplication
+                    (applicationId,batchId,studentId,applicationType,applicationStatus,optionId,
+                     fromDepartmentId,fromDepartmentName,fromMajorId,fromMajorName,fromClassId,
+                     fromClassName,fromStudentNumber,fromGrade,studentName,reason,baseStudentVersion,
+                     applicationVersion,submittedAt,createdAt,updatedAt)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW(),NOW())
+                    """)) {
+                int index = 1;
+                statement.setString(index++, id);
+                statement.setString(index++, OPEN_BATCH);
+                statement.setString(index++, studentId);
+                statement.setString(index++, "ORDINARY");
+                statement.setString(index++, status);
+                statement.setString(index++, "00000000-0000-0000-0000-000000001013");
+                statement.setString(index++, CS);
+                statement.setString(index++, "计算机学院");
+                statement.setString(index++, "bulk-major-02");
+                statement.setString(index++, "计算机科学");
+                statement.setString(index++, "00000000-0000-0000-0000-000000000103");
+                statement.setString(index++, "计算机科学与技术2301班");
+                statement.setString(index++, studentNumber);
+                statement.setString(index++, "2023");
+                statement.setString(index++, studentName);
+                statement.setString(index++, "测试申请");
+                statement.setLong(index++, 0);
+                statement.setLong(index, 1);
+                statement.executeUpdate();
+            }
+            return null;
+        });
     }
 }

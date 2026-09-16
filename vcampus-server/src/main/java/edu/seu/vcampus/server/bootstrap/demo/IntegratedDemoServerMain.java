@@ -63,7 +63,7 @@ public final class IntegratedDemoServerMain {
             Runtime.getRuntime().addShutdownHook(new Thread(
                     () -> shutdown(running), "integrated-demo-shutdown"));
             System.out.println("带数据服务端已启动，端口 " + server.localPort());
-            System.out.println("账号：DEMO_STUDENT / DEMO_TEACHER / DEMO_ADMIN"
+            System.out.println("账号：213240999 / DEMO_TEACHER / DEMO_ADMIN"
                     + "（详见 docs/course-user-management-demo-and-test-guide.md）");
             server.serve();
         } catch (Exception failure) {
@@ -95,7 +95,7 @@ public final class IntegratedDemoServerMain {
                 databaseResourceRoot, clock, sessionTimeout,
                 users -> TemporaryUserStudentGateway.create(users,
                         CourseDemoDataset.MAJOR, CourseDemoDataset.COHORT));
-        String studentId = seedUser(connections, "demo-student", "DEMO_STUDENT", DEMO_PASSWORD,
+        String studentId = seedUser(connections, "demo-student", "213240999", DEMO_PASSWORD,
                 "STUDENT", false, clock.instant());
         String teacherId = seedUser(connections, "demo-teacher", "DEMO_TEACHER", DEMO_PASSWORD,
                 "TEACHER", false, clock.instant());

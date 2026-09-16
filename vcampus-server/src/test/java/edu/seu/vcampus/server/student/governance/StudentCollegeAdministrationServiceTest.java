@@ -26,8 +26,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class StudentCollegeAdministrationServiceTest {
     private static final String ACTOR = "00000000-0000-0000-0000-000000000201";
-    private static final String CS = "00000000-0000-0000-0000-000000000101";
-    private static final String MATH = "00000000-0000-0000-0000-000000000111";
+    private static final String CS = "bulk-dept-01";
+    private static final String MATH = "bulk-dept-02";
     private static final String CS_ADMIN = "00000000-0000-0000-0000-000000000202";
     private static final String MATH_ADMIN = "00000000-0000-0000-0000-000000000203";
     private static final String EXTRA = "00000000-0000-0000-0000-000000000302";
