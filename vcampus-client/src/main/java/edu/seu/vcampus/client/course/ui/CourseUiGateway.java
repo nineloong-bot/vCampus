@@ -16,7 +16,6 @@ import edu.seu.vcampus.common.course.CourseView;
 import edu.seu.vcampus.common.course.CurriculumCourseCandidate;
 import edu.seu.vcampus.common.course.CurriculumCourseCandidateQuery;
 import edu.seu.vcampus.common.course.TermView;
-import edu.seu.vcampus.common.course.ImportCourseOutcomesCommand;
 import edu.seu.vcampus.common.course.CreateCourseCommand;
 import edu.seu.vcampus.common.course.UpdateCourseCommand;
 import edu.seu.vcampus.common.course.CreateTermCommand;
@@ -66,7 +65,6 @@ public interface CourseUiGateway {
     default CompletableFuture<PageResult<UserSummary>> searchTeachers(String keyword) { return unsupported(); }
     default CompletableFuture<Optional<UserSummary>> resolveTeacher(String userId) { return unsupported(); }
     default CompletableFuture<List<TermView>> listTerms() { return unsupported(); }
-    default CompletableFuture<EmptyResponse> importOutcomes(ImportCourseOutcomesCommand command) { return unsupported(); }
     default CompletableFuture<CourseView> createCourse(CreateCourseCommand command) { return unsupported(); }
     default CompletableFuture<CourseView> updateCourse(UpdateCourseCommand command) { return unsupported(); }
     default CompletableFuture<TermView> createTerm(CreateTermCommand command) { return unsupported(); }
@@ -225,9 +223,6 @@ public interface CourseUiGateway {
                         java.time.Instant.parse("2026-08-20T00:00:00Z"), java.time.Instant.parse("2026-08-31T16:00:00Z"),
                         java.time.Instant.parse("2026-09-01T00:00:00Z"), java.time.Instant.parse("2026-09-08T16:00:00Z"),
                         "ACTIVE", 3, java.time.Instant.parse("2026-08-01T00:00:00Z"), java.time.Instant.parse("2026-08-27T00:00:00Z"))));
-            }
-            public CompletableFuture<EmptyResponse> importOutcomes(ImportCourseOutcomesCommand command) {
-                return CompletableFuture.completedFuture(EmptyResponse.INSTANCE);
             }
             public CompletableFuture<CourseView> createCourse(CreateCourseCommand command) {
                 return CompletableFuture.completedFuture(new CourseView(

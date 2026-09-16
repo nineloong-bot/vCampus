@@ -70,7 +70,6 @@ public final class CourseDemoDataset {
         }
         CourseDemoCurriculumSeeder.linkCatalogAndPrerequisites(connections, catalog, ITEMS);
         installCurrentOfferings(service, term, catalog, teacherId);
-        installRetakeHistory(service, term, passedStudentId, retakeStudentId);
     }
 
     private static void installCurrentOfferings(CourseService service, TermView term,
@@ -96,41 +95,6 @@ public final class CourseDemoDataset {
                     List.of("MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY").get(day),
                     period, period + 1, 1, 16, "教二-" + (301 + index)))));
             index++;
-        }
-    }
-
-    private static void installRetakeHistory(CourseService service, TermView term,
-                                             String passedStudentId, String retakeStudentId) {
-        CourseView dataStructures = service.searchCatalog(
-                new CourseCatalogQuery("BJSL0061", true, 0, 10)).items().getFirst();
-        CourseView operatingSystems = service.searchCatalog(
-                new CourseCatalogQuery("BJSL0082", true, 0, 10)).items().getFirst();
-        List<ImportCourseOutcomesCommand.OutcomeEntry> outcomes = new ArrayList<>();
-        if (passedStudentId != null) {
-            outcomes.add(new ImportCourseOutcomesCommand.OutcomeEntry(passedStudentId,
-                    dataStructures.courseId(), term.termId(), CourseOutcome.PASSED,
-                    "demo-passed-" + passedStudentId + "-BJSL0061"));
-            outcomes.add(new ImportCourseOutcomesCommand.OutcomeEntry(passedStudentId,
-                    operatingSystems.courseId(), term.termId(), CourseOutcome.PASSED,
-                    "demo-passed-" + passedStudentId + "-BJSL0082"));
-        }
-        if (retakeStudentId != null) {
-            outcomes.add(new ImportCourseOutcomesCommand.OutcomeEntry(retakeStudentId,
-                    operatingSystems.courseId(), term.termId(), CourseOutcome.PASSED,
-                    "demo-passed-" + retakeStudentId + "-BJSL0082"));
-            outcomes.add(new ImportCourseOutcomesCommand.OutcomeEntry(retakeStudentId,
-                    dataStructures.courseId(), term.termId(), CourseOutcome.FAILED,
-                    "demo-failed-" + retakeStudentId + "-BJSL0061"));
-        }
-        if (outcomes.isEmpty()) return;
-        try {
-            service.importCourseOutcomes(new ImportCourseOutcomesCommand(outcomes));
-        } catch (RuntimeException duplicateImport) {
-            // Idempotent source references are already accepted; mismatched persisted data should still fail.
-            if (retakeStudentId == null
-                    || !service.checkRetakeEligibility(retakeStudentId, dataStructures.courseId()).eligible()) {
-                throw duplicateImport;
-            }
         }
     }
 

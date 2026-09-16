@@ -18,7 +18,6 @@ import edu.seu.vcampus.common.course.CourseView;
 import edu.seu.vcampus.common.course.CurriculumCourseCandidate;
 import edu.seu.vcampus.common.course.CurriculumCourseCandidateQuery;
 import edu.seu.vcampus.common.course.TermView;
-import edu.seu.vcampus.common.course.ImportCourseOutcomesCommand;
 import edu.seu.vcampus.common.course.CreateCourseCommand;
 import edu.seu.vcampus.common.course.UpdateCourseCommand;
 import edu.seu.vcampus.common.course.CreateTermCommand;
@@ -120,7 +119,6 @@ public final class CourseClientGateway implements CourseUiGateway {
                 });
     }
     public CompletableFuture<List<TermView>> listTerms() { return client.listTerms(); }
-    public CompletableFuture<EmptyResponse> importOutcomes(ImportCourseOutcomesCommand command) { return client.importOutcomes(command); }
     public CompletableFuture<CourseView> createCourse(CreateCourseCommand command) { return client.createCourse(command); }
     public CompletableFuture<CourseView> updateCourse(UpdateCourseCommand command) { return client.updateCourse(command); }
     public CompletableFuture<TermView> createTerm(CreateTermCommand command) { return client.createTerm(command); }

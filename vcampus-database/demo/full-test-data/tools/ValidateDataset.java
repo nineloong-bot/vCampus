@@ -32,8 +32,8 @@ class ValidateDataset {
         try(var c=DriverManager.getConnection("jdbc:ucanaccess://"+args[0]+";immediatelyReleaseResources=true")) {
             c.setReadOnly(true);
             for(String table:List.of("tblCurriculumPlan","tblCurriculumCourse",
-                    "tblCurriculumPrerequisite"))
-                require(!tableExists(c,table),"Legacy curriculum table remains "+table);
+                    "tblCurriculumPrerequisite","tblCourseAttempt"))
+                require(!tableExists(c,table),"Legacy table remains "+table);
             for(String line:Files.readAllLines(Path.of(args[1]))) {
                 String[] parts=line.split("\\t");
                 if(parts[0].equals("tblNumberSequence")) continue;
@@ -54,7 +54,7 @@ class ValidateDataset {
                 {"tblStudent","userId","tblUser","userId"},
                 {"tblCourseOffering","teacherUserId","tblUser","userId"},
                 {"tblEnrollment","studentId","tblStudent","studentId"},
-                {"tblCourseAttempt","studentId","tblStudent","studentId"},
+                {"tblStudentGrade","studentId","tblStudent","studentId"},
                 {"tblBookCopy","bookId","tblBook","bookId"},
                 {"tblBookLoan","copyId","tblBookCopy","copyId"},
                 {"tblBookLoan","borrowerUserId","tblUser","userId"},
@@ -87,8 +87,10 @@ class ValidateDataset {
                 while(r.next()) planSemesters.put(r.getString(1)+":"+r.getInt(2)+":"+r.getString(3),r.getInt(4));
             }
             Set<String> failedAttempts=new HashSet<>();
-            try(var s=c.createStatement();var r=s.executeQuery("SELECT studentId,courseId FROM tblCourseAttempt "+
-                    "WHERE attemptId LIKE 'bulk-%' AND outcome='FAILED'")) {
+            try(var s=c.createStatement();var r=s.executeQuery("SELECT g.studentId,x.courseId FROM "+
+                    "(tblStudentGrade g INNER JOIN tblTrainingPlanCourse pc ON "+
+                    "g.planCourseId=pc.planCourseId) INNER JOIN tblCourse x ON "+
+                    "pc.courseCode=x.courseCode WHERE g.gradeId LIKE 'bulk-%' AND g.result='FAILED'")) {
                 while(r.next()) failedAttempts.add(r.getString(1)+":"+r.getString(2));
             }
             String enrollmentSql="SELECT e.studentId,e.enrollmentType,o.courseId,c.majorId,"+

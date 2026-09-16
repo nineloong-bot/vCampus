@@ -60,6 +60,7 @@ class CourseEnrollmentServiceTest {
 
     private final Map<String, CourseSessionIdentity> sessions = new ConcurrentHashMap<>();
     private final Map<String, StudentEnrollmentEligibility> students = new ConcurrentHashMap<>();
+    private final List<CourseAcademicResult> academicResults = new ArrayList<>();
     private CourseRepository repository;
     private ConnectionProvider connections;
     private CourseService service;
@@ -79,6 +80,7 @@ class CourseEnrollmentServiceTest {
         }
         connections = () -> DriverManager.getConnection(url);
         repository = new AccessCourseRepository();
+        academicResults.clear();
         sessions.put(TOKEN, new CourseSessionIdentity(USER_ID, "STUDENT"));
         students.put(USER_ID, new StudentEnrollmentEligibility(STUDENT_ID, "ACTIVE"));
         service = service(sessions::get, students::get, new StripedResourceLockManager());
@@ -102,8 +104,7 @@ class CourseEnrollmentServiceTest {
     @Test void forgedNormalEnrollmentCannotBypassFailedCourseRetakeClassification() {
         seedCatalog("ACTIVE", NOW.minusSeconds(60), NOW.plusSeconds(60));
         seedOffering("offering-1", "course-1", 3, 0, "OPEN", List.of());
-        inTransaction(connection -> repository.insertAttemptIfAbsent(connection, new edu.seu.vcampus.server.course.repository.CourseAttempt(
-                null, STUDENT_ID, "course-1", "term-1", "FAILED", "failed", NOW)));
+        academicResults.add(new CourseAcademicResult("failed", "CS101", "FAILED"));
         assertThatThrownBy(() -> service.enroll(TOKEN, new EnrollCommand("offering-1")))
                 .isInstanceOf(edu.seu.vcampus.server.course.domain.RetakeRequiredException.class);
     }
@@ -382,7 +383,8 @@ class CourseEnrollmentServiceTest {
                                   ResourceLockManager lockManager,
                                   CourseRepository courseRepository,
                                   Clock courseClock) {
-        return new CourseServiceImpl(authorization, studentGateway, courseRepository, lockManager,
+        return new CourseServiceImpl(authorization, studentGateway, courseRepository, null,
+                studentId -> new CourseAcademicRecord(List.copyOf(academicResults)), lockManager,
                 new TransactionManager(connections), new TermWindowPolicy(),
                 new ScheduleConflictPolicy(), courseClock);
     }

@@ -122,22 +122,6 @@ CREATE TABLE tblEnrollmentAdjustment (
 
 CREATE INDEX idx_tblEnrollmentAdjustment_studentId ON tblEnrollmentAdjustment (studentId);
 
-CREATE TABLE tblCourseAttempt (
-    attemptId VARCHAR(36) NOT NULL,
-    studentId VARCHAR(36) NOT NULL,
-    courseId VARCHAR(36) NOT NULL,
-    termId VARCHAR(36) NOT NULL,
-    outcome VARCHAR(16) NOT NULL,
-    sourceReference VARCHAR(128) NOT NULL,
-    importedAt DATETIME NOT NULL,
-    CONSTRAINT pk_tblCourseAttempt PRIMARY KEY (attemptId),
-    CONSTRAINT fk_tblCourseAttempt_course FOREIGN KEY (courseId) REFERENCES tblCourse (courseId),
-    CONSTRAINT fk_tblCourseAttempt_term FOREIGN KEY (termId) REFERENCES tblTerm (termId),
-    CONSTRAINT uk_tblCourseAttempt_sourceReference UNIQUE (sourceReference)
-);
-
-CREATE INDEX idx_tblCourseAttempt_student_course ON tblCourseAttempt (studentId, courseId);
-
 CREATE TABLE tblCourseRetakeQuota (
     offeringId VARCHAR(36) NOT NULL,
     capacity LONG NOT NULL,

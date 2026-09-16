@@ -5,6 +5,8 @@ import edu.seu.vcampus.server.course.repository.CurriculumCourse;
 import edu.seu.vcampus.server.course.repository.CurriculumRepository;
 import edu.seu.vcampus.server.course.repository.Term;
 import edu.seu.vcampus.server.course.service.StudentEnrollmentEligibility;
+import edu.seu.vcampus.server.course.service.CourseAcademicRecord;
+import edu.seu.vcampus.server.course.service.CourseAcademicRecordGateway;
 
 import java.sql.Connection;
 import java.util.HashMap;
@@ -16,13 +18,23 @@ import java.util.Set;
 public final class CurriculumSelectionPolicy {
     private final CurriculumRepository curricula;
     private final CourseRepository courses;
+    private final CourseAcademicRecordGateway academicRecords;
 
-    public CurriculumSelectionPolicy(CurriculumRepository curricula, CourseRepository courses) {
+    public CurriculumSelectionPolicy(CurriculumRepository curricula, CourseRepository courses,
+                                     CourseAcademicRecordGateway academicRecords) {
         this.curricula = curricula;
         this.courses = courses;
+        this.academicRecords = academicRecords;
     }
 
     public CandidateSet resolve(Connection connection, StudentEnrollmentEligibility student, Term term) {
+        if (student == null || !student.hasCurriculumContext()) return CandidateSet.legacyMode();
+        return resolve(connection, student, term, academicRecords.findByStudent(student.studentId()));
+    }
+
+    /** Resolves candidates using one caller-captured academic-result snapshot. */
+    public CandidateSet resolve(Connection connection, StudentEnrollmentEligibility student, Term term,
+                                CourseAcademicRecord academic) {
         if (student == null || !student.hasCurriculumContext()) return CandidateSet.legacyMode();
         var plan = curricula.findPublishedPlan(connection, student.majorCode(), student.cohortYear())
                 .orElseThrow(CurriculumNotConfiguredException::new);
@@ -31,24 +43,26 @@ public final class CurriculumSelectionPolicy {
         if (academicYearNo >= 1) {
             for (CurriculumCourse course : curricula.findScheduledCourses(
                     connection, plan.planId(), academicYearNo, term.season())) {
-                if (courses.existsPassedAttempt(connection, student.studentId(), course.courseId())) continue;
+                if (academic.hasPassed(code(connection, course.courseId()))) continue;
                 boolean prerequisitesPassed = curricula.findPrerequisiteCourseIds(
                                 connection, plan.planId(), course.courseId()).stream()
-                        .allMatch(required -> courses.existsPassedAttempt(
-                                connection, student.studentId(), required));
+                        .allMatch(required -> academic.hasPassed(code(connection, required)));
                 if (prerequisitesPassed) allowed.put(course.courseId(), course);
             }
         }
         Set<String> retakes = new HashSet<>();
         for (CurriculumCourse course : curricula.findEarlierCourses(
                 connection, plan.planId(), Math.max(1, academicYearNo), term.season())) {
-            if (courses.existsFailedAttempt(connection, student.studentId(), course.courseId())
-                    && !courses.existsPassedAttempt(connection, student.studentId(), course.courseId())) {
+            if (academic.requiresRetake(code(connection, course.courseId()))) {
                 allowed.put(course.courseId(), course);
                 retakes.add(course.courseId());
             }
         }
         return new CandidateSet(false, Map.copyOf(allowed), Set.copyOf(retakes));
+    }
+
+    private String code(Connection connection, String courseId) {
+        return courses.requireCourse(connection, courseId).courseCode();
     }
 
     public record CandidateSet(boolean legacy, Map<String, CurriculumCourse> courses,

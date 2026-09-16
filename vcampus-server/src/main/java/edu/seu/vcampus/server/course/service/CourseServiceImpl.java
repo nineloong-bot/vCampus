@@ -5,8 +5,6 @@ import edu.seu.vcampus.common.course.EnrollmentView;
 import edu.seu.vcampus.common.course.LateAddCommand;
 import edu.seu.vcampus.common.course.DropCommand;
 import edu.seu.vcampus.common.course.ChangeOfferingCommand;
-import edu.seu.vcampus.common.course.CourseOutcome;
-import edu.seu.vcampus.common.course.ImportCourseOutcomesCommand;
 import edu.seu.vcampus.common.course.RetakeCommand;
 import edu.seu.vcampus.common.course.RetakeEligibility;
 import edu.seu.vcampus.server.concurrency.ResourceKey;
@@ -17,7 +15,6 @@ import edu.seu.vcampus.server.course.domain.DuplicateEnrollmentException;
 import edu.seu.vcampus.server.course.domain.EnrollmentClosedException;
 import edu.seu.vcampus.server.course.domain.OfferingFullException;
 import edu.seu.vcampus.server.course.domain.OfferingHasEnrollmentsException;
-import edu.seu.vcampus.server.course.domain.OutcomeImportInvalidException;
 import edu.seu.vcampus.server.course.domain.RetakeNotEligibleException;
 import edu.seu.vcampus.server.course.domain.ScheduleConflictException;
 import edu.seu.vcampus.server.course.domain.ScheduleConflictPolicy;
@@ -28,7 +25,6 @@ import edu.seu.vcampus.server.course.domain.CourseAlreadyPassedException;
 import edu.seu.vcampus.server.course.domain.RetakeRequiredException;
 import edu.seu.vcampus.server.course.domain.CurriculumSelectionPolicy;
 import edu.seu.vcampus.server.course.repository.CourseRepository;
-import edu.seu.vcampus.server.course.repository.CourseAttempt;
 import edu.seu.vcampus.server.course.repository.Enrollment;
 import edu.seu.vcampus.server.course.repository.Offering;
 import edu.seu.vcampus.server.course.repository.Schedule;
@@ -52,6 +48,7 @@ public final class CourseServiceImpl implements CourseService, CourseQueryPort {
     private final CourseAuthorizationGateway authorization;
     private final CourseStudentGateway students;
     private final CourseRepository repository;
+    private final CourseAcademicRecordGateway academicRecords;
     private final ResourceLockManager locks;
     private final TransactionManager transactions;
     private final TermWindowPolicy windows;
@@ -75,7 +72,8 @@ public final class CourseServiceImpl implements CourseService, CourseQueryPort {
                              TermWindowPolicy windows,
                              ScheduleConflictPolicy conflicts,
                              Clock clock) {
-        this(authorization, students, repository, null, locks, transactions, windows, conflicts, clock);
+        this(authorization, students, repository, null, CourseAcademicRecordGateway.empty(),
+                locks, transactions, windows, conflicts, clock);
     }
 
     public CourseServiceImpl(CourseAuthorizationGateway authorization,
@@ -87,22 +85,40 @@ public final class CourseServiceImpl implements CourseService, CourseQueryPort {
                              TermWindowPolicy windows,
                              ScheduleConflictPolicy conflicts,
                              Clock clock) {
+        this(authorization, students, repository, curricula, CourseAcademicRecordGateway.empty(),
+                locks, transactions, windows, conflicts, clock);
+    }
+
+    /** Creates a curriculum-aware service backed by student-owned academic results. */
+    public CourseServiceImpl(CourseAuthorizationGateway authorization,
+                             CourseStudentGateway students,
+                             CourseRepository repository,
+                             edu.seu.vcampus.server.course.repository.CurriculumRepository curricula,
+                             CourseAcademicRecordGateway academicRecords,
+                             ResourceLockManager locks,
+                             TransactionManager transactions,
+                             TermWindowPolicy windows,
+                             ScheduleConflictPolicy conflicts,
+                             Clock clock) {
         this.authorization = Objects.requireNonNull(authorization, "authorization");
         this.students = Objects.requireNonNull(students, "students");
         this.repository = Objects.requireNonNull(repository, "repository");
+        this.academicRecords = Objects.requireNonNull(academicRecords, "academicRecords");
         this.locks = Objects.requireNonNull(locks, "locks");
         this.transactions = Objects.requireNonNull(transactions, "transactions");
         this.windows = Objects.requireNonNull(windows, "windows");
         this.conflicts = Objects.requireNonNull(conflicts, "conflicts");
         this.clock = Objects.requireNonNull(clock, "clock");
-        this.curriculumPolicy = curricula == null ? null : new CurriculumSelectionPolicy(curricula, repository);
+        this.curriculumPolicy = curricula == null ? null
+                : new CurriculumSelectionPolicy(curricula, repository, academicRecords);
         this.enforceCurriculumCatalog = curricula != null;
         this.phasePolicy = new SelectionPhasePolicy(repository);
-        this.adjustments = new EnrollmentAdjustmentService(authorization, students, repository, locks,
+        this.adjustments = new EnrollmentAdjustmentService(authorization, students, repository,
+                academicRecords, locks,
                 transactions, phasePolicy, conflicts, clock);
         this.selectionPhases = new SelectionPhaseService(repository, locks, transactions);
         this.adminEnrollments = new AdminEnrollmentService(
-                students, repository, locks, transactions, conflicts, clock);
+                students, repository, academicRecords, locks, transactions, conflicts, clock);
         this.curriculumCandidates = new CurriculumCatalogCandidateService(
                 new edu.seu.vcampus.server.course.repository.CurriculumCatalogCandidateRepository(),
                 repository, transactions);
@@ -130,7 +146,7 @@ public final class CourseServiceImpl implements CourseService, CourseQueryPort {
     @Override public EnrollmentView adminEnrollStudent(AdminEnrollStudentCommand command){return adminEnrollments.enroll(command);}
     @Override public PageResult<OfferingSummary> searchOfferings(OfferingSearchQuery query){Objects.requireNonNull(query);DayOfWeek day=query.dayOfWeek()==null||query.dayOfWeek().isBlank()?null:DayOfWeek.valueOf(query.dayOfWeek().toUpperCase());return transactions.inTransaction(c->{var page=repository.searchOfferings(c,new edu.seu.vcampus.server.course.repository.OfferingSearchCriteria(query.termId(),query.keyword(),day,Boolean.TRUE.equals(query.availableOnly()),query.page(),query.pageSize()));List<OfferingSummary> items=new ArrayList<>();for(var o:page.items()){var course=repository.requireCourse(c,o.courseId());var quota=repository.findRetakeQuota(c,o.offeringId());items.add(new OfferingSummary(o.offeringId(),o.termId(),o.courseId(),course.courseCode(),course.courseName(),course.departmentName(),o.teacherUserId(),authorization.userDisplayName(o.teacherUserId()),o.className(),o.capacity(),o.enrolledCount(),quota.capacity(),quota.enrolledCount(),o.offeringStatus(),o.rowVersion(),toScheduleItems(repository.findSchedules(c,o.offeringId()),o,course)));}return new PageResult<>(items,query.page(),query.pageSize(),page.total());});}
     @Override public StudentSelectionContextView getStudentSelectionContext(String token){CourseSessionIdentity identity=requireStudentSession(token);StudentEnrollmentEligibility eligibility=students.getEnrollmentEligibility(identity.userId());return transactions.inTransaction(c->{var term=currentTerm(c);var phase=phasePolicy.current(c).filter(p->p.termId().equals(term.termId())).orElse(null);boolean eligible=eligibility!=null&&"ACTIVE".equals(eligibility.status());return new StudentSelectionContextView(term.termId(),term.termName(),term.termStatus(),phase==null?null:phase.phaseId(),phase==null?null:phase.phaseType(),phase==null?null:phase.displayTitle(),phase==null?null:phase.phaseStatus(),clock.instant(),eligible,eligible?null:"学籍状态不允许选课");});}
-    @Override public PageResult<CourseSelectionView> searchStudentCourses(String token,CourseSelectionQuery query){Objects.requireNonNull(query);CourseSessionIdentity identity=requireStudentSession(token);StudentEnrollmentEligibility eligibility=students.getEnrollmentEligibility(identity.userId());String studentId=eligibility==null?null:eligibility.studentId();return transactions.inTransaction(c->{var term=repository.requireTerm(c,query.termId());var candidates=curriculumPolicy==null?null:curriculumPolicy.resolve(c,eligibility,term);var phase=phasePolicy.current(c).filter(p->p.termId().equals(term.termId())).orElse(null);if(phase==null||!"ACTIVE".equals(term.termStatus()))return new PageResult<>(List.of(),query.page(),query.pageSize(),0);boolean preview="PREVIEW".equals(phase.phaseStatus());boolean eligible=eligibility!=null&&"ACTIVE".equals(eligibility.status());List<Enrollment> active=studentId==null?List.of():repository.findActiveByStudentAndTerm(c,studentId,term.termId());java.util.Map<String,Enrollment> selectedByCourse=new java.util.HashMap<>();for(var e:active){var o=repository.requireOffering(c,e.offeringId());selectedByCourse.put(o.courseId(),e);}String keyword=query.keyword().toLowerCase(java.util.Locale.ROOT);DayOfWeek day=query.weekday()==null?null:DayOfWeek.valueOf(query.weekday());java.util.Map<String,List<Offering>> grouped=new java.util.TreeMap<>();for(var o:repository.findOfferingsByTerm(c,term.termId())){var course=repository.requireCourse(c,o.courseId());if(candidates!=null&&!candidates.allows(course.courseId()))continue;var metadata=candidates==null?null:candidates.metadata(course.courseId());if(!blank(query.courseNature())&&(metadata==null||!query.courseNature().equals(metadata.courseNature())))continue;if(!blank(query.courseCategory())&&(metadata==null||!query.courseCategory().equals(metadata.courseCategory())))continue;if(!keyword.isBlank()&&!course.courseCode().toLowerCase(java.util.Locale.ROOT).contains(keyword)&&!course.courseName().toLowerCase(java.util.Locale.ROOT).contains(keyword))continue;if(day!=null&&repository.findSchedules(c,o.offeringId()).stream().noneMatch(s->s.dayOfWeek()==day))continue;if(query.conflict()!=null&&query.conflict()!=hasConflict(c,active,o))continue;grouped.computeIfAbsent(course.courseCode()+"\u0000"+course.courseId(),ignored->new ArrayList<>()).add(o);}List<CourseSelectionView> rows=new ArrayList<>();for(var entry:grouped.entrySet()){List<Offering> offerings=entry.getValue().stream().sorted(Comparator.comparing(Offering::className)).toList();var first=offerings.getFirst();var course=repository.requireCourse(c,first.courseId());var metadata=candidates==null?null:candidates.metadata(course.courseId());boolean retake=candidates!=null?candidates.isRetake(course.courseId()):repository.existsFailedAttempt(c,studentId,course.courseId());var selected=selectedByCourse.get(course.courseId());List<TeachingClassOptionView> options=new ArrayList<>();for(var o:offerings){String action;String reason=null;if(preview){action="UNAVAILABLE";reason="预选课阶段，仅可查看";}else if(selected!=null){if(selected.offeringId().equals(o.offeringId()))action="SELECTED";else{action="UNAVAILABLE";reason="已选择相同课程";}}else if(!eligible){action="UNAVAILABLE";reason="学籍状态不允许选课";}else if(repository.existsPassedAttempt(c,studentId,course.courseId())){action="UNAVAILABLE";reason="该课程已通过，无需重修";}else if(!"OPEN".equals(o.offeringStatus())){action="UNAVAILABLE";reason="教学班未开放";}else if(isFull(c,o,retake)){action="UNAVAILABLE";reason="教学班容量已满";}else if(hasConflict(c,active,o)){action="UNAVAILABLE";reason="时间冲突";}else if("ENROLLMENT".equals(phase.phaseType())){action=retake?"RETAKE":"ENROLL";}else{action="LATE_ADD";}options.add(new TeachingClassOptionView(summary(c,o,course),action,reason));}boolean mutationOpen=!preview&&eligible;String courseAction;String courseReason=null;if(selected!=null&&mutationOpen)courseAction="CANCEL_SELECTION";else if(selected!=null){courseAction="DISABLED";courseReason=preview?"预选课阶段，仅可查看":"学籍状态不允许选课";}else if(options.stream().anyMatch(o->java.util.Set.of("ENROLL","RETAKE","LATE_ADD").contains(o.actionType())))courseAction="SELECT_COURSE";else{courseAction="DISABLED";courseReason=options.getFirst().actionReason();}rows.add(new CourseSelectionView(course.courseId(),course.courseCode(),course.courseName(),course.credit(),metadata==null?"ELECTIVE":metadata.courseNature(),metadata==null?"其他课程":metadata.courseCategory(),metadata==null?"开课单位":metadata.offeringUnit(),retake,courseAction,courseReason,selected==null?null:selected.enrollmentId(),selected==null?null:selected.rowVersion(),selected==null?null:selected.offeringId(),options));}int from=Math.min(rows.size(),Math.multiplyExact(query.page(),query.pageSize()));return new PageResult<>(rows.subList(from,Math.min(rows.size(),from+query.pageSize())),query.page(),query.pageSize(),rows.size());});}
+    @Override public PageResult<CourseSelectionView> searchStudentCourses(String token,CourseSelectionQuery query){Objects.requireNonNull(query);CourseSessionIdentity identity=requireStudentSession(token);StudentEnrollmentEligibility eligibility=students.getEnrollmentEligibility(identity.userId());String studentId=eligibility==null?null:eligibility.studentId();CourseAcademicRecord academic=studentId==null?new CourseAcademicRecord(List.of()):academicRecords.findByStudent(studentId);return transactions.inTransaction(c->{var term=repository.requireTerm(c,query.termId());var candidates=curriculumPolicy==null?null:curriculumPolicy.resolve(c,eligibility,term,academic);var phase=phasePolicy.current(c).filter(p->p.termId().equals(term.termId())).orElse(null);if(phase==null||!"ACTIVE".equals(term.termStatus()))return new PageResult<>(List.of(),query.page(),query.pageSize(),0);boolean preview="PREVIEW".equals(phase.phaseStatus());boolean eligible=eligibility!=null&&"ACTIVE".equals(eligibility.status());List<Enrollment> active=studentId==null?List.of():repository.findActiveByStudentAndTerm(c,studentId,term.termId());java.util.Map<String,Enrollment> selectedByCourse=new java.util.HashMap<>();for(var e:active){var o=repository.requireOffering(c,e.offeringId());selectedByCourse.put(o.courseId(),e);}String keyword=query.keyword().toLowerCase(java.util.Locale.ROOT);DayOfWeek day=query.weekday()==null?null:DayOfWeek.valueOf(query.weekday());java.util.Map<String,List<Offering>> grouped=new java.util.TreeMap<>();for(var o:repository.findOfferingsByTerm(c,term.termId())){var course=repository.requireCourse(c,o.courseId());if(candidates!=null&&!candidates.allows(course.courseId()))continue;var metadata=candidates==null?null:candidates.metadata(course.courseId());if(!blank(query.courseNature())&&(metadata==null||!query.courseNature().equals(metadata.courseNature())))continue;if(!blank(query.courseCategory())&&(metadata==null||!query.courseCategory().equals(metadata.courseCategory())))continue;if(!keyword.isBlank()&&!course.courseCode().toLowerCase(java.util.Locale.ROOT).contains(keyword)&&!course.courseName().toLowerCase(java.util.Locale.ROOT).contains(keyword))continue;if(day!=null&&repository.findSchedules(c,o.offeringId()).stream().noneMatch(s->s.dayOfWeek()==day))continue;if(query.conflict()!=null&&query.conflict()!=hasConflict(c,active,o))continue;grouped.computeIfAbsent(course.courseCode()+"\u0000"+course.courseId(),ignored->new ArrayList<>()).add(o);}List<CourseSelectionView> rows=new ArrayList<>();for(var entry:grouped.entrySet()){List<Offering> offerings=entry.getValue().stream().sorted(Comparator.comparing(Offering::className)).toList();var first=offerings.getFirst();var course=repository.requireCourse(c,first.courseId());var metadata=candidates==null?null:candidates.metadata(course.courseId());boolean retake=candidates!=null?candidates.isRetake(course.courseId()):academic.requiresRetake(course.courseCode());var selected=selectedByCourse.get(course.courseId());List<TeachingClassOptionView> options=new ArrayList<>();for(var o:offerings){String action;String reason=null;if(preview){action="UNAVAILABLE";reason="预选课阶段，仅可查看";}else if(selected!=null){if(selected.offeringId().equals(o.offeringId()))action="SELECTED";else{action="UNAVAILABLE";reason="已选择相同课程";}}else if(!eligible){action="UNAVAILABLE";reason="学籍状态不允许选课";}else if(academic.hasPassed(course.courseCode())){action="UNAVAILABLE";reason="该课程已通过，无需重修";}else if(!"OPEN".equals(o.offeringStatus())){action="UNAVAILABLE";reason="教学班未开放";}else if(isFull(c,o,retake)){action="UNAVAILABLE";reason="教学班容量已满";}else if(hasConflict(c,active,o)){action="UNAVAILABLE";reason="时间冲突";}else if("ENROLLMENT".equals(phase.phaseType())){action=retake?"RETAKE":"ENROLL";}else{action="LATE_ADD";}options.add(new TeachingClassOptionView(summary(c,o,course),action,reason));}boolean mutationOpen=!preview&&eligible;String courseAction;String courseReason=null;if(selected!=null&&mutationOpen)courseAction="CANCEL_SELECTION";else if(selected!=null){courseAction="DISABLED";courseReason=preview?"预选课阶段，仅可查看":"学籍状态不允许选课";}else if(options.stream().anyMatch(o->java.util.Set.of("ENROLL","RETAKE","LATE_ADD").contains(o.actionType())))courseAction="SELECT_COURSE";else{courseAction="DISABLED";courseReason=options.getFirst().actionReason();}rows.add(new CourseSelectionView(course.courseId(),course.courseCode(),course.courseName(),course.credit(),metadata==null?"ELECTIVE":metadata.courseNature(),metadata==null?"其他课程":metadata.courseCategory(),metadata==null?"开课单位":metadata.offeringUnit(),retake,courseAction,courseReason,selected==null?null:selected.enrollmentId(),selected==null?null:selected.rowVersion(),selected==null?null:selected.offeringId(),options));}int from=Math.min(rows.size(),Math.multiplyExact(query.page(),query.pageSize()));return new PageResult<>(rows.subList(from,Math.min(rows.size(),from+query.pageSize())),query.page(),query.pageSize(),rows.size());});}
     private boolean isFull(Connection connection, Offering offering, boolean retake) {
         if (!retake) return offering.enrolledCount() >= offering.capacity();
         var quota = repository.findRetakeQuota(connection, offering.offeringId());
@@ -257,13 +273,10 @@ public final class CourseServiceImpl implements CourseService, CourseQueryPort {
         return locks.withLocks(List.of(new ResourceKey("STUDENT", initial.studentId())), () -> {
             StudentEnrollmentEligibility current = revalidateStudent(sessionToken, identity, initial);
             return transactions.inTransaction(connection -> {
-                List<String> failedIds = repository.findAttempts(connection, current.studentId(), courseId)
-                        .stream()
-                        .filter(attempt -> CourseOutcome.FAILED.name().equals(attempt.outcome()))
-                        .map(CourseAttempt::attemptId)
-                        .toList();
-                boolean eligible = !failedIds.isEmpty()
-                        && !repository.existsPassedAttempt(connection, current.studentId(), courseId);
+                String courseCode = repository.requireCourse(connection, courseId).courseCode();
+                CourseAcademicRecord academic = academicRecords.findByStudent(current.studentId());
+                List<String> failedIds = academic.failedRecordIds(courseCode);
+                boolean eligible = academic.requiresRetake(courseCode);
                 return new RetakeEligibility(courseId, eligible, failedIds,
                         eligible ? null : RetakeNotEligibleException.CODE);
             });
@@ -288,59 +301,6 @@ public final class CourseServiceImpl implements CourseService, CourseQueryPort {
         });
     }
 
-    @Override
-    public void importCourseOutcomes(ImportCourseOutcomesCommand command) {
-        if (command == null || command.outcomes() == null || command.outcomes().isEmpty()) {
-            throw new OutcomeImportInvalidException();
-        }
-        try {
-            if (command.outcomes().stream().anyMatch(entry -> !students.existsActiveStudent(entry.studentId()))) {
-                throw new OutcomeImportInvalidException();
-            }
-        } catch (OutcomeImportInvalidException error) {
-            throw error;
-        } catch (RuntimeException error) {
-            throw new OutcomeImportInvalidException(error);
-        }
-        List<ResourceKey> sourceKeys = command.outcomes().stream()
-                .map(entry -> new ResourceKey("COURSE_OUTCOME", entry.sourceReference()))
-                .distinct()
-                .sorted(Comparator.comparing(ResourceKey::resourceType)
-                        .thenComparing(ResourceKey::resourceId))
-                .toList();
-        locks.withLocks(sourceKeys, () -> {
-            try {
-                transactions.inTransaction(connection -> {
-                    Instant importedAt = clock.instant();
-                    for (ImportCourseOutcomesCommand.OutcomeEntry entry : command.outcomes()) {
-                        CourseAttempt incoming = new CourseAttempt(UUID.randomUUID().toString(),
-                                entry.studentId(), entry.courseId(), entry.termId(),
-                                entry.outcome().name(), entry.sourceReference(), importedAt);
-                        var existing = repository.findAttemptBySourceReference(
-                                connection, entry.sourceReference());
-                        if (existing.isPresent()) {
-                            requireSameImport(existing.orElseThrow(), incoming);
-                        } else {
-                            boolean inserted = repository.insertAttemptIfAbsent(connection, incoming);
-                            if (!inserted) {
-                                CourseAttempt concurrent = repository.findAttemptBySourceReference(
-                                                connection, entry.sourceReference())
-                                        .orElseThrow(OutcomeImportInvalidException::new);
-                                requireSameImport(concurrent, incoming);
-                            }
-                        }
-                    }
-                    return null;
-                });
-            } catch (OutcomeImportInvalidException error) {
-                throw error;
-            } catch (RuntimeException error) {
-                throw new OutcomeImportInvalidException(error);
-            }
-            return null;
-        });
-    }
-
     private EnrollmentView enrollLocked(Connection connection, StudentEnrollmentEligibility student,
                                         String offeringId,
                                         Instant operationTime) {
@@ -352,13 +312,16 @@ public final class CourseServiceImpl implements CourseService, CourseQueryPort {
                                         Instant operationTime, String enrollmentType,
                                         boolean requireFailedAttempt) {
         Offering offering = repository.requireOffering(connection, offeringId);
+        String studentId = student.studentId();
+        CourseAcademicRecord academic = academicRecords.findByStudent(studentId);
         if (curriculumPolicy != null) {
             curriculumPolicy.resolve(connection, student,
-                    repository.requireTerm(connection, offering.termId())).requireAllowed(offering.courseId());
+                    repository.requireTerm(connection, offering.termId()), academic)
+                    .requireAllowed(offering.courseId());
         }
-        String studentId = student.studentId();
-        boolean passed = repository.existsPassedAttempt(connection, studentId, offering.courseId());
-        boolean failed = repository.existsFailedAttempt(connection, studentId, offering.courseId());
+        String courseCode = repository.requireCourse(connection, offering.courseId()).courseCode();
+        boolean passed = academic.hasPassed(courseCode);
+        boolean failed = academic.requiresRetake(courseCode);
         if (passed) throw new CourseAlreadyPassedException();
         if (requireFailedAttempt && !failed) throw new RetakeNotEligibleException();
         if (!requireFailedAttempt && failed) throw new RetakeRequiredException();
@@ -424,15 +387,6 @@ public final class CourseServiceImpl implements CourseService, CourseQueryPort {
                 students.getEnrollmentEligibility(currentIdentity.userId()));
         if (!initial.studentId().equals(current.studentId())) throw new StudentIneligibleException();
         return current;
-    }
-
-    private static void requireSameImport(CourseAttempt existing, CourseAttempt incoming) {
-        if (!existing.studentId().equals(incoming.studentId())
-                || !existing.courseId().equals(incoming.courseId())
-                || !existing.termId().equals(incoming.termId())
-                || !existing.outcome().equals(incoming.outcome())) {
-            throw new OutcomeImportInvalidException();
-        }
     }
 
     private static StudentEnrollmentEligibility requireEligible(

@@ -101,8 +101,8 @@ final class StudentCourseRowPanel extends JPanel {
     private static String nature(String value) {
         return switch (value) {
             case "REQUIRED" -> "必修";
-            case "RESTRICTED" -> "限选";
-            default -> "任选";
+            case "CROSS_DISCIPLINARY" -> "跨学科";
+            default -> "选修";
         };
     }
 }

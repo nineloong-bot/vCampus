@@ -17,7 +17,7 @@
   "tblCourseSchedule": 380,
   "tblCourseRetakeQuota": 380,
   "tblEnrollment": 2720,
-  "tblCourseAttempt": 38,
+  "tblStudentGrade": 38,
   "tblEnrollmentAdjustment": 20,
   "tblBook": 500,
   "tblBookCopy": 2000,

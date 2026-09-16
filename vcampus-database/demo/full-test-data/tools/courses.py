@@ -107,13 +107,13 @@ def generate(add, now):
             offeringId="bulk-offering-238", studentId=f"bulk-student-{student:04d}",
             enrollmentType="NORMAL", enrollmentStatus="DROPPED",
             enrolledAt=now - timedelta(days=3), droppedAt=now - timedelta(days=1), **stamp)
-    attempts = [(student, course, "FAILED")
-                for student, course, _, retake in selections if retake]
-    for index, (student, course, outcome) in enumerate(attempts, 1):
-        add("tblCourseAttempt", attemptId=f"bulk-attempt-{index:03d}",
-            studentId=f"bulk-student-{student:04d}", courseId=f"bulk-course-{course:03d}",
-            termId=previous, outcome=outcome, sourceReference=f"bulk-outcome-{index:03d}",
-            importedAt=now - timedelta(days=20))
+    failed_grades = [(student, course) for student, course, _, retake in selections if retake]
+    for index, (student, course) in enumerate(failed_grades, 1):
+        add("tblStudentGrade", gradeId=f"bulk-grade-{index:03d}",
+            studentId=f"bulk-student-{student:04d}",
+            planCourseId=plan_course_id(student, course), result="FAILED",
+            recordedSemester="2025-AUTUMN", operatorUserId="bulk-admin-001",
+            rowVersion=0, createdAt=now - timedelta(days=20), updatedAt=now - timedelta(days=20))
     # 正式选课期尝试补选会被阶段规则拒绝，保留真实规则对应的失败审计。
     for student in range(1, 21):
         add("tblEnrollmentAdjustment", adjustmentId=f"bulk-adjustment-{student:03d}",
@@ -157,9 +157,12 @@ def self_check():
         assert quota["enrolledCount"] == retake_counts[offering] <= quota["capacity"]
     pairs = {(e["studentId"], e["offeringId"]) for e in rows["tblEnrollment"]}
     assert len(pairs) == len(rows["tblEnrollment"]) == 2720
-    outcomes = {(a["studentId"], a["courseId"], a["outcome"]) for a in rows["tblCourseAttempt"]}
+    outcomes = {(grade["studentId"], grade["planCourseId"], grade["result"])
+                for grade in rows["tblStudentGrade"]}
     for e in active:
-        pair = (e["studentId"], offers[e["offeringId"]]["courseId"])
+        student = int(e["studentId"].split("-")[-1])
+        course = int(offers[e["offeringId"]]["courseId"].split("-")[-1])
+        pair = (e["studentId"], plan_course_id(student, course))
         assert (*pair, "PASSED") not in outcomes
         assert (e["enrollmentType"] == "RETAKE") == ((*pair, "FAILED") in outcomes)
     assert len(active) == 2700 and len(offers) == 380
@@ -173,6 +176,14 @@ def plan_courses(major, semester):
     major_group = (major - 1) % (COURSES_PER_SEMESTER // PLAN_COURSES_PER_SEMESTER)
     start = base + major_group * PLAN_COURSES_PER_SEMESTER + 1
     return list(range(start, start + PLAN_COURSES_PER_SEMESTER))
+
+
+def plan_course_id(student, course):
+    """Return the canonical training-plan row for one generated student and course."""
+    cohort = 2023 + (student - 1) % 4
+    major = (student - 1) // 150 + 1
+    semester = (course - 1) // COURSES_PER_SEMESTER + 1
+    return f"bulk-plan-{major:02}-{cohort}-c{course:03d}-s{semester:02d}"
 
 
 def generate_plans(add, now):

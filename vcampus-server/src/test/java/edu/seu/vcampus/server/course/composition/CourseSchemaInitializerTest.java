@@ -34,8 +34,9 @@ class CourseSchemaInitializerTest {
                 while (result.next()) tables.add(result.getString("TABLE_NAME").toLowerCase());
             }
             assertThat(tables).contains("tblterm", "tblcourse", "tblcourseoffering", "tblcourseschedule",
-                    "tblenrollment", "tblenrollmentadjustment", "tblcourseattempt",
+                    "tblenrollment", "tblenrollmentadjustment",
                     "tblcourseselectionphase", "tblcourseretakequota");
+            assertThat(tables).doesNotContain("tblcourseattempt");
         }
     }
 
@@ -55,7 +56,7 @@ class CourseSchemaInitializerTest {
 
         try (Connection connection = database.open()) {
             assertThat(tableNames(connection)).contains("tblterm", "tblcourse", "tblcourseoffering",
-                    "tblcourseschedule", "tblenrollment", "tblenrollmentadjustment", "tblcourseattempt",
+                    "tblcourseschedule", "tblenrollment", "tblenrollmentadjustment",
                     "tblcourseselectionphase", "tblcourseretakequota");
         }
     }
@@ -82,8 +83,6 @@ class CourseSchemaInitializerTest {
             assertThat(importedKeys(connection, "tblEnrollment"))
                     .contains("studentId->tblStudent.studentId");
             assertThat(importedKeys(connection, "tblEnrollmentAdjustment"))
-                    .contains("studentId->tblStudent.studentId");
-            assertThat(importedKeys(connection, "tblCourseAttempt"))
                     .contains("studentId->tblStudent.studentId");
         }
     }

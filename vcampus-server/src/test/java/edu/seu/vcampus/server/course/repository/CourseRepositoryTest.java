@@ -211,8 +211,6 @@ class CourseRepositoryTest {
         assertSqlRejected("INSERT INTO tblCourseOffering (offeringId, termId, courseId, teacherUserId, className, capacity, enrolledCount, offeringStatus, rowVersion, createdAt, updatedAt) VALUES ('bad-course', 'term-1', 'missing-course', 'teacher-1', 'bad', 1, 0, 'OPEN', 0, #2026-01-01#, #2026-01-01#)");
         assertSqlRejected("INSERT INTO tblCourseSchedule (scheduleId, offeringId, dayOfWeek, startPeriod, endPeriod, startWeek, endWeek, classroom) VALUES ('bad-schedule', 'missing-offering', 1, 1, 1, 1, 1, 'A101')");
         assertSqlRejected("INSERT INTO tblEnrollment (enrollmentId, offeringId, studentId, enrollmentType, enrollmentStatus, enrolledAt, rowVersion, createdAt, updatedAt) VALUES ('bad-enrollment', 'missing-offering', 'student-1', 'NORMAL', 'ACTIVE', #2026-01-01#, 0, #2026-01-01#, #2026-01-01#)");
-        assertSqlRejected("INSERT INTO tblCourseAttempt (attemptId, studentId, courseId, termId, outcome, sourceReference, importedAt) VALUES ('bad-attempt-course', 'student-1', 'missing-course', 'term-1', 'FAILED', 'bad-course-source', #2026-01-01#)");
-        assertSqlRejected("INSERT INTO tblCourseAttempt (attemptId, studentId, courseId, termId, outcome, sourceReference, importedAt) VALUES ('bad-attempt-term', 'student-1', 'course-1', 'missing-term', 'FAILED', 'bad-term-source', #2026-01-01#)");
         assertSqlRejected("INSERT INTO tblCourseSelectionPhase (phaseId, termId, phaseType, displayTitle, phaseStatus, rowVersion, createdAt, updatedAt) VALUES ('bad-phase', 'missing-term', 'ENROLLMENT', 'Bad', 'DRAFT', 0, #2026-01-01#, #2026-01-01#)");
     }
 
@@ -246,17 +244,12 @@ class CourseRepositoryTest {
     }
 
     @Test
-    void persistsAdjustmentAndDeduplicatesAttemptsBySourceReference() {
+    void persistsAdjustment() {
         seedCatalog();
         EnrollmentAdjustment adjustment = repository.insertAdjustment(connection,
                 new EnrollmentAdjustment(null, "student-1", "ADD", null, "offering-1", "SUCCEEDED", null, null));
-        CourseAttempt attempt = new CourseAttempt(null, "student-1", "course-1", "term-1", "FAILED", "import-1", null);
 
         assertThat(adjustment.adjustmentId()).isNotBlank();
-        assertThat(repository.insertAttemptIfAbsent(connection, attempt)).isTrue();
-        assertThat(repository.insertAttemptIfAbsent(connection, attempt)).isFalse();
-        assertThat(repository.existsFailedAttempt(connection, "student-1", "course-1")).isTrue();
-        assertThat(repository.findAttempts(connection, "student-1", "course-1")).hasSize(1);
         assertThat(repository.findAdjustmentsByStudent(connection, "student-1"))
                 .extracting(EnrollmentAdjustment::adjustmentId).containsExactly(adjustment.adjustmentId());
     }

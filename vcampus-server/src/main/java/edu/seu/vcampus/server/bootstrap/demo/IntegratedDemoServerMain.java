@@ -227,6 +227,37 @@ public final class IntegratedDemoServerMain {
                     draft.phaseId(), "OPEN", draft.rowVersion()));
         }
         CourseDemoDataset.install(connections, courses, term, null, studentId, teacherId);
+        seedFailedGrade(connections, studentId, "pc-BJSL0061");
+    }
+
+    private static void seedFailedGrade(ConnectionProvider connections, String studentId,
+                                        String planCourseId) throws Exception {
+        try (var connection = connections.open(); var query = connection.prepareStatement(
+                "SELECT 1 FROM tblStudentGrade WHERE studentId=? AND planCourseId=?")) {
+            query.setString(1, studentId);
+            query.setString(2, planCourseId);
+            try (var rows = query.executeQuery()) {
+                if (rows.next()) return;
+            }
+        }
+        try (var connection = connections.open(); var insert = connection.prepareStatement("""
+                INSERT INTO tblStudentGrade
+                    (gradeId, studentId, planCourseId, result, recordedSemester,
+                     operatorUserId, rowVersion, createdAt, updatedAt)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """)) {
+            Timestamp now = Timestamp.from(Instant.now());
+            insert.setString(1, "demo-grade-bjsl0061");
+            insert.setString(2, studentId);
+            insert.setString(3, planCourseId);
+            insert.setString(4, "FAILED");
+            insert.setString(5, "2025-AUTUMN");
+            insert.setString(6, "demo-admin");
+            insert.setLong(7, 0);
+            insert.setTimestamp(8, now);
+            insert.setTimestamp(9, now);
+            insert.executeUpdate();
+        }
     }
 
     private static void shutdown(SocketServer server) {

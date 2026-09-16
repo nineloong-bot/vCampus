@@ -12,7 +12,8 @@ public record CourseSelectionQuery(String termId, String keyword, String weekday
     @Serial private static final long serialVersionUID = 1L;
     private static final Set<String> WEEKDAYS = Set.of(
             "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY");
-    private static final Set<String> NATURES = Set.of("REQUIRED", "RESTRICTED", "ELECTIVE");
+    private static final Set<String> NATURES = Set.of(
+            "REQUIRED", "ELECTIVE", "CROSS_DISCIPLINARY");
 
     public CourseSelectionQuery {
         CourseValidation.text("termId", Objects.requireNonNull(termId, "termId"), 36);

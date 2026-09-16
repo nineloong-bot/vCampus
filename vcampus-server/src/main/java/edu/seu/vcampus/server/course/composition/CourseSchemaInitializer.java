@@ -89,8 +89,6 @@ public final class CourseSchemaInitializer {
                     "fk_tblEnrollment_student");
             installForeignKey(connection, "tblEnrollmentAdjustment", "studentId", "tblStudent", "studentId",
                     "fk_tblEnrollmentAdjustment_student");
-            installForeignKey(connection, "tblCourseAttempt", "studentId", "tblStudent", "studentId",
-                    "fk_tblCourseAttempt_student");
         }
     }
 

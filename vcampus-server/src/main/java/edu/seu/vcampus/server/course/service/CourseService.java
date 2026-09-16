@@ -5,7 +5,6 @@ import edu.seu.vcampus.common.course.EnrollmentView;
 import edu.seu.vcampus.common.course.LateAddCommand;
 import edu.seu.vcampus.common.course.DropCommand;
 import edu.seu.vcampus.common.course.ChangeOfferingCommand;
-import edu.seu.vcampus.common.course.ImportCourseOutcomesCommand;
 import edu.seu.vcampus.common.course.RetakeCommand;
 import edu.seu.vcampus.common.course.RetakeEligibility;
 import edu.seu.vcampus.common.course.*;
@@ -66,6 +65,4 @@ public interface CourseService {
     List<ScheduleItem> getCurrentSchedule(String sessionToken);
     List<EnrollmentView> getCurrentEnrollments(String sessionToken);
 
-    /** Authorization is enforced by the Task 6 administrator message handler. */
-    void importCourseOutcomes(ImportCourseOutcomesCommand command);
 }

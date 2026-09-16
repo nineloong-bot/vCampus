@@ -87,7 +87,7 @@ final class UnifiedModuleRegistry {
         registerLibrary(router, transactions, locks, authorization, deduplicator, clock);
     }
 
-    static StudentQueryPort registerStudent(MessageRouter router, TransactionManager transactions,
+    static StudentModulePorts registerStudent(MessageRouter router, TransactionManager transactions,
                                             ResourceLockManager locks, SessionRegistry sessions,
                                             RequestDeduplicator deduplicator, UserQueryPort users,
                                             AccessUserRepository userRepository,
@@ -127,13 +127,15 @@ final class UnifiedModuleRegistry {
                 new MajorTransferCollegeAuthorizationService(transactions)).register(router);
         TrainingPlanRepository plans = new TrainingPlanRepository();
         StudentGradeRepository grades = new StudentGradeRepository();
+        StudentGradeServiceImpl gradeService = new StudentGradeServiceImpl(
+                transactions, locks, grades, plans, students);
         new TrainingPlanHandlers(
                 new TrainingPlanServiceImpl(transactions, locks, plans, students, organizations),
-                new StudentGradeServiceImpl(transactions, locks, grades, plans, students),
+                gradeService,
                 studentAuthorization, new DeduplicatingStudentWriteExecutor(deduplicator),
                 collegeScope)
                 .register(router);
-        return service;
+        return new StudentModulePorts(service, gradeService);
     }
 
     private static void registerLibrary(MessageRouter router, TransactionManager transactions,

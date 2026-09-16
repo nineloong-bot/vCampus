@@ -110,17 +110,4 @@ public interface CourseRepository {
     List<EnrollmentAdjustment> findAdjustmentsByStudent(Connection connection, String studentId);
     List<EnrollmentAdjustment> findAdjustments(Connection connection);
 
-    /** Inserts an imported outcome unless its source reference was already processed. */
-    boolean insertAttemptIfAbsent(Connection connection, CourseAttempt attempt);
-
-    /** Finds an imported outcome by its external idempotency reference. */
-    Optional<CourseAttempt> findAttemptBySourceReference(Connection connection,
-                                                          String sourceReference);
-
-    /** Lists imported outcomes for one student's course. */
-    List<CourseAttempt> findAttempts(Connection connection, String studentId, String courseId);
-
-    /** Determines whether a student has at least one imported failed outcome for a course. */
-    boolean existsFailedAttempt(Connection connection, String studentId, String courseId);
-    boolean existsPassedAttempt(Connection connection, String studentId, String courseId);
 }

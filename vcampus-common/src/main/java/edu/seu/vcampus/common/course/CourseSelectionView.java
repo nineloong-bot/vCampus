@@ -22,7 +22,8 @@ public record CourseSelectionView(String courseId, String courseCode, String cou
         CourseValidation.text("courseCode", Objects.requireNonNull(courseCode, "courseCode"), 24);
         CourseValidation.text("courseName", Objects.requireNonNull(courseName, "courseName"), 128);
         Objects.requireNonNull(credit, "credit");
-        if (credit.signum() <= 0 || !Set.of("REQUIRED", "RESTRICTED", "ELECTIVE").contains(courseNature)) {
+        if (credit.signum() <= 0 || !Set.of(
+                "REQUIRED", "ELECTIVE", "CROSS_DISCIPLINARY").contains(courseNature)) {
             throw new IllegalArgumentException("invalid curriculum course");
         }
         CourseValidation.text("courseCategory", Objects.requireNonNull(courseCategory), 64);

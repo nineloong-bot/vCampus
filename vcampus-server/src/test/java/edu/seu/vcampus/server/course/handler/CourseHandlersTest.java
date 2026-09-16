@@ -68,7 +68,7 @@ class CourseHandlersTest {
     @Test void doesNotPublishManualOutcomeImport() {
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> route(
                         router(), "COURSE_IMPORT_OUTCOMES", "admin",
-                        validBody("COURSE_IMPORT_OUTCOMES")))
+                        EmptyRequest.INSTANCE))
                 .isInstanceOf(CommandNotFoundException.class);
     }
 
@@ -238,7 +238,6 @@ class CourseHandlersTest {
             case "COURSE_RETAKE_CHECK" -> new EntityIdRequest("c-1");
             case "COURSE_RETAKE_ENROLL" -> new RetakeCommand("o-1");
             case "COURSE_GET_MY_SCHEDULE", "COURSE_GET_MY_ENROLLMENTS" -> EmptyRequest.INSTANCE;
-            case "COURSE_IMPORT_OUTCOMES" -> new ImportCourseOutcomesCommand(List.of(new ImportCourseOutcomesCommand.OutcomeEntry("s", "c", "t", CourseOutcome.FAILED, "src")));
             case "COURSE_CREATE" -> new CreateCourseCommand("CS1", "Name", java.math.BigDecimal.ONE, 16, null, true);
             case "COURSE_UPDATE" -> new UpdateCourseCommand("c", "CS1", "Name", java.math.BigDecimal.ONE, 16, null, true, 0);
             case "COURSE_CREATE_OFFERING" -> new CreateOfferingCommand("t", "c", "u", "A", 20, "OPEN", List.of());
@@ -287,7 +286,7 @@ class CourseHandlersTest {
         public EnrollmentView changeDuringAdjustment(String t,ChangeOfferingCommand c){return enroll(t,new EnrollCommand(c.targetOfferingId()));}
         public EnrollmentView enrollRetake(String t,RetakeCommand c){return enroll(t,new EnrollCommand(c.offeringId()));}
         public List<ScheduleItem> getCurrentSchedule(String t){return List.of();} public List<EnrollmentView> getCurrentEnrollments(String t){return List.of();}
-        public RetakeEligibility checkRetakeEligibility(String t,String c){return new RetakeEligibility(c,false,List.of(),"x");} public void importCourseOutcomes(ImportCourseOutcomesCommand c){}
+        public RetakeEligibility checkRetakeEligibility(String t,String c){return new RetakeEligibility(c,false,List.of(),"x");}
 
         private static TermView term(String id) {
             return new TermView(id, "2026-1", id, LocalDate.of(2026, 9, 1), LocalDate.of(2027, 1, 1),

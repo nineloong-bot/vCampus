@@ -8,6 +8,9 @@ import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.course.composition.CourseComposition;
 import edu.seu.vcampus.server.course.composition.CourseRuntimeAdapters;
 import edu.seu.vcampus.server.course.service.CourseAuthorizationGateway;
+import edu.seu.vcampus.server.course.service.CourseAcademicRecord;
+import edu.seu.vcampus.server.course.service.CourseAcademicRecordGateway;
+import edu.seu.vcampus.server.course.service.CourseAcademicResult;
 import edu.seu.vcampus.server.course.service.CourseStudentGateway;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import edu.seu.vcampus.server.persistence.TransactionManager;
@@ -123,9 +126,10 @@ public final class ApplicationRuntime implements AutoCloseable {
                 authorization, deduplicator, audits, userRepository, passwords);
         router.register("SECURITY_AUDIT_SEARCH", new SecurityAuditHandler(authorization,
                 new SecurityAuditService(transactions, audits)));
-        StudentQueryPort studentQueries = UnifiedModuleRegistry.registerStudent(router,
+        StudentModulePorts studentModules = UnifiedModuleRegistry.registerStudent(router,
                 transactions, locks, sessions, deduplicator, users, userRepository, audits,
                 passwords);
+        StudentQueryPort studentQueries = studentModules.students();
         CourseStudentGateway students = studentGatewayFactory == null
                 ? CourseRuntimeAdapters.students(
                         studentQueries::getEnrollmentEligibility,
@@ -138,8 +142,13 @@ public final class ApplicationRuntime implements AutoCloseable {
                         studentQueries::searchStudents,
                         studentQueries::getStudent)
                 : Objects.requireNonNull(studentGatewayFactory.apply(users), "studentGateway");
+        CourseAcademicRecordGateway academicRecords = studentId -> new CourseAcademicRecord(
+                studentModules.grades().getTranscriptByStudentId(studentId).grades().stream()
+                        .map(grade -> new CourseAcademicResult(grade.gradeId(), grade.courseCode(),
+                                grade.result().name()))
+                        .toList());
         CourseComposition courses = CourseComposition.create(connections, courseAuthorization,
-                students, clock, locks);
+                students, academicRecords, clock, locks);
         courses.register(router);
         UnifiedModuleRegistry.registerLibraryAndShop(router, transactions, locks, sessions,
                 authorization, deduplicator, clock);

@@ -13,7 +13,8 @@ public final class StudentCourseSelectionPanel extends AbstractCoursePanel {
     private final JTextField keyword = new JTextField(18);
     private final JComboBox<String> weekday = new JComboBox<>(new String[]{"全部星期", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六", "星期日"});
     private final JComboBox<String> conflict = new JComboBox<>(new String[]{"是否冲突：全部", "仅无冲突", "仅有冲突"});
-    private final JComboBox<String> nature = new JComboBox<>(new String[]{"课程性质：全部", "必修", "限选", "任选"});
+    private final JComboBox<String> nature = new JComboBox<>(
+            new String[]{"课程性质：全部", "必修", "选修", "跨学科"});
     private final JComboBox<String> category = new JComboBox<>(new String[]{"课程类别：全部", "通识教育课", "大类学科基础课", "专业主干课", "专业方向课", "实践环节"});
     private final JLabel count = label("共 0 门课程", UiTypography.BODY, UiColors.TEXT_SECONDARY);
     private final JPanel courses = new JPanel();
@@ -107,7 +108,7 @@ public final class StudentCourseSelectionPanel extends AbstractCoursePanel {
     private void loadPage(int pageNumber) {
         String keywordSnapshot=keyword.getText();String weekdaySnapshot=selectedDay();
         Boolean conflictSnapshot=switch(conflict.getSelectedIndex()){case 1->Boolean.FALSE;case 2->Boolean.TRUE;default->null;};
-        String natureSnapshot=switch(nature.getSelectedIndex()){case 1->"REQUIRED";case 2->"RESTRICTED";case 3->"ELECTIVE";default->null;};
+        String natureSnapshot=switch(nature.getSelectedIndex()){case 1->"REQUIRED";case 2->"ELECTIVE";case 3->"CROSS_DISCIPLINARY";default->null;};
         String categorySnapshot=category.getSelectedIndex()==0?null:(String)category.getSelectedItem();
         long request=beginAsyncRequest();showState(ViewState.LOADING,"正在加载选课信息，请稍候");
         gateway.studentSelectionContext().thenCompose(value->gateway.searchStudentCourses(new CourseSelectionQuery(value.termId(),keywordSnapshot,weekdaySnapshot,conflictSnapshot,natureSnapshot,categorySnapshot,pageNumber,20)).thenApply(page->new SelectionData(value,page)))

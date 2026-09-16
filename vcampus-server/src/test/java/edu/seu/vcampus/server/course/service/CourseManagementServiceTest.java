@@ -33,6 +33,7 @@ class CourseManagementServiceTest {
     private CourseRepository repository;
     private CourseService service;
     private List<String> studentGatewayUserIds;
+    private final List<CourseAcademicResult> academicResults = new ArrayList<>();
 
     @BeforeEach void createRealService() throws Exception {
         Path data = Path.of("target", "test-data");
@@ -68,7 +69,8 @@ class CourseManagementServiceTest {
                         default -> throw new IllegalArgumentException("unknown user");
                     };
                 }, studentId -> "student-1".equals(studentId) || "admin-student".equals(studentId)),
-                repository, new StripedResourceLockManager(), transactions, new TermWindowPolicy(),
+                repository, null, studentId -> new CourseAcademicRecord(List.copyOf(academicResults)),
+                new StripedResourceLockManager(), transactions, new TermWindowPolicy(),
                 new ScheduleConflictPolicy(), Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
@@ -281,9 +283,7 @@ class CourseManagementServiceTest {
             repository.changeEnrolledCount(connection, offering.offeringId(), "NORMAL", 1);
             return null;
         });
-        service.importCourseOutcomes(new ImportCourseOutcomesCommand(List.of(
-                new ImportCourseOutcomesCommand.OutcomeEntry("student-1", course.courseId(), term.termId(),
-                        CourseOutcome.FAILED, "failed-CS102"))));
+        academicResults.add(new CourseAcademicResult("failed-CS102", course.courseCode(), "FAILED"));
 
         CourseSelectionView row = service.searchStudentCourses("student",
                 new CourseSelectionQuery(term.termId(), "CS102", null, 0, 20)).items().getFirst();

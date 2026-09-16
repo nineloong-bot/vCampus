@@ -11,6 +11,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -18,12 +19,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import edu.seu.vcampus.common.course.AdminEnrollStudentCommand;
-import edu.seu.vcampus.common.course.CourseOutcome;
 import edu.seu.vcampus.common.course.CreateCourseCommand;
 import edu.seu.vcampus.common.course.CreateOfferingCommand;
 import edu.seu.vcampus.common.course.CreateTermCommand;
 import edu.seu.vcampus.common.course.EnrollmentView;
-import edu.seu.vcampus.common.course.ImportCourseOutcomesCommand;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.course.domain.ScheduleConflictPolicy;
 import edu.seu.vcampus.server.course.domain.TermWindowPolicy;
@@ -39,6 +38,7 @@ class AdminEnrollmentServiceTest {
     private CourseRepository repository;
     private TransactionManager transactions;
     private String offeringId;
+    private final List<CourseAcademicResult> academicResults = new ArrayList<>();
 
     @BeforeEach
     void setUp() throws Exception {
@@ -65,7 +65,9 @@ class AdminEnrollmentServiceTest {
             }
             @Override public void requireUserRole(String userId, String role) { }
         };
-        service = new CourseServiceImpl(authorization, students, repository,
+        CourseAcademicRecordGateway academicRecords = studentId ->
+                new CourseAcademicRecord(List.copyOf(academicResults));
+        service = new CourseServiceImpl(authorization, students, repository, null, academicRecords,
                 new StripedResourceLockManager(), transactions, new TermWindowPolicy(),
                 new ScheduleConflictPolicy(), Clock.fixed(NOW, ZoneOffset.UTC));
         var term = service.createTerm(new CreateTermCommand("2026-A", "秋季学期",
@@ -76,9 +78,7 @@ class AdminEnrollmentServiceTest {
                 "CS101", "程序设计", BigDecimal.valueOf(3), 48, "课程简介", true));
         offeringId = service.createOffering(new CreateOfferingCommand(term.termId(), course.courseId(),
                 "teacher-1", "程序设计-A班", 40, 5, "OPEN", List.of())).offeringId();
-        service.importCourseOutcomes(new ImportCourseOutcomesCommand(List.of(
-                new ImportCourseOutcomesCommand.OutcomeEntry(
-                        "student-1", course.courseId(), term.termId(), CourseOutcome.FAILED, "grade-1"))));
+        academicResults.add(new CourseAcademicResult("grade-1", course.courseCode(), "FAILED"));
         fillRetakeQuota();
     }
 
@@ -103,19 +103,7 @@ class AdminEnrollmentServiceTest {
 
     @Test
     void administratorCanPlaceOrdinaryStudentWithoutFailedAttempt() {
-        transactions.inTransaction(connection -> {
-            repository.findAttempts(connection, "student-1",
-                    repository.requireOffering(connection, offeringId).courseId()).forEach(attempt -> {
-                        try (var statement = connection.prepareStatement(
-                                "DELETE FROM tblCourseAttempt WHERE attemptId=?")) {
-                            statement.setString(1, attempt.attemptId());
-                            statement.executeUpdate();
-                        } catch (java.sql.SQLException error) {
-                            throw new IllegalStateException(error);
-                        }
-                    });
-            return null;
-        });
+        academicResults.clear();
         fillNormalCapacity();
         transactions.inTransaction(connection -> {
             assertThat(repository.requireOffering(connection, offeringId).enrolledCount()).isEqualTo(40);

@@ -38,7 +38,6 @@ final class CourseDemoCleanup {
                 deletePrerequisites(connection, "tblCurriculumPrerequisite", courseId);
                 deleteBy(connection, "tblCurriculumCourse", "courseId", courseId);
             }
-            deleteBy(connection, "tblCourseAttempt", "courseId", courseId);
             deleteBy(connection, "tblCourse", "courseCode", code);
         } catch (Exception error) {
             throw new IllegalStateException("Unable to replace legacy demo fixtures", error);

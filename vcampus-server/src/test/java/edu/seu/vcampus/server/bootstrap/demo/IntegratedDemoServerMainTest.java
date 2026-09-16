@@ -205,8 +205,7 @@ class IntegratedDemoServerMainTest {
             return new DemoSnapshot(ids(connection, "tblUser", "userId", "loginId LIKE 'DEMO_%'"),
                     ids(connection, "tblTerm", "termId", "termCode='DEMO-TERM'"),
                     ids(connection, "tblCourse", "courseId", "courseCode LIKE 'B%'"),
-                    ids(connection, "tblCourseOffering", "offeringId", "className LIKE '%班'"),
-                    ids(connection, "tblCourseAttempt", "attemptId", "studentId='demo-student'"));
+                    ids(connection, "tblCourseOffering", "offeringId", "className LIKE '%班'"));
         }
     }
 
@@ -291,8 +290,7 @@ class IntegratedDemoServerMainTest {
     }
 
     private record DemoSnapshot(List<String> userIds, List<String> termIds,
-                                List<String> courseIds, List<String> offeringIds,
-                                List<String> attemptIds) { }
+                                List<String> courseIds, List<String> offeringIds) { }
 
     private static ResponseBody<?> route(ApplicationRuntime runtime, String command,
             String token, Serializable body) {

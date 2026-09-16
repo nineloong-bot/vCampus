@@ -74,7 +74,6 @@ public final class CourseClientService {
     public CompletableFuture<EnrollmentView> enrollRetake(RetakeCommand c) { return call("COURSE_RETAKE_ENROLL", c, WRITE, EnrollmentView.class); }
     public CompletableFuture<List<ScheduleItem>> getCurrentSchedule() { return callList("COURSE_GET_MY_SCHEDULE", EmptyRequest.INSTANCE, READ, ScheduleItem.class); }
     public CompletableFuture<List<EnrollmentView>> getCurrentEnrollments() { return callList("COURSE_GET_MY_ENROLLMENTS", EmptyRequest.INSTANCE, READ, EnrollmentView.class); }
-    public CompletableFuture<EmptyResponse> importOutcomes(ImportCourseOutcomesCommand c) { return call("COURSE_IMPORT_OUTCOMES", c, WRITE, EmptyResponse.class); }
     public CompletableFuture<CourseView> createCourse(CreateCourseCommand c) { return call("COURSE_CREATE", c, WRITE, CourseView.class); }
     public CompletableFuture<CourseView> updateCourse(UpdateCourseCommand c) { return call("COURSE_UPDATE", c, WRITE, CourseView.class); }
     public CompletableFuture<OfferingView> createOffering(CreateOfferingCommand c) { return call("COURSE_CREATE_OFFERING", c, WRITE, OfferingView.class); }

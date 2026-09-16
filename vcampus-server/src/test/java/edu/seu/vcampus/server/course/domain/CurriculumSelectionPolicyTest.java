@@ -4,6 +4,8 @@ import edu.seu.vcampus.common.course.AcademicSeason;
 import edu.seu.vcampus.server.bootstrap.ApplicationSchemaInitializer;
 import edu.seu.vcampus.server.course.repository.*;
 import edu.seu.vcampus.server.course.service.StudentEnrollmentEligibility;
+import edu.seu.vcampus.server.course.service.CourseAcademicRecord;
+import edu.seu.vcampus.server.course.service.CourseAcademicResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -52,7 +54,7 @@ class CurriculumSelectionPolicyTest {
     @Test
     void mapsCohortToCurrentTermAndAddsOnlyUnresolvedEarlierFailures() {
         var student = new StudentEnrollmentEligibility(STUDENT_ID, "ACTIVE", "080901", 2024);
-        var candidates = new CurriculumSelectionPolicy(curricula, courses)
+        var candidates = policy()
                 .resolve(connection, student, term);
 
         assertThat(candidates.courses().keySet()).containsExactlyInAnyOrder("current", "retake");
@@ -63,7 +65,7 @@ class CurriculumSelectionPolicyTest {
 
     @Test
     void reportsMissingPublishedPlanInsteadOfShowingEveryOffering() {
-        assertThatThrownBy(() -> new CurriculumSelectionPolicy(curricula, courses).resolve(
+        assertThatThrownBy(() -> policy().resolve(
                 connection, new StudentEnrollmentEligibility(STUDENT_ID, "ACTIVE", "080901", 2025), term))
                 .isInstanceOf(CurriculumNotConfiguredException.class)
                 .hasMessage("尚未配置适用的培养方案");
@@ -80,10 +82,13 @@ class CurriculumSelectionPolicyTest {
         addPlanCourse("passed-current", 3, AcademicSeason.AUTUMN);
         addPlanCourse("future", 3, AcademicSeason.SPRING);
         addPlanCourse("retake", 2, AcademicSeason.SPRING);
-        courses.insertAttemptIfAbsent(connection, new CourseAttempt("failed", STUDENT_ID, "retake",
-                term.termId(), "FAILED", "grade-failed", Instant.parse("2026-01-01T00:00:00Z")));
-        courses.insertAttemptIfAbsent(connection, new CourseAttempt("passed", STUDENT_ID, "passed-current",
-                term.termId(), "PASSED", "grade-passed", Instant.parse("2026-01-01T00:00:00Z")));
+    }
+
+    private CurriculumSelectionPolicy policy() {
+        return new CurriculumSelectionPolicy(curricula, courses, studentId -> new CourseAcademicRecord(
+                java.util.List.of(
+                new CourseAcademicResult("grade-failed", "BJSL0061", "FAILED"),
+                new CourseAcademicResult("grade-passed", "B09T0011", "PASSED"))));
     }
 
     private void addCourse(String id, String code, String name) {

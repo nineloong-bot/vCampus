@@ -24,11 +24,10 @@ import edu.seu.vcampus.common.course.AdjustmentAuditView;
 import edu.seu.vcampus.common.course.CourseCatalogQuery;
 import edu.seu.vcampus.common.course.CourseSelectionQuery;
 import edu.seu.vcampus.common.course.CourseSelectionView;
+import edu.seu.vcampus.common.course.TeachingClassOptionView;
 import edu.seu.vcampus.common.course.CourseTeacherQuery;
 import edu.seu.vcampus.common.course.CourseView;
 import edu.seu.vcampus.common.course.TermView;
-import edu.seu.vcampus.common.course.ImportCourseOutcomesCommand;
-import edu.seu.vcampus.common.course.CourseOutcome;
 import edu.seu.vcampus.common.course.CreateCourseCommand;
 import edu.seu.vcampus.common.course.UpdateCourseCommand;
 import edu.seu.vcampus.common.course.CreateTermCommand;
@@ -380,6 +379,30 @@ class CourseUiTest {
         });
         assertThat(rows.stream().filter(StudentCourseRowPanel::isExpanded)).hasSize(1);
         assertThat(rows.get(1).isExpanded()).isTrue();
+    }
+
+    @Test
+    void studentSelectionUsesTrainingPlanCourseTypeLabels() throws Exception {
+        StudentCourseSelectionPanel panel = onEdt(
+                () -> new StudentCourseSelectionPanel(CourseUiGateway.preview()));
+        flushEdt(3);
+        JComboBox<?> nature = component(panel, "课程性质", JComboBox.class);
+
+        assertThat(IntStream.range(0, nature.getItemCount())
+                .mapToObj(index -> String.valueOf(nature.getItemAt(index))).toList())
+                .containsExactly("课程性质：全部", "必修", "选修", "跨学科");
+
+        OfferingSummary offering = new OfferingSummary(
+                "offering-cross", "term-current", "cross", "X101", "跨学科导论",
+                "teacher-1", "01班", 40, 0, "OPEN", 0, List.of());
+        CourseSelectionView course = new CourseSelectionView(
+                "cross", "X101", "跨学科导论", new BigDecimal("2.0"),
+                "CROSS_DISCIPLINARY", "跨学科课程", "信息科学与工程学院",
+                false, "SELECT_COURSE", null, null, null, null,
+                List.of(new TeachingClassOptionView(offering, "ENROLL", null)));
+        StudentCourseRowPanel row = onEdt(() -> new StudentCourseRowPanel(
+                course, new JPanel(), ignored -> { }));
+        assertThat(labels(row)).contains("跨学科");
     }
 
     @Test
@@ -1918,38 +1941,6 @@ class CourseUiTest {
         assertThat(table.getValueAt(0, 7)).isEqualTo("开放");
         assertThat(textField(panel, "学期编号").isEditable()).isFalse();
         assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.NORMAL);
-    }
-
-    @Test
-    void outcomeImportParsesPassFailRowsAndSubmitsTypedCommand() throws Exception {
-        AtomicReference<ImportCourseOutcomesCommand> submitted = new AtomicReference<>();
-        CourseUiGateway gateway = new CourseUiGateway() {
-            public CompletableFuture<PageResult<OfferingSummary>> searchOfferings(OfferingSearchQuery query) { return CourseUiGateway.preview().searchOfferings(query); }
-            public CompletableFuture<List<EnrollmentView>> currentEnrollments() { return CompletableFuture.completedFuture(List.of()); }
-            public CompletableFuture<List<ScheduleItem>> currentSchedule() { return CompletableFuture.completedFuture(List.of()); }
-            public CompletableFuture<EnrollmentView> enroll(EnrollCommand command) { return CompletableFuture.failedFuture(new UnsupportedOperationException()); }
-            @Override public CompletableFuture<EmptyResponse> importOutcomes(ImportCourseOutcomesCommand command) {
-                submitted.set(command);
-                return CompletableFuture.completedFuture(EmptyResponse.INSTANCE);
-            }
-        };
-        OutcomeImportPanel panel = onEdt(() -> new OutcomeImportPanel(gateway));
-        EmbeddedEditorHost host = descendants(panel).stream().filter(EmbeddedEditorHost.class::isInstance)
-                .map(EmbeddedEditorHost.class::cast).findFirst().orElseThrow();
-        SwingUtilities.invokeAndWait(() -> button(panel, "导入课程结果").doClick());
-        JTextArea input = descendants(panel).stream().filter(JTextArea.class::isInstance).map(JTextArea.class::cast).findFirst().orElseThrow();
-        JButton submit = descendants(panel).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
-                .filter(button -> "执行导入".equals(button.getText())).findFirst().orElseThrow();
-
-        SwingUtilities.invokeAndWait(() -> {
-            input.setText("student-1,course-1,term-1,FAILED,registrar-2026-001");
-            submit.doClick();
-        });
-        SwingUtilities.invokeAndWait(() -> { });
-
-        assertThat(submitted.get()).isEqualTo(new ImportCourseOutcomesCommand(List.of(
-                new ImportCourseOutcomesCommand.OutcomeEntry("student-1", "course-1", "term-1", CourseOutcome.FAILED, "registrar-2026-001"))));
-        assertThat(host.isEditorOpen()).isFalse();
     }
 
     @Test

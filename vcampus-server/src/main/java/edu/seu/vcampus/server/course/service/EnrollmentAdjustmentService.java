@@ -35,6 +35,7 @@ final class EnrollmentAdjustmentService {
     private final CourseAuthorizationGateway authorization;
     private final CourseStudentGateway students;
     private final CourseRepository repository;
+    private final CourseAcademicRecordGateway academicRecords;
     private final ResourceLockManager locks;
     private final TransactionManager transactions;
     private final SelectionPhasePolicy phases;
@@ -42,12 +43,15 @@ final class EnrollmentAdjustmentService {
     private final AdjustmentEnrollmentRules rules;
 
     EnrollmentAdjustmentService(CourseAuthorizationGateway authorization, CourseStudentGateway students,
-                                CourseRepository repository, ResourceLockManager locks,
+                                CourseRepository repository,
+                                CourseAcademicRecordGateway academicRecords,
+                                ResourceLockManager locks,
                                 TransactionManager transactions, SelectionPhasePolicy phases,
                                 ScheduleConflictPolicy conflicts, Clock clock) {
         this.authorization = Objects.requireNonNull(authorization, "authorization");
         this.students = Objects.requireNonNull(students, "students");
         this.repository = Objects.requireNonNull(repository, "repository");
+        this.academicRecords = Objects.requireNonNull(academicRecords, "academicRecords");
         this.locks = Objects.requireNonNull(locks, "locks");
         this.transactions = Objects.requireNonNull(transactions, "transactions");
         this.phases = Objects.requireNonNull(phases, "phases");
@@ -112,7 +116,10 @@ final class EnrollmentAdjustmentService {
 
     private EnrollmentView addInside(Connection c, String studentId, String targetId, Instant now) {
         Offering target = repository.requireOffering(c, targetId);
-        if (repository.existsPassedAttempt(c, studentId, target.courseId())) throw new CourseAlreadyPassedException();
+        String courseCode = repository.requireCourse(c, target.courseId()).courseCode();
+        if (academicRecords.findByStudent(studentId).hasPassed(courseCode)) {
+            throw new CourseAlreadyPassedException();
+        }
         requireOpenForAdd(target);
         phases.requireAdjustmentOpen(c, target.termId());
         List<Enrollment> active = repository.findActiveByStudentAndTerm(c, studentId, target.termId());

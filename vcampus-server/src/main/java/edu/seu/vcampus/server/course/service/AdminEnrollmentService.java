@@ -24,16 +24,19 @@ import edu.seu.vcampus.server.persistence.TransactionManager;
 final class AdminEnrollmentService {
     private final CourseStudentGateway students;
     private final CourseRepository repository;
+    private final CourseAcademicRecordGateway academicRecords;
     private final ResourceLockManager locks;
     private final TransactionManager transactions;
     private final Clock clock;
     private final AdjustmentEnrollmentRules rules;
 
     AdminEnrollmentService(CourseStudentGateway students, CourseRepository repository,
+                           CourseAcademicRecordGateway academicRecords,
                            ResourceLockManager locks, TransactionManager transactions,
                            ScheduleConflictPolicy conflicts, Clock clock) {
         this.students = Objects.requireNonNull(students);
         this.repository = Objects.requireNonNull(repository);
+        this.academicRecords = Objects.requireNonNull(academicRecords);
         this.locks = Objects.requireNonNull(locks);
         this.transactions = Objects.requireNonNull(transactions);
         this.clock = Objects.requireNonNull(clock);
@@ -58,11 +61,13 @@ final class AdminEnrollmentService {
     private EnrollmentView enrollInside(Connection connection, String studentId,
                                         String offeringId, Instant now) {
         var offering = repository.requireOffering(connection, offeringId);
+        var course = repository.requireCourse(connection, offering.courseId());
+        CourseAcademicRecord academic = academicRecords.findByStudent(studentId);
         if (!"OPEN".equals(offering.offeringStatus())) throw new EnrollmentClosedException();
-        if (repository.existsPassedAttempt(connection, studentId, offering.courseId())) {
+        if (academic.hasPassed(course.courseCode())) {
             throw new CourseAlreadyPassedException();
         }
-        boolean retake = repository.existsFailedAttempt(connection, studentId, offering.courseId());
+        boolean retake = academic.requiresRetake(course.courseCode());
         rules.requireNoDuplicateOrConflict(connection,
                 repository.findActiveByStudentAndTerm(connection, studentId, offering.termId()), offering, null);
         if (retake) {

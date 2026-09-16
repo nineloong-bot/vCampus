@@ -40,7 +40,7 @@ jdbc:ucanaccess:///absolute/path/to/vcampus.accdb
 | --- | --- | --- |
 | `STUDENT` | `course.offerings`、`course.enrollments`、`course.schedule`、`course.adjustment`、`course.retake` | 教学班查询、我的选课、我的课表、退改补、重修 |
 | `TEACHER` | `course.offerings`、`course.schedule` | 教学班查询、教师课表 |
-| `SUPER_ADMIN`、`COURSE_ADMIN`、兼容角色 `ADMIN` | `course.terms`、`course.selection-phases`、`course.catalog`、`course.offering-admin`、`course.outcome-import`、`course.adjustment-audit` | 学期管理、选课阶段、课程目录、教学班管理、修读结果导入、选退记录 |
+| `SUPER_ADMIN`、`COURSE_ADMIN`、兼容角色 `ADMIN` | `course.terms`、`course.selection-phases`、`course.catalog`、`course.offering-admin`、`course.adjustment-audit` | 学期管理、选课阶段、课程目录、教学班管理、选退记录 |
 
 `mustChangePassword=true` 的首次改密受限会话不创建选课主窗口，只能修改密码或登出；任何选课命令都在服务端以
 `AUTH_INITIAL_PASSWORD_CHANGE_REQUIRED` 拒绝。密码修改成功或登出后清除内存令牌并回到登录。
@@ -104,7 +104,7 @@ Windows 依次使用 `start-server-with-data.bat`、`start-client.bat`。两个�
 
 ### 课程标签和业务走查
 
-课程中心只占一个全局导航模块，内部标签按角色过滤：学生为“教学班查询、我的选课、我的课表、退改补、重修”；教师为“教学班查询、教师课表”；管理员为“学期管理、选课阶段、课程目录、教学班管理、修读结果导入、选退记录”。
+课程中心只占一个全局导航模块，内部标签按角色过滤：学生为“教学班查询、我的选课、我的课表、退改补、重修”；教师为“教学班查询、教师课表”；管理员为“学期管理、选课阶段、课程目录、教学班管理、选退记录”。课程是否通过由学籍模块成绩数据统一判定。
 
 学生可在“教学班查询”选择开放教学班，随后在“我的选课”确认活动记录并立即点击“退选所选课程”；确认后记录保留为退选历史、名额释放，课表在重新选择时刷新。Demo 预置一个活动选课和多个开放教学班，便于完成“选课 → 立即退选”。补选和改选仍只允许在退改补调整窗口，正常选课窗口不能绕过该限制；两个窗口之外服务端拒绝。
 

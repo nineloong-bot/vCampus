@@ -75,6 +75,22 @@ class CourseSelectionDtoTest {
     }
 
     @Test
+    void queryAndRowsUseTrainingPlanCourseTypes() {
+        assertThat(new CourseSelectionQuery("term-1", "", null,
+                null, "CROSS_DISCIPLINARY", null, 0, 20).courseNature())
+                .isEqualTo("CROSS_DISCIPLINARY");
+        assertThatThrownBy(() -> new CourseSelectionQuery("term-1", "", null,
+                null, "RESTRICTED", null, 0, 20)).isInstanceOf(IllegalArgumentException.class);
+
+        CourseSelectionView crossDisciplinary = new CourseSelectionView(
+                "c1", "X101", "跨学科导论", new BigDecimal("2.0"),
+                "CROSS_DISCIPLINARY", "跨学科课程", "信息科学与工程学院",
+                false, "SELECT_COURSE", null, null, null, null,
+                List.of(new TeachingClassOptionView(offering(), "ENROLL", null)));
+        assertThat(crossDisciplinary.courseNature()).isEqualTo("CROSS_DISCIPLINARY");
+    }
+
+    @Test
     void courseRowCarriesCurriculumPresentationFields() {
         CourseSelectionView course = new CourseSelectionView("c1", "B09D0012", "数据库原理",
                 new BigDecimal("3.0"), "REQUIRED", "专业主干课", "计算机科学与工程学院",

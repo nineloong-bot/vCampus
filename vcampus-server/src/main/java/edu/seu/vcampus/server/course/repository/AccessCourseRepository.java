@@ -95,20 +95,4 @@ public final class AccessCourseRepository implements CourseRepository {
         return audits.findAdjustmentsByStudent(c, studentId);
     }
     @Override public List<EnrollmentAdjustment> findAdjustments(Connection c){return audits.findAdjustments(c);}
-    @Override public boolean insertAttemptIfAbsent(Connection c, CourseAttempt value) {
-        return audits.insertAttemptIfAbsent(c, value);
-    }
-    @Override public Optional<CourseAttempt> findAttemptBySourceReference(Connection c,
-                                                                          String sourceReference) {
-        return audits.findAttemptBySourceReference(c, sourceReference);
-    }
-    @Override public List<CourseAttempt> findAttempts(Connection c, String studentId, String courseId) {
-        return audits.findAttempts(c, studentId, courseId);
-    }
-    @Override public boolean existsFailedAttempt(Connection c, String studentId, String courseId) {
-        return audits.existsFailedAttempt(c, studentId, courseId);
-    }
-    @Override public boolean existsPassedAttempt(Connection c, String studentId, String courseId) {
-        return audits.existsPassedAttempt(c, studentId, courseId);
-    }
 }
