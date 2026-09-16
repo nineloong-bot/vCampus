@@ -99,6 +99,13 @@ public interface MajorTransferService {
         return importScores(adminUserId, command);
     }
 
+    /** Returns whether every formal application is ready for atomic finalization. */
+    MajorTransferBatchReadinessView getBatchReadiness(String batchId, String trustedDepartmentId);
+
+    /** Finalizes and immediately applies every assessed application in the target-college batch. */
+    MajorTransferBatchFinalizationResult finalizeBatch(String adminUserId,
+            FinalizeMajorTransferBatchCommand command, String trustedDepartmentId);
+
     // ── Admin: final approval and execution ──
 
     MajorTransferApplicationView finalizeApproval(String adminUserId, FinalizeMajorTransferCommand command);

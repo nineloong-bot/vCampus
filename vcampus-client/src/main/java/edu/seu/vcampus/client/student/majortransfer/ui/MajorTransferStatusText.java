@@ -28,6 +28,7 @@ final class MajorTransferStatusText {
             case DRAFT -> "草稿";
             case OPEN -> "开放报名";
             case CLOSED -> "已关闭";
+            case EFFECTIVE -> "已终审生效";
         };
     }
 

@@ -11,6 +11,7 @@ import edu.seu.vcampus.common.student.majortransfer.ReviewMajorTransferSourceCom
 import edu.seu.vcampus.common.student.majortransfer.SaveMajorTransferBatchCommand;
 import edu.seu.vcampus.common.student.majortransfer.RecordMajorTransferScoreCommand;
 import edu.seu.vcampus.common.student.majortransfer.FinalizeMajorTransferCommand;
+import edu.seu.vcampus.common.student.majortransfer.FinalizeMajorTransferBatchCommand;
 import edu.seu.vcampus.common.student.majortransfer.ExecuteMajorTransferCommand;
 import edu.seu.vcampus.common.student.majortransfer.SaveMajorTransferOptionCommand;
 import java.math.BigDecimal;
@@ -127,15 +128,15 @@ class MajorTransferRoleAuthorizationTest {
     }
 
     @Test
-    void collegeAdministratorCanFinalizeWithTargetScope() {
+    void collegeAdministratorCanFinalizeBatchWithTargetScope() {
         Fixture fixture = fixture("COLLEGE_ADMIN");
-        var command = new FinalizeMajorTransferCommand(APPLICATION, 0);
+        var command = new FinalizeMajorTransferBatchCommand("batch", 0);
 
-        var result = fixture.route("MAJOR_TRANSFER_FINALIZE", command);
+        var result = fixture.route("MAJOR_TRANSFER_FINALIZE_BATCH", command);
 
         assertThat(result.success()).isTrue();
-        verify(fixture.scope).requireTargetApproval("operator", APPLICATION);
-        verify(fixture.service).finalizeApproval("operator", command, "managed-department");
+        verify(fixture.scope).requireTargetApprovalForBatch("operator", "batch");
+        verify(fixture.service).finalizeBatch("operator", command, "managed-department");
     }
 
     @Test
@@ -150,14 +151,14 @@ class MajorTransferRoleAuthorizationTest {
     }
 
     @Test
-    void studentAdministratorCannotFinalize() {
+    void studentAdministratorCannotFinalizeBatch() {
         Fixture fixture = fixture("STUDENT_ADMIN");
-        var command = new FinalizeMajorTransferCommand(APPLICATION, 0);
+        var command = new FinalizeMajorTransferBatchCommand("batch", 0);
 
-        var result = fixture.route("MAJOR_TRANSFER_FINALIZE", command);
+        var result = fixture.route("MAJOR_TRANSFER_FINALIZE_BATCH", command);
 
         assertThat(result.code()).isEqualTo("COMMON_FORBIDDEN");
-        verify(fixture.service, never()).finalizeApproval(anyString(), any());
+        verify(fixture.service, never()).finalizeBatch(anyString(), any(), anyString());
     }
 
     @Test
@@ -177,27 +178,12 @@ class MajorTransferRoleAuthorizationTest {
     }
 
     @Test
-    void targetCollegeAdministratorCanExecuteTransfer() {
+    void individualFinalizeAndExecuteCommandsAreNotRegistered() {
         Fixture fixture = fixture("COLLEGE_ADMIN");
-        var command = new ExecuteMajorTransferCommand(APPLICATION, "class-2", 0);
-
-        var result = fixture.route("MAJOR_TRANSFER_EXECUTE", command);
-
-        assertThat(result.success()).isTrue();
-        verify(fixture.scope).requireTargetApproval("operator", APPLICATION);
-        verify(fixture.service).execute("operator", command, "managed-department");
-    }
-
-    @Test
-    void studentAdministratorCannotExecuteTransfer() {
-        Fixture fixture = fixture("STUDENT_ADMIN");
-
-        var result = fixture.route("MAJOR_TRANSFER_EXECUTE",
-                new ExecuteMajorTransferCommand(APPLICATION, "class-2", 0));
-
-        assertThat(result.code()).isEqualTo("COMMON_FORBIDDEN");
-        verify(fixture.service, never()).execute(anyString(),
-                any(ExecuteMajorTransferCommand.class), anyString());
+        assertThat(fixture.route("MAJOR_TRANSFER_FINALIZE",
+                new FinalizeMajorTransferCommand(APPLICATION, 0)).success()).isFalse();
+        assertThat(fixture.route("MAJOR_TRANSFER_EXECUTE",
+                new ExecuteMajorTransferCommand(APPLICATION, "class-2", 0)).success()).isFalse();
     }
 
     @Test

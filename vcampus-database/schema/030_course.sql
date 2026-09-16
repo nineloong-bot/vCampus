@@ -111,7 +111,7 @@ CREATE INDEX idx_tblEnrollment_offeringId ON tblEnrollment (offeringId);
 CREATE TABLE tblEnrollmentAdjustment (
     adjustmentId VARCHAR(36) NOT NULL,
     studentId VARCHAR(36) NOT NULL,
-    adjustmentType VARCHAR(16) NOT NULL,
+    adjustmentType VARCHAR(32) NOT NULL,
     sourceOfferingId VARCHAR(36),
     targetOfferingId VARCHAR(36),
     operationResult VARCHAR(16) NOT NULL,

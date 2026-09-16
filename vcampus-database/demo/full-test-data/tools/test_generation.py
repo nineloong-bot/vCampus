@@ -32,6 +32,33 @@ class GenerationTest(unittest.TestCase):
         self.assertEqual({150}, set(majors.values()))
         self.assertEqual(64, len(rows["tblClass"]))
 
+    def test_student_accounts_encode_their_enrollment_year(self):
+        fast_password = dict(passwordHash="hash", passwordSalt="salt", passwordIterations=1)
+        with patch.object(people, "credentials", return_value=fast_password):
+            rows = self.capture(people.generate)
+        users = {row["userId"]: row["loginId"] for row in rows["tblUser"]}
+        classes = {row["classId"]: row["enrollmentYear"] for row in rows["tblClass"]}
+        for student in rows["tblStudent"]:
+            cohort = classes[student["classId"]]
+            self.assertEqual(f"213{cohort % 100:02d}", users[student["userId"]][:5])
+            if cohort in {2023, 2024}:
+                self.assertGreaterEqual(int(users[student["userId"]][5:]), 1001)
+
+    def test_transfer_accounts_are_a_contiguous_2026_block(self):
+        rows = self.capture(major_transfer.generate)
+        accounts = [row["loginId"] for row in rows["tblUser"]
+                    if row["loginId"].startswith("21326")]
+        transfer_accounts = sorted(int(account) for account in accounts
+                                   if account.startswith("213266"))
+        self.assertEqual(list(range(213266001, 213266241)), transfer_accounts)
+
+    def test_transfer_account_manifest_contains_all_applicants(self):
+        accounts = major_transfer.generate(
+            lambda table, **fields: None, datetime(2026, 9, 7, 12))
+        self.assertEqual(240, len(accounts))
+        self.assertEqual("213266001", accounts[0]["login"])
+        self.assertEqual("213266240", accounts[-1]["login"])
+
     def test_testadmin_is_the_super_admin(self):
         fast_password = dict(passwordHash="hash", passwordSalt="salt", passwordIterations=1)
         with patch.object(people, "credentials", return_value=fast_password):
@@ -50,12 +77,21 @@ class GenerationTest(unittest.TestCase):
         self.assertEqual("ACTIVE", account["accountStatus"])
         self.assertFalse(account["mustChangePassword"])
 
-    def test_only_last_ten_students_require_an_initial_password_change(self):
+    def test_every_generated_student_requires_an_initial_password_change(self):
         fast_password = dict(passwordHash="hash", passwordSalt="salt", passwordIterations=1)
         with patch.object(people, "credentials", return_value=fast_password):
             rows = self.capture(people.generate)
+        major_transfer.generate(lambda table, **fields: rows[table].append(fields),
+                                datetime(2026, 9, 7, 12))
         students = [row for row in rows["tblUser"] if row["roleCode"] == "STUDENT"]
-        self.assertEqual(10, sum(row["mustChangePassword"] for row in students))
+        self.assertTrue(students)
+        self.assertTrue(all(row["mustChangePassword"] for row in students))
+
+    def test_course_fixture_rejects_an_enrollment_without_exactly_one_schedule(self):
+        rows = self.capture(courses.generate)
+        rows["tblCourseSchedule"].pop()
+        with self.assertRaises(AssertionError):
+            courses.validate_course_fixture(rows)
 
     def test_courses_include_two_seasons_and_canonical_eight_term_plans(self):
         rows = self.capture(courses.generate)
@@ -132,6 +168,14 @@ class GenerationTest(unittest.TestCase):
                           for value in row.values() if isinstance(value, str)]
         self.assertFalse([value for value in visible_values if "测试" in value])
 
+    def test_library_has_a_large_past_due_cohort_for_borrowing_tests(self):
+        rows = self.capture(library.generate)
+        overdue = [row for row in rows["tblBookLoan"] if row["loanStatus"] == "OVERDUE"]
+        self.assertGreaterEqual(len(overdue), 200)
+        self.assertTrue(all(row["borrowedAt"] < datetime(2026, 9, 7, 12)
+                            and row["dueAt"] < datetime(2026, 9, 7, 12)
+                            for row in overdue))
+
     def test_active_normal_enrollments_follow_each_students_current_plan_term(self):
         rows = self.capture(courses.generate)
         offering_courses = {
@@ -160,6 +204,122 @@ class GenerationTest(unittest.TestCase):
         self.assertEqual({"1"}, {row["fromGrade"] for row in applications})
         self.assertTrue(all(row["fromDepartmentId"] != options[row["optionId"]]["targetDepartmentId"]
                             for row in applications))
+
+    def test_math_college_has_a_substantial_realistic_population(self):
+        fast_password = dict(passwordHash="hash", passwordSalt="salt", passwordIterations=1)
+        with patch.object(people, "credentials", return_value=fast_password):
+            rows = self.capture(people.generate)
+        majors = {row["majorId"] for row in rows["tblMajor"]
+                  if row["departmentId"] == "bulk-dept-02"}
+        math_students = [row for row in rows["tblStudent"] if
+                         row["classId"].split("-")[2] in {"03", "04"}]
+        self.assertGreaterEqual(len(math_students), 200)
+        self.assertGreaterEqual(len({row["classId"] for row in math_students}), 6)
+        self.assertTrue(all(row["classId"].split("-")[2] in {"03", "04"}
+                            for row in math_students))
+
+    def test_math_students_submit_valid_applications_to_computer(self):
+        rows = defaultdict(list)
+        now = datetime(2026, 9, 7, 12)
+        fast_password = dict(passwordHash="hash", passwordSalt="salt", passwordIterations=1)
+        with patch.object(people, "credentials", return_value=fast_password):
+            people.generate(lambda table, **fields: rows[table].append(fields), now)
+        major_transfer.generate_reverse(lambda table, **fields: rows[table].append(fields), now)
+        applications = rows["tblMajorTransferApplication"]
+        options = {row["optionId"]: row for row in rows["tblMajorTransferOption"]}
+        self.assertGreaterEqual(len(applications), 10)
+        self.assertEqual({"数学学院"}, {row["fromDepartmentName"] for row in applications})
+        self.assertEqual({"计算机学院"}, {options[row["optionId"]]["targetDepartmentName"]
+                                         for row in applications})
+        self.assertEqual({"1"}, {row["fromGrade"] for row in applications})
+
+    def test_computer_target_batch_is_closed_and_ready_for_atomic_finalization(self):
+        rows = defaultdict(list)
+        now = datetime(2026, 9, 7, 12)
+        fast_password = dict(passwordHash="hash", passwordSalt="salt", passwordIterations=1)
+        with patch.object(people, "credentials", return_value=fast_password):
+            people.generate(lambda table, **fields: rows[table].append(fields), now)
+        major_transfer.generate_reverse(lambda table, **fields: rows[table].append(fields), now)
+        batch = next(row for row in rows["tblMajorTransferBatch"]
+                     if row["batchId"] == major_transfer.REVERSE_BATCH_ID)
+        applications = [row for row in rows["tblMajorTransferApplication"]
+                        if row["batchId"] == major_transfer.REVERSE_BATCH_ID]
+        self.assertEqual("CLOSED", batch["batchStatus"])
+        self.assertEqual({"ASSESSED"}, {row["applicationStatus"] for row in applications})
+        self.assertTrue(all(row["finalScore"] is not None for row in applications))
+
+    def test_unresolved_closed_batch_remains_blocked(self):
+        rows = self.capture(major_transfer.generate)
+        batch = rows["tblMajorTransferBatch"][0]
+        self.assertEqual("CLOSED", batch["batchStatus"])
+        self.assertIn("SUBMITTED", {row["applicationStatus"]
+                                    for row in rows["tblMajorTransferApplication"]})
+
+    def test_transfer_fixture_rejects_failed_transfer_grade(self):
+        rows = defaultdict(list)
+        now = datetime(2026, 9, 7, 12)
+        fast_password = dict(passwordHash="hash", passwordSalt="salt", passwordIterations=1)
+        with patch.object(people, "credentials", return_value=fast_password):
+            people.generate(lambda table, **fields: rows[table].append(fields), now)
+        major_transfer.generate_reverse(lambda table, **fields: rows[table].append(fields), now)
+        rows["tblStudentGrade"].append({
+            "studentId": rows["tblMajorTransferApplication"][0]["studentId"],
+            "result": "FAILED",
+        })
+        with self.assertRaises(AssertionError):
+            major_transfer.validate_transfer_fixture(rows)
+
+    def test_shop_fixture_covers_named_roles_workflows_and_wallets(self):
+        rows = defaultdict(list)
+        now = datetime(2026, 9, 7, 12)
+        fast_password = dict(passwordHash="hash", passwordSalt="salt", passwordIterations=1)
+        with patch.object(people, "credentials", return_value=fast_password):
+            people.generate(lambda table, **fields: rows[table].append(fields), now)
+        shop.generate(lambda table, **fields: rows[table].append(fields), now)
+
+        self.assertEqual(6, len(rows["tblShop"]))
+        self.assertEqual({"青禾文具铺", "拾光书屋", "梧桐生活馆", "行知运动小铺",
+                          "麦香校园食坊", "晚风杂货铺"},
+                         {row["shopName"] for row in rows["tblShop"]})
+        self.assertEqual(72, len(rows["tblProduct"]))
+        self.assertTrue(all("批量" not in row["productName"] for row in rows["tblProduct"]))
+        self.assertEqual(18, len(rows["tblOrder"]))
+        self.assertGreaterEqual(len(rows["tblWalletOperation"]), 10)
+        self.assertGreaterEqual(len(rows["tblShopQualification"]), 4)
+        self.assertGreaterEqual(len(rows["tblShopGovCase"]), 5)
+        self.assertTrue(any(row["applicationStatus"] == "PENDING"
+                            for row in rows["tblSellerApplication"]))
+        self.assertTrue(any(row["applicationStatus"] == "REJECTED"
+                            for row in rows["tblSellerApplication"]))
+
+    def test_third_year_computer_students_have_only_first_four_semester_grades(self):
+        rows = defaultdict(list)
+        now = datetime(2026, 9, 7, 12)
+        fast_password = dict(passwordHash="hash", passwordSalt="salt", passwordIterations=1)
+        with patch.object(people, "credentials", return_value=fast_password):
+            people.generate(lambda table, **fields: rows[table].append(fields), now)
+        courses.generate(lambda table, **fields: rows[table].append(fields), now)
+        expected_semesters = {2025: 2, 2024: 4, 2023: 6}
+        for cohort, max_semester in expected_semesters.items():
+            student_ids = {row["studentId"] for row in rows["tblStudent"]
+                           if row["studentId"].startswith("bulk-student-")
+                           and row["classId"].startswith(f"bulk-class-01-{cohort}")}
+            plan_courses = {row["planCourseId"]: row for row in rows["tblTrainingPlanCourse"]
+                            if row["planId"] == f"bulk-plan-01-{cohort}"}
+            grades = [row for row in rows["tblStudentGrade"] if row["studentId"] in student_ids]
+            expected = max_semester * 5 * len(student_ids)
+            self.assertTrue(student_ids)
+            self.assertEqual(expected, len(grades))
+            self.assertTrue(all(plan_courses[row["planCourseId"]]["semester"] <= max_semester
+                                and row["result"] == "PASSED" for row in grades))
+            self.assertEqual(len(grades), len({(row["studentId"], row["planCourseId"])
+                                               for row in grades}))
+
+        freshman_ids = {row["studentId"] for row in rows["tblStudent"]
+                        if row["studentId"].startswith("bulk-student-")
+                        and row["classId"].startswith("bulk-class-01-2026")}
+        self.assertFalse([row for row in rows["tblStudentGrade"]
+                          if row["studentId"] in freshman_ids])
 
 
 if __name__ == "__main__":

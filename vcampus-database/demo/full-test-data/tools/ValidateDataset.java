@@ -37,10 +37,60 @@ class ValidateDataset {
             for(String line:Files.readAllLines(Path.of(args[1]))) {
                 String[] parts=line.split("\\t");
                 if(parts[0].equals("tblNumberSequence")) continue;
-                String key;
-                try(var s=c.createStatement();var r=s.executeQuery("SELECT * FROM "+parts[0]+" WHERE 1=0")) {
-                    key=r.getMetaData().getColumnName(1);
-                }
+                String key = switch (parts[0]) {
+                    case "tblUser" -> "userId";
+                    case "tblStudent" -> "studentId";
+                    case "tblDepartment" -> "departmentId";
+                    case "tblMajor" -> "majorId";
+                    case "tblClass" -> "classId";
+                    case "tblTerm" -> "termId";
+                    case "tblCourse" -> "courseId";
+                    case "tblTrainingPlan" -> "planId";
+                    case "tblTrainingPlanCourse" -> "planCourseId";
+                    case "tblTrainingPlanPrerequisite" -> "prerequisiteId";
+                    case "tblCourseOffering" -> "offeringId";
+                    case "tblEnrollment" -> "enrollmentId";
+                    case "tblCourseSelectionPhase" -> "phaseId";
+                    case "tblCourseSchedule" -> "scheduleId";
+                    case "tblCourseRetakeQuota" -> "offeringId";
+                    case "tblCourseAttempt" -> "attemptId";
+                    case "tblEnrollmentAdjustment" -> "adjustmentId";
+                    case "tblBook" -> "bookId";
+                    case "tblBookCopy" -> "copyId";
+                    case "tblBookLoan" -> "loanId";
+                    case "tblSellerApplication" -> "applicationId";
+                    case "tblShop" -> "shopId";
+                    case "tblProduct" -> "productId";
+                    case "tblProductSku" -> "skuId";
+                    case "tblCart" -> "cartId";
+                    case "tblCartItem" -> "cartItemId";
+                    case "tblOrderGroup" -> "orderGroupId";
+                    case "tblOrder" -> "orderId";
+                    case "tblOrderItem" -> "orderItemId";
+                    case "tblPayment" -> "paymentId";
+                    case "tblPaymentAttempt" -> "attemptId";
+                    case "tblInventoryReservation" -> "reservationId";
+                    case "tblMajorTransferBatch" -> "batchId";
+                    case "tblMajorTransferOption" -> "optionId";
+                    case "tblMajorTransferApplication" -> "applicationId";
+                    case "tblStudentGrade" -> "gradeId";
+                    case "tblProductCatalog" -> "productId";
+                    case "tblSkuDraftFields" -> "skuId";
+                    case "tblShopOrderState" -> "orderId";
+                    case "tblShopOrderLineState" -> "orderItemId";
+                    case "tblShopInventoryMovement" -> "movementId";
+                    case "tblShopOrderEvent" -> "eventId";
+                    case "tblShopGovApplication" -> "applicationId";
+                    case "tblShopQualification" -> "qualificationId";
+                    case "tblShopProductRestriction" -> "productId";
+                    case "tblShopGovCase" -> "caseId";
+                    case "tblShopGovAudit" -> "auditId";
+                    case "tblWalletAccount" -> "userId";
+                    case "tblWalletOperation" -> "operationId";
+                    case "tblWalletEscrow" -> "orderKey";
+                    case "tblWalletEntry" -> "entryId";
+                    default -> throw new IllegalArgumentException("Unknown count table");
+                };
                 long actual=count(c,"SELECT COUNT(*) FROM "+parts[0]+" WHERE "+key+" LIKE 'bulk-%'");
                 require(actual==Long.parseLong(parts[1]),parts[0]+" count "+actual+" expected "+parts[1]);
                 System.out.println(parts[0]+"="+actual);
@@ -93,6 +143,12 @@ class ValidateDataset {
                     "pc.courseCode=x.courseCode WHERE g.gradeId LIKE 'bulk-%' AND g.result='FAILED'")) {
                 while(r.next()) failedAttempts.add(r.getString(1)+":"+r.getString(2));
             }
+            require(count(c,"SELECT COUNT(*) FROM tblStudentGrade g INNER JOIN "
+                    +"tblMajorTransferApplication a ON g.studentId=a.studentId "
+                    +"WHERE g.result='FAILED'")==0,"Transfer student has failed grade");
+            require(count(c,"SELECT COUNT(*) FROM tblCourseAttempt ca INNER JOIN "
+                    +"tblMajorTransferApplication a ON ca.studentId=a.studentId "
+                    +"WHERE ca.outcome='FAILED'")==0,"Transfer student has failed attempt");
             String enrollmentSql="SELECT e.studentId,e.enrollmentType,o.courseId,c.majorId,"+
                     "c.enrollmentYear,t.academicYearStart,t.season FROM (((tblEnrollment e INNER JOIN "+
                     "tblStudent s ON e.studentId=s.studentId) INNER JOIN tblClass c ON s.classId=c.classId) "+
@@ -126,6 +182,19 @@ class ValidateDataset {
             require(count(c,"SELECT COUNT(*) FROM tblCourseOffering o LEFT JOIN tblCourseRetakeQuota q "
                     +"ON o.offeringId=q.offeringId WHERE q.offeringId IS NULL")==0,
                     "Missing retake quota");
+            require(count(c,"SELECT COUNT(*) FROM (SELECT o.offeringId FROM tblCourseOffering o "
+                    +"LEFT JOIN tblCourseSchedule s ON o.offeringId=s.offeringId GROUP BY o.offeringId "
+                    +"HAVING COUNT(s.scheduleId)<>1)")==0,
+                    "Offering schedule must be one-to-one");
+            require(count(c,"SELECT COUNT(*) FROM tblEnrollment e LEFT JOIN tblCourseSchedule s "
+                    +"ON e.offeringId=s.offeringId WHERE e.enrollmentStatus='ACTIVE' "
+                    +"AND s.scheduleId IS NULL")==0,
+                    "Active enrollment has no schedule");
+            require(count(c,"SELECT COUNT(*) FROM (SELECT e.studentId,o.courseId FROM "
+                    +"tblEnrollment e INNER JOIN tblCourseOffering o ON e.offeringId=o.offeringId "
+                    +"WHERE e.enrollmentStatus='ACTIVE' GROUP BY e.studentId,o.courseId "
+                    +"HAVING COUNT(*)<>1)")==0,
+                    "Duplicate active student course");
             require(count(c,"SELECT COUNT(*) FROM tblCourseRetakeQuota WHERE capacity<>5")==0,
                     "Non-default retake capacity");
             String[] cleanTextQueries={
@@ -147,6 +216,12 @@ class ValidateDataset {
             require(count(c,"SELECT COUNT(*) FROM tblCourseSelectionPhase WHERE phaseStatus IN ('OPEN','PREVIEW')")==1,"Global selection phase count");
             require(count(c,"SELECT COUNT(*) FROM tblBookLoan l INNER JOIN tblBookCopy p ON l.copyId=p.copyId "
                     +"WHERE l.loanId LIKE 'bulk-%' AND l.loanStatus IN ('ACTIVE','OVERDUE') AND p.copyStatus<>'BORROWED'")==0,"Borrowed copy mismatch");
+            require(count(c,"SELECT COUNT(*) FROM tblBookLoan WHERE loanId LIKE 'bulk-%' "
+                    +"AND loanStatus='OVERDUE' AND dueAt < #2026-09-07#")>=200,
+                    "Past-due borrowing cohort");
+            require(count(c,"SELECT COUNT(*) FROM tblUser WHERE roleCode='STUDENT' "
+                    +"AND mustChangePassword=FALSE")==0,
+                    "Student initial password flag");
             require(count(c,"SELECT COUNT(*) FROM tblBookLoan WHERE loanId LIKE 'bulk-%' AND loanStatus='RETURNED' AND returnedAt IS NULL")==0,"Return timestamp missing");
             var lineTotals=totals(c,"tblOrderItem","orderId","lineAmount");
             var orderTotals=totals(c,"tblOrder","orderGroupId","orderAmount");

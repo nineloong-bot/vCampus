@@ -44,13 +44,6 @@ final class MajorTransferCollegeActions {
                             () -> { complete.run(); reloadDetail.run(); }, cancel)));
             add("批量导入成绩", "importScoreButton", () -> MajorTransferScoreImport.choose(
                     parent, students, app.optionId(), reloadBatch));
-        } else if (targetOwned && app.status() == MajorTransferStatus.ASSESSED) {
-            add("终审通过", "finalizeButton", () -> finalizeApplication(app));
-        } else if (targetOwned && (app.status() == MajorTransferStatus.PENDING_EFFECTIVE
-                || app.status() == MajorTransferStatus.EXECUTION_FAILED)) {
-            add("执行转专业", "executeButton", () -> openEditor.accept((complete, cancel) ->
-                    new MajorTransferExecutionPanel(students, app,
-                            () -> { complete.run(); reloadDetail.run(); }, cancel)));
         }
         if (targetOwned && MajorTransferStateMachine.adminMayCancel(app.status())) {
             add("取消申请", "cancelButton", () -> cancel(app));
@@ -91,12 +84,6 @@ final class MajorTransferCollegeActions {
                 app.applicationId(), approve ? MajorTransferDecision.APPROVE
                         : MajorTransferDecision.REJECT, reason, app.applicationVersion()))
                 .whenComplete((response, failure) -> complete(response, close));
-    }
-
-    private void finalizeApplication(MajorTransferApplicationView app) {
-        students.finalizeTransfer(new FinalizeMajorTransferCommand(
-                app.applicationId(), app.applicationVersion()))
-                .whenComplete((response, failure) -> complete(response, () -> { }));
     }
 
     private void cancel(MajorTransferApplicationView app) {

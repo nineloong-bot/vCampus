@@ -120,6 +120,70 @@ class TrainingPlanServiceImplTest {
     }
 
     @Test
+    void refusesToEditHistoricalPlanWithEnrolledStudents() {
+        var plan = service.savePlan(new SaveTrainingPlanCommand(null, "major-1", 2024,
+                "2024级培养方案", 2, new BigDecimal("10.0"), true, 0), "admin");
+        database.transactions().inTransaction(connection -> {
+            try (var classInsert = connection.prepareStatement(
+                    "INSERT INTO tblClass (classId, majorId, classCode, className, enrollmentYear, classNumber, isActive, rowVersion) VALUES (?, ?, ?, ?, ?, ?, TRUE, 0)");
+                 var studentInsert = connection.prepareStatement(
+                         "INSERT INTO tblStudent (studentId, userId, studentNumber, studentType, studentName, gender, classId, enrollmentDate, studentStatus, rowVersion, createdAt, updatedAt) VALUES (?, ?, ?, 'UNDERGRADUATE', ?, '男', ?, #2024-09-01#, 'ACTIVE', 0, NOW(), NOW())")) {
+                classInsert.setString(1, "class-2024");
+                classInsert.setString(2, "major-1");
+                classInsert.setString(3, "090-2024-01");
+                classInsert.setString(4, "计算机科学2024级");
+                classInsert.setInt(5, 2024);
+                classInsert.setInt(6, 1);
+                classInsert.executeUpdate();
+                studentInsert.setString(1, "student-2024");
+                studentInsert.setString(2, "user-2024");
+                studentInsert.setString(3, "20240001");
+                studentInsert.setString(4, "历史学生");
+                studentInsert.setString(5, "class-2024");
+                studentInsert.executeUpdate();
+            }
+            return null;
+        });
+
+        assertThatThrownBy(() -> service.savePlan(new SaveTrainingPlanCommand(plan.planId(),
+                "major-1", 2024, "被禁止修改", 2, new BigDecimal("10.0"), true,
+                plan.rowVersion()), "admin"))
+                .isInstanceOfSatisfying(TrainingPlanException.class,
+                        error -> assertThat(error.code()).isEqualTo("TRAINING_PLAN_IMMUTABLE"));
+    }
+
+    @Test
+    void refusesToAddCourseToHistoricalPlanWithEnrolledStudents() {
+        var plan = service.savePlan(new SaveTrainingPlanCommand(null, "major-1", 2024,
+                "2024级培养方案", 2, new BigDecimal("10.0"), true, 0), "admin");
+        database.transactions().inTransaction(connection -> {
+            try (var classInsert = connection.prepareStatement(
+                    "INSERT INTO tblClass (classId, majorId, classCode, className, enrollmentYear, classNumber, isActive, rowVersion) VALUES (?, ?, ?, ?, ?, ?, TRUE, 0)");
+                 var studentInsert = connection.prepareStatement(
+                         "INSERT INTO tblStudent (studentId, userId, studentNumber, studentType, studentName, gender, classId, enrollmentDate, studentStatus, rowVersion, createdAt, updatedAt) VALUES (?, ?, ?, 'UNDERGRADUATE', ?, '男', ?, #2024-09-01#, 'ACTIVE', 0, NOW(), NOW())")) {
+                classInsert.setString(1, "class-2024");
+                classInsert.setString(2, "major-1");
+                classInsert.setString(3, "090-2024-01");
+                classInsert.setString(4, "计算机科学2024级");
+                classInsert.setInt(5, 2024);
+                classInsert.setInt(6, 1);
+                classInsert.executeUpdate();
+                studentInsert.setString(1, "student-2024");
+                studentInsert.setString(2, "user-2024");
+                studentInsert.setString(3, "20240001");
+                studentInsert.setString(4, "历史学生");
+                studentInsert.setString(5, "class-2024");
+                studentInsert.executeUpdate();
+            }
+            return null;
+        });
+
+        assertThatThrownBy(() -> service.saveCourse(courseCommand(plan.planId(), "CS001"), "admin"))
+                .isInstanceOfSatisfying(TrainingPlanException.class,
+                        error -> assertThat(error.code()).isEqualTo("TRAINING_PLAN_IMMUTABLE"));
+    }
+
+    @Test
     void courseHoursSurviveSaveAndPlanDetailReload() {
         var plan = service.savePlan(new SaveTrainingPlanCommand(null, "major-1", 2024,
                 "2024级培养方案", 3, new BigDecimal("18.0"), true, 0), "admin");

@@ -17,7 +17,8 @@ public final class MajorTransferBatchFormCardPanel extends JPanel {
     private final JLabel cardTitle = new JLabel("新建转专业批次");
     private final JTextField nameField = new JTextField(20);
     private final JComboBox<MajorTransferBatchStatus> statusCombo =
-            new JComboBox<>(MajorTransferBatchStatus.values());
+            new JComboBox<>(new MajorTransferBatchStatus[]{MajorTransferBatchStatus.DRAFT,
+                    MajorTransferBatchStatus.OPEN, MajorTransferBatchStatus.CLOSED});
     private final JTextField startField = new JTextField(16);
     private final JTextField endField = new JTextField(16);
     private final JTextField pubStartField = new JTextField(16);

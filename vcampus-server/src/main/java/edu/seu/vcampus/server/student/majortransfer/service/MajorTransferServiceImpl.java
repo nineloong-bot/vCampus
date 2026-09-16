@@ -4,12 +4,15 @@ import edu.seu.vcampus.common.student.*;
 import edu.seu.vcampus.common.student.majortransfer.*;
 import edu.seu.vcampus.server.concurrency.ResourceKey;
 import edu.seu.vcampus.server.concurrency.ResourceLockManager;
+import edu.seu.vcampus.server.course.integration.AccessMajorTransferEnrollmentAdapter;
 import edu.seu.vcampus.server.persistence.TransactionManager;
 import edu.seu.vcampus.server.student.domain.Major;
 import edu.seu.vcampus.server.student.domain.Student;
 import edu.seu.vcampus.server.student.domain.StudentClass;
 import edu.seu.vcampus.server.student.majortransfer.repository.MajorTransferRepository;
+import edu.seu.vcampus.server.student.numbering.AccessStudentNumberGenerator;
 import edu.seu.vcampus.server.student.repository.AccessOrganizationRepository;
+import edu.seu.vcampus.server.student.repository.NumberSequenceRepository;
 import edu.seu.vcampus.server.student.repository.StudentChangeRepository;
 import edu.seu.vcampus.server.student.repository.StudentRepository;
 import edu.seu.vcampus.server.student.service.StudentNotFoundException;
@@ -44,6 +47,7 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
     private final StudentChangeRepository changes;
     private final AccessOrganizationRepository organizations;
     private final UserQueryPort users;
+    private final MajorTransferBatchFinalizer batchFinalizer;
     private final MajorTransferEligibilityPolicy eligibilityPolicy =
             new MajorTransferEligibilityPolicy();
 
@@ -51,6 +55,16 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
                                      MajorTransferRepository repository, StudentRepository students,
                                      StudentChangeRepository changes,
                                      AccessOrganizationRepository organizations, UserQueryPort users) {
+        this(transactions, locks, repository, students, changes, organizations, users,
+                new AccessMajorTransferEnrollmentAdapter());
+    }
+
+    /** Creates the service with an explicit enrollment port for composition and tests. */
+    public MajorTransferServiceImpl(TransactionManager transactions, ResourceLockManager locks,
+                                     MajorTransferRepository repository, StudentRepository students,
+                                     StudentChangeRepository changes,
+                                     AccessOrganizationRepository organizations, UserQueryPort users,
+                                     MajorTransferEnrollmentPort enrollmentPort) {
         this.transactions = Objects.requireNonNull(transactions);
         this.locks = Objects.requireNonNull(locks);
         this.repository = Objects.requireNonNull(repository);
@@ -58,6 +72,9 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
         this.changes = Objects.requireNonNull(changes);
         this.organizations = organizations;
         this.users = Objects.requireNonNull(users);
+        this.batchFinalizer = new MajorTransferBatchFinalizer(transactions, locks, repository,
+                students, changes, organizations,
+                new AccessStudentNumberGenerator(new NumberSequenceRepository()), enrollmentPort);
     }
 
     // ── Student operations ──
@@ -674,6 +691,20 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
     }
 
     // ── Admin: final approval and execution ──
+
+    /** {@inheritDoc} */
+    @Override
+    public MajorTransferBatchReadinessView getBatchReadiness(
+            String batchId, String trustedDepartmentId) {
+        return batchFinalizer.readiness(batchId, trustedDepartmentId);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public MajorTransferBatchFinalizationResult finalizeBatch(String adminUserId,
+            FinalizeMajorTransferBatchCommand command, String trustedDepartmentId) {
+        return batchFinalizer.finalizeBatch(adminUserId, command, trustedDepartmentId);
+    }
 
     @Override
     public MajorTransferApplicationView finalizeApproval(String adminUserId,

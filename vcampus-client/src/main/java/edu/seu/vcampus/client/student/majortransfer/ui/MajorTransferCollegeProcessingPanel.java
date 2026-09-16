@@ -25,6 +25,8 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
     private final JPanel attachments = new JPanel();
     private final JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT));
     private final JLabel status = new JLabel(" ");
+    private final JLabel readiness = new JLabel("终审状态：未加载");
+    private final JButton finalizeBatch = new JButton("批次终审并生效");
     private final Set<String> ownedOptions = new HashSet<>();
     private final MajorTransferCollegeActions collegeActions;
     private EmbeddedEditorHost editorHost;
@@ -62,6 +64,11 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
         toolbar.add(batches);
         toolbar.add(option);
         toolbar.add(refresh);
+        finalizeBatch.setName("major-transfer.finalize-batch");
+        finalizeBatch.setEnabled(false);
+        finalizeBatch.addActionListener(event -> finalizeSelectedBatch());
+        toolbar.add(finalizeBatch);
+        toolbar.add(readiness);
         batches.addActionListener(event -> loadSelectedBatch());
 
         applications.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -125,6 +132,8 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
         ownedOptions.clear();
         detail.setText("请选择一条转专业申请查看详情");
         actions.removeAll();
+        finalizeBatch.setEnabled(false);
+        readiness.setText("终审状态：加载中…");
         if (batch == null) return;
         students.listTransferOptions(batch.batchId()).whenComplete((response, failure) ->
                 SwingUtilities.invokeLater(() -> {
@@ -133,6 +142,49 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
                         response.data().forEach(option -> ownedOptions.add(option.optionId()));
                     }
                     loadApplications(batch.batchId());
+                    loadReadiness(batch.batchId(), request);
+                }));
+    }
+
+    private void loadReadiness(String batchId, long request) {
+        students.getTransferBatchReadiness(batchId).whenComplete((response, failure) ->
+                SwingUtilities.invokeLater(() -> {
+                    if (request != batchRequest) return;
+                    if (response == null || !response.success()) {
+                        readiness.setText("终审状态：" + message(response, "加载失败"));
+                        finalizeBatch.setEnabled(false);
+                        return;
+                    }
+                    MajorTransferBatchReadinessView value = response.data();
+                    readiness.setText("拟录取 " + value.assessed() + " / 驳回 " + value.rejected()
+                            + " / 取消 " + value.cancelled() + " / 未处理 " + value.unresolved()
+                            + (value.ready() ? "" : " — " + value.reason()));
+                    finalizeBatch.putClientProperty("batchVersion", value.batchVersion());
+                    finalizeBatch.setEnabled(value.ready());
+                }));
+    }
+
+    private void finalizeSelectedBatch() {
+        MajorTransferBatchView batch = (MajorTransferBatchView) batches.getSelectedItem();
+        Object version = finalizeBatch.getClientProperty("batchVersion");
+        if (batch == null || !(version instanceof Long expectedVersion)) return;
+        int answer = JOptionPane.showConfirmDialog(this,
+                "将一次性生效本批次全部拟录取学生，并自动分班、换学号和清理选课。是否继续？",
+                "确认批次终审", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (answer != JOptionPane.YES_OPTION) return;
+        finalizeBatch.setEnabled(false);
+        students.finalizeTransferBatch(new FinalizeMajorTransferBatchCommand(
+                batch.batchId(), expectedVersion)).whenComplete((response, failure) ->
+                SwingUtilities.invokeLater(() -> {
+                    if (response != null && response.success()) {
+                        status.setText("已生效 " + response.data().effectiveStudents()
+                                + " 名学生，自动退选 "
+                                + response.data().droppedEnrollments() + " 条课程");
+                        refresh();
+                    } else {
+                        status.setText(message(response, "批次终审失败"));
+                        loadReadiness(batch.batchId(), batchRequest);
+                    }
                 }));
     }
 

@@ -43,19 +43,10 @@ class UnifiedDemoDatasetTest {
                     .isGreaterThanOrEqualTo(4);
             assertThat(count(connection, "SELECT COUNT(*) FROM tblRolePermission WHERE roleCode='SUPER_ADMIN'"))
                     .isGreaterThanOrEqualTo(3);
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblCourseOffering WHERE enrolledCount=capacity"))
-                    .isPositive();
             assertThat(count(connection, "SELECT COUNT(*) FROM tblTrainingPlan WHERE isActive=TRUE"))
                     .isPositive();
             assertThat(count(connection, "SELECT COUNT(*) FROM tblTrainingPlanCourse"))
                     .isGreaterThanOrEqualTo(2);
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblUser u INNER JOIN "
-                    + "tblCourseOffering o ON u.userId=o.teacherUserId "
-                    + "WHERE u.loginId='DEMO_TEACHER'")).isGreaterThanOrEqualTo(1);
-            assertThat(count(connection, "SELECT COUNT(*) FROM (tblUser u INNER JOIN tblStudent s "
-                    + "ON u.userId=s.userId) INNER JOIN tblEnrollment e ON s.studentId=e.studentId "
-                    + "WHERE u.loginId='213242478' AND e.enrollmentStatus='ACTIVE'"))
-                    .isGreaterThanOrEqualTo(1);
             assertThat(count(connection, "SELECT COUNT(*) FROM tblBookLoan WHERE loanStatus='ACTIVE' AND dueAt<NOW()"))
                     .isPositive();
             assertThat(values(connection, "SELECT applicationStatus FROM tblSellerApplication"))

@@ -65,6 +65,30 @@ public final class MajorTransferCollegeAuthorizationService {
         if (!allowed) forbidden();
     }
 
+    /** Checks that every active option in a batch belongs to the administrator's college. */
+    public void requireTargetApprovalForBatch(String administratorUserId, String batchId) {
+        if (administratorUserId == null || batchId == null) forbidden();
+        boolean allowed = transactions.inTransaction(connection -> {
+            String departmentId = findActiveDepartmentId(connection, administratorUserId);
+            String sql = "SELECT targetDepartmentId FROM tblMajorTransferOption "
+                    + "WHERE batchId=? AND isActive=TRUE";
+            try (var statement = connection.prepareStatement(sql)) {
+                statement.setString(1, batchId);
+                try (var result = statement.executeQuery()) {
+                    boolean found = false;
+                    while (result.next()) {
+                        found = true;
+                        if (!departmentId.equals(result.getString(1))) return false;
+                    }
+                    return found;
+                }
+            } catch (SQLException error) {
+                throw new PersistenceException("Major-transfer batch scope lookup failed", error);
+            }
+        });
+        if (!allowed) forbidden();
+    }
+
     /** Returns the administrator's one active college, or rejects invalid/inactive bindings. */
     public String findActiveDepartmentId(String administratorUserId) {
         return transactions.inTransaction(connection ->

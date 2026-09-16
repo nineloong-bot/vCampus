@@ -42,11 +42,14 @@ def main():
         counts[table] += 1
 
     accounts = people.generate(add, now)
-    major_transfer.generate(add, now)
-    major_transfer.validate_transfer_fixture(generated_rows)
+    accounts.extend(major_transfer.generate(add, now))
+    major_transfer.generate_reverse(add, now)
     courses.generate(add, now)
+    courses.validate_course_fixture(generated_rows)
+    major_transfer.validate_transfer_fixture(generated_rows)
     library.generate(add, now)
     shop.generate(add, now)
+    people.validate_identity_fixture(generated_rows)
     # 同步号码分配器，后续新增学生不会与批量档案冲突。
     rows.append("UPDATE tblNumberSequence SET currentValue=2640 WHERE sequenceKey='CAMPUS_CARD_GLOBAL';")
     for major in range(801, 817):
