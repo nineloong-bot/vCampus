@@ -54,6 +54,7 @@ def generate(add, now):
             description="批量合成课程，用于分页、搜索、选课及教学班管理。",
             isActive=True, **stamp)
     generate_plans(add, now)
+    generate_historical_grades(add, now)
 
     # 正常选课来自学生年级对应的秋季培养方案；前 50 人另保留一门已失败课程作为重修。
     selections = []
@@ -167,6 +168,78 @@ def self_check():
     return {table: len(values) for table, values in rows.items()}
 
 
+def validate_course_fixture(rows):
+    """Validate the complete offering, schedule, curriculum and enrollment graph."""
+    offers = {row["offeringId"]: row for row in rows["tblCourseOffering"]}
+    schedules = defaultdict(list)
+    for row in rows["tblCourseSchedule"]:
+        schedules[row["offeringId"]].append(row)
+    courses_by_id = {row["courseId"]: row for row in rows["tblCourse"]}
+    terms = {row["termId"]: row for row in rows["tblTerm"]}
+    classes = {row["classId"]: row for row in rows["tblClass"]}
+    students = {row["studentId"]: row for row in rows["tblStudent"]}
+    plans = {(row["majorId"], row["enrollmentYear"]): row["planId"]
+             for row in rows["tblTrainingPlan"]}
+    planned = defaultdict(dict)
+    for row in rows["tblTrainingPlanCourse"]:
+        planned[row["planId"]][row["courseCode"]] = row["semester"]
+    course_code = {row["courseId"]: row["courseCode"] for row in rows["tblCourse"]}
+    failed = {(row["studentId"], row["courseId"])
+              for row in rows.get("tblCourseAttempt", []) if row["outcome"] == "FAILED"}
+    active_terms = [term for term in terms.values() if term["termStatus"] == "ACTIVE"]
+    if len(active_terms) != 1:
+        raise AssertionError("course fixture must have one active term")
+    normal_counts, retake_counts = Counter(), Counter()
+    selected, occupied = set(), defaultdict(list)
+    for offering_id, offering in offers.items():
+        if len(schedules[offering_id]) != 1:
+            raise AssertionError(f"offering {offering_id} must have exactly one schedule")
+        if offering["courseId"] not in courses_by_id or offering["termId"] not in terms:
+            raise AssertionError(f"offering {offering_id} has an invalid reference")
+    for enrollment in rows["tblEnrollment"]:
+        if enrollment["enrollmentStatus"] != "ACTIVE":
+            continue
+        offering = offers.get(enrollment["offeringId"])
+        if offering is None or offering["offeringStatus"] != "OPEN":
+            raise AssertionError("active enrollment must reference an open offering")
+        schedule = schedules[offering["offeringId"]]
+        student = students[enrollment["studentId"]]
+        klass = classes[student["classId"]]
+        plan_id = plans[(klass["majorId"], klass["enrollmentYear"])]
+        course_id = offering["courseId"]
+        semester = planned[plan_id].get(course_code[course_id])
+        term = terms[offering["termId"]]
+        current = (term["academicYearStart"] - klass["enrollmentYear"]) * 2 \
+                  + (1 if term["season"] == "AUTUMN" else 2)
+        if semester is None or (enrollment["enrollmentType"] == "NORMAL" and semester != current) \
+                or (enrollment["enrollmentType"] == "RETAKE"
+                    and ((enrollment["studentId"], course_id) not in failed or semester >= current)):
+            raise AssertionError("enrollment does not match the student's curriculum")
+        pair = (enrollment["studentId"], course_id)
+        if pair in selected:
+            raise AssertionError("student selected the same course more than once")
+        selected.add(pair)
+        target = retake_counts if enrollment["enrollmentType"] == "RETAKE" else normal_counts
+        target[offering["offeringId"]] += 1
+        slot = schedule[0]
+        for start, end in occupied[(enrollment["studentId"], slot["dayOfWeek"])]:
+            if max(start, slot["startPeriod"]) <= min(end, slot["endPeriod"]):
+                raise AssertionError("student schedule conflict")
+        occupied[(enrollment["studentId"], slot["dayOfWeek"])].append(
+            (slot["startPeriod"], slot["endPeriod"]))
+    quotas = {row["offeringId"]: row for row in rows["tblCourseRetakeQuota"]}
+    if set(quotas) != set(offers):
+        raise AssertionError("every offering must have one retake quota")
+    for offering_id, offering in offers.items():
+        if offering["enrolledCount"] != normal_counts[offering_id] \
+                or offering["enrolledCount"] > offering["capacity"]:
+            raise AssertionError("offering normal enrollment count is inconsistent")
+        quota = quotas[offering_id]
+        if quota["enrolledCount"] != retake_counts[offering_id] \
+                or retake_counts[offering_id] > quota["capacity"]:
+            raise AssertionError("offering retake count is inconsistent")
+
+
 def plan_courses(major, semester):
     """Return five catalog courses for one major's semester position."""
     base = (semester - 1) * COURSES_PER_SEMESTER
@@ -202,6 +275,33 @@ def generate_plans(add, now):
                             prerequisiteId=f"{plan}-pre-s{semester:02d}-c{course:03d}", planId=plan,
                             courseId=f"bulk-course-{course:03d}",
                             prerequisiteCourseId=f"bulk-course-{prerequisite:03d}")
+
+
+def generate_historical_grades(add, now):
+    """Record passed history through the last completed semester for cohorts 2023-25."""
+    semester_names = {
+        1: "2023-AUTUMN", 2: "2024-SPRING", 3: "2024-AUTUMN",
+        4: "2025-SPRING", 5: "2025-AUTUMN", 6: "2026-SPRING",
+    }
+    grade_number = 1
+    for major in (1, 2):
+        for local in range(150):
+            student_number = (major - 1) * 150 + local + 1
+            cohort = 2023 + (student_number - 1) % 4
+            max_semester = {2023: 6, 2024: 4, 2025: 2}.get(cohort)
+            if max_semester is None:
+                continue
+            student_id = f"bulk-student-{student_number:04d}"
+            plan_id = f"bulk-plan-{major:02}-{cohort}"
+            for semester in range(1, max_semester + 1):
+                for course in plan_courses(major, semester):
+                    add("tblStudentGrade", gradeId=f"bulk-grade-{grade_number:05d}",
+                        studentId=student_id,
+                        planCourseId=f"{plan_id}-c{course:03d}-s{semester:02d}",
+                        result="PASSED", recordedSemester=semester_names[semester],
+                        operatorUserId="bulk-admin-001", rowVersion=0,
+                        createdAt=now, updatedAt=now)
+                    grade_number += 1
 
 
 def generate_season_offerings(add, term, label, courses, stamp):

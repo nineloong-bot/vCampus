@@ -11,6 +11,7 @@ import edu.seu.vcampus.common.student.majortransfer.ReviewMajorTransferSourceCom
 import edu.seu.vcampus.common.student.majortransfer.SaveMajorTransferBatchCommand;
 import edu.seu.vcampus.common.student.majortransfer.RecordMajorTransferScoreCommand;
 import edu.seu.vcampus.common.student.majortransfer.FinalizeMajorTransferCommand;
+import edu.seu.vcampus.common.student.majortransfer.FinalizeMajorTransferBatchCommand;
 import edu.seu.vcampus.common.student.majortransfer.ExecuteMajorTransferCommand;
 import edu.seu.vcampus.common.student.majortransfer.SaveMajorTransferOptionCommand;
 import java.math.BigDecimal;

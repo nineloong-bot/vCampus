@@ -1,5 +1,7 @@
 import edu.seu.vcampus.server.bootstrap.ApplicationSchemaInitializer;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
+import edu.seu.vcampus.server.shop.composition.CommerceSchemaInitializer;
+import edu.seu.vcampus.server.wallet.WalletSchemaInitializer;
 import java.nio.file.*;
 import java.sql.*;
 
@@ -11,7 +13,10 @@ class BuildDataset {
         Files.createDirectories(target.getParent());
         String url = "jdbc:ucanaccess://" + target + ";newDatabaseVersion=V2010;immediatelyReleaseResources=true";
         ConnectionProvider provider = () -> DriverManager.getConnection(url);
-        new ApplicationSchemaInitializer(Path.of(args[1])).initialize(provider);
+        Path resourceRoot = Path.of(args[1]);
+        new ApplicationSchemaInitializer(resourceRoot).initialize(provider);
+        new WalletSchemaInitializer(resourceRoot.resolve("schema/051_shop_wallet.sql")).initialize(provider);
+        new CommerceSchemaInitializer(resourceRoot.resolve("schema")).initialize(provider);
         try (var connection = provider.open()) {
             connection.setAutoCommit(false);
             int count = 0;

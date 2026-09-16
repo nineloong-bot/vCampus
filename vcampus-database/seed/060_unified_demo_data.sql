@@ -186,3 +186,5 @@ INSERT INTO tblPayment
      paymentStatus, completedAt, rowVersion)
 VALUES ('demo-payment-paid', 'demo-order-group-paid', 'PAY-DEMO-002', 'WECHAT',
     2.50, 'SUCCEEDED', #2026-08-20#, 0);
+
+UPDATE tblUser SET mustChangePassword=TRUE WHERE roleCode='STUDENT';

@@ -15,6 +15,8 @@ import edu.seu.vcampus.server.student.repository.TrainingPlanRepository;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -135,6 +137,7 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
                 TrainingPlan existing = plans.findById(connection, command.planId())
                         .orElseThrow(() -> new TrainingPlanException("TRAINING_PLAN_NOT_FOUND", "培养方案不存在"));
                 requireMajor(connection, existing.majorId(), departmentId);
+                requirePlanEditable(connection, existing);
                 TrainingPlan updated = new TrainingPlan(existing.planId(), existing.majorId(),
                         existing.enrollmentYear(), command.planName(),
                         command.minElectiveCount(), command.minElectiveCredits(),
@@ -161,6 +164,7 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
             TrainingPlan plan = plans.findById(connection, command.planId())
                     .orElseThrow(() -> new TrainingPlanException("TRAINING_PLAN_NOT_FOUND", "培养方案不存在"));
             requireMajor(connection, plan.majorId(), departmentId);
+            requirePlanEditable(connection, plan);
             Instant now = Instant.now();
             if (command.planCourseId() == null || command.planCourseId().isBlank()) {
                 rejectDuplicateCourse(connection, command.planId(), command.courseCode(), null);
@@ -207,6 +211,7 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
                     .orElseThrow(() -> new TrainingPlanException("TRAINING_PLAN_COURSE_NOT_FOUND", "课程不存在"));
             TrainingPlan plan = plans.findById(connection, course.planId()).orElseThrow();
             requireMajor(connection, plan.majorId(), departmentId);
+            requirePlanEditable(connection, plan);
             if (plans.hasGradesForCourse(connection, planCourseId)) {
                 throw new TrainingPlanException("TRAINING_PLAN_COURSE_IN_USE",
                         "课程已有成绩记录，不能删除");
@@ -234,6 +239,7 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
             TrainingPlan plan = plans.findById(connection, command.planId())
                     .orElseThrow(() -> new TrainingPlanException("TRAINING_PLAN_NOT_FOUND", "培养方案不存在"));
             requireMajor(connection, plan.majorId(), departmentId);
+            requirePlanEditable(connection, plan);
             var incomingCodes = new HashSet<String>();
             for (var entry : command.courses()) {
                 String normalizedCode = entry.courseCode().trim().toUpperCase(Locale.ROOT);
@@ -426,6 +432,9 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
 
             // If approved, automatically add this course as CROSS_DISCIPLINARY into the target training plan!
             if (command.approved()) {
+                TrainingPlan targetPlan = plans.findById(connection, app.targetPlanId())
+                        .orElseThrow(() -> new TrainingPlanException("TRAINING_PLAN_NOT_FOUND", "目标培养方案不存在"));
+                requirePlanEditable(connection, targetPlan);
                 List<TrainingPlanCourse> existingCourses = plans.listCourses(connection, app.targetPlanId());
                 boolean exists = existingCourses.stream()
                         .anyMatch(c -> c.courseCode().equalsIgnoreCase(app.courseCode()));
@@ -463,6 +472,30 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
         if (departmentId != null && organizations.findMajor(connection, majorId)
                 .filter(major -> departmentId.equals(major.departmentId())).isEmpty())
             throw new IllegalArgumentException("COMMON_FORBIDDEN");
+    }
+
+    private void requirePlanEditable(java.sql.Connection connection, TrainingPlan plan) {
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Shanghai"));
+        int currentAcademicYear = today.getMonthValue() >= 9 ? today.getYear() : today.getYear() - 1;
+        if (plan.enrollmentYear() >= currentAcademicYear) {
+            return;
+        }
+
+        String sql = "SELECT COUNT(*) FROM (tblStudent s INNER JOIN tblClass c "
+                + "ON s.classId=c.classId) WHERE c.majorId=? AND c.enrollmentYear=?";
+        try (var statement = connection.prepareStatement(sql)) {
+            statement.setString(1, plan.majorId());
+            statement.setInt(2, plan.enrollmentYear());
+            try (var result = statement.executeQuery()) {
+                result.next();
+                if (result.getLong(1) > 0) {
+                    throw new TrainingPlanException("TRAINING_PLAN_IMMUTABLE",
+                            "已有学生使用该培养方案，历史培养方案不可修改");
+                }
+            }
+        } catch (java.sql.SQLException error) {
+            throw new TrainingPlanException("TRAINING_PLAN_VALIDATION_FAILED", "无法校验培养方案是否可修改");
+        }
     }
 
     private static void requireDepartment(String actualDepartmentId, String departmentId) {

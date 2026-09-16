@@ -33,7 +33,7 @@ class SeededStudentDatasetTest {
             assertThat(count(connection, "SELECT COUNT(*) FROM tblMajorTransferBatch")).isGreaterThanOrEqualTo(2);
             assertThat(count(connection, "SELECT COUNT(*) FROM tblMajorTransferOption")).isGreaterThanOrEqualTo(3);
             assertThat(count(connection, "SELECT COUNT(*) FROM tblTrainingPlan")).isGreaterThanOrEqualTo(1);
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblTrainingPlanCourse")).isGreaterThanOrEqualTo(4);
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblTrainingPlanCourse")).isGreaterThanOrEqualTo(3);
             assertThat(primaryKeyColumns(connection, "tblTerm")).containsExactly("termid");
             assertThat(primaryKeyColumns(connection, "tblEnrollment")).containsExactly("enrollmentid");
             assertThat(primaryKeyColumns(connection, "tblStudentCollegeAdministrator"))

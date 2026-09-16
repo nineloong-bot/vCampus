@@ -18,7 +18,7 @@ def generate(add, now):
             # 每本保留至少两册可借；每条当前借阅对应唯一馆藏。
             loan_state = None
             if j == 1 and i <= 300:
-                loan_state = 'ACTIVE' if i <= 200 else 'OVERDUE'
+                loan_state = 'ACTIVE' if i <= 100 else 'OVERDUE'
             elif j == 1 and i <= 400:
                 loan_state = 'RETURNED'
             elif j == 1 and i <= 420:
