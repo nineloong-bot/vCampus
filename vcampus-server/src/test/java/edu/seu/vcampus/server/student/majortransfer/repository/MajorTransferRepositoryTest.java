@@ -84,6 +84,26 @@ class MajorTransferRepositoryTest {
         assertThat(repository.listBatches(connection)).hasSize(2);
     }
 
+    @Test
+    void batchFinalizationProtocolAndOptimisticStatusUpdate() {
+        repository.insertBatch(connection, batch("batch-1", MajorTransferBatchStatus.CLOSED));
+        var command = new FinalizeMajorTransferBatchCommand("batch-1", 0);
+        assertThat(command.batchId()).isEqualTo("batch-1");
+        assertThat(new MajorTransferBatchReadinessView("batch-1", 2, 1, 1, 0,
+                true, null, 0).ready()).isTrue();
+        assertThat(new MajorTransferBatchFinalizationResult("batch-1", 2, 3,
+                MajorTransferBatchStatus.EFFECTIVE).droppedEnrollments()).isEqualTo(3);
+
+        assertThat(repository.updateBatchStatus(connection, "batch-1",
+                MajorTransferBatchStatus.CLOSED, MajorTransferBatchStatus.EFFECTIVE, 0, NOW))
+                .isEqualTo(1);
+        assertThat(repository.updateBatchStatus(connection, "batch-1",
+                MajorTransferBatchStatus.CLOSED, MajorTransferBatchStatus.EFFECTIVE, 0, NOW))
+                .isZero();
+        assertThat(repository.findBatch(connection, "batch-1").orElseThrow().status())
+                .isEqualTo(MajorTransferBatchStatus.EFFECTIVE);
+    }
+
     // ── Option tests ──
 
     @Test
@@ -187,6 +207,20 @@ class MajorTransferRepositoryTest {
         List<MajorTransferRepository.ApplicationRow> apps =
                 repository.listApplicationsByStudent(connection, "student-1");
         assertThat(apps).hasSize(1);
+    }
+
+    @Test
+    void listApplicationsByBatchUsesStableApplicationOrder() {
+        repository.insertBatch(connection, batch("batch-1", MajorTransferBatchStatus.OPEN));
+        repository.insertOption(connection, option("opt-1", "batch-1"));
+        repository.insertDraft(connection, draft("app-2", "batch-1", "student-2", "opt-1"));
+        repository.insertDraft(connection, draft("app-1", "batch-1", "student-1", "opt-1"));
+        repository.submitApplication(connection, "app-2", 0, NOW);
+        repository.submitApplication(connection, "app-1", 0, NOW);
+
+        assertThat(repository.listApplicationsByBatch(connection, "batch-1"))
+                .extracting(MajorTransferRepository.ApplicationRow::applicationId)
+                .containsExactly("app-1", "app-2");
     }
 
     @Test

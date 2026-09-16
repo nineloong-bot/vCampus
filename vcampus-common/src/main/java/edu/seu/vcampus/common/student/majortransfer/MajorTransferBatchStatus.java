@@ -6,5 +6,6 @@ import java.io.Serializable;
 public enum MajorTransferBatchStatus implements Serializable {
     DRAFT,
     OPEN,
-    CLOSED
+    CLOSED,
+    EFFECTIVE
 }

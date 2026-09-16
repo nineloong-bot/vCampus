@@ -111,6 +111,24 @@ public final class MajorTransferRepository {
         }
     }
 
+    /** Atomically changes a batch lifecycle state with optimistic locking. */
+    public int updateBatchStatus(Connection connection, String batchId,
+            MajorTransferBatchStatus from, MajorTransferBatchStatus to,
+            long expectedVersion, Instant updatedAt) {
+        String sql = "UPDATE tblMajorTransferBatch SET batchStatus=?,rowVersion=rowVersion+1,"+
+                "updatedAt=? WHERE batchId=? AND batchStatus=? AND rowVersion=?";
+        try (var statement = connection.prepareStatement(sql)) {
+            statement.setString(1, to.name());
+            statement.setTimestamp(2, Timestamp.from(updatedAt));
+            statement.setString(3, batchId);
+            statement.setString(4, from.name());
+            statement.setLong(5, expectedVersion);
+            return statement.executeUpdate();
+        } catch (SQLException error) {
+            throw new OrganizationPersistenceException("Cannot update batch status", error);
+        }
+    }
+
     public Optional<BatchRow> findBatch(Connection connection, String batchId) {
         String sql = "SELECT * FROM tblMajorTransferBatch WHERE batchId = ?";
         try (var ps = connection.prepareStatement(sql)) {
@@ -476,7 +494,7 @@ public final class MajorTransferRepository {
 
     public List<ApplicationRow> listApplicationsByBatch(Connection connection, String batchId) {
         String sql = "SELECT * FROM tblMajorTransferApplication "
-                + "WHERE batchId = ? AND applicationStatus <> 'DRAFT' ORDER BY createdAt";
+                + "WHERE batchId = ? AND applicationStatus <> 'DRAFT' ORDER BY applicationId";
         try (var ps = connection.prepareStatement(sql)) {
             ps.setString(1, batchId);
             try (var rs = ps.executeQuery()) {
