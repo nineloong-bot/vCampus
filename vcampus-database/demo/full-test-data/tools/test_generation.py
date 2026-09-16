@@ -311,9 +311,20 @@ class GenerationTest(unittest.TestCase):
             self.assertTrue(student_ids)
             self.assertEqual(expected, len(grades))
             self.assertTrue(all(plan_courses[row["planCourseId"]]["semester"] <= max_semester
-                                and row["result"] == "PASSED" for row in grades))
+                                and row["result"] in {"PASSED", "FAILED"} for row in grades))
             self.assertEqual(len(grades), len({(row["studentId"], row["planCourseId"])
                                                for row in grades}))
+
+            failed = {(row["studentId"], row["planCourseId"])
+                      for row in grades if row["result"] == "FAILED"}
+            retakes = {(row["studentId"], courses.plan_course_id(
+                int(row["studentId"].split("-")[-1]),
+                int(next(offering["courseId"] for offering in rows["tblCourseOffering"]
+                         if offering["offeringId"] == row["offeringId"]).split("-")[-1])))
+                       for row in rows["tblEnrollment"]
+                       if row["studentId"] in student_ids
+                       and row["enrollmentType"] == "RETAKE"}
+            self.assertEqual(retakes, failed)
 
         freshman_ids = {row["studentId"] for row in rows["tblStudent"]
                         if row["studentId"].startswith("bulk-student-")

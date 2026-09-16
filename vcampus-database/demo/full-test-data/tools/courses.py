@@ -54,7 +54,9 @@ def generate(add, now):
             description="批量合成课程，用于分页、搜索、选课及教学班管理。",
             isActive=True, **stamp)
     generate_plans(add, now)
-    generate_historical_grades(add, now)
+    failed_grades = {(student, retake_course(student)) for student in range(1, 51)
+                     if retake_course(student) is not None}
+    generate_historical_grades(add, now, failed_grades)
 
     # 正常选课来自学生年级对应的秋季培养方案；前 50 人另保留一门已失败课程作为重修。
     selections = []
@@ -64,8 +66,7 @@ def generate(add, now):
         major = (student - 1) // 150 + 1
         current_semester = (year - 1) * 2 + 1
         current_courses = plan_courses(major, current_semester)
-        retake = plan_courses(major, current_semester - 1)[(student - 1) % 5] \
-            if student <= 50 and current_semester > 1 else None
+        retake = retake_course(student)
         if retake is not None:
             selections.append((student, retake, (retake - 1) * 2 + 1, True))
             current_courses = [course for course in current_courses
@@ -108,13 +109,6 @@ def generate(add, now):
             offeringId="bulk-offering-238", studentId=f"bulk-student-{student:04d}",
             enrollmentType="NORMAL", enrollmentStatus="DROPPED",
             enrolledAt=now - timedelta(days=3), droppedAt=now - timedelta(days=1), **stamp)
-    failed_grades = [(student, course) for student, course, _, retake in selections if retake]
-    for index, (student, course) in enumerate(failed_grades, 1):
-        add("tblStudentGrade", gradeId=f"bulk-grade-{index:03d}",
-            studentId=f"bulk-student-{student:04d}",
-            planCourseId=plan_course_id(student, course), result="FAILED",
-            recordedSemester="2025-AUTUMN", operatorUserId="bulk-admin-001",
-            rowVersion=0, createdAt=now - timedelta(days=20), updatedAt=now - timedelta(days=20))
     # 正式选课期尝试补选会被阶段规则拒绝，保留真实规则对应的失败审计。
     for student in range(1, 21):
         add("tblEnrollmentAdjustment", adjustmentId=f"bulk-adjustment-{student:03d}",
@@ -187,8 +181,11 @@ def validate_course_fixture(rows):
     for row in rows["tblTrainingPlanCourse"]:
         planned[row["planId"]][row["courseCode"]] = row["semester"]
     course_code = {row["courseId"]: row["courseCode"] for row in rows["tblCourse"]}
-    failed = {(row["studentId"], row["courseId"])
-              for row in rows.get("tblCourseAttempt", []) if row["outcome"] == "FAILED"}
+    plan_course_codes = {row["planCourseId"]: row["courseCode"]
+                         for row in rows["tblTrainingPlanCourse"]}
+    course_ids_by_code = {row["courseCode"]: row["courseId"] for row in rows["tblCourse"]}
+    failed = {(row["studentId"], course_ids_by_code[plan_course_codes[row["planCourseId"]]])
+              for row in rows["tblStudentGrade"] if row["result"] == "FAILED"}
     active_terms = [term for term in terms.values() if term["termStatus"] == "ACTIVE"]
     if len(active_terms) != 1:
         raise AssertionError("course fixture must have one active term")
@@ -259,6 +256,16 @@ def plan_course_id(student, course):
     return f"bulk-plan-{major:02}-{cohort}-c{course:03d}-s{semester:02d}"
 
 
+def retake_course(student):
+    """Return the failed prior-semester course selected for a generated student."""
+    cohort = 2023 + (student - 1) % 4
+    current_semester = (2026 - cohort) * 2 + 1
+    if student > 50 or current_semester <= 1:
+        return None
+    major = (student - 1) // 150 + 1
+    return plan_courses(major, current_semester - 1)[(student - 1) % 5]
+
+
 def generate_plans(add, now):
     """Emit one canonical four-year, two-season plan per major and cohort."""
     for major in range(1, 17):
@@ -288,7 +295,7 @@ def generate_plans(add, now):
                             prerequisiteCourseId=f"bulk-course-{prerequisite:03d}")
 
 
-def generate_historical_grades(add, now):
+def generate_historical_grades(add, now, failed_courses=frozenset()):
     """Record passed history through the last completed semester for cohorts 2023-25."""
     semester_names = {
         1: "2023-AUTUMN", 2: "2024-SPRING", 3: "2024-AUTUMN",
@@ -306,10 +313,11 @@ def generate_historical_grades(add, now):
             plan_id = f"bulk-plan-{major:02}-{cohort}"
             for semester in range(1, max_semester + 1):
                 for course in plan_courses(major, semester):
+                    result = "FAILED" if (student_number, course) in failed_courses else "PASSED"
                     add("tblStudentGrade", gradeId=f"bulk-grade-{grade_number:05d}",
                         studentId=student_id,
                         planCourseId=f"{plan_id}-c{course:03d}-s{semester:02d}",
-                        result="PASSED", recordedSemester=semester_names[semester],
+                        result=result, recordedSemester=semester_names[semester],
                         operatorUserId="bulk-admin-001", rowVersion=0,
                         createdAt=now, updatedAt=now)
                     grade_number += 1

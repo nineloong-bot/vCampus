@@ -17,7 +17,6 @@ tblCourseOffering	380
 tblCourseSchedule	380
 tblCourseRetakeQuota	380
 tblEnrollment	2720
-tblStudentGrade	38
 tblEnrollmentAdjustment	20
 tblBook	500
 tblBookCopy	2000

@@ -53,7 +53,6 @@ class ValidateDataset {
                     case "tblCourseSelectionPhase" -> "phaseId";
                     case "tblCourseSchedule" -> "scheduleId";
                     case "tblCourseRetakeQuota" -> "offeringId";
-                    case "tblCourseAttempt" -> "attemptId";
                     case "tblEnrollmentAdjustment" -> "adjustmentId";
                     case "tblBook" -> "bookId";
                     case "tblBookCopy" -> "copyId";
@@ -146,9 +145,6 @@ class ValidateDataset {
             require(count(c,"SELECT COUNT(*) FROM tblStudentGrade g INNER JOIN "
                     +"tblMajorTransferApplication a ON g.studentId=a.studentId "
                     +"WHERE g.result='FAILED'")==0,"Transfer student has failed grade");
-            require(count(c,"SELECT COUNT(*) FROM tblCourseAttempt ca INNER JOIN "
-                    +"tblMajorTransferApplication a ON ca.studentId=a.studentId "
-                    +"WHERE ca.outcome='FAILED'")==0,"Transfer student has failed attempt");
             String enrollmentSql="SELECT e.studentId,e.enrollmentType,o.courseId,c.majorId,"+
                     "c.enrollmentYear,t.academicYearStart,t.season FROM (((tblEnrollment e INNER JOIN "+
                     "tblStudent s ON e.studentId=s.studentId) INNER JOIN tblClass c ON s.classId=c.classId) "+

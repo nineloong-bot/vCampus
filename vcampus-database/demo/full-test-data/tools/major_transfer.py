@@ -145,10 +145,7 @@ def validate_transfer_fixture(rows, application_start: date = date(2026, 9, 1)):
     failed_grades = [row for row in rows.get("tblStudentGrade", [])
                      if row.get("studentId") in transfer_student_ids
                      and row.get("result") == "FAILED"]
-    failed_attempts = [row for row in rows.get("tblCourseAttempt", [])
-                       if row.get("studentId") in transfer_student_ids
-                       and row.get("outcome") == "FAILED"]
-    if failed_grades or failed_attempts:
+    if failed_grades:
         raise AssertionError("transfer students cannot have failed grades")
     for row in applications:
         option = options[row["optionId"]]
