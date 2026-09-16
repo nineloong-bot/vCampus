@@ -549,7 +549,33 @@ mvn -pl vcampus-server,vcampus-client -am test
 
 这些账号和密码仅用于本地课程演示，不应用于真实环境。
 
-## 12. 当前边界
+## 12. 预约图书
+
+学生和教师可以对已被借出或已被他人预约的实体副本提交预约，系统按提交顺序排队：
+
+- 副本借出期间即可预约；同一读者对同一副本只能保留一条未结束的预约。
+- 副本归还后不会立即变为可借，而是保留给队首读者，副本状态显示为 已预约：一卡通号。
+- 保留天数由角色借阅策略中的 预约保留天数 控制，默认 3 天。
+- 保留期内只有该读者可以借阅；超过保留期自动取消，副本顺延给下一位读者；队列为空时恢复可借。
+- 读者可以取消本人预约；管理员可在 预约管理 页面查询并取消任意预约。
+- 预约到期采用惰性判定：在查询书目详情、提交预约、借阅、查询本人预约和管理端查询时刷新，不依赖定时任务。
+- 队首读者成功借阅后预约状态变为已完成，副本恢复为已借出。
+
+消息命令：
+
+| 命令 | 请求体 | 权限 | 说明 |
+|---|---|---|---|
+| `LIBRARY_RESERVE` | `ReserveBookCommand` | 已登录 | 预约一个不可借副本，排队在最后 |
+| `LIBRARY_CANCEL_RESERVATION` | `CancelReservationCommand` | 已登录 | 取消本人预约 |
+| `LIBRARY_GET_MY_RESERVATIONS` | `EmptyRequest` | 已登录 | 查询本人预约、排队位置和保留到期时间 |
+| `LIBRARY_SEARCH_RESERVATIONS` | `AdminReservationSearchQuery` | `LIBRARY_ADMIN` | 查询全校预约队列 |
+| `LIBRARY_ADMIN_CANCEL_RESERVATION` | `AdminCancelReservationCommand` | `LIBRARY_ADMIN` | 管理员取消任意预约 |
+
+数据库表 `tblBookReservation` 保存 `queueOrder`（队列顺序）、`reservationStatus`
+（`WAITING`、`READY`、`FULFILLED`、`EXPIRED`、`CANCELLED`）和保留到期时间 `expiresAt`。
+归还、管理员处置归还、副本恢复可借、读者取消预约和保留超时都会重新计算队首读者。
+
+## 13. 当前边界
 
 - 不包含罚款、支付、预约和馆际互借。
 - `OverdueMaintenanceJob` 可以批量把到期记录持久化为 `OVERDUE`，但当前 `ServerMain` 未注册周期调度器；借阅限制和界面展示依靠动态到期判断，功能不受调度延迟影响。

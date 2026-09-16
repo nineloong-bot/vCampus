@@ -107,6 +107,34 @@ public final class LibraryClientService {
         return request("LIBRARY_UPDATE_POLICY", command);
     }
 
+    /** Reserves a copy that is currently borrowed or already held for another reader. */
+    public CompletableFuture<BookReservationView> reserve(ReserveBookCommand command) {
+        return request("LIBRARY_RESERVE", command);
+    }
+
+    /** Cancels the signed-in reader's own reservation. */
+    public CompletableFuture<BookReservationView> cancelReservation(CancelReservationCommand command) {
+        return request("LIBRARY_CANCEL_RESERVATION", command);
+    }
+
+    /** Loads the signed-in reader's reservations, including queue position and hold deadline. */
+    public CompletableFuture<List<BookReservationView>> getMyReservations() {
+        CompletableFuture<ArrayList<BookReservationView>> response = request(
+                "LIBRARY_GET_MY_RESERVATIONS", EmptyRequest.INSTANCE);
+        return response.thenApply(List::copyOf);
+    }
+
+    /** Loads all reservation records for an authorized library administrator. */
+    public CompletableFuture<PageResult<BookReservationView>> searchReservations(
+            AdminReservationSearchQuery query) {
+        return request("LIBRARY_SEARCH_RESERVATIONS", query);
+    }
+
+    /** Administrator cancellation of any open reservation. */
+    public CompletableFuture<BookReservationView> adminCancelReservation(
+            AdminCancelReservationCommand command) {
+        return request("LIBRARY_ADMIN_CANCEL_RESERVATION", command);
+    }
     private <T extends Serializable> CompletableFuture<T> request(
             String command, Serializable body) {
         return connection.<T>send(command, body, timeout)

@@ -2,8 +2,10 @@ package edu.seu.vcampus.server.library.service;
 
 import edu.seu.vcampus.common.library.AddBookCopyCommand;
 import edu.seu.vcampus.common.library.AdminLoanSearchQuery;
+import edu.seu.vcampus.common.library.AdminReservationSearchQuery;
 import edu.seu.vcampus.common.library.BookCopyView;
 import edu.seu.vcampus.common.library.BookDetail;
+import edu.seu.vcampus.common.library.BookReservationView;
 import edu.seu.vcampus.common.library.BookSearchQuery;
 import edu.seu.vcampus.common.library.BookSummary;
 import edu.seu.vcampus.common.library.BookView;
@@ -22,6 +24,7 @@ import edu.seu.vcampus.server.library.domain.LoanPolicy;
 import edu.seu.vcampus.server.library.repository.BookRepository;
 import edu.seu.vcampus.server.library.repository.LibraryPolicyRepository;
 import edu.seu.vcampus.server.library.repository.LoanRepository;
+import edu.seu.vcampus.server.library.repository.ReservationRepository;
 import edu.seu.vcampus.server.persistence.TransactionManager;
 
 import java.time.Clock;
@@ -34,17 +37,22 @@ final class LibraryReadAdminOperations {
     private final BookRepository books;
     private final LoanRepository loans;
     private final LibraryPolicyRepository policies;
+    private final ReservationRepository reservations;
+    private final ReservationQueueService queue;
     private final TransactionManager transactions;
     private final Clock clock;
     private final Supplier<String> idGenerator;
 
     LibraryReadAdminOperations(LibraryIdentityPort identities, BookRepository books,
             LoanRepository loans, LibraryPolicyRepository policies,
+            ReservationRepository reservations, ReservationQueueService queue,
             TransactionManager transactions, Clock clock, Supplier<String> idGenerator) {
         this.identities = Objects.requireNonNull(identities, "identities");
         this.books = Objects.requireNonNull(books, "books");
         this.loans = Objects.requireNonNull(loans, "loans");
         this.policies = Objects.requireNonNull(policies, "policies");
+        this.reservations = Objects.requireNonNull(reservations, "reservations");
+        this.queue = Objects.requireNonNull(queue, "queue");
         this.transactions = Objects.requireNonNull(transactions, "transactions");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator");
@@ -56,7 +64,18 @@ final class LibraryReadAdminOperations {
     }
 
     BookDetail getBook(String bookId) {
-        return transactions.inTransaction(connection -> books.requireDetail(connection, bookId));
+        return transactions.inTransaction(connection -> {
+            queue.refreshExpired(connection, clock.instant());
+            return books.requireDetail(connection, bookId);
+        });
+    }
+
+    PageResult<BookReservationView> searchReservations(AdminReservationSearchQuery query) {
+        Objects.requireNonNull(query, "query");
+        return transactions.inTransaction(connection -> {
+            queue.refreshExpired(connection, clock.instant());
+            return reservations.searchAll(connection, query, clock.instant());
+        });
     }
 
     List<LoanView> getCurrentLoans(String sessionToken) {
@@ -70,7 +89,6 @@ final class LibraryReadAdminOperations {
         return transactions.inTransaction(connection -> loans.findHistoryForUser(
                 connection, borrower.userId(), query, clock.instant()));
     }
-
     BookView createBook(CreateBookCommand command) {
         Objects.requireNonNull(command, "command");
         if (command.locationCode() != null && (command.barcode() == null || command.barcode().isBlank()
@@ -145,7 +163,8 @@ final class LibraryReadAdminOperations {
                 policies.require(connection, command.roleCode()));
         LoanPolicy changed = new LoanPolicy(existing.policyId(), existing.roleCode(),
                 command.maxActiveLoans(), command.loanDays(), command.maxRenewals(),
-                command.renewalDays(), command.expectedVersion() + 1, command.penalties());
+                command.renewalDays(), command.reserveDays(), command.expectedVersion() + 1,
+                command.penalties());
         transactions.inTransaction(connection -> policies.update(
                 connection, changed, command.expectedVersion()));
         return toView(changed);
@@ -159,6 +178,7 @@ final class LibraryReadAdminOperations {
                 || command.loanDays() < 1 || command.loanDays() > 365
                 || command.maxRenewals() < 0 || command.maxRenewals() > 20
                 || command.renewalDays() < 1 || command.renewalDays() > 365
+                || command.reserveDays() < 1 || command.reserveDays() > 365
                 || command.expectedVersion() < 0) {
             throw new IllegalArgumentException("Library policy values are outside supported limits");
         }
@@ -177,6 +197,6 @@ final class LibraryReadAdminOperations {
     private static LibraryPolicyView toView(LoanPolicy policy) {
         return new LibraryPolicyView(policy.roleCode(), policy.maxActiveLoans(),
                 policy.loanDays(), policy.maxRenewals(), policy.renewalDays(),
-                policy.rowVersion(), policy.penalties());
+                policy.reserveDays(), policy.rowVersion(), policy.penalties());
     }
 }

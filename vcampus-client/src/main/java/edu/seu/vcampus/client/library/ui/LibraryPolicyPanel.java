@@ -10,8 +10,8 @@ import java.util.Objects;
 /** Fixed library settings form: one row per borrower type plus read-only runtime status. */
 public final class LibraryPolicyPanel extends JPanel {
     private final LibraryClientService service;
-    private final PolicyRow student = new PolicyRow("STUDENT", "学生", 5, 30, 1, 15);
-    private final PolicyRow teacher = new PolicyRow("TEACHER", "教师", 10, 60, 2, 30);
+    private final PolicyRow student = new PolicyRow("STUDENT", "学生", 5, 30, 1, 15, 3);
+    private final PolicyRow teacher = new PolicyRow("TEACHER", "教师", 10, 60, 2, 30, 3);
     private final JLabel message = new JLabel(" ");
     private final JLabel serverStatus = new JLabel("检查中");
     private final JLabel databaseStatus = new JLabel("检查中");
@@ -115,7 +115,7 @@ public final class LibraryPolicyPanel extends JPanel {
     private final class PolicyRow {
         private final String roleCode;
         private final String label;
-        private final JSpinner maxLoans, loanDays, renewals, renewalDays;
+        private final JSpinner maxLoans, loanDays, renewals, renewalDays, reserveDays;
         private final JSpinner firstTier = spinner(7, 1, 3649), secondTier = spinner(30, 2, 3650);
         private final JSpinner firstRate = moneySpinner(0.5), secondRate = moneySpinner(1), thirdRate = moneySpinner(2);
         private final JSpinner minorFine = moneySpinner(10), majorFine = moneySpinner(50), lostFine = moneySpinner(100);
@@ -123,16 +123,17 @@ public final class LibraryPolicyPanel extends JPanel {
         private long version;
         private boolean dirty, applying;
 
-        PolicyRow(String roleCode, String label, int max, int days, int renew, int renewal) {
+        PolicyRow(String roleCode, String label, int max, int days, int renew, int renewal, int reserve) {
             this.roleCode = roleCode; this.label = label;
             maxLoans = spinner(max, 1, 100); loanDays = spinner(days, 1, 365);
             renewals = spinner(renew, 0, 20); renewalDays = spinner(renewal, 1, 365);
+            reserveDays = spinner(reserve, 1, 365);
             for (JSpinner field : fields())
                 field.addChangeListener(event -> { if (!applying) dirty = true; });
         }
 
         private JSpinner[] fields() {
-            return new JSpinner[]{maxLoans, loanDays, renewals, renewalDays, firstTier, secondTier,
+            return new JSpinner[]{maxLoans, loanDays, renewals, renewalDays, reserveDays, firstTier, secondTier,
                     firstRate, secondRate, thirdRate, minorFine, majorFine, lostFine};
         }
 
@@ -146,7 +147,7 @@ public final class LibraryPolicyPanel extends JPanel {
             row.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createTitledBorder(label + "借阅策略"),
                     BorderFactory.createEmptyBorder(8, 12, 8, 12)));
             JPanel form = new JPanel(new GridLayout(0, 4, 12, 8)); form.setOpaque(false);
-            String[] labels = {"最大同时借阅", "借阅期限（天）", "最大续借次数", "续借期限（天）",
+            String[] labels = {"最大同时借阅", "借阅期限（天）", "最大续借次数", "续借期限（天）", "预约保留天数",
                     "第一档截至逾期天数", "第二档截至逾期天数", "第一档日罚金（元）", "第二档日罚金（元）",
                     "第三档日罚金（元）", "轻度损坏赔偿（元）", "严重损坏赔偿（元）", "遗失赔偿（元）"};
             JSpinner[] fields = fields();
@@ -163,7 +164,7 @@ public final class LibraryPolicyPanel extends JPanel {
                 try {
                     for (JSpinner field : fields()) field.commitEdit();
                     save(new UpdateLibraryPolicyCommand(roleCode, value(maxLoans), value(loanDays),
-                            value(renewals), value(renewalDays), version,
+                            value(renewals), value(renewalDays), value(reserveDays), version,
                             new PenaltyPolicy(value(firstTier), value(secondTier), money(firstRate), money(secondRate),
                                     money(thirdRate), money(minorFine), money(majorFine), money(lostFine))));
                 } catch (java.text.ParseException | IllegalArgumentException | ArithmeticException failure) {
@@ -182,7 +183,8 @@ public final class LibraryPolicyPanel extends JPanel {
             if (preserveEdits && dirty) { setSaveEnabled(true); return; }
             applying = true;
             maxLoans.setValue(policy.maxActiveLoans()); loanDays.setValue(policy.loanDays());
-            renewals.setValue(policy.maxRenewals()); renewalDays.setValue(policy.renewalDays()); version = policy.rowVersion();
+            renewals.setValue(policy.maxRenewals()); renewalDays.setValue(policy.renewalDays());
+            reserveDays.setValue(policy.reserveDays()); version = policy.rowVersion();
             PenaltyPolicy penalty = policy.penalties();
             firstTier.setValue(penalty.firstTierDays()); secondTier.setValue(penalty.secondTierDays());
             firstRate.setValue(penalty.firstDailyFine().doubleValue()); secondRate.setValue(penalty.secondDailyFine().doubleValue());

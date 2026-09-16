@@ -9,9 +9,11 @@ import edu.seu.vcampus.server.library.domain.Loan;
 import edu.seu.vcampus.server.library.repository.AccessBookRepository;
 import edu.seu.vcampus.server.library.repository.AccessLibraryPolicyRepository;
 import edu.seu.vcampus.server.library.repository.AccessLoanRepository;
+import edu.seu.vcampus.server.library.repository.AccessReservationRepository;
 import edu.seu.vcampus.server.library.repository.BookRepository;
 import edu.seu.vcampus.server.library.repository.LibraryPolicyRepository;
 import edu.seu.vcampus.server.library.repository.LoanRepository;
+import edu.seu.vcampus.server.library.repository.ReservationRepository;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import edu.seu.vcampus.server.persistence.TransactionManager;
 
@@ -35,6 +37,7 @@ final class LibraryServiceFixture {
     final BookRepository books = new AccessBookRepository();
     final LoanRepository loans = new AccessLoanRepository();
     final LibraryPolicyRepository policies = new AccessLibraryPolicyRepository();
+    final ReservationRepository reservations = new AccessReservationRepository();
     final Map<String, BorrowerIdentity> identities = new ConcurrentHashMap<>();
     final ConnectionProvider connections;
     final TransactionManager transactions;
@@ -60,12 +63,52 @@ final class LibraryServiceFixture {
                 throw new IllegalArgumentException("Unknown test token");
             }
             return identity;
-        }, books, loans, policies, transactions, new StripedResourceLockManager(),
+        }, books, loans, policies, reservations, transactions, new StripedResourceLockManager(),
                 Clock.fixed(NOW, ZoneOffset.UTC), () -> UUID.randomUUID().toString());
     }
 
     void addIdentity(String token, String userId, String roleCode) {
         identities.put(token, new BorrowerIdentity(userId, roleCode));
+    }
+
+    /** Creates a user row so reservation reads can join the login (card) number. */
+    void seedUser(String userId, String loginId, String roleCode) throws Exception {
+        try (Connection connection = connections.open()) {
+            boolean roleExists;
+            try (var check = connection.prepareStatement(
+                    "SELECT COUNT(*) FROM tblRole WHERE roleCode = ?")) {
+                check.setString(1, roleCode);
+                try (var result = check.executeQuery()) { result.next(); roleExists = result.getInt(1) > 0; }
+            }
+            if (!roleExists) {
+                try (var insert = connection.prepareStatement(
+                        "INSERT INTO tblRole (roleCode, roleName) VALUES (?, ?)")) {
+                    insert.setString(1, roleCode);
+                    insert.setString(2, roleCode);
+                    insert.executeUpdate();
+                }
+            }
+            try (var insert = connection.prepareStatement(
+                    "INSERT INTO tblUser (userId, loginId, passwordHash, passwordSalt, passwordIterations, "
+                    + "roleCode, accountStatus, mustChangePassword, failedLoginCount, rowVersion, "
+                    + "createdAt, updatedAt) VALUES (?, ?, 'hash', 'salt', 1, ?, 'ACTIVE', FALSE, 0, 0, "
+                    + "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)")) {
+                insert.setString(1, userId);
+                insert.setString(2, loginId);
+                insert.setString(3, roleCode);
+                insert.executeUpdate();
+            }
+        }
+    }
+
+    /** Forces every held reservation past its deadline so the next read expires it. */
+    void expireReservations() throws Exception {
+        try (Connection connection = connections.open();
+             var update = connection.prepareStatement(
+                     "UPDATE tblBookReservation SET expiresAt = ? WHERE reservationStatus = 'READY'")) {
+            update.setTimestamp(1, java.sql.Timestamp.from(NOW.minus(1, ChronoUnit.DAYS)));
+            update.executeUpdate();
+        }
     }
 
     void seedCopies(int count) throws Exception {

@@ -143,6 +143,9 @@ class BookManagementWorkflowTest {
                         "CS", "", true, 0, List.of(copy))));
         when(service.searchAllLoans(any())).thenReturn(CompletableFuture.completedFuture(
                 new PageResult<>(List.of(), 1, 20, 0)));
+        when(service.searchReservations(any())).thenReturn(CompletableFuture.completedFuture(
+                new PageResult<>(List.of(), 1, 20, 0)));
+        when(service.getMyReservations()).thenReturn(CompletableFuture.completedFuture(List.of()));
         when(service.getPolicies()).thenReturn(CompletableFuture.completedFuture(List.of()));
         CompletableFuture<BookView> created = new CompletableFuture<>();
         when(service.createBook(any())).thenReturn(created);

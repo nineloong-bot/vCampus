@@ -21,11 +21,17 @@ public final class BookDetailPanel extends LibraryDataPanel {
         super("library.book-detail", "图书详情", null, "条码", "位置", "状态");
         this.service = Objects.requireNonNull(service, "service");
         if (!borrowingEnabled) return;
+        JButton reserve = new JButton("预约所选副本");
+        reserve.setName("library.reserve-action");
+        reserve.addActionListener(event -> reserveSelected());
         JButton borrow = new JButton("借阅所选副本");
         borrow.setName("library.loan-action");
         borrow.addActionListener(event -> confirmBorrow());
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        actions.setOpaque(false); actions.add(borrow); add(actions, BorderLayout.SOUTH);
+        actions.setOpaque(false);
+        actions.add(reserve);
+        actions.add(borrow);
+        add(actions, BorderLayout.SOUTH);
     }
 
     public void showBook(BookDetail book) {
@@ -33,7 +39,7 @@ public final class BookDetailPanel extends LibraryDataPanel {
         DefaultTableModel model = (DefaultTableModel) table.getModel();
         model.setRowCount(0);
         for (BookCopyView copy : copies) model.addRow(new Object[]{copy.barcode(), copy.locationCode(),
-                LibraryStatusText.copy(copy.status())});
+                LibraryStatusText.copy(copy)});
         status.setText(book.title() + " · " + book.author() + " · " + book.isbn());
     }
 
@@ -49,7 +55,7 @@ public final class BookDetailPanel extends LibraryDataPanel {
             LibraryFeedback.borrowWarning(this, status, "请先选择一个可借副本"); return;
         }
         BookCopyView copy = copies.get(table.convertRowIndexToModel(row));
-        if (copy.status() != CopyStatus.AVAILABLE) {
+        if (copy.status() != CopyStatus.AVAILABLE && copy.status() != CopyStatus.RESERVED) {
             LibraryFeedback.borrowWarning(this, status, "该副本当前不可借，请选择可借副本"); return;
         }
         status.setText("正在办理借阅……");
@@ -60,6 +66,34 @@ public final class BookDetailPanel extends LibraryDataPanel {
                     if (failure == null) { status.setText("借阅成功，到期时间：" + loan.dueAt()); mutationSucceeded(); }
                     else LibraryFeedback.borrowFailure(this, status, failure,
                             "借阅失败，请刷新馆藏后重试。");
+                }));
+    }
+
+    /** Reserves the selected copy, queueing behind any earlier reservation. */
+    public void reserveSelected() {
+        int row = table.getSelectedRow();
+        if (row < 0 || row >= copies.size()) {
+            LibraryFeedback.reservationWarning(this, status, "请先选择一个副本"); return;
+        }
+        BookCopyView copy = copies.get(table.convertRowIndexToModel(row));
+        if (copy.status() == CopyStatus.AVAILABLE) {
+            LibraryFeedback.reservationWarning(this, status, "该副本当前可直接借阅，无需预约"); return;
+        }
+        if (copy.status() == CopyStatus.DAMAGED || copy.status() == CopyStatus.LOST) {
+            LibraryFeedback.reservationWarning(this, status, "该副本当前不可预约"); return;
+        }
+        status.setText("正在提交预约……");
+        long request = beginMutation();
+        service.reserve(new ReserveBookCommand(copy.copyId())).whenComplete((reservation, failure) ->
+                SwingUtilities.invokeLater(() -> {
+                    if (!acceptsMutation(request)) return;
+                    if (failure == null) {
+                        status.setText("预约成功，当前排队第 " + reservation.queuePosition() + " 位");
+                        mutationSucceeded();
+                    } else {
+                        LibraryFeedback.reservationFailure(this, status, failure,
+                                "预约失败，请刷新馆藏后重试。");
+                    }
                 }));
     }
 

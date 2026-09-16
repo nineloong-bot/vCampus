@@ -50,7 +50,9 @@ class LibraryCatalogServiceTest {
     void failedFirstCopyInsertRollsBackNewCatalogEntry() {
         java.util.concurrent.atomic.AtomicInteger sequence = new java.util.concurrent.atomic.AtomicInteger();
         var operations = new LibraryReadAdminOperations(fixture.identities::get, fixture.books,
-                fixture.loans, fixture.policies, fixture.transactions, java.time.Clock.systemUTC(),
+                fixture.loans, fixture.policies, fixture.reservations,
+                new ReservationQueueService(fixture.books, fixture.reservations, fixture.policies),
+                fixture.transactions, java.time.Clock.systemUTC(),
                 () -> sequence.getAndIncrement() == 0 ? "new-book" : "copy-1");
 
         assertThatThrownBy(() -> operations.createBook(new CreateBookCommand("9787300000002", "Algorithms",

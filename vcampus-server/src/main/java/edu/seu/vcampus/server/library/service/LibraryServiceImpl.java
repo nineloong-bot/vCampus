@@ -21,6 +21,8 @@ public final class LibraryServiceImpl implements LibraryService {
     private final BookRepository books;
     private final LoanRepository loans;
     private final LibraryPolicyRepository policies;
+    private final ReservationRepository reservations;
+    private final ReservationQueueService queue;
     private final TransactionManager transactions;
     private final ResourceLockManager locks;
     private final Clock clock;
@@ -29,18 +31,20 @@ public final class LibraryServiceImpl implements LibraryService {
 
     public LibraryServiceImpl(LibraryIdentityPort identities, BookRepository books,
             LoanRepository loans, LibraryPolicyRepository policies,
-            TransactionManager transactions, ResourceLockManager locks, Clock clock,
-            Supplier<String> idGenerator) {
+            ReservationRepository reservations, TransactionManager transactions,
+            ResourceLockManager locks, Clock clock, Supplier<String> idGenerator) {
         this.identities = Objects.requireNonNull(identities, "identities");
         this.books = Objects.requireNonNull(books, "books");
         this.loans = Objects.requireNonNull(loans, "loans");
         this.policies = Objects.requireNonNull(policies, "policies");
+        this.reservations = Objects.requireNonNull(reservations, "reservations");
         this.transactions = Objects.requireNonNull(transactions, "transactions");
         this.locks = Objects.requireNonNull(locks, "locks");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator");
+        this.queue = new ReservationQueueService(books, reservations, policies);
         this.operations = new LibraryReadAdminOperations(identities, books, loans, policies,
-                transactions, clock, idGenerator);
+                reservations, queue, transactions, clock, idGenerator);
     }
 
     @Override
@@ -70,6 +74,7 @@ public final class LibraryServiceImpl implements LibraryService {
                 new ResourceKey("BOOK_COPY", command.copyId()));
         return locks.withLocks(keys, () -> transactions.inTransaction(connection -> {
             Instant now = clock.instant();
+            queue.refreshExpired(connection, now);
             if (loans.hasOverdueLoan(connection, borrower.userId(), now)) {
                 throw new UserHasOverdueLoansException(borrower.userId());
             }
@@ -81,7 +86,13 @@ public final class LibraryServiceImpl implements LibraryService {
             BookCopy copy = books.requireCopy(connection, command.copyId());
             Book book = books.requireBook(connection, copy.bookId());
             if (!book.active()) throw new InactiveBookException(book.bookId());
-            if (copy.status() != CopyStatus.AVAILABLE) {
+            BookReservation hold = null;
+            if (copy.status() == CopyStatus.RESERVED) {
+                hold = queue.readyHolder(connection, copy.copyId());
+                if (hold == null || !hold.userId().equals(borrower.userId())) {
+                    throw new CopyUnavailableException(copy.copyId());
+                }
+            } else if (copy.status() != CopyStatus.AVAILABLE) {
                 throw new CopyUnavailableException(copy.copyId());
             }
             Loan loan = new Loan(idGenerator.get(), copy.copyId(), borrower.userId(), now,
@@ -91,10 +102,123 @@ public final class LibraryServiceImpl implements LibraryService {
             loans.insert(connection, loan);
             books.updateCopyStatus(connection, copy.copyId(), CopyStatus.BORROWED,
                     copy.rowVersion());
+            if (hold != null) {
+                BookReservation fulfilled = new BookReservation(hold.reservationId(), hold.copyId(),
+                        hold.bookId(), hold.userId(), hold.reserverRoleCode(), hold.reservedAt(),
+                        hold.queueOrder(), ReservationStatus.FULFILLED, hold.readyAt(),
+                        hold.expiresAt(), hold.rowVersion() + 1);
+                reservations.update(connection, fulfilled, hold.rowVersion());
+            }
             return toView(loan, copy.bookId());
         }));
     }
+    @Override
+    public BookReservationView reserve(String sessionToken, ReserveBookCommand command) {
+        Objects.requireNonNull(command, "command");
+        BorrowerIdentity borrower = identities.requireBorrower(sessionToken);
+        BookCopy snapshot = transactions.inTransaction(connection ->
+                books.requireCopy(connection, command.copyId()));
+        List<ResourceKey> keys = List.of(
+                new ResourceKey("LIBRARY_USER", borrower.userId()),
+                new ResourceKey("BOOK", snapshot.bookId()),
+                new ResourceKey("BOOK_COPY", command.copyId()));
+        return locks.withLocks(keys, () -> transactions.inTransaction(connection -> {
+            Instant now = clock.instant();
+            queue.refreshExpired(connection, now);
+            BookCopy copy = books.requireCopy(connection, command.copyId());
+            Book book = books.requireBook(connection, copy.bookId());
+            if (!book.active()) throw new InactiveBookException(book.bookId());
+            if (copy.status() != CopyStatus.BORROWED && copy.status() != CopyStatus.RESERVED) {
+                throw new ReservationNotAllowedException(copy.copyId());
+            }
+            if (reservations.hasOpenForUserAndCopy(connection, copy.copyId(), borrower.userId())) {
+                throw new DuplicateReservationException(borrower.userId(), copy.copyId());
+            }
+            BookReservation created = new BookReservation(idGenerator.get(), copy.copyId(),
+                    copy.bookId(), borrower.userId(), borrower.roleCode(), now,
+                    reservations.nextQueueOrder(connection, copy.copyId()), ReservationStatus.WAITING,
+                    null, null, 0);
+            reservations.insert(connection, created);
+            queue.promoteNextReader(connection, copy.copyId(), now);
+            return toReservationView(connection, created);
+        }));
+    }
 
+    @Override
+    public BookReservationView cancelReservation(String sessionToken, CancelReservationCommand command) {
+        Objects.requireNonNull(command, "command");
+        BorrowerIdentity borrower = identities.requireBorrower(sessionToken);
+        BookReservation snapshot = transactions.inTransaction(connection ->
+                reservations.require(connection, command.reservationId()));
+        return locks.withLocks(List.of(
+                new ResourceKey("BOOK_COPY", snapshot.copyId()),
+                new ResourceKey("RESERVATION", command.reservationId())),
+                () -> transactions.inTransaction(connection -> {
+                    BookReservation reservation = reservations.require(connection, command.reservationId());
+                    if (!reservation.userId().equals(borrower.userId())) {
+                        throw new ReservationOwnershipException(command.reservationId());
+                    }
+                    return cancelInternal(connection, reservation, command.expectedVersion(), clock.instant());
+                }));
+    }
+
+    @Override
+    public List<BookReservationView> getMyReservations(String sessionToken) {
+        BorrowerIdentity borrower = identities.requireBorrower(sessionToken);
+        return transactions.inTransaction(connection -> {
+            queue.refreshExpired(connection, clock.instant());
+            return reservations.findForUser(connection, borrower.userId(), clock.instant());
+        });
+    }
+
+    @Override
+    public PageResult<BookReservationView> searchReservations(AdminReservationSearchQuery query) {
+        return operations.searchReservations(query);
+    }
+
+    @Override
+    public BookReservationView adminCancelReservation(AdminCancelReservationCommand command) {
+        Objects.requireNonNull(command, "command");
+        BookReservation snapshot = transactions.inTransaction(connection ->
+                reservations.require(connection, command.reservationId()));
+        return locks.withLocks(List.of(
+                new ResourceKey("BOOK_COPY", snapshot.copyId()),
+                new ResourceKey("RESERVATION", command.reservationId())),
+                () -> transactions.inTransaction(connection -> {
+                    BookReservation reservation = reservations.require(connection, command.reservationId());
+                    return cancelInternal(connection, reservation, command.expectedVersion(), clock.instant());
+                }));
+    }
+
+    private BookReservationView cancelInternal(java.sql.Connection connection,
+            BookReservation reservation, long expectedVersion, Instant now)
+            throws java.sql.SQLException {
+        if (reservation.status() != ReservationStatus.WAITING
+                && reservation.status() != ReservationStatus.READY) {
+            throw new ReservationNotActiveException(reservation.reservationId());
+        }
+        BookReservation cancelled = new BookReservation(reservation.reservationId(), reservation.copyId(),
+                reservation.bookId(), reservation.userId(), reservation.reserverRoleCode(),
+                reservation.reservedAt(), reservation.queueOrder(), ReservationStatus.CANCELLED,
+                reservation.readyAt(), reservation.expiresAt(), reservation.rowVersion() + 1);
+        reservations.update(connection, cancelled, expectedVersion);
+        queue.promoteNextReader(connection, reservation.copyId(), now);
+        return toReservationView(connection, cancelled);
+    }
+
+    private BookReservationView toReservationView(java.sql.Connection connection,
+            BookReservation reservation) throws java.sql.SQLException {
+        int position = 0;
+        if (reservation.status() == ReservationStatus.WAITING
+                || reservation.status() == ReservationStatus.READY) {
+            position = reservations.queuePosition(connection, reservation.copyId(),
+                    reservation.queueOrder());
+        }
+        return new BookReservationView(reservation.reservationId(), reservation.copyId(),
+                reservation.bookId(), reservation.userId(), null, null, null, reservation.status(),
+                reservation.reservedAt(), reservation.readyAt(), reservation.expiresAt(), position,
+                reservation.rowVersion());
+    }
     @Override
     public LoanView returnBook(String sessionToken, ReturnBookCommand command) {
         Objects.requireNonNull(command, "command");
@@ -123,8 +247,12 @@ public final class LibraryServiceImpl implements LibraryService {
                         LoanStatus.RETURNED, loan.rowVersion() + 1, loan.borrowerRoleCode(),
                         penalty.overdueFine(loan.dueAt(), now), penalty.damageFine(command.condition()), command.condition());
                 loans.update(connection, returned, command.expectedVersion());
-                books.updateCopyStatus(connection, copy.copyId(), command.condition() == ReturnCondition.NORMAL
-                        ? CopyStatus.AVAILABLE : CopyStatus.DAMAGED, copy.rowVersion());
+                CopyStatus nextStatus = command.condition() == ReturnCondition.NORMAL
+                        ? CopyStatus.AVAILABLE : CopyStatus.DAMAGED;
+                books.updateCopyStatus(connection, copy.copyId(), nextStatus, copy.rowVersion());
+                if (nextStatus == CopyStatus.AVAILABLE) {
+                    queue.promoteNextReader(connection, copy.copyId(), now);
+                }
                 return toView(returned, copy.bookId());
             }));
     }
@@ -199,8 +327,10 @@ public final class LibraryServiceImpl implements LibraryService {
     @Override
     public BookCopyView changeCopyStatus(ChangeCopyStatusCommand command) {
         Objects.requireNonNull(command, "command");
-        if (command.status() == CopyStatus.BORROWED || command.status() == CopyStatus.LOST) {
-            throw new IllegalArgumentException("BORROWED and LOST must be assigned through loan operations");
+        if (command.status() == CopyStatus.BORROWED || command.status() == CopyStatus.LOST
+                || command.status() == CopyStatus.RESERVED) {
+            throw new IllegalArgumentException(
+                    "BORROWED, RESERVED and LOST must be assigned through loan or reservation operations");
         }
         return locks.withLocks(List.of(new ResourceKey("BOOK_COPY", command.copyId())),
                 () -> transactions.inTransaction(connection -> {
@@ -216,8 +346,12 @@ public final class LibraryServiceImpl implements LibraryService {
                         throw new IllegalArgumentException("Copy already has requested status");
                     }
                     books.updateCopyStatus(connection, copy.copyId(), command.status(), command.expectedVersion());
-                    return new BookCopyView(copy.copyId(), copy.bookId(), copy.barcode(), copy.locationCode(),
-                            command.status(), copy.rowVersion() + 1);
+                    if (command.status() == CopyStatus.AVAILABLE) {
+                        queue.promoteNextReader(connection, copy.copyId(), clock.instant());
+                    }
+                    BookCopy updated = books.requireCopy(connection, copy.copyId());
+                    return new BookCopyView(updated.copyId(), updated.bookId(), updated.barcode(),
+                            updated.locationCode(), updated.status(), updated.rowVersion());
                 }));
     }
 
@@ -253,6 +387,9 @@ public final class LibraryServiceImpl implements LibraryService {
                 case LOST -> CopyStatus.LOST;
             };
             books.updateCopyStatus(connection, copy.copyId(), copyStatus, copy.rowVersion());
+            if (copyStatus == CopyStatus.AVAILABLE) {
+                queue.promoteNextReader(connection, copy.copyId(), now);
+            }
             return toView(resolved, copy.bookId());
         }));
     }

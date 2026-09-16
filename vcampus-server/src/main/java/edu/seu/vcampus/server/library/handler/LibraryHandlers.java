@@ -48,6 +48,10 @@ public final class LibraryHandlers {
                 (token, body) -> service.returnBook(token, body));
         registerWrite(router, "LIBRARY_RENEW", RenewLoanCommand.class, access, deduplicator,
                 (token, body) -> service.renew(token, body));
+        registerWrite(router, "LIBRARY_RESERVE", ReserveBookCommand.class, access, deduplicator,
+                (token, body) -> service.reserve(token, body));
+        registerWrite(router, "LIBRARY_CANCEL_RESERVATION", CancelReservationCommand.class, access,
+                deduplicator, (token, body) -> service.cancelReservation(token, body));
         router.register("LIBRARY_GET_MY_CURRENT_LOANS", (message, context) -> {
             return safely(() -> { access.requireSession(message.sessionToken());
                 requireBody(EmptyRequest.class, message.body());
@@ -57,6 +61,11 @@ public final class LibraryHandlers {
                 safely(() -> { access.requireSession(message.sessionToken());
                     return ResponseBody.success(service.getLoanHistory(message.sessionToken(),
                             requireBody(LoanHistoryQuery.class, message.body()))); }));
+        router.register("LIBRARY_GET_MY_RESERVATIONS", (message, context) ->
+                safely(() -> { access.requireSession(message.sessionToken());
+                    requireBody(EmptyRequest.class, message.body());
+                    return ResponseBody.success(new java.util.ArrayList<>(
+                            service.getMyReservations(message.sessionToken()))); }));
         registerAdmin(router, "LIBRARY_CREATE_BOOK", CreateBookCommand.class, access, deduplicator,
                 (token, body) -> service.createBook(body));
         registerAdmin(router, "LIBRARY_UPDATE_BOOK", UpdateBookCommand.class, access, deduplicator,
@@ -71,6 +80,13 @@ public final class LibraryHandlers {
             access.requirePermission(message.sessionToken(), ADMIN_PERMISSION);
             return ResponseBody.success(service.searchAllLoans(requireBody(AdminLoanSearchQuery.class, message.body())));
         }));
+        router.register("LIBRARY_SEARCH_RESERVATIONS", (message, context) -> safely(() -> {
+            access.requirePermission(message.sessionToken(), ADMIN_PERMISSION);
+            return ResponseBody.success(service.searchReservations(
+                    requireBody(AdminReservationSearchQuery.class, message.body())));
+        }));
+        registerAdmin(router, "LIBRARY_ADMIN_CANCEL_RESERVATION", AdminCancelReservationCommand.class,
+                access, deduplicator, (token, body) -> service.adminCancelReservation(body));
         router.register("LIBRARY_GET_POLICIES", (message, context) -> safely(() -> {
             access.requirePermission(message.sessionToken(), ADMIN_PERMISSION);
             requireBody(EmptyRequest.class, message.body());

@@ -44,7 +44,7 @@ class LibraryBorrowServiceTest {
                     return method.invoke(fixture.books, arguments);
                 });
         LibraryService service = new LibraryServiceImpl(token -> fixture.identities.get(token),
-                failingBooks, fixture.loans, fixture.policies, fixture.transactions,
+                failingBooks, fixture.loans, fixture.policies, fixture.reservations, fixture.transactions,
                 new edu.seu.vcampus.server.concurrency.StripedResourceLockManager(),
                 java.time.Clock.fixed(LibraryServiceFixture.NOW, java.time.ZoneOffset.UTC),
                 () -> "loan-failure");

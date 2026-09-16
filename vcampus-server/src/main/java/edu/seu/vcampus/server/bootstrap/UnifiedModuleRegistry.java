@@ -146,7 +146,9 @@ final class UnifiedModuleRegistry {
                 new LibraryAuthorizationAdapter(authorization);
         LibraryService library = new LibraryServiceImpl(libraryAuthorization,
                 new AccessBookRepository(), new AccessLoanRepository(),
-                new AccessLibraryPolicyRepository(), transactions, locks, clock,
+                new AccessLibraryPolicyRepository(),
+                new edu.seu.vcampus.server.library.repository.AccessReservationRepository(),
+                transactions, locks, clock,
                 () -> UUID.randomUUID().toString());
         LibraryHandlers.register(router, library, libraryAuthorization, deduplicator);
         edu.seu.vcampus.server.library.handler.LibraryFineHandlers.register(router,

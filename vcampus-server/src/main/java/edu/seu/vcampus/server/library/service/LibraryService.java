@@ -1,20 +1,25 @@
 package edu.seu.vcampus.server.library.service;
 
 import edu.seu.vcampus.common.library.AddBookCopyCommand;
+import edu.seu.vcampus.common.library.AdminCancelReservationCommand;
 import edu.seu.vcampus.common.library.AdminLoanSearchQuery;
+import edu.seu.vcampus.common.library.AdminReservationSearchQuery;
 import edu.seu.vcampus.common.library.AdminResolveLoanCommand;
 import edu.seu.vcampus.common.library.BookCopyView;
 import edu.seu.vcampus.common.library.BookDetail;
+import edu.seu.vcampus.common.library.BookReservationView;
 import edu.seu.vcampus.common.library.BookSearchQuery;
 import edu.seu.vcampus.common.library.BookSummary;
 import edu.seu.vcampus.common.library.BookView;
 import edu.seu.vcampus.common.library.BorrowBookCommand;
+import edu.seu.vcampus.common.library.CancelReservationCommand;
 import edu.seu.vcampus.common.library.ChangeCopyStatusCommand;
 import edu.seu.vcampus.common.library.CreateBookCommand;
 import edu.seu.vcampus.common.library.LibraryPolicyView;
 import edu.seu.vcampus.common.library.LoanHistoryQuery;
 import edu.seu.vcampus.common.library.LoanView;
 import edu.seu.vcampus.common.library.RenewLoanCommand;
+import edu.seu.vcampus.common.library.ReserveBookCommand;
 import edu.seu.vcampus.common.library.ReturnBookCommand;
 import edu.seu.vcampus.common.library.UpdateBookCommand;
 import edu.seu.vcampus.common.library.UpdateLibraryPolicyCommand;
@@ -35,6 +40,16 @@ public interface LibraryService {
     LoanView returnBook(String sessionToken, ReturnBookCommand command);
 
     LoanView renew(String sessionToken, RenewLoanCommand command);
+
+    BookReservationView reserve(String sessionToken, ReserveBookCommand command);
+
+    BookReservationView cancelReservation(String sessionToken, CancelReservationCommand command);
+
+    List<BookReservationView> getMyReservations(String sessionToken);
+
+    PageResult<BookReservationView> searchReservations(AdminReservationSearchQuery query);
+
+    BookReservationView adminCancelReservation(AdminCancelReservationCommand command);
 
     List<LoanView> getCurrentLoans(String sessionToken);
 

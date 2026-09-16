@@ -77,16 +77,21 @@ final class AccessCatalogQueries {
     }
 
     static BookDetail detail(Book book, Connection connection) throws SQLException {
+        String sql = "SELECT c.*, r.reservationId AS reservationId, u.loginId AS reservedForLoginId "
+                + "FROM (tblBookCopy c LEFT JOIN tblBookReservation r ON c.copyId = r.copyId "
+                + "AND r.reservationStatus = 'READY') "
+                + "LEFT JOIN tblUser u ON r.userId = u.userId "
+                + "WHERE c.bookId = ? ORDER BY c.barcode";
         List<BookCopyView> copies = new ArrayList<>();
-        try (var statement = connection.prepareStatement(
-                "SELECT * FROM tblBookCopy WHERE bookId = ? ORDER BY barcode")) {
+        try (var statement = connection.prepareStatement(sql)) {
             statement.setString(1, book.bookId());
             try (ResultSet result = statement.executeQuery()) {
                 while (result.next()) {
                     copies.add(new BookCopyView(result.getString("copyId"), book.bookId(),
                             result.getString("barcode"), result.getString("locationCode"),
                             CopyStatus.valueOf(result.getString("copyStatus")),
-                            result.getLong("rowVersion")));
+                            result.getLong("rowVersion"), result.getString("reservationId"),
+                            result.getString("reservedForLoginId")));
                 }
             }
         }

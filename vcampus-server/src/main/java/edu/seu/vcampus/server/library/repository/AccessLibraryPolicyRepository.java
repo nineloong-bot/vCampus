@@ -22,7 +22,8 @@ public final class AccessLibraryPolicyRepository implements LibraryPolicyReposit
                 return new LoanPolicy(result.getString("policyId"), result.getString("roleCode"),
                         result.getInt("maxActiveLoans"), result.getInt("loanDays"),
                         result.getInt("maxRenewals"), result.getInt("renewalDays"),
-                        result.getLong("rowVersion"), new PenaltyPolicy(result.getInt("firstTierDays"),
+                        result.getInt("reserveDays"), result.getLong("rowVersion"),
+                        new PenaltyPolicy(result.getInt("firstTierDays"),
                                 result.getInt("secondTierDays"), result.getBigDecimal("firstDailyFine"),
                                 result.getBigDecimal("secondDailyFine"), result.getBigDecimal("thirdDailyFine"),
                                 result.getBigDecimal("minorDamageFine"), result.getBigDecimal("majorDamageFine"),
@@ -35,7 +36,7 @@ public final class AccessLibraryPolicyRepository implements LibraryPolicyReposit
     public LoanPolicy update(Connection connection, LoanPolicy policy, long expectedVersion)
             throws SQLException {
         String sql = "UPDATE tblLibraryPolicy SET maxActiveLoans = ?, loanDays = ?, "
-                + "maxRenewals = ?, renewalDays = ?, firstTierDays = ?, secondTierDays = ?, "
+                + "maxRenewals = ?, renewalDays = ?, reserveDays = ?, firstTierDays = ?, secondTierDays = ?, "
                 + "firstDailyFine = ?, secondDailyFine = ?, thirdDailyFine = ?, minorDamageFine = ?, "
                 + "majorDamageFine = ?, lostFine = ?, rowVersion = rowVersion + 1 "
                 + "WHERE roleCode = ? AND rowVersion = ?";
@@ -44,13 +45,14 @@ public final class AccessLibraryPolicyRepository implements LibraryPolicyReposit
             statement.setInt(2, policy.loanDays());
             statement.setInt(3, policy.maxRenewals());
             statement.setInt(4, policy.renewalDays());
+            statement.setInt(5, policy.reserveDays());
             PenaltyPolicy penalty = policy.penalties();
-            statement.setInt(5, penalty.firstTierDays()); statement.setInt(6, penalty.secondTierDays());
-            statement.setBigDecimal(7, penalty.firstDailyFine()); statement.setBigDecimal(8, penalty.secondDailyFine());
-            statement.setBigDecimal(9, penalty.thirdDailyFine()); statement.setBigDecimal(10, penalty.minorDamageFine());
-            statement.setBigDecimal(11, penalty.majorDamageFine()); statement.setBigDecimal(12, penalty.lostFine());
-            statement.setString(13, policy.roleCode());
-            statement.setLong(14, expectedVersion);
+            statement.setInt(6, penalty.firstTierDays()); statement.setInt(7, penalty.secondTierDays());
+            statement.setBigDecimal(8, penalty.firstDailyFine()); statement.setBigDecimal(9, penalty.secondDailyFine());
+            statement.setBigDecimal(10, penalty.thirdDailyFine()); statement.setBigDecimal(11, penalty.minorDamageFine());
+            statement.setBigDecimal(12, penalty.majorDamageFine()); statement.setBigDecimal(13, penalty.lostFine());
+            statement.setString(14, policy.roleCode());
+            statement.setLong(15, expectedVersion);
             if (statement.executeUpdate() != 1) {
                 throw new ConcurrentModificationException(
                         "Library policy changed: " + policy.roleCode());

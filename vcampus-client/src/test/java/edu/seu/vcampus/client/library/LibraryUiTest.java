@@ -66,13 +66,13 @@ class LibraryUiTest {
         LibraryPolicyPanel panel = new LibraryPolicyPanel(service);
         SwingUtilities.invokeAndWait(panel::refreshStatus); SwingUtilities.invokeAndWait(() -> { });
         SwingUtilities.invokeAndWait(() -> {
-            ((javax.swing.JSpinner) named(panel, "library.policy.STUDENT.4")).setValue(40);
+            ((javax.swing.JSpinner) named(panel, "library.policy.STUDENT.5")).setValue(40);
             ((JButton) button(panel, "保存学生设置")).doClick();
         });
         assertThat(captured.get()).isNull();
         SwingUtilities.invokeAndWait(() -> {
-            ((javax.swing.JSpinner) named(panel, "library.policy.STUDENT.4")).setValue(3);
-            ((javax.swing.JSpinner) named(panel, "library.policy.STUDENT.11")).setValue(88.8);
+            ((javax.swing.JSpinner) named(panel, "library.policy.STUDENT.5")).setValue(3);
+            ((javax.swing.JSpinner) named(panel, "library.policy.STUDENT.12")).setValue(88.8);
             ((JButton) button(panel, "保存学生设置")).doClick();
         });
         SwingUtilities.invokeAndWait(() -> { });
@@ -82,10 +82,11 @@ class LibraryUiTest {
     }
 
     @Test
-    void signedInReadersReceiveAllFourPersonalLibraryPages() {
+    void signedInReadersReceiveAllPersonalLibraryPages() {
         LibraryWorkspacePanel workspace = new LibraryWorkspacePanel(service, Set.of());
 
-        assertThat(tabTitles(workspace)).containsExactly("馆藏检索", "当前借阅", "借阅历史", "罚款缴纳");
+        assertThat(tabTitles(workspace)).containsExactly("馆藏检索", "当前借阅", "借阅历史", "我的预约", "罚款缴纳");
+        assertThat(named(workspace, "library.my-reservations")).isNotNull();
         assertThat(named(workspace, "library.book-search")).isNotNull();
         assertThat(named(workspace, "library.book-detail")).isNotNull();
         assertThat(named(workspace, "library.loan-action")).isNotNull();
@@ -96,7 +97,8 @@ class LibraryUiTest {
         LibraryWorkspacePanel workspace = new LibraryWorkspacePanel(
                 service, Set.of("LIBRARY_ADMIN"), UserRole.LIBRARY_ADMIN);
 
-        assertThat(tabTitles(workspace)).containsExactly("图书管理", "借阅管理", "借阅策略设置", "罚款记录");
+        assertThat(tabTitles(workspace)).containsExactly("图书管理", "借阅管理", "预约管理", "借阅策略设置", "罚款记录");
+        assertThat(named(workspace, "library.reservation-admin")).isNotNull();
         assertThat(named(workspace, "library.loan-action")).isNull();
         assertThat(named(workspace, "library.book-management")).isNotNull();
         assertThat(named(workspace, "library.copy-management")).isNotNull();
@@ -484,7 +486,30 @@ class LibraryUiTest {
         JTable table = first(panel, JTable.class);
         assertThat(java.util.stream.IntStream.range(0, table.getRowCount())
                 .mapToObj(row -> table.getValueAt(row, 2)).toList())
-                .containsExactly("可借", "已借出", "已遗失", "已损坏");
+                .containsExactly("可借", "已借出", "已预约", "已遗失", "已损坏");
+    }
+
+    @Test
+    void reservedCopyStatusShowsTheHoldingCardNumber() {
+        BookDetailPanel panel = new BookDetailPanel(service);
+        panel.showBook(new BookDetail("book-1", "978", "Java 核心技术", "作者", "出版社",
+                LocalDate.of(2026, 1, 1), "计算机", "", true, 0, List.of(
+                new BookCopyView("copy-1", "book-1", "BC-1", "A-01", CopyStatus.RESERVED, 0,
+                        "reservation-1", "213240002"))));
+
+        JTable table = first(panel, JTable.class);
+        assertThat(table.getValueAt(0, 2)).isEqualTo("已预约：213240002");
+    }
+
+    @Test
+    void reservationActionSitsLeftOfTheBorrowAction() {
+        BookDetailPanel panel = new BookDetailPanel(service);
+        JButton reserve = (JButton) button(panel, "预约所选副本");
+        JButton borrow = (JButton) button(panel, "借阅所选副本");
+
+        assertThat(reserve.getParent()).isSameAs(borrow.getParent());
+        assertThat(reserve.getParent().getComponentZOrder(reserve))
+                .isLessThan(reserve.getParent().getComponentZOrder(borrow));
     }
 
     @Test

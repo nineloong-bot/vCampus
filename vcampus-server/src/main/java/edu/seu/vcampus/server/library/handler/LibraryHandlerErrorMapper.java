@@ -31,6 +31,10 @@ final class LibraryHandlerErrorMapper {
         if (error instanceof CopyUnavailableException) return "LIBRARY_COPY_UNAVAILABLE";
         if (error instanceof CopyHasActiveLoanException) return "LIBRARY_COPY_HAS_ACTIVE_LOAN";
         if (error instanceof InactiveBookException) return "LIBRARY_BOOK_INACTIVE";
+        if (error instanceof ReservationNotAllowedException) return "LIBRARY_RESERVATION_NOT_ALLOWED";
+        if (error instanceof DuplicateReservationException) return "LIBRARY_RESERVATION_EXISTS";
+        if (error instanceof ReservationNotActiveException) return "LIBRARY_RESERVATION_NOT_ACTIVE";
+        if (error instanceof ReservationOwnershipException) return "LIBRARY_RESERVATION_FORBIDDEN";
         if (error instanceof DuplicateIsbnException) return "LIBRARY_DUPLICATE_ISBN";
         if (error instanceof DuplicateBarcodeException) return "LIBRARY_DUPLICATE_BARCODE";
         if (error instanceof UserHasOverdueLoansException) return "LIBRARY_USER_OVERDUE";
@@ -47,6 +51,7 @@ final class LibraryHandlerErrorMapper {
             if (message != null && message.startsWith("Book copy changed:")) return "LIBRARY_COPY_STALE";
             if (message != null && message.startsWith("Book changed:")) return "LIBRARY_BOOK_STALE";
             if (message != null && message.startsWith("Loan changed:")) return "LIBRARY_LOAN_STALE";
+            if (message != null && message.startsWith("Reservation changed:")) return "LIBRARY_RESERVATION_STALE";
             if (message != null && message.startsWith("Library policy changed:")) return "LIBRARY_POLICY_STALE";
             return "COMMON_CONCURRENT_MODIFICATION";
         }
@@ -64,6 +69,11 @@ final class LibraryHandlerErrorMapper {
             case "LIBRARY_COPY_UNAVAILABLE" -> "该馆藏副本当前不可借，请刷新后重试";
             case "LIBRARY_COPY_HAS_ACTIVE_LOAN" -> "该副本仍有有效借阅，请到借阅管理中办理归还或标记遗失";
             case "LIBRARY_BOOK_INACTIVE" -> "该书目已停用，不能新增副本、借阅或续借";
+            case "LIBRARY_RESERVATION_NOT_ALLOWED" -> "该副本当前可直接借阅或不可预约，无需排队";
+            case "LIBRARY_RESERVATION_EXISTS" -> "你已预约该副本，请勿重复预约";
+            case "LIBRARY_RESERVATION_NOT_ACTIVE" -> "该预约已结束，请刷新预约记录";
+            case "LIBRARY_RESERVATION_FORBIDDEN" -> "只能取消本人的预约";
+            case "LIBRARY_RESERVATION_STALE" -> "预约状态已变化，请刷新预约记录后重试";
             case "LIBRARY_DUPLICATE_ISBN" -> "该 ISBN 已存在，请编辑现有书目";
             case "LIBRARY_DUPLICATE_BARCODE" -> "该馆藏条码已存在，请使用新的条码";
             case "LIBRARY_USER_OVERDUE" -> "存在逾期借阅，暂不能新增借阅";

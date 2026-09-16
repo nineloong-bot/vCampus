@@ -4,5 +4,5 @@ import java.io.Serializable;
 
 /** Physical copy status in the library catalog. */
 public enum CopyStatus implements Serializable {
-    AVAILABLE, BORROWED, LOST, DAMAGED
+    AVAILABLE, BORROWED, RESERVED, LOST, DAMAGED
 }

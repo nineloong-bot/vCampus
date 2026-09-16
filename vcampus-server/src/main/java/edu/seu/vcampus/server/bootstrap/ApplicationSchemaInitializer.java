@@ -112,6 +112,7 @@ public final class ApplicationSchemaInitializer {
         installSchema(connections, schema("035_course_pool.sql"));
         installSchema(connections, schema("040_library.sql"));
         try (Connection connection = connections.open()) { LibraryPenaltySchema.initialize(connection); }
+        try (Connection connection = connections.open()) { LibraryReservationSchema.initialize(connection); }
         installSchema(connections, schema("050_shop.sql"));
         installSeeds(connections, seed("010_roles_permissions.sql"));
         installSeeds(connections, seed("020_test_accounts.sql"));

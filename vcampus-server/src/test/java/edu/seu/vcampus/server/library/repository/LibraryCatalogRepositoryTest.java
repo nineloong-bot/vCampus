@@ -34,6 +34,7 @@ class LibraryCatalogRepositoryTest {
                 .toAbsolutePath() + ";newDatabaseVersion=V2010;immediatelyReleaseResources=true";
         connections = () -> DriverManager.getConnection(url);
         try (Connection connection = connections.open()) {
+            executeScript(connection, Path.of("..", "vcampus-database", "schema", "010_user.sql"));
             executeScript(connection, Path.of("..", "vcampus-database", "schema", "040_library.sql"));
             executeScript(connection, Path.of("..", "vcampus-database", "seed", "040_library_policy.sql"));
         }

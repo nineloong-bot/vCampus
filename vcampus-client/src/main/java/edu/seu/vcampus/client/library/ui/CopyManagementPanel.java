@@ -174,6 +174,10 @@ public final class CopyManagementPanel extends LibraryDataPanel {
         int row = table.getSelectedRow();
         if (row < 0 || row >= copies.size()) { status.setText("请先选择一个馆藏副本"); return; }
         BookCopyView copy = copies.get(table.convertRowIndexToModel(row));
+        if (copy.status() == CopyStatus.RESERVED) {
+            status.setText("已预约副本请在预约管理中取消预约后再维护状态");
+            return;
+        }
         if (copy.status() == CopyStatus.BORROWED) {
             status.setText("借出中的副本请在“借阅管理”中办理归还或标记遗失");
             return;

@@ -23,6 +23,13 @@ final class LibraryFeedback {
         status.setText(warning);
     }
 
+    static void reservationFailure(Component owner, JLabel status, Throwable failure, String fallback) {
+        failure(owner, status, failure, fallback, "预约失败", JOptionPane.WARNING_MESSAGE);
+    }
+
+    static void reservationWarning(Component owner, JLabel status, String message) {
+        status.setText("预约失败：" + message);
+    }
     private static void failure(Component owner, JLabel status, Throwable failure, String fallback,
             String defaultTitle, int messageType) {
         Throwable cause = unwrap(failure);

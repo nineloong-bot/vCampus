@@ -53,6 +53,7 @@ CREATE TABLE tblLibraryPolicy (
     loanDays LONG NOT NULL,
     maxRenewals LONG NOT NULL,
     renewalDays LONG NOT NULL,
+    reserveDays LONG DEFAULT 3 NOT NULL,
     firstTierDays LONG DEFAULT 7 NOT NULL,
     secondTierDays LONG DEFAULT 30 NOT NULL,
     firstDailyFine CURRENCY DEFAULT 0.5 NOT NULL,
@@ -64,3 +65,19 @@ CREATE TABLE tblLibraryPolicy (
     rowVersion LONG NOT NULL
 );
 CREATE UNIQUE INDEX uk_tblLibraryPolicy_roleCode ON tblLibraryPolicy (roleCode);
+
+CREATE TABLE tblBookReservation (
+    reservationId VARCHAR(36) PRIMARY KEY,
+    copyId VARCHAR(36) NOT NULL,
+    bookId VARCHAR(36) NOT NULL,
+    userId VARCHAR(36) NOT NULL,
+    reserverRoleCode VARCHAR(16) NOT NULL,
+    reservedAt DATETIME NOT NULL,
+    queueOrder LONG NOT NULL,
+    reservationStatus VARCHAR(16) NOT NULL,
+    readyAt DATETIME,
+    expiresAt DATETIME,
+    rowVersion LONG NOT NULL
+);
+CREATE INDEX idx_tblBookReservation_copy ON tblBookReservation (copyId, reservationStatus);
+CREATE INDEX idx_tblBookReservation_user ON tblBookReservation (userId, reservationStatus);
