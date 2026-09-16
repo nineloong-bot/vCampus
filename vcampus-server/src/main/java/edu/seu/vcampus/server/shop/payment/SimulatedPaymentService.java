@@ -322,7 +322,7 @@ public final class SimulatedPaymentService {
         }
     }
 
-    private static void updateReservations(Connection connection, String paymentId,
+    static void updateReservations(Connection connection, String paymentId,
             String status, Instant now) throws Exception {
         try (PreparedStatement statement = connection.prepareStatement(
                 "UPDATE tblInventoryReservation SET reservationStatus = ?, releasedAt = ? "

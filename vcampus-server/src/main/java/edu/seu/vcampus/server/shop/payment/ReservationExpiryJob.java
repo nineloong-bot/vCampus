@@ -68,8 +68,29 @@ public final class ReservationExpiryJob {
         if (!expired) {
             return false;
         }
-        SimulatedPaymentService.releaseReservations(connection, paymentId, now);
+        if (releasedByCanonicalOrder(connection, payment.orderGroupId())) {
+            SimulatedPaymentService.updateReservations(connection, paymentId, "RELEASED", now);
+        } else {
+            SimulatedPaymentService.releaseReservations(connection, paymentId, now);
+        }
         SimulatedPaymentService.updateExpiredStates(connection, payment, now);
         return true;
+    }
+
+    private static boolean releasedByCanonicalOrder(java.sql.Connection connection,
+            String orderGroupId) throws Exception {
+        try (var statement = connection.prepareStatement(
+                "SELECT COUNT(*) AS totalOrders, "
+                        + "SUM(IIF(s.lifecycle='CANCELLED',1,0)) AS cancelledOrders "
+                        + "FROM tblOrder o INNER JOIN tblShopOrderState s ON o.orderId=s.orderId "
+                        + "WHERE o.orderGroupId=?")) {
+            statement.setString(1, orderGroupId);
+            try (var result = statement.executeQuery()) {
+                return result.next() && result.getLong("totalOrders") > 0
+                        && result.getLong("totalOrders") == result.getLong("cancelledOrders");
+            }
+        } catch (java.sql.SQLException legacySchema) {
+            return false;
+        }
     }
 }
