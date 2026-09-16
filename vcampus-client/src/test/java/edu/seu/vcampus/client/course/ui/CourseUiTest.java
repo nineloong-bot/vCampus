@@ -168,7 +168,7 @@ class CourseUiTest {
         assertThat(((SpinnerNumberModel) component(editor, "第 1 行起始节次", JSpinner.class).getModel()).getMinimum())
                 .isEqualTo(1);
         assertThat(((SpinnerNumberModel) component(editor, "第 1 行结束节次", JSpinner.class).getModel()).getMaximum())
-                .isEqualTo(14);
+                .isEqualTo(13);
         assertThat(((SpinnerNumberModel) component(editor, "第 1 行起始周", JSpinner.class).getModel()).getMinimum())
                 .isEqualTo(1);
         assertThat(((SpinnerNumberModel) component(editor, "第 1 行结束周", JSpinner.class).getModel()).getMaximum())
@@ -214,7 +214,7 @@ class CourseUiTest {
     }
 
     @ParameterizedTest
-    @CsvSource({"第 1 行起始节次,0", "第 1 行结束节次,15", "第 1 行起始周,0", "第 1 行结束周,31"})
+    @CsvSource({"第 1 行起始节次,0", "第 1 行结束节次,14", "第 1 行起始周,0", "第 1 行结束周,31"})
     void scheduleEditorEnforcesPeriodAndWeekBoundsWhenValuesAreCommitted(String name, int value)
             throws Exception {
         OfferingScheduleEditorPanel editor = onEdt(OfferingScheduleEditorPanel::new);
@@ -687,9 +687,12 @@ class CourseUiTest {
         SwingUtilities.invokeAndWait(() -> { });
         SwingUtilities.invokeAndWait(() -> { });
 
-        assertThat(labels(panel)).contains("星期六", "星期日", "第 9 节", "第 10 节");
-        assertThat(labels(panel)).anyMatch(text -> text.contains("周末艺术") && text.contains("第2–18周"));
-        assertThat(labels(panel)).anyMatch(text -> text.contains("周末艺术（续）"));
+        assertThat(labels(panel)).contains("星期六", "星期日", "第 9 节", "第 10 节", "第 13 节");
+        List<String> occupiedCells = labels(panel).stream()
+                .filter(text -> text.contains("周末艺术")).toList();
+        assertThat(occupiedCells).hasSize(2).allMatch(text -> text.contains("周末班")
+                && text.contains("艺术楼-9") && text.contains("第2–18周")
+                && text.contains("第9–10节") && !text.contains("续"));
     }
 
     @Test
@@ -704,8 +707,26 @@ class CourseUiTest {
         SwingUtilities.invokeAndWait(() -> { });
         SwingUtilities.invokeAndWait(() -> { });
 
-        assertThat(labels(panel)).anyMatch(text -> text.contains("编译原理") && text.contains("第1–8周")
-                && text.contains("操作系统") && text.contains("第9–16周"));
+        List<String> occupiedCells = labels(panel).stream()
+                .filter(text -> text.contains("编译原理") || text.contains("操作系统")).toList();
+        assertThat(occupiedCells).hasSize(2).allMatch(text -> text.contains("编译原理")
+                && text.contains("第1–8周") && text.contains("操作系统")
+                && text.contains("第9–16周") && !text.contains("续"));
+    }
+
+    @Test
+    void myEnrollmentsShowsCourseAndTeacherWithoutInternalVersion() throws Exception {
+        CourseUiGateway base = CourseUiGateway.preview();
+        MyEnrollmentPanel panel = onEdt(() -> new MyEnrollmentPanel(base));
+        SwingUtilities.invokeAndWait(() -> { });
+        SwingUtilities.invokeAndWait(() -> { });
+        JTable table = enrollmentTable(panel);
+
+        assertThat(IntStream.range(0, table.getColumnCount())
+                .mapToObj(table::getColumnName).toList())
+                .containsExactly("教学班编号", "课程名称", "教师", "选课类型", "状态", "选课时间");
+        assertThat(table.getValueAt(0, 1)).isEqualTo("数据库原理");
+        assertThat(table.getValueAt(0, 2)).isEqualTo("zhang.teacher");
     }
 
     @Test

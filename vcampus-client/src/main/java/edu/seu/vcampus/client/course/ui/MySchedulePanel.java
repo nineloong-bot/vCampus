@@ -68,20 +68,19 @@ public final class MySchedulePanel extends AbstractCoursePanel {
 
     private void render(List<ScheduleItem> items) {
         grid.removeAll();
-        Map<CellKey, List<CellEntry>> cells = new LinkedHashMap<>();
+        Map<CellKey, List<ScheduleItem>> cells = new LinkedHashMap<>();
         for (ScheduleItem item : items) {
             for (int period = item.startPeriod(); period <= item.endPeriod(); period++) {
                 cells.computeIfAbsent(new CellKey(item.dayOfWeek(), period), ignored -> new ArrayList<>())
-                        .add(new CellEntry(item, period > item.startPeriod()));
+                        .add(item);
             }
         }
         addCell("节次", 0, 0, true);
         for (int day = 0; day < DAY_NAMES.length; day++) addCell(DAY_NAMES[day], day + 1, 0, true);
-        int maximumPeriod = Math.max(6, items.stream().mapToInt(ScheduleItem::endPeriod).max().orElse(6));
-        for (int period = 1; period <= maximumPeriod; period++) {
+        for (int period = 1; period <= 13; period++) {
             addCell("第 " + period + " 节", 0, period, true);
             for (int day = 0; day < DAY_CODES.length; day++) {
-                List<CellEntry> scheduled = cells.getOrDefault(new CellKey(DAY_CODES[day], period), List.of());
+                List<ScheduleItem> scheduled = cells.getOrDefault(new CellKey(DAY_CODES[day], period), List.of());
                 addCell(cellText(scheduled), day + 1, period, false);
             }
         }
@@ -101,22 +100,16 @@ public final class MySchedulePanel extends AbstractCoursePanel {
         termSummary.setText(name + " · 第 " + firstWeek + "–" + lastWeek + " 周");
     }
 
-    private static String cellText(List<CellEntry> entries) {
+    private static String cellText(List<ScheduleItem> entries) {
         if (entries.isEmpty()) return "";
         StringBuilder text = new StringBuilder("<html>");
         for (int index = 0; index < entries.size(); index++) {
             if (index > 0) text.append("<br><br>");
-            CellEntry entry = entries.get(index);
-            ScheduleItem item = entry.item();
-            if (entry.continuation()) {
-                text.append("<i>").append(html(item.courseName())).append("（续）</i><br>")
-                        .append("第").append(item.startWeek()).append("–").append(item.endWeek()).append("周");
-            } else {
-                text.append("<b>").append(html(item.courseName())).append("</b><br>")
-                        .append(html(item.className())).append(" · ").append(html(item.classroom())).append("<br>")
-                        .append("第").append(item.startWeek()).append("–").append(item.endWeek()).append("周 · 第")
-                        .append(item.startPeriod()).append("–").append(item.endPeriod()).append("节");
-            }
+            ScheduleItem item = entries.get(index);
+            text.append("<b>").append(html(item.courseName())).append("</b><br>")
+                    .append(html(item.className())).append(" · ").append(html(item.classroom())).append("<br>")
+                    .append("第").append(item.startWeek()).append("–").append(item.endWeek()).append("周 · 第")
+                    .append(item.startPeriod()).append("–").append(item.endPeriod()).append("节");
         }
         return text.append("</html>").toString();
     }
@@ -138,7 +131,6 @@ public final class MySchedulePanel extends AbstractCoursePanel {
     }
 
     private record CellKey(String dayOfWeek, int startPeriod) { }
-    private record CellEntry(ScheduleItem item, boolean continuation) { }
     private record TermContext(String termId, List<TermView> terms) { }
     private record SchedulePayload(List<ScheduleItem> items, TermContext context) { }
 }

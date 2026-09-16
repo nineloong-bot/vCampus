@@ -12,4 +12,7 @@ public interface CourseAuthorizationGateway {
     default void requireUserRole(String userId, String expectedRole) {
         throw new CourseForbiddenException();
     }
+
+    /** Resolves a safe account label for read-only course projections. */
+    default String userDisplayName(String userId) { return userId; }
 }

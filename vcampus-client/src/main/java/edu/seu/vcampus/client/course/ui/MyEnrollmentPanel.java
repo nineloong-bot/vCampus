@@ -4,6 +4,8 @@ import edu.seu.vcampus.client.core.ui.theme.UiColors;
 import edu.seu.vcampus.client.core.ui.theme.UiSpacing;
 import edu.seu.vcampus.client.core.ui.theme.UiTypography;
 import edu.seu.vcampus.common.course.EnrollmentView;
+import edu.seu.vcampus.common.course.OfferingSearchQuery;
+import edu.seu.vcampus.common.course.OfferingSummary;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -11,7 +13,10 @@ import java.awt.BorderLayout;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 @FunctionalInterface
 interface DropConfirmation {
@@ -25,7 +30,7 @@ public final class MyEnrollmentPanel extends AbstractCoursePanel {
     private final CourseUiGateway gateway;
     private final JLabel summary = label("共 0 条", UiTypography.BODY, UiColors.TEXT_SECONDARY);
     private final DefaultTableModel model = new DefaultTableModel(
-            new Object[]{"教学班编号", "选课类型", "状态", "选课时间", "记录版本"}, 0) {
+            new Object[]{"教学班编号", "课程名称", "教师", "选课类型", "状态", "选课时间"}, 0) {
         public boolean isCellEditable(int row, int column) { return false; }
     };
     private final JTable table = table(new Object[0][0], new Object[0]);
@@ -67,7 +72,7 @@ public final class MyEnrollmentPanel extends AbstractCoursePanel {
     public void refresh() {
         long request = beginAsyncRequest();
         showState(ViewState.LOADING, "正在加载我的选课，请稍候");
-        gateway.currentEnrollments().whenComplete((values, error) -> SwingUtilities.invokeLater(() -> {
+        loadRows().whenComplete((values, error) -> SwingUtilities.invokeLater(() -> {
             if (!acceptsAsyncResult(request)) return;
             if (error != null) {
                 showState(ViewState.DISCONNECTED, "无法加载我的选课，请检查连接后重试");
@@ -75,11 +80,12 @@ public final class MyEnrollmentPanel extends AbstractCoursePanel {
             }
             model.setRowCount(0);
             enrollments.clear();
-            enrollments.addAll(values);
-            for (EnrollmentView enrollment : enrollments) {
-                model.addRow(new Object[]{enrollment.offeringId(), typeName(enrollment.enrollmentType()),
-                        statusName(enrollment.enrollmentStatus()), TIME.format(enrollment.enrolledAt()),
-                        "v" + enrollment.rowVersion()});
+            enrollments.addAll(values.stream().map(EnrollmentRow::enrollment).toList());
+            for (EnrollmentRow row : values) {
+                EnrollmentView enrollment = row.enrollment();
+                model.addRow(new Object[]{enrollment.offeringId(), row.courseName(), row.teacherName(),
+                        typeName(enrollment.enrollmentType()), statusName(enrollment.enrollmentStatus()),
+                        TIME.format(enrollment.enrolledAt())});
             }
             summary.setText("共 " + enrollments.size() + " 条");
             showState(enrollments.isEmpty() ? ViewState.EMPTY : ViewState.NORMAL,
@@ -89,6 +95,40 @@ public final class MyEnrollmentPanel extends AbstractCoursePanel {
 
     @Override protected void refreshAfterNavigation() { refresh(); }
 
+    private CompletableFuture<List<EnrollmentRow>> loadRows() {
+        CompletableFuture<List<EnrollmentView>> enrollmentsRequest = gateway.currentEnrollments();
+        CompletableFuture<List<OfferingSummary>> offeringsRequest = gateway.currentTermId()
+                .thenCompose(termId -> loadOfferingPage(termId, 0, new ArrayList<>()));
+        return enrollmentsRequest.thenCombine(offeringsRequest, EnrollmentPayload::new)
+                .thenApply(MyEnrollmentPanel::resolveRows);
+    }
+
+    private CompletableFuture<List<OfferingSummary>> loadOfferingPage(
+            String termId, int pageNumber, List<OfferingSummary> collected) {
+        return gateway.searchOfferings(new OfferingSearchQuery(
+                termId, "", null, false, pageNumber, 100)).thenCompose(page -> {
+            collected.addAll(page.items());
+            if ((long) (pageNumber + 1) * page.pageSize() >= page.total()) {
+                return CompletableFuture.completedFuture(List.copyOf(collected));
+            }
+            return loadOfferingPage(termId, pageNumber + 1, collected);
+        });
+    }
+
+    private static List<EnrollmentRow> resolveRows(EnrollmentPayload payload) {
+        Map<String, OfferingSummary> offerings = new HashMap<>();
+        payload.offerings().forEach(offering -> offerings.put(offering.offeringId(), offering));
+        return payload.enrollments().stream()
+                .map(enrollment -> enrollmentRow(enrollment, offerings)).toList();
+    }
+
+    private static EnrollmentRow enrollmentRow(EnrollmentView enrollment,
+            Map<String, OfferingSummary> offerings) {
+        OfferingSummary offering = offerings.get(enrollment.offeringId());
+        if (offering == null) return new EnrollmentRow(enrollment, "未知课程", "未知教师");
+        return new EnrollmentRow(enrollment, offering.courseName(), offering.teacherName());
+    }
+
     private static String typeName(String type) {
         return "RETAKE".equals(type) ? "重修" : "NORMAL".equals(type) ? "正常选课" : type;
     }
@@ -96,4 +136,9 @@ public final class MyEnrollmentPanel extends AbstractCoursePanel {
     private static String statusName(String status) {
         return "ACTIVE".equals(status) ? "有效" : "DROPPED".equals(status) ? "已退选" : status;
     }
+
+    private record EnrollmentPayload(List<EnrollmentView> enrollments,
+                                     List<OfferingSummary> offerings) { }
+    private record EnrollmentRow(EnrollmentView enrollment, String courseName,
+                                 String teacherName) { }
 }
