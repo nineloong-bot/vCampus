@@ -67,18 +67,26 @@ final class MajorTransferApplicationHandlers {
                                         support.principal(message).userId(), body.optionId()),
                                 departmentId -> support.service.importScores(
                                         support.principal(message).userId(), body, departmentId))));
-        router.register("MAJOR_TRANSFER_FINALIZE", typed(FinalizeMajorTransferCommand.class,
-                (message, body) -> targetWrite(message, body.applicationId(),
-                        departmentId -> support.service.finalizeApproval(
-                                support.principal(message).userId(), body, departmentId))));
-        router.register("MAJOR_TRANSFER_EXECUTE", typed(ExecuteMajorTransferCommand.class,
-                (message, body) -> targetWrite(message, body.applicationId(),
-                        departmentId -> support.service.execute(
+        router.register("MAJOR_TRANSFER_GET_BATCH_READINESS", typed(EntityIdRequest.class,
+                (message, body) -> batchRead(message, body.entityId())));
+        router.register("MAJOR_TRANSFER_FINALIZE_BATCH", typed(FinalizeMajorTransferBatchCommand.class,
+                (message, body) -> support.collegeWrite(message,
+                        () -> support.scope.requireTargetApprovalForBatch(
+                                support.principal(message).userId(), body.batchId()),
+                        departmentId -> support.service.finalizeBatch(
                                 support.principal(message).userId(), body, departmentId))));
         router.register("MAJOR_TRANSFER_CANCEL", typed(CancelMajorTransferCommand.class,
                 (message, body) -> targetWrite(message, body.applicationId(),
                         departmentId -> support.service.cancel(
                                 support.principal(message).userId(), body, departmentId))));
+    }
+
+    private ResponseBody<? extends Serializable> batchRead(Message message, String batchId) {
+        return support.collegeRead(message,
+                () -> support.scope.requireTargetApprovalForBatch(
+                        support.principal(message).userId(), batchId),
+                () -> support.service.getBatchReadiness(batchId,
+                        support.scope.findActiveDepartmentId(support.principal(message).userId())));
     }
 
     private ResponseBody<? extends Serializable> targetWrite(Message message,

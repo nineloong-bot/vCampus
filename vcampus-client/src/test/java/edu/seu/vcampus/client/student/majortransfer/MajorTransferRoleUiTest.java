@@ -47,7 +47,9 @@ class MajorTransferRoleUiTest {
             render(panel, application(MajorTransferStatus.QUALIFIED));
             assertThat(find(panel, "recordScoreButton")).isNotNull();
             render(panel, application(MajorTransferStatus.PENDING_EFFECTIVE));
-            assertThat(find(panel, "executeButton")).isNotNull();
+            assertThat(find(panel, "executeButton")).isNull();
+            assertThat(find(panel, "finalizeButton")).isNull();
+            assertThat(find(panel, "major-transfer.finalize-batch")).isNotNull();
             render(panel, applicationWithAttachment());
             assertThat(find(panel, "downloadAttachmentButton")).isNotNull();
         });

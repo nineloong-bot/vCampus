@@ -22,6 +22,8 @@ class MajorTransferStatusTextTest {
     @Test
     void mapsBatchStatusAndNullToSafeChineseLabels() {
         assertThat(MajorTransferStatusText.batchStatus(MajorTransferBatchStatus.OPEN)).isEqualTo("开放报名");
+        assertThat(MajorTransferStatusText.batchStatus(MajorTransferBatchStatus.EFFECTIVE))
+                .isEqualTo("已终审生效");
         assertThat(MajorTransferStatusText.status(null)).isEqualTo("未知状态");
     }
 }
