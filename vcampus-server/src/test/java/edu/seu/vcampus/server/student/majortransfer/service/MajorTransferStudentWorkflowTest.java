@@ -27,6 +27,8 @@ class MajorTransferStudentWorkflowTest {
     private StudentAccessTestDatabase database;
     private MajorTransferServiceImpl service;
     private MajorTransferRepository repository;
+    private int reconciledEnrollments;
+    private boolean reconciliationFails;
 
     private static final Instant NOW = Instant.now();
     private static final Instant YESTERDAY = NOW.minus(1, ChronoUnit.DAYS);
@@ -78,7 +80,13 @@ class MajorTransferStudentWorkflowTest {
             }
         };
         service = new MajorTransferServiceImpl(database.transactions(), new StripedResourceLockManager(),
-                repository, studentRepo, new StudentChangeRepository(), orgs, users);
+                repository, studentRepo, new StudentChangeRepository(), orgs, users,
+                (connection, studentId, majorCode, cohortYear, operator, occurredAt) -> {
+                    if (reconciliationFails) throw new MajorTransferException(
+                            "CURRICULUM_NOT_CONFIGURED", "目标专业缺少培养方案");
+                    reconciledEnrollments++;
+                    return new MajorTransferEnrollmentPort.Reconciliation(1);
+                });
     }
 
     private void seedOpenBatchWithOption() {
@@ -180,6 +188,62 @@ class MajorTransferStudentWorkflowTest {
 
     @Test void scoringEntersAssessedState() {
         assertThat(assessed().status()).isEqualTo(MajorTransferStatus.ASSESSED);
+    }
+
+    @Test void closedBatchFinalizationImmediatelyAppliesEveryAssessedStudent() throws Exception {
+        var app = assessed();
+        sql("UPDATE tblMajorTransferBatch SET batchStatus='CLOSED', effectiveDate=#2027-09-01# "
+                + "WHERE batchId='batch-1'");
+
+        var readiness = service.getBatchReadiness("batch-1", "dept-2");
+        var result = service.finalizeBatch("admin",
+                new FinalizeMajorTransferBatchCommand("batch-1", readiness.batchVersion()), "dept-2");
+
+        assertThat(result.status()).isEqualTo(MajorTransferBatchStatus.EFFECTIVE);
+        assertThat(result.effectiveStudents()).isEqualTo(1);
+        assertThat(result.droppedEnrollments()).isEqualTo(1);
+        assertThat(reconciledEnrollments).isEqualTo(1);
+        assertThat(database.stringValue("SELECT classId FROM tblStudent WHERE studentId='student-1'"))
+                .isEqualTo("class-2");
+        assertThat(database.stringValue("SELECT studentNumber FROM tblStudent WHERE studentId='student-1'"))
+                .isEqualTo("08526101");
+        assertThat(database.stringValue("SELECT applicationStatus FROM tblMajorTransferApplication "
+                + "WHERE applicationId='" + app.applicationId() + "'")).isEqualTo("EFFECTIVE");
+    }
+
+    @Test void unresolvedApplicationBlocksWholeBatch() throws Exception {
+        var app = draft();
+        service.submit("user-1", new SubmitMajorTransferCommand(app.applicationId(), 0));
+        sql("UPDATE tblMajorTransferBatch SET batchStatus='CLOSED' WHERE batchId='batch-1'");
+
+        var readiness = service.getBatchReadiness("batch-1", "dept-2");
+
+        assertThat(readiness.ready()).isFalse();
+        assertThat(readiness.unresolved()).isOne();
+        assertThatThrownBy(() -> service.finalizeBatch("admin",
+                new FinalizeMajorTransferBatchCommand("batch-1", readiness.batchVersion()), "dept-2"))
+                .isInstanceOf(MajorTransferException.class);
+        assertThat(database.stringValue("SELECT classId FROM tblStudent WHERE studentId='student-1'"))
+                .isEqualTo("class-1");
+    }
+
+    @Test void reconciliationFailureRollsBackStudentNumberAndApplication() throws Exception {
+        var app = assessed();
+        sql("UPDATE tblMajorTransferBatch SET batchStatus='CLOSED' WHERE batchId='batch-1'");
+        reconciliationFails = true;
+
+        assertThatThrownBy(() -> service.finalizeBatch("admin",
+                new FinalizeMajorTransferBatchCommand("batch-1", 0), "dept-2"))
+                .isInstanceOf(MajorTransferException.class)
+                .extracting(error -> ((MajorTransferException) error).code())
+                .isEqualTo("CURRICULUM_NOT_CONFIGURED");
+        assertThat(database.stringValue("SELECT classId FROM tblStudent WHERE studentId='student-1'"))
+                .isEqualTo("class-1");
+        assertThat(database.stringValue("SELECT studentNumber FROM tblStudent WHERE studentId='student-1'"))
+                .isEqualTo("21324001");
+        assertThat(database.stringValue("SELECT applicationStatus FROM tblMajorTransferApplication "
+                + "WHERE applicationId='" + app.applicationId() + "'")).isEqualTo("ASSESSED");
+        assertThat(database.sequenceValue("STUDENT_NUMBER:085:26:1")).isZero();
     }
 
     @Test void missingWeightedScoreIsRejected() {
