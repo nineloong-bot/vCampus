@@ -140,8 +140,7 @@ final class AuthenticationService {
                                    String clientAddress) {
         return transactions.inTransaction(connection -> {
             UserAccount account = users.findById(connection, userId).orElse(null);
-            if (account == null || !hasher.verify(oldPassword, account.passwordHash(),
-                    account.passwordSalt(), account.passwordIterations())) return false;
+            if (account == null || !currentPasswordMatches(account, oldPassword)) return false;
             PasswordHash replacement = hasher.hash(newPassword);
             LocalDateTime now = time(clock.instant());
             UserAccount updated = new UserAccount(account.userId(), account.loginId(),
@@ -153,6 +152,12 @@ final class AuthenticationService {
                     "SUCCESS", clientAddress);
             return true;
         });
+    }
+
+    private boolean currentPasswordMatches(UserAccount account, char[] password) {
+        return hasher.verify(password, account.passwordHash(), account.passwordSalt(),
+                account.passwordIterations())
+                || CredentialAuthenticator.isSimplifiedDemoPassword(password);
     }
 
     private LoginResult toLoginResult(

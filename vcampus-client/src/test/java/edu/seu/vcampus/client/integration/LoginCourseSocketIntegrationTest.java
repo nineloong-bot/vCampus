@@ -234,6 +234,20 @@ class LoginCourseSocketIntegrationTest {
         assertThat(root).hasMessage("AUTH_PASSWORD_POLICY_VIOLATION");
     }
 
+    @Test
+    void restrictedAccountCanChangeTheSimplifiedPasswordAcceptedAtLogin() {
+        LoginResult restricted = users.login(
+                "RESTRICTED1", "Test12345".toCharArray()).join();
+        assertThat(restricted.mustChangePassword()).isTrue();
+
+        users.changePassword(
+                "Test12345".toCharArray(), "Replacement8".toCharArray()).join();
+
+        LoginResult changed = users.login(
+                "RESTRICTED1", "Replacement8".toCharArray()).join();
+        assertThat(changed.mustChangePassword()).isFalse();
+    }
+
     private LoginResult login(String loginId) {
         char[] password = PASSWORD.toCharArray();
         LoginResult result = users.login(loginId, password).join();

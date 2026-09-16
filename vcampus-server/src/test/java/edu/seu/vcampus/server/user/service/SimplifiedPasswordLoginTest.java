@@ -1,5 +1,6 @@
 package edu.seu.vcampus.server.user.service;
 
+import edu.seu.vcampus.common.user.ChangePasswordCommand;
 import edu.seu.vcampus.common.user.LoginCommand;
 import edu.seu.vcampus.common.user.LoginResult;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
@@ -82,6 +83,22 @@ class SimplifiedPasswordLoginTest {
                 new ClientContext("conn-2", "127.0.0.1"));
         assertThat(stuResult.user().loginId()).isEqualTo("STUDENT_ADMIN");
         assertThat(stuResult.mustChangePassword()).isTrue();
+    }
+
+    @Test
+    void passwordAcceptedForRestrictedLoginCanCompleteInitialPasswordChange() {
+        LoginResult restricted = service.login(
+                new LoginCommand("stu", "admin123".toCharArray(), "demo-client"),
+                new ClientContext("conn-1", "127.0.0.1"));
+
+        service.changePassword(restricted.sessionToken(),
+                new ChangePasswordCommand(
+                        "admin123".toCharArray(), "Replacement8".toCharArray()));
+
+        LoginResult changed = service.login(
+                new LoginCommand("stu", "Replacement8".toCharArray(), "demo-client"),
+                new ClientContext("conn-2", "127.0.0.1"));
+        assertThat(changed.mustChangePassword()).isFalse();
     }
 
     private static Path projectFile(String folder, String name) {
