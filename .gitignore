@@ -11,6 +11,7 @@ vcampus-distribution/logs/
 **/docs/uml/
 /vCampus-release/
 /docs/student-class-diagram.md
+/docs/slide/
 
 # Local test packages, runtime logs, and temporary design previews
 /artifacts/
