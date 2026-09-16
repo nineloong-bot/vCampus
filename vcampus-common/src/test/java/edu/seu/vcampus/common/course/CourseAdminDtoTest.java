@@ -14,6 +14,7 @@ class CourseAdminDtoTest {
         assertThatThrownBy(() -> offering("UNKNOWN", List.of())).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> offering("OPEN", List.of(schedule(0, 1, 1, 1, "A101")))).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> offering("OPEN", List.of(schedule(2, 1, 1, 1, "A101")))).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> offering("OPEN", List.of(schedule(1, 14, 1, 1, "A101")))).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> offering("OPEN", List.of(schedule(1, 1, 2, 1, "A101")))).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> offering("OPEN", List.of(schedule(1, 1, 1, 1, " ")))).isInstanceOf(IllegalArgumentException.class);
     }

@@ -11,8 +11,8 @@ import java.util.function.Consumer;
 /** One editable and removable teaching-class schedule row. */
 final class OfferingScheduleRowPanel extends JPanel {
     private final JComboBox<Weekday> day = new JComboBox<>(Weekday.values());
-    private final JSpinner startPeriod = spinner(1, 1, 14);
-    private final JSpinner endPeriod = spinner(2, 1, 14);
+    private final JSpinner startPeriod = spinner(1, 1, 13);
+    private final JSpinner endPeriod = spinner(2, 1, 13);
     private final JSpinner startWeek = spinner(1, 1, 30);
     private final JSpinner endWeek = spinner(16, 1, 30);
     private final JTextField classroom = field("待定", 120);

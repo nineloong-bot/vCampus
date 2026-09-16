@@ -110,7 +110,9 @@ public final class ApplicationRuntime implements AutoCloseable {
                 snapshot -> courseRole(snapshot.identity().role()),
                 snapshot -> !snapshot.restricted(),
                 (userId, role) -> users.findActiveUser(userId)
-                        .map(identity -> identity.role().name().equals(role)).orElse(false));
+                        .map(identity -> identity.role().name().equals(role)).orElse(false),
+                userId -> users.findByUserId(userId)
+                        .map(edu.seu.vcampus.server.security.UserIdentity::loginId).orElse(userId));
         MessageRouter router = new MessageRouter(Map.of(
                 "PING", (request, context) -> ResponseBody.success(EmptyResponse.INSTANCE)));
         new UserHandlers(router, users, authorization, deduplicator);

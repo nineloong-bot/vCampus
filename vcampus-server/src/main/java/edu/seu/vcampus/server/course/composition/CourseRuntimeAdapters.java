@@ -33,12 +33,27 @@ public final class CourseRuntimeAdapters {
             Function<I, String> role,
             Predicate<I> usable,
             BiPredicate<String, String> hasRole) {
+        return authorization(requireSession, userId, role, usable, hasRole, Function.identity());
+    }
+
+    /** Adapts authorization and a safe user display-label lookup. */
+    public static <I> CourseAuthorizationGateway authorization(
+            Function<String, I> requireSession,
+            Function<I, String> userId,
+            Function<I, String> role,
+            Predicate<I> usable,
+            BiPredicate<String, String> hasRole,
+            Function<String, String> displayName) {
         Objects.requireNonNull(requireSession);
         Objects.requireNonNull(userId);
         Objects.requireNonNull(role);
         Objects.requireNonNull(usable);
         Objects.requireNonNull(hasRole);
+        Objects.requireNonNull(displayName);
         return new CourseAuthorizationGateway() {
+            private final java.util.Map<String, String> displayNames =
+                    new java.util.concurrent.ConcurrentHashMap<>();
+
             @Override public CourseSessionIdentity requireSession(String sessionToken) {
                 I identity = Objects.requireNonNull(requireSession.apply(sessionToken), "session identity");
                 if (!usable.test(identity)) throw new InitialPasswordChangeRequiredException();
@@ -47,6 +62,10 @@ public final class CourseRuntimeAdapters {
 
             @Override public void requireUserRole(String assignedUserId, String expectedRole) {
                 if (!hasRole.test(assignedUserId, expectedRole)) throw new CourseForbiddenException();
+            }
+
+            @Override public String userDisplayName(String assignedUserId) {
+                return displayNames.computeIfAbsent(assignedUserId, displayName);
             }
         };
     }

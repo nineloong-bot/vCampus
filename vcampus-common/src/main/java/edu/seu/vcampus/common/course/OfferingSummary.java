@@ -7,7 +7,7 @@ import java.util.List;
 /** Offering row used by query lists, including independent normal and retake quotas. */
 public record OfferingSummary(String offeringId, String termId, String courseId,
                               String courseCode, String courseName, String offeringDepartmentName,
-                              String teacherUserId,
+                              String teacherUserId, String teacherName,
                               String className, int capacity, int enrolledCount,
                               int retakeCapacity, int retakeEnrolledCount,
                               String offeringStatus, long rowVersion,
@@ -27,7 +27,8 @@ public record OfferingSummary(String offeringId, String termId, String courseId,
                            String courseCode, String courseName, String teacherUserId,
                            String className, int capacity, int enrolledCount,
                            String offeringStatus, long rowVersion, List<ScheduleItem> schedules) {
-        this(offeringId, termId, courseId, courseCode, courseName, null, teacherUserId, className,
+        this(offeringId, termId, courseId, courseCode, courseName, null, teacherUserId,
+                teacherUserId, className,
                 capacity, enrolledCount, capacity, 0, offeringStatus, rowVersion, schedules);
     }
 
@@ -37,9 +38,20 @@ public record OfferingSummary(String offeringId, String termId, String courseId,
                            String className, int capacity, int enrolledCount,
                            int retakeCapacity, int retakeEnrolledCount,
                            String offeringStatus, long rowVersion, List<ScheduleItem> schedules) {
-        this(offeringId, termId, courseId, courseCode, courseName, null, teacherUserId,
+        this(offeringId, termId, courseId, courseCode, courseName, null, teacherUserId, teacherUserId,
                 className, capacity, enrolledCount, retakeCapacity, retakeEnrolledCount,
                 offeringStatus, rowVersion, schedules);
+    }
+
+    /** Compatibility constructor for summaries without a separate teacher display name. */
+    public OfferingSummary(String offeringId, String termId, String courseId,
+                           String courseCode, String courseName, String offeringDepartmentName,
+                           String teacherUserId, String className, int capacity, int enrolledCount,
+                           int retakeCapacity, int retakeEnrolledCount, String offeringStatus,
+                           long rowVersion, List<ScheduleItem> schedules) {
+        this(offeringId, termId, courseId, courseCode, courseName, offeringDepartmentName,
+                teacherUserId, teacherUserId, className, capacity, enrolledCount, retakeCapacity,
+                retakeEnrolledCount, offeringStatus, rowVersion, schedules);
     }
 
     public int normalRemaining() { return capacity - enrolledCount; }

@@ -42,11 +42,13 @@ final class OrderPages {
    head.add(CommerceTheme.muted(label(order.state())),BorderLayout.EAST);card.add(head);card.add(CommerceTheme.gap(10));
    card.add(CommerceTheme.muted("订单 "+order.orderId()+(seller?" · 买家昵称："+order.buyerNickname():"")));
    card.add(items(order));
+   if(!seller&&"CANCELLED".equals(order.state()))card.add(CommerceTheme.muted("订单已取消，商品不会自动回到购物车。需要购买时请重新加入。"));
    if(order.refundReason()!=null&&!order.refundReason().isBlank())card.add(CommerceTheme.muted("退款说明："+order.refundReason()));
    JPanel actions=CommerceTheme.row(CommerceTheme.heading("合计 ¥"+order.amount(),16),CommerceTheme.button("查看明细",()->detail(order,seller)));
    if(!seller&&"PENDING_PAYMENT".equals(order.state())){
     JCheckBox check=new JCheckBox("选择付款");check.setOpaque(false);selected.put(check,order.orderId());actions.add(check);
     actions.add(CommerceTheme.primary(CommerceTheme.button("余额付款",()->pay(List.of(order.orderId())))));
+    actions.add(action("取消订单","CANCEL",order,false,false));
    }
    if(seller&&"PAID".equals(order.state()))actions.add(action("发货","SHIP",order,true,false));
    card.add(actions);cards.add(card);cards.add(CommerceTheme.gap(14));
@@ -89,7 +91,8 @@ final class OrderPages {
  private JButton action(String title,String action,OrderView order,boolean seller,boolean needsReason){
   JButton b=CommerceTheme.button(title,()->{});b.addActionListener(e->{
    if(needsReason){reasonEditor(title,action,order,seller);return;}
-   if(!ui.confirm("确定"+title+"？"))return;
+   String confirmation="CANCEL".equals(action)?"确定取消订单？取消后释放库存，商品不会自动回到购物车。":"确定"+title+"？";
+   if(!ui.confirm(confirmation))return;
    submitAction(action,order,seller,"",b);
   });return b;
  }

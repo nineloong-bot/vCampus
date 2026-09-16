@@ -96,7 +96,11 @@ public interface CourseUiGateway {
                 item.offeringId(), "2026-autumn", switch (item.courseCode()) {
                     case "B09D0012" -> "c1"; case "B09G0011" -> "c2"; default -> "c3";
                 }, item.courseCode(), item.courseName(), "计算机科学与工程学院",
-                item.teacherUserId(), item.className(), 40, 28, 8, 2, "OPEN", 0, List.of(item))).toList();
+                item.teacherUserId(), switch (item.teacherUserId()) {
+                    case "teacher-zhang" -> "zhang.teacher";
+                    case "teacher-li" -> "li.teacher";
+                    default -> "wang.teacher";
+                }, item.className(), 40, 28, 8, 2, "OPEN", 0, List.of(item))).toList();
         return new CourseUiGateway() {
             public CompletableFuture<StudentSelectionContextView> studentSelectionContext() {
                 return CompletableFuture.completedFuture(new StudentSelectionContextView("2026-autumn", "2026—2027学年秋季学期", "ACTIVE", "preview-phase", "ENROLLMENT", "2026-2027秋季学期选课", "OPEN", java.time.Instant.now(), true, null));

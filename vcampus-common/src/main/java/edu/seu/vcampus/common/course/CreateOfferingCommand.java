@@ -73,7 +73,7 @@ public record CreateOfferingCommand(String courseId, String teacherUserId, Strin
                 throw new IllegalArgumentException("invalid schedule", error);
             }
             CourseValidation.text("classroom", classroom, 64);
-            if (startPeriod < 1 || endPeriod < startPeriod
+            if (startPeriod < 1 || endPeriod < startPeriod || endPeriod > 13
                     || startWeek < 1 || endWeek < startWeek) {
                 throw new IllegalArgumentException("invalid schedule");
             }
