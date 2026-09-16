@@ -4,7 +4,7 @@ param([string]$OutputDirectory)
 $ErrorActionPreference = 'Stop'
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..\..'))
 if (!$OutputDirectory) {
-    $OutputDirectory = Join-Path $repoRoot 'artifacts\vCampus-full-test-data-20260907'
+    $OutputDirectory = Join-Path $repoRoot 'artifacts\vCampus-release-data-20260916'
     if (Test-Path -LiteralPath $OutputDirectory) {
         $OutputDirectory += '-' + (Get-Date -Format 'yyyyMMdd-HHmmss')
     }
@@ -24,12 +24,6 @@ foreach ($folder in @('schema', 'seed')) {
     Copy-Item -LiteralPath (Join-Path $repoRoot "vcampus-database\$folder") `
         -Destination (Join-Path $packageRoot "database\$folder") -Recurse
 }
-# 启动时仅初始化空流水号，保持后续新增学生的编号连续。
-$seedFile = Join-Path $packageRoot 'database\seed\020_test_accounts.sql'
-$text = [IO.File]::ReadAllText($seedFile).Replace(
-    "WHERE sequenceKey = 'CAMPUS_CARD_GLOBAL';",
-    "WHERE sequenceKey = 'CAMPUS_CARD_GLOBAL' AND currentValue < 1;")
-[IO.File]::WriteAllText($seedFile, $text, [Text.UTF8Encoding]::new($false))
 foreach ($file in @('vCampusClient.jar', 'vCampusServer.jar')) {
     Copy-Item -LiteralPath (Join-Path $repoRoot "vcampus-distribution\lib\$file") `
         -Destination (Join-Path $packageRoot "lib\$file")
@@ -57,6 +51,8 @@ Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'tools') -File | ForEach-Obj
 Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'docs') -File | ForEach-Object {
     Copy-Item -LiteralPath $_.FullName -Destination $packageRoot
 }
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'tools\账号清单.md') -Destination $packageRoot
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'tools\scenarios.json') -Destination $packageRoot
 $serverJar = Join-Path $packageRoot 'lib\vCampusServer.jar'
 $database = Join-Path $packageRoot 'data\vCampus.accdb'
 & java '-Dfile.encoding=UTF-8' -Xmx1500m --class-path $serverJar `
@@ -67,8 +63,5 @@ if ($LASTEXITCODE -ne 0) { throw 'Dataset build failed' }
     (Join-Path $packageRoot 'tools\ValidateDataset.java') $database `
     (Join-Path $packageRoot 'tools\counts.tsv')
 if ($LASTEXITCODE -ne 0) { throw 'Dataset validation failed' }
-& java '-Dfile.encoding=UTF-8' -Xmx1500m --class-path $serverJar `
-    (Join-Path $packageRoot 'tools\ValidateOrganizationMigration.java') $database
-if ($LASTEXITCODE -ne 0) { throw 'Organization migration validation failed' }
 Compress-Archive -LiteralPath $packageRoot -DestinationPath ($packageRoot + '.zip')
 Write-Output "Package ready: $packageRoot"

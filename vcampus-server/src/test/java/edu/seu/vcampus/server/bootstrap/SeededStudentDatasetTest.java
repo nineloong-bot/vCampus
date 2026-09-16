@@ -13,7 +13,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class SeededStudentDatasetTest {
-    @Test void releaseSeedContainsSearchableStudentsAcrossClassesAndStatuses() throws Exception {
+    @Test void releaseSeedContainsOnlyReferenceDataAndSchemaConstraints() throws Exception {
         Path database = Path.of("target", "test-data", UUID.randomUUID() + ".accdb");
         Files.createDirectories(database.getParent());
         DatabaseInitializer.main(new String[] {
@@ -22,18 +22,15 @@ class SeededStudentDatasetTest {
 
         try (var connection = DriverManager.getConnection("jdbc:ucanaccess://" + database
                 + ";immediatelyReleaseResources=true")) {
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblStudent")).isGreaterThanOrEqualTo(100);
-            assertThat(count(connection, "SELECT COUNT(DISTINCT classId) FROM tblStudent")).isGreaterThanOrEqualTo(3);
-            assertThat(count(connection, "SELECT COUNT(DISTINCT studentStatus) FROM tblStudent")).isGreaterThanOrEqualTo(4);
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblUser WHERE roleCode='STUDENT'"))
-                    .isGreaterThanOrEqualTo(100);
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblStudent")).isZero();
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblUser")).isZero();
             assertThat(count(connection, "SELECT currentValue FROM tblNumberSequence WHERE sequenceKey='CAMPUS_CARD_GLOBAL'"))
-                    .isGreaterThanOrEqualTo(100);
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblDepartment")).isGreaterThanOrEqualTo(3);
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblMajorTransferBatch")).isGreaterThanOrEqualTo(2);
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblMajorTransferOption")).isGreaterThanOrEqualTo(3);
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblTrainingPlan")).isGreaterThanOrEqualTo(1);
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblTrainingPlanCourse")).isGreaterThanOrEqualTo(3);
+                    .isZero();
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblDepartment")).isZero();
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblMajorTransferBatch")).isZero();
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblTrainingPlan")).isZero();
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblRole")).isEqualTo(10);
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblPermission")).isEqualTo(14);
             assertThat(primaryKeyColumns(connection, "tblTerm")).containsExactly("termid");
             assertThat(primaryKeyColumns(connection, "tblEnrollment")).containsExactly("enrollmentid");
             assertThat(primaryKeyColumns(connection, "tblStudentCollegeAdministrator"))
@@ -44,8 +41,8 @@ class SeededStudentDatasetTest {
                     .contains(List.of("planid", "coursecode"));
             assertThat(uniqueIndexColumns(connection, "tblStudentGrade"))
                     .contains(List.of("studentid", "plancourseid"));
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblCourse")).isGreaterThanOrEqualTo(10);
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblCrossCourseApplication")).isGreaterThanOrEqualTo(1);
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblCourse")).isZero();
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblCrossCourseApplication")).isZero();
         }
     }
 

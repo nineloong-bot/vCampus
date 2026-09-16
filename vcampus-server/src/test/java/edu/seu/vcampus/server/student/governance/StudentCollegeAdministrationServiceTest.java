@@ -3,7 +3,6 @@ package edu.seu.vcampus.server.student.governance;
 import edu.seu.vcampus.common.student.governance.AssignStudentCollegeAdministratorCommand;
 import edu.seu.vcampus.common.student.governance.DeactivateStudentCollegeAdministratorCommand;
 import edu.seu.vcampus.common.student.governance.TransferStudentCollegeAdministratorCommand;
-import edu.seu.vcampus.server.bootstrap.DatabaseInitializer;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import edu.seu.vcampus.server.persistence.TransactionManager;
@@ -25,11 +24,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class StudentCollegeAdministrationServiceTest {
-    private static final String ACTOR = "00000000-0000-0000-0000-000000000201";
-    private static final String CS = "bulk-dept-01";
-    private static final String MATH = "bulk-dept-02";
-    private static final String CS_ADMIN = "00000000-0000-0000-0000-000000000202";
-    private static final String MATH_ADMIN = "00000000-0000-0000-0000-000000000203";
+    private static final String ACTOR = "user-student-admin";
+    private static final String CS = "dept-cse";
+    private static final String MATH = "dept-math";
+    private static final String CS_ADMIN = "user-cse-admin";
+    private static final String MATH_ADMIN = "user-math-admin";
     private static final String EXTRA = "00000000-0000-0000-0000-000000000302";
     private TransactionManager transactions;
     private StudentCollegeAdministrationService service;
@@ -38,7 +37,7 @@ class StudentCollegeAdministrationServiceTest {
     @BeforeEach void setup() throws Exception {
         Path database = Path.of("target", "test-data", UUID.randomUUID() + ".accdb");
         Files.createDirectories(database.getParent());
-        DatabaseInitializer.main(new String[]{directory("schema").toString(), directory("seed").toString(), database.toString()});
+        Files.copy(distributionDatabase(), database);
         ConnectionProvider provider = () -> DriverManager.getConnection("jdbc:ucanaccess://" + database + ";immediatelyReleaseResources=true");
         transactions = new TransactionManager(provider);
         transactions.inTransaction(connection -> {
@@ -146,7 +145,7 @@ class StudentCollegeAdministrationServiceTest {
     @Test
     void provisionsAdministratorRejectsDuplicateUsername() {
         var create = new edu.seu.vcampus.common.student.governance.CreateCollegeAdministratorCommand(
-                "CS_COLLEGE_ADMIN", "Pass1234", null);
+                "CSADMIN", "Pass1234", null);
         assertThatThrownBy(() -> service.createAdministrator(ACTOR, create))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("USER_LOGIN_ID_EXISTS");
@@ -164,8 +163,9 @@ class StudentCollegeAdministrationServiceTest {
                 s.setString(1,department);s.setString(2,user);try(var r=s.executeQuery()){if(!r.next())throw new AssertionError();return r.getLong(1);}}
         });
     }
-    private static Path directory(String child) {
+    private static Path distributionDatabase() {
         Path current=Path.of("").toAbsolutePath();
-        return (current.getFileName().toString().equals("vcampus-server")?current.resolve("../vcampus-database"):current.resolve("vcampus-database")).resolve(child).normalize();
+        Path root=current.getFileName().toString().equals("vcampus-server")?current.resolve(".."):current;
+        return root.resolve("vcampus-distribution/data/vCampus.accdb").normalize();
     }
 }

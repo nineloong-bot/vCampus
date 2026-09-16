@@ -18,6 +18,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import edu.seu.vcampus.server.user.service.UserTestFixtures;
 
 class AccessAuditRepositoryTest {
     private static final String ADMIN_ID = "00000000-0000-0000-0000-000000000001";
@@ -36,6 +37,7 @@ class AccessAuditRepositoryTest {
         try (var connection = provider.open()) {
             executeScript(connection, projectFile("schema", "010_user.sql"));
             executeScript(connection, projectFile("seed", "010_roles_permissions.sql"));
+            UserTestFixtures.insertSuperAdministrator(connection);
         }
         repository = new AccessAuditRepository();
     }

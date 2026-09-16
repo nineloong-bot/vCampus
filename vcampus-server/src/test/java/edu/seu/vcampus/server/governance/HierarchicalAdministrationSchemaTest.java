@@ -37,16 +37,8 @@ class HierarchicalAdministrationSchemaTest {
                     "SELECT COUNT(*) FROM tblUser WHERE roleCode='ADMIN'"))
                     .isZero();
             assertThat(count(connection,
-                    "SELECT COUNT(*) FROM tblUser WHERE roleCode='SUPER_ADMIN'"))
-                    .isEqualTo(2);
-            assertThat(count(connection, """
-                    SELECT COUNT(*) FROM tblUser u
-                    WHERE u.roleCode IN ('STUDENT_ADMIN','COURSE_ADMIN','LIBRARY_ADMIN',
-                                         'SHOP_ADMIN','USER_ADMIN')
-                    AND u.accountStatus='ACTIVE'
-                    AND u.mustChangePassword=FALSE
-                    """))
-                    .isEqualTo(5);
+                    "SELECT COUNT(*) FROM tblUser"))
+                    .isZero();
             assertThat(tableExists(connection, "tblManagedModule")).isFalse();
             assertThat(tableExists(connection, "tblModuleAdministrator")).isFalse();
             assertThat(count(connection, """
@@ -61,13 +53,8 @@ class HierarchicalAdministrationSchemaTest {
                         WHERE isActive=TRUE GROUP BY userId HAVING COUNT(*) > 1)
                     """))
                     .isZero();
-            assertThat(count(connection, """
-                    SELECT COUNT(*) FROM tblStudentCollegeAdministrator a
-                    INNER JOIN tblUser u ON u.userId=a.userId
-                    WHERE a.isActive=TRUE AND u.roleCode='COLLEGE_ADMIN'
-                    AND u.accountStatus='ACTIVE' AND u.mustChangePassword=FALSE
-                    """))
-                    .isEqualTo(4);
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblStudentCollegeAdministrator"))
+                    .isZero();
             assertThat(count(connection, """
                     SELECT COUNT(*) FROM tblRolePermission
                     WHERE roleCode='STUDENT_ADMIN'

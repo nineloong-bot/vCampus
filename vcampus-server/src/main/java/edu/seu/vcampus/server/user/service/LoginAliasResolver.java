@@ -24,16 +24,12 @@ public final class LoginAliasResolver {
             Map.entry("SHOP_ADMIN", "SHOP_ADMIN"),
             Map.entry("USER", "USER_ADMIN"),
             Map.entry("USER_ADMIN", "USER_ADMIN"),
-            Map.entry("CS", "CS_COLLEGE_ADMIN"),
-            Map.entry("CS_ADMIN", "CS_COLLEGE_ADMIN"),
-            Map.entry("MATH", "MATH_COLLEGE_ADMIN"),
-            Map.entry("MATH_ADMIN", "MATH_COLLEGE_ADMIN"),
-            Map.entry("EE", "EE_COLLEGE_ADMIN"),
-            Map.entry("EE_ADMIN", "EE_COLLEGE_ADMIN"),
-            Map.entry("FL", "FL_COLLEGE_ADMIN"),
-            Map.entry("FL_ADMIN", "FL_COLLEGE_ADMIN"),
-            Map.entry("TEACHER", "DEMO_TEACHER"),
-            Map.entry("STUDENT", "213242478")
+            Map.entry("CS", "CSADMIN"),
+            Map.entry("CS_ADMIN", "CSADMIN"),
+            Map.entry("MATH", "MATHADMIN"),
+            Map.entry("MATH_ADMIN", "MATHADMIN"),
+            Map.entry("TEACHER", "T001"),
+            Map.entry("STUDENT", "213240001")
     );
 
     private LoginAliasResolver() { }

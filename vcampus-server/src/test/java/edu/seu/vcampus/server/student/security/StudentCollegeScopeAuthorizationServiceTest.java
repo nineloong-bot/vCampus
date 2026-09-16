@@ -1,6 +1,5 @@
 package edu.seu.vcampus.server.student.security;
 
-import edu.seu.vcampus.server.bootstrap.DatabaseInitializer;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import edu.seu.vcampus.server.persistence.TransactionManager;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,16 +14,16 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class StudentCollegeScopeAuthorizationServiceTest {
-    private static final String CS_ADMIN="00000000-0000-0000-0000-000000000202";
-    private static final String MATH_ADMIN="00000000-0000-0000-0000-000000000203";
-    private static final String CS_STUDENT="00000000-0000-0000-0000-000000000104";
+    private static final String CS_ADMIN="user-cse-admin";
+    private static final String MATH_ADMIN="user-math-admin";
+    private static final String CS_STUDENT="student-2024-001";
     private TransactionManager transactions;
     private StudentCollegeScopeAuthorizationService authorization;
 
     @BeforeEach void setup() throws Exception {
         Path database=Path.of("target","test-data",UUID.randomUUID()+".accdb");
         Files.createDirectories(database.getParent());
-        DatabaseInitializer.main(new String[]{directory("schema").toString(),directory("seed").toString(),database.toString()});
+        Files.copy(distributionDatabase(), database);
         ConnectionProvider provider=()->DriverManager.getConnection("jdbc:ucanaccess://"+database+";immediatelyReleaseResources=true");
         transactions=new TransactionManager(provider);
         authorization=new StudentCollegeScopeAuthorizationService(transactions);
@@ -34,21 +33,21 @@ class StudentCollegeScopeAuthorizationServiceTest {
         assertThatCode(()->authorization.requireStudentAccess(CS_ADMIN,CS_STUDENT)).doesNotThrowAnyException();
         assertThatThrownBy(()->authorization.requireStudentAccess(MATH_ADMIN,CS_STUDENT))
                 .hasMessage("COMMON_FORBIDDEN");
-        transactions.inTransaction(c->{try(var s=c.prepareStatement("UPDATE tblStudent SET classId='00000000-0000-0000-0000-000000000115' WHERE studentId=?")){s.setString(1,CS_STUDENT);s.executeUpdate();}return null;});
+        transactions.inTransaction(c->{try(var s=c.prepareStatement("UPDATE tblStudent SET classId='class-math-2024' WHERE studentId=?")){s.setString(1,CS_STUDENT);s.executeUpdate();}return null;});
         assertThatThrownBy(()->authorization.requireStudentAccess(CS_ADMIN,CS_STUDENT))
                 .hasMessage("COMMON_FORBIDDEN");
         assertThatCode(()->authorization.requireStudentAccess(MATH_ADMIN,CS_STUDENT)).doesNotThrowAnyException();
     }
 
     @Test void superAndModuleAdministratorsCannotBypassCollegeScope(){
-        assertThatThrownBy(()->authorization.requireStudentAccess("00000000-0000-0000-0000-000000000001",CS_STUDENT)).hasMessage("COMMON_FORBIDDEN");
-        assertThatThrownBy(()->authorization.requireStudentAccess("00000000-0000-0000-0000-000000000201",CS_STUDENT)).hasMessage("COMMON_FORBIDDEN");
+        assertThatThrownBy(()->authorization.requireStudentAccess("user-super-admin",CS_STUDENT)).hasMessage("COMMON_FORBIDDEN");
+        assertThatThrownBy(()->authorization.requireStudentAccess("user-student-admin",CS_STUDENT)).hasMessage("COMMON_FORBIDDEN");
     }
 
     @Test void resolvesExactlyOneLiveCollegeBinding(){
         org.assertj.core.api.Assertions.assertThat(
                 authorization.requireActiveDepartment(CS_ADMIN))
-                .isEqualTo("bulk-dept-01");
+                .isEqualTo("dept-cse");
         transactions.inTransaction(c->{try(var s=c.prepareStatement(
                 "UPDATE tblStudentCollegeAdministrator SET isActive=FALSE WHERE userId=?")){
             s.setString(1,CS_ADMIN);s.executeUpdate();}return null;});
@@ -59,10 +58,10 @@ class StudentCollegeScopeAuthorizationServiceTest {
     @Test void transactionAwareStudentCheckUsesTrustedDepartment(){
         transactions.inTransaction(connection->{
             assertThatCode(()->authorization.requireStudentAccess(connection,
-                    "bulk-dept-01",CS_STUDENT))
+                    "dept-cse",CS_STUDENT))
                     .doesNotThrowAnyException();
             assertThatThrownBy(()->authorization.requireStudentAccess(connection,
-                    "bulk-dept-02",CS_STUDENT))
+                    "dept-math",CS_STUDENT))
                     .hasMessage("COMMON_FORBIDDEN");
             return null;
         });
@@ -71,19 +70,21 @@ class StudentCollegeScopeAuthorizationServiceTest {
     @Test void validatesMajorClassAndPlanAgainstTrustedDepartment(){
         transactions.inTransaction(connection->{
             assertThatCode(()->authorization.requireMajorAccess(connection,
-                    "bulk-dept-01", "bulk-major-02")).doesNotThrowAnyException();
+                    "dept-cse", "major-cs")).doesNotThrowAnyException();
             assertThatCode(()->authorization.requireClassAccess(connection,
-                    "bulk-dept-01",
-                    "00000000-0000-0000-0000-000000000103")).doesNotThrowAnyException();
+                    "dept-cse", "class-cs-2024")).doesNotThrowAnyException();
             assertThatCode(()->authorization.requirePlanAccess(connection,
-                    "bulk-dept-01", "seed-plan-802-2022")).doesNotThrowAnyException();
+                    "dept-cse", "plan-cs-2024")).doesNotThrowAnyException();
             assertThatThrownBy(()->authorization.requireMajorAccess(connection,
-                    "bulk-dept-01", "bulk-major-03")).hasMessage("COMMON_FORBIDDEN");
+                    "dept-cse", "major-math")).hasMessage("COMMON_FORBIDDEN");
             assertThatThrownBy(()->authorization.requireClassAccess(connection,
-                    "bulk-dept-01",
-                    "00000000-0000-0000-0000-000000000115")).hasMessage("COMMON_FORBIDDEN");
+                    "dept-cse", "class-math-2024")).hasMessage("COMMON_FORBIDDEN");
             return null;
         });
     }
-    private static Path directory(String child){Path current=Path.of("").toAbsolutePath();return(current.getFileName().toString().equals("vcampus-server")?current.resolve("../vcampus-database"):current.resolve("vcampus-database")).resolve(child).normalize();}
+    private static Path distributionDatabase(){
+        Path current=Path.of("").toAbsolutePath();
+        Path root=current.getFileName().toString().equals("vcampus-server")?current.resolve(".."):current;
+        return root.resolve("vcampus-distribution/data/vCampus.accdb").normalize();
+    }
 }

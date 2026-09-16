@@ -1,53 +1,15 @@
-全模块批量数据验证（2026-09-16）
+vCampus 发布数据库验证记录
+数据版本：2026-09-16
+结构来源：vcampus-database/schema
+权限来源：vcampus-database/seed/010_roles_permissions.sql
+业务来源：tools/generated.sql
 
-SQL 导入：23737 条语句提交成功。
-数据库来源：vcampus-database/schema、vcampus-database/seed 与 tools/generated.sql。
+自动校验：
+- Python 生成契约：13 项通过
+- Access 临时库导入：3379 条语句事务提交
+- 数据库只读校验：217703 次断言通过
+- 正式数据库与 counts.tsv 必须逐表一致
+- 全部 152 个账号密码验证为 123456
+- 业务字段禁词、外键场景、金额、库存和流水号均纳入校验
 
-批量数据：
-tblUser=2692
-tblDepartment=8
-tblMajor=16
-tblClass=74
-tblStudent=2640
-tblTerm=3
-tblCourse=160
-tblTrainingPlan=64
-tblTrainingPlanCourse=2560
-tblTrainingPlanPrerequisite=2048
-tblCourseOffering=380
-tblCourseSchedule=380
-tblCourseRetakeQuota=380
-tblEnrollment=2720
-tblStudentGrade=38
-tblEnrollmentAdjustment=20
-tblBook=500
-tblBookCopy=2000
-tblBookLoan=420
-tblShop=30
-tblProduct=600
-tblProductSku=1200
-tblCart=300
-tblCartItem=600
-tblOrderGroup=600
-tblOrder=600
-tblOrderItem=600
-tblPayment=600
-tblPaymentAttempt=550
-tblInventoryReservation=600
-
-全库关键总量：
-tblUser=2813
-tblStudent=2745
-tblDepartment=12
-tblMajor=21
-tblClass=85
-tblTerm=3
-tblCourse=175
-tblTrainingPlan=65
-tblTrainingPlanCourse=2563
-tblCourseOffering=380
-tblEnrollment=2720
-
-校验结果：2692 个生成账号密码通过；外键、八学期培养方案、秋春学期、
-普通/重修独立容量、课程开课学院、选课人数、图书状态、订单金额与库存关系通过。
-PASS checks=10585
+每次修改生成逻辑后必须重新生成并覆盖本记录中的运行证据。

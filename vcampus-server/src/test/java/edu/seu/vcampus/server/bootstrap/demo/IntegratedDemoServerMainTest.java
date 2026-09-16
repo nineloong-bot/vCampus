@@ -128,8 +128,7 @@ class IntegratedDemoServerMainTest {
         assertThat(student.mustChangePassword()).isFalse();
 
         LoginResult teacher = login(first, "DEMO_TEACHER", "123456");
-        assertThat(teacher.user().userId()).isEqualTo(
-                "00000000-0000-0000-0000-000000000402");
+        assertThat(teacher.user().userId()).isEqualTo("demo-teacher");
         assertThat(teacher.user().role()).isEqualTo(UserRole.TEACHER);
 
         List<TermView> terms = data(route(first, "COURSE_TERM_LIST",

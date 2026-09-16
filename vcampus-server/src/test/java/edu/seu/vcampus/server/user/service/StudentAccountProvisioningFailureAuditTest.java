@@ -29,6 +29,7 @@ class StudentAccountProvisioningFailureAuditTest {
         try (var connection = provider.open()) {
             execute(connection, projectFile("schema", "010_user.sql"));
             execute(connection, projectFile("seed", "010_roles_permissions.sql"));
+            UserTestFixtures.insertSuperAdministrator(connection);
         }
         failureAudit = new StudentAccountProvisioningFailureAudit(
                 transactions, new AccessAuditRepository());

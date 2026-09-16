@@ -12,18 +12,13 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.spec.KeySpec;
 import java.sql.DriverManager;
 import java.time.LocalDateTime;
-import java.util.Base64;
 import java.util.ConcurrentModificationException;
 import java.util.UUID;
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.PBEKeySpec;
 
 import static edu.seu.vcampus.common.user.AccountStatus.ACTIVE;
 import static edu.seu.vcampus.common.user.UserRole.ADMIN;
-import static edu.seu.vcampus.common.user.UserRole.SUPER_ADMIN;
 import static edu.seu.vcampus.common.user.UserRole.TEACHER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -96,23 +91,6 @@ class AccessUserRepositoryTest {
         assertThat(page.items().getFirst().loginId()).isEqualTo("ALICE");
         assertThat(page.page()).isZero();
         assertThat(page.pageSize()).isEqualTo(1);
-    }
-
-    @Test
-    void seedsActiveSuperAdministratorWithApprovedTemporaryPassword() throws Exception {
-        UserAccount administrator = transactions.inTransaction(connection ->
-                repository.findByNormalizedLoginId(connection, "ADMIN").orElseThrow());
-
-        assertThat(administrator.role()).isEqualTo(SUPER_ADMIN);
-        assertThat(administrator.accountStatus()).isEqualTo(ACTIVE);
-        assertThat(administrator.mustChangePassword()).isTrue();
-        assertThat(administrator.passwordIterations()).isEqualTo(120_000);
-        byte[] salt = Base64.getDecoder().decode(administrator.passwordSalt());
-        KeySpec spec = new PBEKeySpec("123456".toCharArray(), salt, 120_000, 256);
-        byte[] expectedHash = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
-                .generateSecret(spec).getEncoded();
-        assertThat(Base64.getDecoder().decode(administrator.passwordHash()))
-                .containsExactly(expectedHash);
     }
 
     @Test

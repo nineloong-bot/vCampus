@@ -16,12 +16,10 @@ class LoginAliasResolverTest {
         assertThat(LoginAliasResolver.resolve("library")).isEqualTo("LIBRARY_ADMIN");
         assertThat(LoginAliasResolver.resolve("shop")).isEqualTo("SHOP_ADMIN");
         assertThat(LoginAliasResolver.resolve("user")).isEqualTo("USER_ADMIN");
-        assertThat(LoginAliasResolver.resolve("cs")).isEqualTo("CS_COLLEGE_ADMIN");
-        assertThat(LoginAliasResolver.resolve("math")).isEqualTo("MATH_COLLEGE_ADMIN");
-        assertThat(LoginAliasResolver.resolve("ee")).isEqualTo("EE_COLLEGE_ADMIN");
-        assertThat(LoginAliasResolver.resolve("fl")).isEqualTo("FL_COLLEGE_ADMIN");
-        assertThat(LoginAliasResolver.resolve("teacher")).isEqualTo("DEMO_TEACHER");
-        assertThat(LoginAliasResolver.resolve("student")).isEqualTo("213242478");
+        assertThat(LoginAliasResolver.resolve("cs")).isEqualTo("CSADMIN");
+        assertThat(LoginAliasResolver.resolve("math")).isEqualTo("MATHADMIN");
+        assertThat(LoginAliasResolver.resolve("teacher")).isEqualTo("T001");
+        assertThat(LoginAliasResolver.resolve("student")).isEqualTo("213240001");
     }
 
     @Test

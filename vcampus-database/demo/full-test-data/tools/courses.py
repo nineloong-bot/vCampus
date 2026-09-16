@@ -1,345 +1,212 @@
-"""课程模块批量演示数据；由总生成器传入 add(table, **fields) 和当前时间。"""
+"""Realistic curricula, grades, and an initially empty selection term."""
 from collections import Counter, defaultdict
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 
-COURSE_COUNT = 160
-COURSES_PER_SEMESTER = 20
-PLAN_COURSES_PER_SEMESTER = 5
-COURSE_CREDIT = Decimal("3.0")
-DEPARTMENTS = ["计算机学院", "数学学院", "外国语学院", "经济管理学院",
-               "艺术设计学院", "物理学院", "生命科学学院", "法学学院"]
+import people
+
+COMMON = (
+    (("SEU101", "思想道德与法治", "3.0"), ("SEU102", "大学英语Ⅰ", "2.0"), ("SEU103", "体育Ⅰ", "0.5")),
+    (("SEU104", "中国近现代史纲要", "3.0"), ("SEU105", "大学英语Ⅱ", "2.0"), ("SEU106", "体育Ⅱ", "0.5")),
+    (("SEU201", "马克思主义基本原理", "3.0"), ("SEU202", "大学物理Ⅰ", "3.5"), ("SEU203", "体育Ⅲ", "0.5")),
+    (("SEU204", "毛泽东思想和中国特色社会主义理论体系概论", "3.0"), ("SEU205", "大学物理Ⅱ", "3.5"), ("SEU206", "体育Ⅳ", "0.5")),
+    (("SEU301", "形势与政策", "1.0"), ("SEU302", "工程伦理", "1.5"), ("SEU303", "创新创业基础", "1.0")),
+    (("SEU304", "学术写作", "1.5"), ("SEU305", "社会实践", "2.0"), ("SEU306", "劳动教育实践", "1.0")),
+    (("SEU401", "专业实习", "3.0"), ("SEU402", "科研训练", "2.0"), ("SEU403", "跨学科前沿", "2.0")),
+    (("SEU404", "毕业设计", "12.0"), ("SEU405", "毕业教育", "1.0"), ("SEU406", "职业发展", "1.0")),
+)
+SPECIALTY = {
+    "major-cs": (
+        ("CS101", "工科数学分析Ⅰ", "5.0"), ("CS102", "程序设计基础及语言", "4.0"),
+        ("CS103", "工科数学分析Ⅱ", "5.0"), ("CS104", "离散数学", "3.0"),
+        ("CS201", "数据结构基础", "4.0"), ("CS202", "数字逻辑与计算机组成", "3.5"),
+        ("CS203", "算法设计与分析", "3.0"), ("CS204", "计算机组成原理", "4.0"),
+        ("CS301", "操作系统", "3.5"), ("CS302", "数据库原理", "3.0"),
+        ("CS303", "计算机网络", "3.5"), ("CS304", "编译原理", "3.0"),
+        ("CS401", "计算机系统综合设计", "3.0"), ("CS402", "网络空间安全基础", "2.0"),
+        ("CS403", "高性能计算", "2.0"), ("CS404", "计算机前沿专题", "1.5"),
+    ),
+    "major-se": (
+        ("SE101", "工科数学分析Ⅰ", "5.0"), ("SE102", "程序设计基础", "4.0"),
+        ("SE103", "工科数学分析Ⅱ", "5.0"), ("SE104", "面向对象程序设计", "3.0"),
+        ("SE201", "数据结构与算法", "4.0"), ("SE202", "软件工程导论", "3.0"),
+        ("SE203", "数据库系统", "3.5"), ("SE204", "软件需求工程", "2.5"),
+        ("SE301", "软件体系结构", "3.0"), ("SE302", "软件质量保障与验证", "2.5"),
+        ("SE303", "操作系统", "3.5"), ("SE304", "计算机网络", "3.0"),
+        ("SE401", "软件项目管理", "2.0"), ("SE402", "软件工程综合实践", "4.0"),
+        ("SE403", "云计算与服务工程", "2.0"), ("SE404", "软件技术前沿", "1.5"),
+    ),
+    "major-ai": (
+        ("AI101", "工科数学分析Ⅰ", "5.0"), ("AI102", "程序设计基础及语言", "4.0"),
+        ("AI103", "工科数学分析Ⅱ", "5.0"), ("AI104", "几何与代数", "3.5"),
+        ("AI201", "数据结构基础", "4.0"), ("AI202", "人工智能导论", "2.0"),
+        ("AI203", "概率论与随机过程", "3.5"), ("AI204", "知识表示与推理", "3.0"),
+        ("AI301", "机器学习", "3.5"), ("AI302", "模式识别", "3.0"),
+        ("AI303", "计算机视觉", "3.0"), ("AI304", "自然语言处理", "3.0"),
+        ("AI401", "深度学习课程设计", "3.0"), ("AI402", "强化学习", "2.5"),
+        ("AI403", "多智能体系统", "2.0"), ("AI404", "人工智能前沿", "1.5"),
+    ),
+    "major-math": (
+        ("MA101", "数学分析Ⅰ", "5.0"), ("MA102", "高等代数与解析几何Ⅰ", "5.0"),
+        ("MA103", "数学分析Ⅱ", "5.0"), ("MA104", "高等代数与解析几何Ⅱ", "5.0"),
+        ("MA201", "数学分析Ⅲ", "4.0"), ("MA202", "常微分方程", "3.0"),
+        ("MA203", "概率论", "3.0"), ("MA204", "复变函数", "3.0"),
+        ("MA301", "实变函数", "3.0"), ("MA302", "数理统计", "3.0"),
+        ("MA303", "近世代数", "3.0"), ("MA304", "数值分析", "3.0"),
+        ("MA401", "拓扑学", "2.5"), ("MA402", "泛函分析", "2.5"),
+        ("MA403", "数学物理方程", "2.5"), ("MA404", "现代数学选讲", "2.0"),
+    ),
+    "major-ics": (
+        ("IC101", "数学分析Ⅰ", "5.0"), ("IC102", "高等代数与解析几何Ⅰ", "5.0"),
+        ("IC103", "数学分析Ⅱ", "5.0"), ("IC104", "程序设计基础", "4.0"),
+        ("IC201", "离散数学", "3.0"), ("IC202", "数据结构与算法", "4.0"),
+        ("IC203", "概率论与数理统计", "3.5"), ("IC204", "数值分析", "3.0"),
+        ("IC301", "运筹学", "3.0"), ("IC302", "数据库原理", "3.0"),
+        ("IC303", "最优化方法", "3.0"), ("IC304", "数学建模与数学实验", "3.0"),
+        ("IC401", "机器学习基础", "2.5"), ("IC402", "时间序列分析", "2.5"),
+        ("IC403", "复杂网络与人工智能", "2.0"), ("IC404", "科学计算前沿", "1.5"),
+    ),
+}
+
+
+def _definitions():
+    rows = {}
+    for semester, common in enumerate(COMMON, 1):
+        for code, name, credit in common:
+            rows[code] = (name, Decimal(credit), semester, "dept-math" if "数学" in name else "dept-cse")
+    for major_id, courses in SPECIALTY.items():
+        department = "dept-math" if major_id in {"major-math", "major-ics"} else "dept-cse"
+        for index, (code, name, credit) in enumerate(courses):
+            rows[code] = (name, Decimal(credit), index // 2 + 1, department)
+    return rows
 
 
 def generate(add, now):
+    """Generate curricula, historical grades, and one open selection term."""
     stamp = dict(rowVersion=0, createdAt=now, updatedAt=now)
-    current, previous = "bulk-term-current", "bulk-term-previous"
-    spring = "bulk-term-spring"
-    for term, delta, year, season, status, title in (
-        (current, 0, 2026, "AUTUMN", "ACTIVE", "2026-2027学年秋季学期"),
-        (spring, 165, 2026, "SPRING", "PLANNED", "2026-2027学年春季学期"),
-        (previous, -365, 2025, "AUTUMN", "CLOSED", "2025-2026学年秋季学期"),
-    ):
-        base = now + timedelta(days=delta)
-        add("tblTerm", termId=term,
-            termCode=f"{year}-{year+1}-{season}",
-            termName=title, startDate=(base - timedelta(days=7)).date(),
-            endDate=(base + timedelta(days=140)).date(),
-            academicYearStart=year, season=season,
-            enrollmentStartAt=base - timedelta(days=14),
-            enrollmentEndAt=base + timedelta(days=30),
-            adjustmentStartAt=base + timedelta(days=31),
-            adjustmentEndAt=base + timedelta(days=45), termStatus=status, **stamp)
-    # 服务使用手动阶段；全库仅允许一个 OPEN 或 PREVIEW。
-    for phase, kind, status, title in (
-        ("bulk-phase-enrollment", "ENROLLMENT", "OPEN", "2026-2027学年秋季学期正式选课"),
-        ("bulk-phase-adjustment", "ADJUSTMENT", "DRAFT", "2026-2027学年秋季学期退改补选"),
-    ):
-        add("tblCourseSelectionPhase", phaseId=phase, termId=current,
-            phaseType=kind, displayTitle=title, phaseStatus=status, **stamp)
-    names = ["程序设计", "数据结构", "数据库原理", "计算机网络", "高等数学",
-             "线性代数", "大学英语", "大学物理", "人工智能", "软件工程",
-             "专业英语", "离散数学", "概率统计", "操作系统", "编译原理",
-             "经济学原理", "管理学基础", "设计基础", "法学概论", "实验方法",
-             "科研训练", "创新实践", "学术写作", "社会调查"]
-    for course in range(1, COURSE_COUNT + 1):
-        department = (course - 1) // COURSES_PER_SEMESTER + 1
-        add("tblCourse", courseId=f"bulk-course-{course:03d}",
-            courseCode=f"BULK-C{course:03d}",
-            courseName=f"{names[(course - 1) % len(names)]}{(course - 1) // len(names) + 1}",
-            departmentId=f"bulk-dept-{department:02d}",
-            departmentName=DEPARTMENTS[department - 1],
-            credit=COURSE_CREDIT,
-            totalHours=48,
-            description="批量合成课程，用于分页、搜索、选课及教学班管理。",
-            isActive=True, **stamp)
-    generate_plans(add, now)
-    failed_grades = {(student, retake_course(student)) for student in range(1, 51)
-                     if retake_course(student) is not None}
-    generate_historical_grades(add, now, failed_grades)
+    term_id = "term-2026-autumn"
+    add("tblTerm", termId=term_id, termCode="2026-2027-AUTUMN",
+        termName="2026-2027学年秋季学期", startDate=date(2026, 9, 7),
+        endDate=date(2027, 1, 15), academicYearStart=2026, season="AUTUMN",
+        enrollmentStartAt=now - timedelta(days=1), enrollmentEndAt=now + timedelta(days=14),
+        adjustmentStartAt=now + timedelta(days=15), adjustmentEndAt=now + timedelta(days=21),
+        termStatus="ACTIVE", **stamp)
+    add("tblCourseSelectionPhase", phaseId="phase-2026-autumn", termId=term_id,
+        phaseType="ENROLLMENT", displayTitle="2026-2027学年秋季学期正式选课",
+        phaseStatus="OPEN", **stamp)
 
-    # 正常选课来自学生年级对应的秋季培养方案；前 50 人另保留一门已失败课程作为重修。
-    selections = []
-    for student in range(1, 901):
-        cohort = 2023 + (student - 1) % 4
-        year = 2026 - cohort + 1
-        major = (student - 1) // 150 + 1
-        current_semester = (year - 1) * 2 + 1
-        current_courses = plan_courses(major, current_semester)
-        retake = retake_course(student)
-        if retake is not None:
-            selections.append((student, retake, (retake - 1) * 2 + 1, True))
-            current_courses = [course for course in current_courses
-                               if (course - 1) % 20 != (retake - 1) % 20]
-        offset = (student - 1) % len(current_courses)
-        rotated = current_courses[offset:] + current_courses[:offset]
-        for course in rotated[:2 if retake is not None else 3]:
-            section = (student - 1) % 2
-            selections.append((student, course, (course - 1) * 2 + section + 1, False))
-    counts = Counter(o for _, _, o, retake in selections if not retake)
-    retake_counts = Counter(o for _, _, o, retake in selections if retake)
-    for offering in range(1, COURSE_COUNT * 2 + 1):
-        course, section = (offering + 1) // 2, (offering - 1) % 2
-        slot = (course - 1) % 20
-        add("tblCourseOffering", offeringId=f"bulk-offering-{offering:03d}",
-            termId=current, courseId=f"bulk-course-{course:03d}",
-            teacherUserId=f"bulk-teacher-{((course - 1) // 20) * 2 + section + 1:03d}",
-            className=f"{names[(course - 1) % len(names)]}{(course - 1) // len(names) + 1}"
-                      f"-{('A' if offering % 2 else 'B')}班",
-            capacity=max(40, counts[offering]),
-            enrolledCount=counts[offering],
-            offeringStatus="CLOSED" if offering == COURSE_COUNT * 2 else "OPEN", **stamp)
-        add("tblCourseSchedule", scheduleId=f"bulk-schedule-{offering:03d}",
-            offeringId=f"bulk-offering-{offering:03d}",
-            dayOfWeek=slot % 5 + 1,
-            startPeriod=1 + (slot // 5) * 2, endPeriod=2 + (slot // 5) * 2,
-            startWeek=1, endWeek=18,
-            classroom=f"{['教一', '教二', '教三', '计算中心'][slot % 4]}-{101 + offering % 50}")
-        add("tblCourseRetakeQuota", offeringId=f"bulk-offering-{offering:03d}",
-            capacity=5, enrolledCount=retake_counts[offering])
-    generate_season_offerings(add, spring, "spring", range(1, 61), stamp)
-    for index, (student, course, offering, retake) in enumerate(selections, 1):
-        add("tblEnrollment", enrollmentId=f"bulk-enrollment-{index:04d}",
-            offeringId=f"bulk-offering-{offering:03d}", studentId=f"bulk-student-{student:04d}",
-            enrollmentType="RETAKE" if retake else "NORMAL", enrollmentStatus="ACTIVE",
-            enrolledAt=now - timedelta(days=2), droppedAt=None, **stamp)
-    # 退选记录不计入 enrolledCount，保留唯一 student/offering 对。
-    for student in range(1, 21):
-        add("tblEnrollment", enrollmentId=f"bulk-enrollment-dropped-{student:03d}",
-            offeringId="bulk-offering-238", studentId=f"bulk-student-{student:04d}",
-            enrollmentType="NORMAL", enrollmentStatus="DROPPED",
-            enrolledAt=now - timedelta(days=3), droppedAt=now - timedelta(days=1), **stamp)
-    # 正式选课期尝试补选会被阶段规则拒绝，保留真实规则对应的失败审计。
-    for student in range(1, 21):
-        add("tblEnrollmentAdjustment", adjustmentId=f"bulk-adjustment-{student:03d}",
-            studentId=f"bulk-student-{student:04d}", adjustmentType="LATE_ADD",
-            sourceOfferingId=None, targetOfferingId="bulk-offering-150",
-            operationResult="FAILED", failureCode="COURSE_ADJUSTMENT_NOT_OPEN",
-            operatedAt=now - timedelta(hours=1))
+    departments = {row[0]: row[2] for row in people.DEPARTMENTS}
+    definitions = _definitions()
+    for code, (name, credit, semester, department_id) in definitions.items():
+        add("tblCourse", courseId=f"course-{code.lower()}", courseCode=code,
+            courseName=name, departmentId=department_id, departmentName=departments[department_id],
+            credit=credit, totalHours=max(16, int(credit * 16)),
+            description=f"{name}课程，包含理论学习与实践训练。", isActive=True, **stamp)
+
+    plan_rows = {}
+    for major_id, _, _, major_name in people.MAJORS:
+        specialty = SPECIALTY[major_id]
+        for cohort in people.COHORTS:
+            plan_id = f"plan-{major_id[6:]}-{cohort}"
+            add("tblTrainingPlan", planId=plan_id, majorId=major_id, enrollmentYear=cohort,
+                planName=f"{major_name}{cohort}级本科培养方案", minElectiveCount=4,
+                minElectiveCredits=Decimal("8.0"), isActive=True, **stamp)
+            plan_rows[(major_id, cohort)] = []
+            for semester in range(1, 9):
+                selected = list(COMMON[semester - 1]) + list(specialty[(semester - 1) * 2:semester * 2])
+                for position, (code, name, credit_text) in enumerate(selected, 1):
+                    credit = Decimal(credit_text)
+                    nature = "REQUIRED" if position <= 4 else (
+                        "CROSS_DISCIPLINARY" if semester >= 7 else "ELECTIVE")
+                    plan_course_id = f"pc-{major_id[6:]}-{cohort}-{code.lower()}"
+                    department_id = definitions[code][3]
+                    add("tblTrainingPlanCourse", planCourseId=plan_course_id, planId=plan_id,
+                        courseCode=code, courseName=name, credits=credit,
+                        totalHours=max(16, int(credit * 16)), courseType=nature,
+                        semester=semester, courseNature=nature,
+                        courseCategory=_category(semester, position),
+                        offeringUnit=departments[department_id], courseId=f"course-{code.lower()}",
+                        offeringDepartmentId=department_id,
+                        offeringDepartmentName=departments[department_id], allocatedQuota=40,
+                        isActive=True, **stamp)
+                    plan_rows[(major_id, cohort)].append((plan_course_id, semester, nature, code))
+            for semester in range(2, 9):
+                course = specialty[(semester - 1) * 2][0]
+                prerequisite = specialty[(semester - 2) * 2][0]
+                add("tblTrainingPlanPrerequisite",
+                    prerequisiteId=f"pre-{major_id[6:]}-{cohort}-{semester}", planId=plan_id,
+                    courseId=f"course-{course.lower()}",
+                    prerequisiteCourseId=f"course-{prerequisite.lower()}")
+
+    student_index = 0
+    for cohort in people.COHORTS:
+        completed = 4 if cohort == 2024 else 2 if cohort == 2025 else 0
+        for major_id, _, _, _ in people.MAJORS:
+            required = [row for row in plan_rows[(major_id, cohort)]
+                        if row[1] <= completed and row[2] == "REQUIRED"]
+            for local in range(1, 9):
+                student_index += 1
+                cohort_serial = (list(m[0] for m in people.MAJORS).index(major_id)) * 8 + local
+                for grade_no, (plan_course_id, semester, _, _) in enumerate(required, 1):
+                    score_passed = (student_index + grade_no) % 17 != 0
+                    add("tblStudentGrade", gradeId=f"grade-{cohort}-{cohort_serial:03d}-{grade_no:02d}",
+                        studentId=f"student-{cohort}-{cohort_serial:03d}",
+                        planCourseId=plan_course_id, result="PASSED" if score_passed else "FAILED",
+                        recordedSemester=f"{cohort + (semester - 1) // 2}-{semester}",
+                        operatorUserId="user-teacher-01", rowVersion=0,
+                        createdAt=now, updatedAt=now)
+
+    for course_index, code in enumerate(definitions, 1):
+        for section in (1, 2):
+            offering_id = f"offering-{code.lower()}-{section}"
+            add("tblCourseOffering", offeringId=offering_id, termId=term_id,
+                courseId=f"course-{code.lower()}",
+                teacherUserId=f"user-teacher-{((course_index + section - 2) % 24) + 1:02d}",
+                className=f"{definitions[code][0]}-{section:02d}班", capacity=35 + section * 5,
+                enrolledCount=0, offeringStatus="OPEN", **stamp)
+            add("tblCourseSchedule", scheduleId=f"schedule-{code.lower()}-{section}",
+                offeringId=offering_id, dayOfWeek=(course_index + section) % 5 + 1,
+                startPeriod=1 + ((course_index + section) % 5) * 2,
+                endPeriod=2 + ((course_index + section) % 5) * 2,
+                startWeek=1, endWeek=16,
+                classroom=f"纪忠楼{100 + (course_index * 2 + section) % 80}")
+            add("tblCourseRetakeQuota", offeringId=offering_id, capacity=5, enrolledCount=0)
 
 
-def self_check():
-    """独立内存校验：关系、人数、容量、学籍范围及师生时间安排。"""
-    from datetime import datetime
-    rows = defaultdict(list)
-    generate(lambda table, **fields: rows[table].append(fields), datetime(2026, 9, 7, 12))
-    offers = {o["offeringId"]: o for o in rows["tblCourseOffering"]}
-    schedules = {s["offeringId"]: s for s in rows["tblCourseSchedule"]}
-    active = [e for e in rows["tblEnrollment"] if e["enrollmentStatus"] == "ACTIVE"]
-    counts, retake_counts = Counter(), Counter()
-    selected, student_slots, teacher_slots = set(), set(), set()
-    for e in active:
-        o, s = offers[e["offeringId"]], schedules[e["offeringId"]]
-        assert int(e["studentId"].split("-")[-1]) <= 900
-        key = (e["studentId"], o["courseId"])
-        assert key not in selected and o["offeringStatus"] == "OPEN"
-        selected.add(key)
-        slot = (e["studentId"], s["dayOfWeek"], s["startPeriod"])
-        assert slot not in student_slots
-        student_slots.add(slot)
-        target = retake_counts if e["enrollmentType"] == "RETAKE" else counts
-        target[o["offeringId"]] += 1
-    for o in offers.values():
-        assert counts[o["offeringId"]] == o["enrolledCount"] <= o["capacity"]
-        s = schedules[o["offeringId"]]
-        slot = (o["termId"], o["teacherUserId"], s["dayOfWeek"], s["startPeriod"])
-        assert slot not in teacher_slots
-        teacher_slots.add(slot)
-    quotas = {q["offeringId"]: q for q in rows["tblCourseRetakeQuota"]}
-    assert set(quotas) == set(offers)
-    for offering, quota in quotas.items():
-        assert quota["capacity"] == 5
-        assert quota["enrolledCount"] == retake_counts[offering] <= quota["capacity"]
-    pairs = {(e["studentId"], e["offeringId"]) for e in rows["tblEnrollment"]}
-    assert len(pairs) == len(rows["tblEnrollment"]) == 2720
-    outcomes = {(grade["studentId"], grade["planCourseId"], grade["result"])
-                for grade in rows["tblStudentGrade"]}
-    for e in active:
-        student = int(e["studentId"].split("-")[-1])
-        course = int(offers[e["offeringId"]]["courseId"].split("-")[-1])
-        pair = (e["studentId"], plan_course_id(student, course))
-        assert (*pair, "PASSED") not in outcomes
-        assert (e["enrollmentType"] == "RETAKE") == ((*pair, "FAILED") in outcomes)
-    assert len(active) == 2700 and len(offers) == 380
-    assert sum(p["phaseStatus"] in ("OPEN", "PREVIEW") for p in rows["tblCourseSelectionPhase"]) == 1
-    return {table: len(values) for table, values in rows.items()}
+def _category(semester, position):
+    if semester == 8:
+        return "毕业环节"
+    if position <= 3:
+        return "通识教育基础课"
+    if semester <= 2:
+        return "学科基础课"
+    if semester <= 6:
+        return "专业核心课"
+    return "专业选修与交叉课程"
 
 
 def validate_course_fixture(rows):
-    """Validate the complete offering, schedule, curriculum and enrollment graph."""
-    offers = {row["offeringId"]: row for row in rows["tblCourseOffering"]}
-    schedules = defaultdict(list)
-    for row in rows["tblCourseSchedule"]:
-        schedules[row["offeringId"]].append(row)
-    courses_by_id = {row["courseId"]: row for row in rows["tblCourse"]}
-    terms = {row["termId"]: row for row in rows["tblTerm"]}
-    classes = {row["classId"]: row for row in rows["tblClass"]}
-    students = {row["studentId"]: row for row in rows["tblStudent"]}
-    plans = {(row["majorId"], row["enrollmentYear"]): row["planId"]
-             for row in rows["tblTrainingPlan"]}
-    planned = defaultdict(dict)
+    """Validate academic graph invariants before SQL is written."""
+    if rows["tblEnrollment"] or rows["tblEnrollmentAdjustment"]:
+        raise AssertionError("initial selection records must be empty")
+    if sum(row["phaseStatus"] == "OPEN" for row in rows["tblCourseSelectionPhase"]) != 1:
+        raise AssertionError("exactly one selection phase must be open")
+    offering_counts = Counter(row["courseId"] for row in rows["tblCourseOffering"])
+    if not offering_counts or set(offering_counts.values()) != {2}:
+        raise AssertionError("every selectable course must have two offerings")
+    schedules = Counter(row["offeringId"] for row in rows["tblCourseSchedule"])
+    if set(schedules.values()) != {1}:
+        raise AssertionError("every offering must have one schedule")
+    semesters = defaultdict(set)
     for row in rows["tblTrainingPlanCourse"]:
-        planned[row["planId"]][row["courseCode"]] = row["semester"]
-    course_code = {row["courseId"]: row["courseCode"] for row in rows["tblCourse"]}
-    plan_course_codes = {row["planCourseId"]: row["courseCode"]
-                         for row in rows["tblTrainingPlanCourse"]}
-    course_ids_by_code = {row["courseCode"]: row["courseId"] for row in rows["tblCourse"]}
-    failed = {(row["studentId"], course_ids_by_code[plan_course_codes[row["planCourseId"]]])
-              for row in rows["tblStudentGrade"] if row["result"] == "FAILED"}
-    active_terms = [term for term in terms.values() if term["termStatus"] == "ACTIVE"]
-    if len(active_terms) != 1:
-        raise AssertionError("course fixture must have one active term")
-    normal_counts, retake_counts = Counter(), Counter()
-    selected, occupied = set(), defaultdict(list)
-    for offering_id, offering in offers.items():
-        if len(schedules[offering_id]) != 1:
-            raise AssertionError(f"offering {offering_id} must have exactly one schedule")
-        if offering["courseId"] not in courses_by_id or offering["termId"] not in terms:
-            raise AssertionError(f"offering {offering_id} has an invalid reference")
-    for enrollment in rows["tblEnrollment"]:
-        if enrollment["enrollmentStatus"] != "ACTIVE":
-            continue
-        offering = offers.get(enrollment["offeringId"])
-        if offering is None or offering["offeringStatus"] != "OPEN":
-            raise AssertionError("active enrollment must reference an open offering")
-        schedule = schedules[offering["offeringId"]]
-        student = students[enrollment["studentId"]]
-        klass = classes[student["classId"]]
-        plan_id = plans[(klass["majorId"], klass["enrollmentYear"])]
-        course_id = offering["courseId"]
-        semester = planned[plan_id].get(course_code[course_id])
-        term = terms[offering["termId"]]
-        current = (term["academicYearStart"] - klass["enrollmentYear"]) * 2 \
-                  + (1 if term["season"] == "AUTUMN" else 2)
-        if semester is None or (enrollment["enrollmentType"] == "NORMAL" and semester != current) \
-                or (enrollment["enrollmentType"] == "RETAKE"
-                    and ((enrollment["studentId"], course_id) not in failed or semester >= current)):
-            raise AssertionError("enrollment does not match the student's curriculum")
-        pair = (enrollment["studentId"], course_id)
-        if pair in selected:
-            raise AssertionError("student selected the same course more than once")
-        selected.add(pair)
-        target = retake_counts if enrollment["enrollmentType"] == "RETAKE" else normal_counts
-        target[offering["offeringId"]] += 1
-        slot = schedule[0]
-        for start, end in occupied[(enrollment["studentId"], slot["dayOfWeek"])]:
-            if max(start, slot["startPeriod"]) <= min(end, slot["endPeriod"]):
-                raise AssertionError("student schedule conflict")
-        occupied[(enrollment["studentId"], slot["dayOfWeek"])].append(
-            (slot["startPeriod"], slot["endPeriod"]))
-    quotas = {row["offeringId"]: row for row in rows["tblCourseRetakeQuota"]}
-    if set(quotas) != set(offers):
-        raise AssertionError("every offering must have one retake quota")
-    for offering_id, offering in offers.items():
-        if offering["enrolledCount"] != normal_counts[offering_id] \
-                or offering["enrolledCount"] > offering["capacity"]:
-            raise AssertionError("offering normal enrollment count is inconsistent")
-        quota = quotas[offering_id]
-        if quota["enrolledCount"] != retake_counts[offering_id] \
-                or retake_counts[offering_id] > quota["capacity"]:
-            raise AssertionError("offering retake count is inconsistent")
+        semesters[row["planId"]].add(row["semester"])
+    if any(values != set(range(1, 9)) for values in semesters.values()):
+        raise AssertionError("every plan must cover eight semesters")
 
 
-def plan_courses(major, semester):
-    """Return five catalog courses for one major's semester position."""
-    base = (semester - 1) * COURSES_PER_SEMESTER
-    major_group = (major - 1) % (COURSES_PER_SEMESTER // PLAN_COURSES_PER_SEMESTER)
-    start = base + major_group * PLAN_COURSES_PER_SEMESTER + 1
-    return list(range(start, start + PLAN_COURSES_PER_SEMESTER))
-
-
-def plan_course_id(student, course):
-    """Return the canonical training-plan row for one generated student and course."""
-    cohort = 2023 + (student - 1) % 4
-    major = (student - 1) // 150 + 1
-    semester = (course - 1) // COURSES_PER_SEMESTER + 1
-    return f"bulk-plan-{major:02}-{cohort}-c{course:03d}-s{semester:02d}"
-
-
-def retake_course(student):
-    """Return the failed prior-semester course selected for a generated student."""
-    cohort = 2023 + (student - 1) % 4
-    current_semester = (2026 - cohort) * 2 + 1
-    if student > 50 or current_semester <= 1:
-        return None
-    major = (student - 1) // 150 + 1
-    return plan_courses(major, current_semester - 1)[(student - 1) % 5]
-
-
-def generate_plans(add, now):
-    """Emit one canonical four-year, two-season plan per major and cohort."""
-    for major in range(1, 17):
-        for cohort in range(2023, 2027):
-            plan = f"bulk-plan-{major:02}-{cohort}"
-            add("tblTrainingPlan", planId=plan, majorId=f"bulk-major-{major:02}",
-                enrollmentYear=cohort, planName=f"{800+major}专业{cohort}级培养方案",
-                minElectiveCount=8, minElectiveCredits=16, isActive=True,
-                rowVersion=1, createdAt=now, updatedAt=now)
-            for semester in range(1, 9):
-                planned_courses = plan_courses(major, semester)
-                for local, course in enumerate(planned_courses):
-                    prerequisite = planned_courses[local - 1] if local else None
-                    add("tblTrainingPlanCourse", planCourseId=f"{plan}-c{course:03d}-s{semester:02d}",
-                        planId=plan, courseCode=f"BULK-C{course:03d}",
-                        courseName=f"培养方案课程{course:03d}", credits=COURSE_CREDIT,
-                        courseType="ELECTIVE" if local == 4 else "REQUIRED",
-                        semester=semester,
-                        courseNature="ELECTIVE" if local == 4 else "REQUIRED",
-                        courseCategory="专业方向课" if local == 4 else "专业基础课",
-                        offeringUnit=DEPARTMENTS[(course - 1) // COURSES_PER_SEMESTER], isActive=True,
-                        rowVersion=0, createdAt=now, updatedAt=now)
-                    if prerequisite is not None:
-                        add("tblTrainingPlanPrerequisite",
-                            prerequisiteId=f"{plan}-pre-s{semester:02d}-c{course:03d}", planId=plan,
-                            courseId=f"bulk-course-{course:03d}",
-                            prerequisiteCourseId=f"bulk-course-{prerequisite:03d}")
-
-
-def generate_historical_grades(add, now, failed_courses=frozenset()):
-    """Record passed history through the last completed semester for cohorts 2023-25."""
-    semester_names = {
-        1: "2023-AUTUMN", 2: "2024-SPRING", 3: "2024-AUTUMN",
-        4: "2025-SPRING", 5: "2025-AUTUMN", 6: "2026-SPRING",
-    }
-    grade_number = 1
-    for major in (1, 2):
-        for local in range(150):
-            student_number = (major - 1) * 150 + local + 1
-            cohort = 2023 + (student_number - 1) % 4
-            max_semester = {2023: 6, 2024: 4, 2025: 2}.get(cohort)
-            if max_semester is None:
-                continue
-            student_id = f"bulk-student-{student_number:04d}"
-            plan_id = f"bulk-plan-{major:02}-{cohort}"
-            for semester in range(1, max_semester + 1):
-                for course in plan_courses(major, semester):
-                    result = "FAILED" if (student_number, course) in failed_courses else "PASSED"
-                    add("tblStudentGrade", gradeId=f"bulk-grade-{grade_number:05d}",
-                        studentId=student_id,
-                        planCourseId=f"{plan_id}-c{course:03d}-s{semester:02d}",
-                        result=result, recordedSemester=semester_names[semester],
-                        operatorUserId="bulk-admin-001", rowVersion=0,
-                        createdAt=now, updatedAt=now)
-                    grade_number += 1
-
-
-def generate_season_offerings(add, term, label, courses, stamp):
-    season_name = {"spring": "春季"}[label]
-    for course in courses:
-        offering = f"bulk-{label}-offering-{course:03d}"
-        add("tblCourseOffering", offeringId=offering, termId=term,
-            courseId=f"bulk-course-{course:03d}",
-            teacherUserId=f"bulk-teacher-{course % 50 + 1:03d}",
-            className=f"{season_name}课程{course:03d}-A班", capacity=40,
-            enrolledCount=0, offeringStatus="OPEN", **stamp)
-        add("tblCourseSchedule", scheduleId=f"bulk-{label}-schedule-{course:03d}",
-            offeringId=offering, dayOfWeek=(course - 1) % 5 + 1,
-            startPeriod=1 + ((course - 1) // 5 % 4) * 2,
-            endPeriod=2 + ((course - 1) // 5 % 4) * 2,
-            startWeek=1, endWeek=18,
-            classroom=f"{season_name}教学楼-{101 + course % 50}")
-        add("tblCourseRetakeQuota", offeringId=offering, capacity=5, enrolledCount=0)
-
-
-if __name__ == "__main__":
-    print(self_check())
+def self_check():
+    rows = defaultdict(list)
+    generate(lambda table, **fields: rows[table].append(fields),
+             __import__("datetime").datetime(2026, 9, 16, 12))
+    validate_course_fixture(rows)
+    return {table: len(values) for table, values in rows.items()}

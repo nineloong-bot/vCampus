@@ -50,6 +50,7 @@ class TeacherPasswordResetTest {
         try (var connection = connections.open()) {
             execute(connection, projectFile("schema", "010_user.sql"));
             execute(connection, projectFile("seed", "010_roles_permissions.sql"));
+            UserTestFixtures.insertSuperAdministrator(connection);
         }
         repository = new AccessUserRepository();
         sessions = new SessionRegistry();

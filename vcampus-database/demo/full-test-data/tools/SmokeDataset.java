@@ -1,92 +1,111 @@
-import edu.seu.vcampus.server.bootstrap.ApplicationRuntime;
-import edu.seu.vcampus.server.network.SocketServer;
 import edu.seu.vcampus.client.core.network.ClientConnection;
-import edu.seu.vcampus.client.user.service.UserClientService;
 import edu.seu.vcampus.client.course.service.CourseClientService;
 import edu.seu.vcampus.client.library.service.LibraryClientService;
-import edu.seu.vcampus.client.shop.service.ShopClientService;
-import edu.seu.vcampus.common.course.*;
-import edu.seu.vcampus.common.library.*;
-import edu.seu.vcampus.common.shop.*;
-import java.nio.file.*;
+import edu.seu.vcampus.client.user.service.UserClientService;
+import edu.seu.vcampus.common.library.BookSearchQuery;
+import edu.seu.vcampus.common.shop.catalog.CatalogDtos.Page;
+import edu.seu.vcampus.common.shop.catalog.CatalogDtos.Query;
+import edu.seu.vcampus.server.bootstrap.ApplicationRuntime;
+import edu.seu.vcampus.server.network.SocketServer;
+import java.nio.file.Path;
 import java.sql.DriverManager;
-import java.time.*;
-import java.util.concurrent.*;
+import java.time.Clock;
+import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
-/** 在数据库副本上启动真实服务，验证登录、查询及业务写入。 */
+/** Starts the real server against a copy and checks representative read paths. */
 class SmokeDataset {
-    static <T> T result(CompletableFuture<T> future) throws Exception {
-        return future.get(30,TimeUnit.SECONDS);
+    private static <T> T result(CompletableFuture<T> future) throws Exception {
+        return future.get(30, TimeUnit.SECONDS);
     }
-    static void require(boolean ok,String description) {
-        if(!ok) throw new IllegalStateException(description);
-        System.out.println("PASS "+description);
+
+    private static void require(boolean condition, String description) {
+        if (!condition) throw new IllegalStateException(description);
+        System.out.println("PASS " + description);
     }
+
     public static void main(String[] args) throws Exception {
-        var runtime=ApplicationRuntime.create(()->DriverManager.getConnection(
-                "jdbc:ucanaccess://"+args[0]+";immediatelyReleaseResources=true"),
-                Path.of(args[1]),Clock.systemUTC());
-        try(var c=DriverManager.getConnection("jdbc:ucanaccess://"+args[0]);var s=c.createStatement();
-            var r=s.executeQuery("SELECT currentValue FROM tblNumberSequence WHERE sequenceKey='CAMPUS_CARD_GLOBAL'")) {
-            r.next();require(r.getInt(1)==2640,"startup preserves sequence 2640");
-        }
-        try(var server=new SocketServer(0,4,20,runtime.router())) {
-            var executor=Executors.newSingleThreadExecutor();
-            var serving=executor.submit(()->{server.serve();return null;});
+        var provider = (edu.seu.vcampus.server.persistence.ConnectionProvider) () ->
+                DriverManager.getConnection("jdbc:ucanaccess://" + args[0]
+                        + ";immediatelyReleaseResources=true");
+        var runtime = ApplicationRuntime.create(provider, Path.of(args[1]), Clock.systemUTC());
+        require(sequence(args[0]) == 40, "startup preserves campus-card sequence");
+        try (var server = new SocketServer(0, 4, 20, runtime.router())) {
+            var executor = Executors.newSingleThreadExecutor();
+            executor.submit(() -> { server.serve(); return null; });
             try {
-                for(String login:new String[]{"TESTADMIN","TESTTEACHER001","213260001","213260101","213262631"}) {
-                    try(var connection=new ClientConnection("127.0.0.1",server.localPort())) {
-                        connection.connect(Duration.ofSeconds(10));
-                        var users=new UserClientService(connection,"bulk-smoke-"+login,Duration.ofSeconds(30));
-                        var logged=result(users.login(login,"123456".toCharArray()));
-                        require(logged.user().loginId().equals(login),"login "+login);
-                        if(login.equals("213262631")) {
-                            require(logged.mustChangePassword(),"first password change");
-                            result(users.logout());
-                            continue;
-                        }
-                        var courses=new CourseClientService(connection);
-                        require(result(courses.listTerms()).size()>=3,"course terms "+login);
-                        var library=new LibraryClientService(connection,Duration.ofSeconds(30));
-                        require(result(library.searchBooks(new BookSearchQuery("",null,false,1,20))).total()>=490,"library catalog "+login);
-                        var shop=new ShopClientService(connection,Duration.ofSeconds(30));
-                        require(result(shop.home(new HomeProductQuery(null,null,ProductSortMode.SALES_DESC,1,20))).total()>100,"shop catalog "+login);
-                        if(login.equals("213260001")) {
-                            require(result(shop.getOwnedShop()).shopId().equals("bulk-shop-001"),"seller owns shop");
-                            require(result(courses.getCurrentEnrollments()).stream().filter(e->"ACTIVE".equals(e.enrollmentStatus())).count()==3,"student active enrollment records");
-                            require(result(courses.getCurrentEnrollments()).stream().filter(e->"DROPPED".equals(e.enrollmentStatus())).count()==1,"student dropped history");
-                            result(courses.enroll(new EnrollCommand("bulk-offering-245")));
-                            require(result(courses.getCurrentEnrollments()).stream().filter(e->"ACTIVE".equals(e.enrollmentStatus())).count()==4,"new course enrollment");
-                            var loan=result(library.borrow(new BorrowBookCommand("bulk-copy-0001-2")));
-                            result(library.returnBook(new ReturnBookCommand(loan.loanId(),loan.rowVersion())));
-                            System.out.println("PASS borrow and return");
-                        }
-                        if(login.equals("213260101")) {
-                            require(result(shop.getCart())!=null,"buyer cart");
-                            result(shop.getPaidOrders());
-                            System.out.println("PASS buyer order history");
-                            var paid=result(shop.simulatePayment(new SimulatePaymentCommand(
-                                    "bulk-payment-0001",PaymentChannel.WECHAT,PaymentAttemptStatus.SUCCEEDED)));
-                            require(paid.status()==PaymentStatus.SUCCEEDED,"pending order payment");
-                        }
-                        result(users.logout());
-                    }
-                }
+                smokeAdministrator(server.localPort());
+                smokeTeacher(server.localPort());
+                smokeStudent(server.localPort());
             } finally {
                 server.close();
                 executor.shutdownNow();
-                executor.awaitTermination(10,TimeUnit.SECONDS);
+                executor.awaitTermination(10, TimeUnit.SECONDS);
             }
         }
-        // 在副本上模拟编号递增，检查下一次初始化不会回退流水号。
-        try(var c=DriverManager.getConnection("jdbc:ucanaccess://"+args[0]);var s=c.createStatement()) {
-            s.executeUpdate("UPDATE tblNumberSequence SET currentValue=1001 WHERE sequenceKey='CAMPUS_CARD_GLOBAL'");
+        try (var connection = provider.open(); var statement = connection.createStatement()) {
+            statement.executeUpdate("UPDATE tblNumberSequence SET currentValue=41 "
+                    + "WHERE sequenceKey='CAMPUS_CARD_GLOBAL'");
         }
-        ApplicationRuntime.create(()->DriverManager.getConnection("jdbc:ucanaccess://"+args[0]),Path.of(args[1]),Clock.systemUTC());
-        try(var c=DriverManager.getConnection("jdbc:ucanaccess://"+args[0]);var s=c.createStatement();
-            var r=s.executeQuery("SELECT currentValue FROM tblNumberSequence WHERE sequenceKey='CAMPUS_CARD_GLOBAL'")) {
-            r.next();require(r.getInt(1)==1001,"restart preserves advanced sequence");
-        }
+        ApplicationRuntime.create(provider, Path.of(args[1]), Clock.systemUTC());
+        require(sequence(args[0]) == 41, "restart preserves advanced campus-card sequence");
         System.out.println("SMOKE PASSED");
+    }
+
+    private static void smokeAdministrator(int port) throws Exception {
+        try (var connection = connect(port)) {
+            var users = users(connection, "release-admin");
+            require(result(users.login("ADMIN", "123456".toCharArray())).user()
+                    .loginId().equals("ADMIN"), "administrator login");
+            require(result(new CourseClientService(connection).listTerms()).size() == 1,
+                    "single course term");
+            var books = new LibraryClientService(connection, Duration.ofSeconds(30));
+            require(result(books.searchBooks(new BookSearchQuery("", null, false, 1, 20)))
+                    .total() == 12, "library catalog");
+            var catalog = result(connection.<Page>send("SHOP2_CATALOG_LIST",
+                    new Query("", null, "SALES_DESC", 1, 20), Duration.ofSeconds(30)));
+            require(catalog.success() && catalog.data().total() > 0, "shop catalog");
+            result(users.logout());
+        }
+    }
+
+    private static void smokeTeacher(int port) throws Exception {
+        try (var connection = connect(port)) {
+            var users = users(connection, "release-teacher");
+            require(result(users.login("T001", "123456".toCharArray())).user()
+                    .loginId().equals("T001"), "teacher login");
+            result(users.logout());
+        }
+    }
+
+    private static void smokeStudent(int port) throws Exception {
+        try (var connection = connect(port)) {
+            var users = users(connection, "release-student");
+            var login = result(users.login("213240001", "123456".toCharArray()));
+            require(login.mustChangePassword(), "student initial password change");
+            result(users.logout());
+        }
+    }
+
+    private static ClientConnection connect(int port) throws Exception {
+        var connection = new ClientConnection("127.0.0.1", port);
+        connection.connect(Duration.ofSeconds(10));
+        return connection;
+    }
+
+    private static UserClientService users(ClientConnection connection, String instance) {
+        return new UserClientService(connection, instance, Duration.ofSeconds(30));
+    }
+
+    private static int sequence(String database) throws Exception {
+        try (var connection = DriverManager.getConnection("jdbc:ucanaccess://" + database);
+             var statement = connection.createStatement();
+             var rows = statement.executeQuery("SELECT currentValue FROM tblNumberSequence "
+                     + "WHERE sequenceKey='CAMPUS_CARD_GLOBAL'")) {
+            rows.next();
+            return rows.getInt(1);
+        }
     }
 }

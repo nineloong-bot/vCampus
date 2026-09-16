@@ -1,6 +1,5 @@
 package edu.seu.vcampus.server.student.majortransfer.security;
 
-import edu.seu.vcampus.server.bootstrap.DatabaseInitializer;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import edu.seu.vcampus.server.persistence.TransactionManager;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,11 +14,10 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class MajorTransferCollegeAuthorizationServiceTest {
-    private static final String CS_ADMIN = "00000000-0000-0000-0000-000000000202";
-    private static final String MATH_ADMIN = "00000000-0000-0000-0000-000000000203";
-    private static final String EE_ADMIN = "00000000-0000-0000-0000-000000000208";
-    private static final String APPLICATION_TO_EE = "00000000-0000-0000-0000-000000001021";
-    private static final String DRAFT_APPLICATION = "00000000-0000-0000-0000-000000001031";
+    private static final String CS_ADMIN = "user-cse-admin";
+    private static final String MATH_ADMIN = "user-math-admin";
+    private static final String APPLICATION_TO_CS = "transfer-app-01";
+    private static final String DRAFT_APPLICATION = "draft-transfer-app";
 
     private MajorTransferCollegeAuthorizationService authorization;
     private TransactionManager transactions;
@@ -28,33 +26,29 @@ class MajorTransferCollegeAuthorizationServiceTest {
     void setUp() throws Exception {
         Path database = Path.of("target", "test-data", UUID.randomUUID() + ".accdb");
         Files.createDirectories(database.getParent());
-        DatabaseInitializer.main(new String[] {
-                directory("schema").toString(), directory("seed").toString(), database.toString()
-        });
+        Files.copy(distributionDatabase(), database);
         ConnectionProvider provider = () -> DriverManager.getConnection(
                 "jdbc:ucanaccess://" + database + ";immediatelyReleaseResources=true");
         transactions = new TransactionManager(provider);
-        insertApplication(APPLICATION_TO_EE,
-                "00000000-0000-0000-0000-000000000104", "SUBMITTED", "09023101", "李明");
         insertApplication(DRAFT_APPLICATION,
-                "00000000-0000-0000-0000-000000000230", "DRAFT", "09023111", "朱琳");
+                "student-2024-030", "DRAFT", "70124106", "冯明轩");
         authorization = new MajorTransferCollegeAuthorizationService(transactions);
     }
 
     @Test
     void sourceAdministratorCanApproveOnlyTheSourceStage() {
-        assertThatCode(() -> authorization.requireSourceApproval(CS_ADMIN, APPLICATION_TO_EE))
+        assertThatCode(() -> authorization.requireSourceApproval(MATH_ADMIN, APPLICATION_TO_CS))
                 .doesNotThrowAnyException();
-        assertThatThrownBy(() -> authorization.requireTargetApproval(CS_ADMIN, APPLICATION_TO_EE))
+        assertThatThrownBy(() -> authorization.requireTargetApproval(MATH_ADMIN, APPLICATION_TO_CS))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("COMMON_FORBIDDEN");
     }
 
     @Test
     void targetAdministratorCanApproveOnlyTheTargetStage() {
-        assertThatCode(() -> authorization.requireTargetApproval(EE_ADMIN, APPLICATION_TO_EE))
+        assertThatCode(() -> authorization.requireTargetApproval(CS_ADMIN, APPLICATION_TO_CS))
                 .doesNotThrowAnyException();
-        assertThatThrownBy(() -> authorization.requireSourceApproval(EE_ADMIN, APPLICATION_TO_EE))
+        assertThatThrownBy(() -> authorization.requireSourceApproval(CS_ADMIN, APPLICATION_TO_CS))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("COMMON_FORBIDDEN");
     }
@@ -66,7 +60,7 @@ class MajorTransferCollegeAuthorizationServiceTest {
                     SELECT optionId FROM tblMajorTransferOption
                     WHERE targetDepartmentId=?
                     """)) {
-                statement.setString(1, "bulk-dept-02");
+            statement.setString(1, "dept-cse");
                 try (var result = statement.executeQuery()) {
                     result.next();
                     return result.getString(1);
@@ -75,22 +69,22 @@ class MajorTransferCollegeAuthorizationServiceTest {
         });
 
         assertThatCode(() -> authorization.requireTargetApprovalForOption(
-                MATH_ADMIN, mathOption)).doesNotThrowAnyException();
+                CS_ADMIN, mathOption)).doesNotThrowAnyException();
         assertThatThrownBy(() -> authorization.requireTargetApprovalForOption(
-                CS_ADMIN, mathOption)).isInstanceOf(IllegalArgumentException.class)
+                MATH_ADMIN, mathOption)).isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("COMMON_FORBIDDEN");
     }
 
     @Test
     void unrelatedAdministratorCannotReadApplication() {
-        assertThatThrownBy(() -> authorization.requireCanRead(MATH_ADMIN, APPLICATION_TO_EE))
+        assertThatThrownBy(() -> authorization.requireCanRead("user-super-admin", APPLICATION_TO_CS))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("COMMON_FORBIDDEN");
     }
 
     @Test
     void evenRelatedAdministratorsCannotReadStudentDraft() {
-        assertThatThrownBy(() -> authorization.requireCanRead(CS_ADMIN, DRAFT_APPLICATION))
+        assertThatThrownBy(() -> authorization.requireCanRead(MATH_ADMIN, DRAFT_APPLICATION))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("COMMON_FORBIDDEN");
     }
@@ -103,28 +97,28 @@ class MajorTransferCollegeAuthorizationServiceTest {
                     (attachmentId, applicationId, fileName, contentType, fileSize, content, createdAt)
                     VALUES ('attachment-ee', ?, 'proof.txt', 'text/plain', 1, ?, NOW())
                     """)) {
-                statement.setString(1, APPLICATION_TO_EE);
+                statement.setString(1, APPLICATION_TO_CS);
                 statement.setBytes(2, new byte[] { 1 });
                 statement.executeUpdate();
             }
             return null;
         });
 
-        assertThatCode(() -> authorization.requireCanReadAttachment(EE_ADMIN, "attachment-ee"))
+        assertThatCode(() -> authorization.requireCanReadAttachment(CS_ADMIN, "attachment-ee"))
                 .doesNotThrowAnyException();
-        assertThatThrownBy(() -> authorization.requireCanReadAttachment(MATH_ADMIN, "attachment-ee"))
+        assertThatThrownBy(() -> authorization.requireCanReadAttachment("user-super-admin", "attachment-ee"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("COMMON_FORBIDDEN");
-        assertThatThrownBy(() -> authorization.requireCanReadAttachment(MATH_ADMIN, "missing"))
+        assertThatThrownBy(() -> authorization.requireCanReadAttachment("user-super-admin", "missing"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("COMMON_FORBIDDEN");
     }
 
-    private static Path directory(String child) {
+    private static Path distributionDatabase() {
         Path current = Path.of("").toAbsolutePath();
-        Path databaseModule = current.getFileName().toString().equals("vcampus-server")
-                ? current.resolve("../vcampus-database") : current.resolve("vcampus-database");
-        return databaseModule.resolve(child).normalize();
+        Path root = current.getFileName().toString().equals("vcampus-server")
+                ? current.resolve("..") : current;
+        return root.resolve("vcampus-distribution/data/vCampus.accdb").normalize();
     }
 
     private void insertApplication(String id, String studentId, String status,
@@ -140,19 +134,19 @@ class MajorTransferCollegeAuthorizationServiceTest {
                     """)) {
                 int index = 1;
                 statement.setString(index++, id);
-                statement.setString(index++, "00000000-0000-0000-0000-000000001001");
+                statement.setString(index++, "transfer-2026-autumn");
                 statement.setString(index++, studentId);
                 statement.setString(index++, "ORDINARY");
                 statement.setString(index++, status);
-                statement.setString(index++, "00000000-0000-0000-0000-000000001013");
-                statement.setString(index++, "bulk-dept-01");
-                statement.setString(index++, "计算机学院");
-                statement.setString(index++, "bulk-major-02");
-                statement.setString(index++, "计算机科学");
-                statement.setString(index++, "00000000-0000-0000-0000-000000000103");
-                statement.setString(index++, "计算机科学与技术2301班");
+                statement.setString(index++, "option-cs");
+                statement.setString(index++, "dept-math");
+                statement.setString(index++, "数学学院");
+                statement.setString(index++, "major-math");
+                statement.setString(index++, "数学与应用数学");
+                statement.setString(index++, "class-math-2024");
+                statement.setString(index++, "数学与应用数学2401班");
                 statement.setString(index++, studentNumber);
-                statement.setString(index++, "2023");
+                statement.setString(index++, "3");
                 statement.setString(index++, studentName);
                 statement.setString(index++, "测试申请");
                 statement.setLong(index++, 0);

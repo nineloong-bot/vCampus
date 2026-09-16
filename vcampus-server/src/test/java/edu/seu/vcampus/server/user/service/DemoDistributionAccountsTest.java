@@ -13,25 +13,21 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class DemoDistributionAccountsTest {
     @Test
-    void distributionDatabaseContainsAllVerifiedCourseDemoAccounts() throws Exception {
+    void distributionDatabaseContainsTheDocumentedReleaseAccounts() throws Exception {
         Path database = distributionDatabase();
         assertThat(database).isRegularFile().isNotEmptyFile();
         Map<String, Expected> expected = new LinkedHashMap<>();
-        expected.put("DEMO_ADMIN", new Expected("SUPER_ADMIN", false,
+        expected.put("ADMIN", manager("SUPER_ADMIN"));
+        expected.put("STUDENT", manager("STUDENT_ADMIN"));
+        expected.put("COURSE", manager("COURSE_ADMIN"));
+        expected.put("LIBRARY", manager("LIBRARY_ADMIN"));
+        expected.put("SHOP", manager("SHOP_ADMIN"));
+        expected.put("USER", manager("USER_ADMIN"));
+        expected.put("CSADMIN", manager("COLLEGE_ADMIN"));
+        expected.put("MATHADMIN", manager("COLLEGE_ADMIN"));
+        expected.put("T001", manager("TEACHER"));
+        expected.put("213240001", new Expected("STUDENT", true,
                 "123456".toCharArray()));
-        expected.put("DEMO_TEACHER", new Expected("TEACHER", false,
-                "123456".toCharArray()));
-        expected.put("213242478", new Expected("STUDENT", false,
-                "123456".toCharArray()));
-        expected.put("STUDENT_ADMIN", manager("STUDENT_ADMIN"));
-        expected.put("COURSE_ADMIN", manager("COURSE_ADMIN"));
-        expected.put("LIBRARY_ADMIN", manager("LIBRARY_ADMIN"));
-        expected.put("SHOP_ADMIN", manager("SHOP_ADMIN"));
-        expected.put("USER_ADMIN", manager("USER_ADMIN"));
-        expected.put("CS_COLLEGE_ADMIN", manager("COLLEGE_ADMIN"));
-        expected.put("MATH_COLLEGE_ADMIN", manager("COLLEGE_ADMIN"));
-        expected.put("EE_COLLEGE_ADMIN", manager("COLLEGE_ADMIN"));
-        expected.put("FL_COLLEGE_ADMIN", manager("COLLEGE_ADMIN"));
         PasswordHasher hasher = new PasswordHasher();
         try (var connection = DriverManager.getConnection("jdbc:ucanaccess://" + database
                 + ";immediatelyReleaseResources=true")) {
@@ -61,7 +57,7 @@ class DemoDistributionAccountsTest {
                     FROM tblUser u INNER JOIN tblStudent s ON u.userId=s.userId
                     WHERE u.loginId=?
                     """)) {
-                statement.setString(1, "213242478");
+                statement.setString(1, "213240001");
                 try (var row = statement.executeQuery()) {
                     assertThat(row.next()).isTrue();
                     assertThat(row.getInt(1)).as("student demo account profile").isEqualTo(1);

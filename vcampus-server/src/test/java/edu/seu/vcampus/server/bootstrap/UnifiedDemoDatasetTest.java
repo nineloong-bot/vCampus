@@ -11,9 +11,6 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.Base64;
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.PBEKeySpec;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -21,7 +18,7 @@ class UnifiedDemoDatasetTest {
     @TempDir Path directory;
 
     @Test
-    void freshDatabaseContainsEveryModuleAndManualTestState() throws Exception {
+    void freshDatabaseContainsEveryModuleButNoBusinessDataset() throws Exception {
         Path database = directory.resolve("vCampus.accdb");
         ConnectionProvider connections = () -> DriverManager.getConnection(
                 "jdbc:ucanaccess://" + database + ";newDatabaseVersion=V2010");
@@ -35,33 +32,16 @@ class UnifiedDemoDatasetTest {
                             "TBLTRAININGPLANCOURSE", "TBLBOOK", "TBLSHOP", "TBLORDER")
                     .doesNotContain("TBLCURRICULUMPLAN", "TBLCURRICULUMCOURSE",
                             "TBLCURRICULUMPREREQUISITE");
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblUser WHERE roleCode='SUPER_ADMIN'"))
-                    .isPositive();
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblUser WHERE roleCode='TEACHER'"))
-                    .isPositive();
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblUser WHERE roleCode='STUDENT'"))
-                    .isGreaterThanOrEqualTo(4);
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblUser")).isZero();
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblStudent")).isZero();
             assertThat(count(connection, "SELECT COUNT(*) FROM tblRolePermission WHERE roleCode='SUPER_ADMIN'"))
                     .isGreaterThanOrEqualTo(3);
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblTrainingPlan WHERE isActive=TRUE"))
-                    .isPositive();
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblTrainingPlanCourse"))
-                    .isGreaterThanOrEqualTo(2);
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblBookLoan WHERE loanStatus='ACTIVE' AND dueAt<NOW()"))
-                    .isPositive();
-            assertThat(values(connection, "SELECT applicationStatus FROM tblSellerApplication"))
-                    .contains("DRAFT", "PENDING", "APPROVED");
-            assertThat(values(connection, "SELECT productStatus FROM tblProduct"))
-                    .contains("DRAFT", "INACTIVE", "ACTIVE");
-            assertThat(count(connection, "SELECT COUNT(*) FROM (SELECT productId FROM tblProductSku GROUP BY productId HAVING COUNT(*)>=2)"))
-                    .isPositive();
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblCartItem")).isGreaterThanOrEqualTo(2);
-            assertThat(values(connection, "SELECT groupStatus FROM tblOrderGroup"))
-                    .contains("PENDING_PAYMENT", "PAID");
-            for (String login : new String[]{"ADMIN", "TEACHER01", "213230001",
-                    "SHOPOWNER", "SHOPDRAFT", "SHOPPENDING"}) {
-                assertPassword(connection, login, "123456");
-            }
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblTrainingPlan")).isZero();
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblBookLoan")).isZero();
+            assertThat(values(connection, "SELECT applicationStatus FROM tblSellerApplication")).isEmpty();
+            assertThat(values(connection, "SELECT productStatus FROM tblProduct")).isEmpty();
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblCartItem")).isZero();
+            assertThat(values(connection, "SELECT groupStatus FROM tblOrderGroup")).isEmpty();
         }
     }
 
@@ -85,24 +65,6 @@ class UnifiedDemoDatasetTest {
             while (rows.next()) values.add(rows.getString(1));
         }
         return values;
-    }
-
-    private static void assertPassword(Connection connection, String login, String password)
-            throws Exception {
-        try (var statement = connection.prepareStatement(
-                "SELECT passwordHash,passwordSalt,passwordIterations FROM tblUser WHERE loginId=?")) {
-            statement.setString(1, login);
-            try (var rows = statement.executeQuery()) {
-                assertThat(rows.next()).as("seeded login %s", login).isTrue();
-                PBEKeySpec specification = new PBEKeySpec(password.toCharArray(),
-                        Base64.getDecoder().decode(rows.getString(2)), rows.getInt(3), 256);
-                byte[] actual = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
-                        .generateSecret(specification).getEncoded();
-                specification.clearPassword();
-                assertThat(Base64.getDecoder().decode(rows.getString(1)))
-                        .as("password for %s", login).containsExactly(actual);
-            }
-        }
     }
 
     private static Path databaseRoot() {

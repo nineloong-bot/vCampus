@@ -34,7 +34,7 @@ class ApplicationSchemaInitializerTest {
             assertThat(columnNames(connection, "tblMajor")).contains("grades");
             try (Statement statement = connection.createStatement();
                  ResultSet result = statement.executeQuery("SELECT grades FROM tblMajor")) {
-                assertThat(result.next()).isTrue();
+                assertThat(result.next()).isFalse();
             }
         }
     }
@@ -58,23 +58,9 @@ class ApplicationSchemaInitializerTest {
             assertThat(count(connection, "SELECT COUNT(*) FROM tblRole")).isEqualTo(10);
             assertThat(count(connection, "SELECT COUNT(*) FROM tblPermission")).isEqualTo(14);
             assertThat(count(connection, "SELECT COUNT(*) FROM tblRolePermission")).isEqualTo(15);
-            assertThat(count(connection,
-                    "SELECT COUNT(*) FROM tblUser WHERE loginId = 'ADMIN'")).isEqualTo(1);
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblDepartment")).isEqualTo(9);
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblMajor")).isEqualTo(16);
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblDepartment WHERE "
-                    + "departmentId LIKE '00000000-0000-0000-0000-0000000001%'")).isZero();
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblStudentCollegeAdministrator "
-                    + "WHERE departmentId IN ('bulk-dept-01','bulk-dept-02','bulk-dept-03','bulk-dept-09')"))
-                    .isEqualTo(4);
-            assertThat(count(connection, "SELECT COUNT(*) FROM tblTrainingPlan WHERE "
-                    + "planId='00000000-0000-0000-0000-000000000301'")).isZero();
-            assertThat(count(connection, "SELECT c.enrollmentYear FROM (tblUser u INNER JOIN "
-                    + "tblStudent s ON u.userId=s.userId) INNER JOIN tblClass c ON s.classId=c.classId "
-                    + "WHERE u.loginId='213240001'")).isEqualTo(2024);
-            assertThat(count(connection, "SELECT c.enrollmentYear FROM (tblUser u INNER JOIN "
-                    + "tblStudent s ON u.userId=s.userId) INNER JOIN tblClass c ON s.classId=c.classId "
-                    + "WHERE u.loginId='213242478'")).isEqualTo(2024);
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblUser")).isZero();
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblDepartment")).isZero();
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblMajor")).isZero();
             assertThat(uniqueIndexColumns(connection, "tblTrainingPlan"))
                     .contains(java.util.List.of("majorid", "enrollmentyear"));
             assertThat(uniqueIndexColumns(connection, "tblTrainingPlanCourse"))
@@ -84,18 +70,11 @@ class ApplicationSchemaInitializerTest {
         }
 
         try (Connection connection = connections.open(); Statement statement = connection.createStatement()) {
-            statement.executeUpdate("UPDATE tblStudent SET counselorName='用户修改' "
-                    + "WHERE studentId='00000000-0000-0000-0000-000000000210'");
             statement.executeUpdate("UPDATE tblNumberSequence SET currentValue=900 "
                     + "WHERE sequenceKey='CAMPUS_CARD_GLOBAL'");
         }
         initializer.initialize(connections);
         try (Connection connection = connections.open(); Statement statement = connection.createStatement()) {
-            try (ResultSet result = statement.executeQuery("SELECT counselorName FROM tblStudent "
-                    + "WHERE studentId='00000000-0000-0000-0000-000000000210'")) {
-                assertThat(result.next()).isTrue();
-                assertThat(result.getString(1)).isEqualTo("用户修改");
-            }
             try (ResultSet result = statement.executeQuery("SELECT currentValue FROM tblNumberSequence "
                     + "WHERE sequenceKey='CAMPUS_CARD_GLOBAL'")) {
                 assertThat(result.next()).isTrue();

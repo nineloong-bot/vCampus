@@ -1,257 +1,192 @@
-import java.nio.file.*;
-import java.sql.*;
-import java.math.BigDecimal;
-import java.util.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.util.Base64;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
-import java.security.MessageDigest;
-
-/** 只读核对测试库的数量、关联、金额、库存和全部账号密码。 */
+/** Read-only release-dataset validation for counts, credentials, and business scenarios. */
 class ValidateDataset {
-    static int checks;
-    static void require(boolean ok, String message) {
-        if (!ok) throw new IllegalStateException(message);
-        checks++;
-    }
-    static long count(Connection c, String sql) throws Exception {
-        try (var s=c.createStatement();var r=s.executeQuery(sql)) {r.next();return r.getLong(1);}
-    }
-    static boolean tableExists(Connection c,String table) throws Exception {
-        try(var r=c.getMetaData().getTables(null,null,table,new String[]{"TABLE"})) {
-            return r.next();
-        }
-    }
-    static Map<String,BigDecimal> totals(Connection c,String table,String key,String value) throws Exception {
-        Map<String,BigDecimal> result=new HashMap<>();
-        try(var s=c.createStatement();var r=s.executeQuery("SELECT "+key+","+value+" FROM "+table)) {
-            while(r.next()) result.merge(r.getString(1),r.getBigDecimal(2),BigDecimal::add);
-        }
-        return result;
-    }
+    private static final List<String> BANNED = List.of(
+            "test", "测试", "demo", "演示", "fake", "sample", "bulk", "dummy", "example");
+    private static int checks;
     public static void main(String[] args) throws Exception {
-        try(var c=DriverManager.getConnection("jdbc:ucanaccess://"+args[0]+";immediatelyReleaseResources=true")) {
-            c.setReadOnly(true);
-            for(String table:List.of("tblCurriculumPlan","tblCurriculumCourse",
-                    "tblCurriculumPrerequisite","tblCourseAttempt"))
-                require(!tableExists(c,table),"Legacy table remains "+table);
-            for(String line:Files.readAllLines(Path.of(args[1]))) {
-                String[] parts=line.split("\\t");
-                if(parts[0].equals("tblNumberSequence")) continue;
-                String key = switch (parts[0]) {
-                    case "tblUser" -> "userId";
-                    case "tblStudent" -> "studentId";
-                    case "tblDepartment" -> "departmentId";
-                    case "tblMajor" -> "majorId";
-                    case "tblClass" -> "classId";
-                    case "tblTerm" -> "termId";
-                    case "tblCourse" -> "courseId";
-                    case "tblTrainingPlan" -> "planId";
-                    case "tblTrainingPlanCourse" -> "planCourseId";
-                    case "tblTrainingPlanPrerequisite" -> "prerequisiteId";
-                    case "tblCourseOffering" -> "offeringId";
-                    case "tblEnrollment" -> "enrollmentId";
-                    case "tblCourseSelectionPhase" -> "phaseId";
-                    case "tblCourseSchedule" -> "scheduleId";
-                    case "tblCourseRetakeQuota" -> "offeringId";
-                    case "tblEnrollmentAdjustment" -> "adjustmentId";
-                    case "tblBook" -> "bookId";
-                    case "tblBookCopy" -> "copyId";
-                    case "tblBookLoan" -> "loanId";
-                    case "tblSellerApplication" -> "applicationId";
-                    case "tblShop" -> "shopId";
-                    case "tblProduct" -> "productId";
-                    case "tblProductSku" -> "skuId";
-                    case "tblCart" -> "cartId";
-                    case "tblCartItem" -> "cartItemId";
-                    case "tblOrderGroup" -> "orderGroupId";
-                    case "tblOrder" -> "orderId";
-                    case "tblOrderItem" -> "orderItemId";
-                    case "tblPayment" -> "paymentId";
-                    case "tblPaymentAttempt" -> "attemptId";
-                    case "tblInventoryReservation" -> "reservationId";
-                    case "tblMajorTransferBatch" -> "batchId";
-                    case "tblMajorTransferOption" -> "optionId";
-                    case "tblMajorTransferApplication" -> "applicationId";
-                    case "tblStudentGrade" -> "gradeId";
-                    case "tblProductCatalog" -> "productId";
-                    case "tblSkuDraftFields" -> "skuId";
-                    case "tblShopOrderState" -> "orderId";
-                    case "tblShopOrderLineState" -> "orderItemId";
-                    case "tblShopInventoryMovement" -> "movementId";
-                    case "tblShopOrderEvent" -> "eventId";
-                    case "tblShopGovApplication" -> "applicationId";
-                    case "tblShopQualification" -> "qualificationId";
-                    case "tblShopProductRestriction" -> "productId";
-                    case "tblShopGovCase" -> "caseId";
-                    case "tblShopGovAudit" -> "auditId";
-                    case "tblWalletAccount" -> "userId";
-                    case "tblWalletOperation" -> "operationId";
-                    case "tblWalletEscrow" -> "orderKey";
-                    case "tblWalletEntry" -> "entryId";
-                    default -> throw new IllegalArgumentException("Unknown count table");
-                };
-                long actual=count(c,"SELECT COUNT(*) FROM "+parts[0]+" WHERE "+key+" LIKE 'bulk-%'");
-                require(actual==Long.parseLong(parts[1]),parts[0]+" count "+actual+" expected "+parts[1]);
-                System.out.println(parts[0]+"="+actual);
-            }
-            for(String table:List.of("tblUser","tblStudent","tblDepartment","tblMajor","tblClass",
-                    "tblTerm","tblCourse","tblTrainingPlan","tblTrainingPlanCourse",
-                    "tblTrainingPlanPrerequisite","tblCourseOffering","tblEnrollment")) {
-                System.out.println("TOTAL "+table+"="+count(c,"SELECT COUNT(*) FROM "+table));
-            }
-            String[][] links={
-                {"tblStudent","userId","tblUser","userId"},
-                {"tblCourseOffering","teacherUserId","tblUser","userId"},
-                {"tblEnrollment","studentId","tblStudent","studentId"},
-                {"tblStudentGrade","studentId","tblStudent","studentId"},
-                {"tblBookCopy","bookId","tblBook","bookId"},
-                {"tblBookLoan","copyId","tblBookCopy","copyId"},
-                {"tblBookLoan","borrowerUserId","tblUser","userId"},
-                {"tblOrderItem","skuId","tblProductSku","skuId"}};
-            for(var a:links) require(count(c,"SELECT COUNT(*) FROM "+a[0]+" a LEFT JOIN "+a[2]
-                    +" b ON a."+a[1]+"=b."+a[3]+" WHERE b."+a[3]+" IS NULL")==0,"Orphans "+a[0]);
-            require(count(c,"SELECT COUNT(*) FROM (SELECT enrollmentYear FROM tblClass c "
-                    +"INNER JOIN tblStudent s ON c.classId=s.classId WHERE s.studentId LIKE 'bulk-student-%' "
-                    +"GROUP BY enrollmentYear)")==4,"Cohort coverage");
-            for(int cohort=2023;cohort<=2026;cohort++) {
-                require(count(c,"SELECT COUNT(*) FROM tblStudent s INNER JOIN tblClass c "
-                        +"ON s.classId=c.classId WHERE s.studentId LIKE 'bulk-student-%' AND c.enrollmentYear="
-                        +cohort)==600,"Student cohort "+cohort);
-                int semester=(2026-cohort)*2+1;
-                require(count(c,"SELECT COUNT(*) FROM ((tblTrainingPlan p INNER JOIN "
-                        +"tblTrainingPlanCourse pc ON p.planId=pc.planId) INNER JOIN tblCourse x "
-                        +"ON pc.courseCode=x.courseCode) INNER JOIN tblCourseOffering o "
-                        +"ON x.courseId=o.courseId WHERE p.planId LIKE 'bulk-%' AND p.enrollmentYear="
-                        +cohort+" AND pc.semester="+semester+" AND o.termId='bulk-term-current'")>0,
-                        "Selectable curriculum for cohort "+cohort);
-            }
-            require(count(c,"SELECT COUNT(*) FROM tblTrainingPlanCourse pc LEFT JOIN tblCourse x "
-                    +"ON pc.courseCode=x.courseCode WHERE pc.planCourseId LIKE 'bulk-%' "
-                    +"AND x.courseId IS NULL")==0,"Training plan catalog alignment");
-            Map<String,Integer> planSemesters=new HashMap<>();
-            try(var s=c.createStatement();var r=s.executeQuery("SELECT p.majorId,p.enrollmentYear,"+
-                    "x.courseId,pc.semester FROM (tblTrainingPlan p INNER JOIN tblTrainingPlanCourse pc "+
-                    "ON p.planId=pc.planId) INNER JOIN tblCourse x ON pc.courseCode=x.courseCode "+
-                    "WHERE p.planId LIKE 'bulk-%' AND p.isActive=TRUE AND pc.isActive=TRUE")) {
-                while(r.next()) planSemesters.put(r.getString(1)+":"+r.getInt(2)+":"+r.getString(3),r.getInt(4));
-            }
-            Set<String> failedAttempts=new HashSet<>();
-            try(var s=c.createStatement();var r=s.executeQuery("SELECT g.studentId,x.courseId FROM "+
-                    "(tblStudentGrade g INNER JOIN tblTrainingPlanCourse pc ON "+
-                    "g.planCourseId=pc.planCourseId) INNER JOIN tblCourse x ON "+
-                    "pc.courseCode=x.courseCode WHERE g.gradeId LIKE 'bulk-%' AND g.result='FAILED'")) {
-                while(r.next()) failedAttempts.add(r.getString(1)+":"+r.getString(2));
-            }
-            require(count(c,"SELECT COUNT(*) FROM tblStudentGrade g INNER JOIN "
-                    +"tblMajorTransferApplication a ON g.studentId=a.studentId "
-                    +"WHERE g.result='FAILED'")==0,"Transfer student has failed grade");
-            String enrollmentSql="SELECT e.studentId,e.enrollmentType,o.courseId,c.majorId,"+
-                    "c.enrollmentYear,t.academicYearStart,t.season FROM (((tblEnrollment e INNER JOIN "+
-                    "tblStudent s ON e.studentId=s.studentId) INNER JOIN tblClass c ON s.classId=c.classId) "+
-                    "INNER JOIN tblCourseOffering o ON e.offeringId=o.offeringId) INNER JOIN tblTerm t "+
-                    "ON o.termId=t.termId WHERE e.enrollmentId LIKE 'bulk-%' AND e.enrollmentStatus='ACTIVE'";
-            try(var s=c.createStatement();var r=s.executeQuery(enrollmentSql)) {
-                while(r.next()) {
-                    int season="AUTUMN".equals(r.getString(7))?1:2;
-                    int current=(r.getInt(6)-r.getInt(5))*2+season;
-                    Integer planned=planSemesters.get(r.getString(4)+":"+r.getInt(5)+":"+r.getString(3));
-                    if("NORMAL".equals(r.getString(2))) require(Objects.equals(planned,current),
-                            "Normal enrollment outside current plan "+r.getString(1)+":"+r.getString(3));
-                    else require(planned!=null&&planned<current&&failedAttempts.contains(
-                            r.getString(1)+":"+r.getString(3)),"Invalid retake "+r.getString(1)+":"+r.getString(3));
-                }
-            }
-            require(count(c,"SELECT COUNT(*) FROM (SELECT season FROM tblTerm "
-                    +"WHERE termId LIKE 'bulk-%' GROUP BY season)")==2,"Academic season coverage");
-            require(count(c,"SELECT COUNT(*) FROM tblCourse WHERE departmentId IS NULL "
-                    +"OR departmentName IS NULL OR departmentName=''")==0,"Missing course college");
-            Map<String,Integer> enrolled=new HashMap<>(),retakes=new HashMap<>();
-            try(var s=c.createStatement();var r=s.executeQuery("SELECT offeringId,enrollmentType FROM tblEnrollment WHERE enrollmentStatus='ACTIVE'")) {
-                while(r.next()) ("RETAKE".equals(r.getString(2))?retakes:enrolled).merge(r.getString(1),1,Integer::sum);
-            }
-            try(var s=c.createStatement();var r=s.executeQuery("SELECT offeringId,capacity,enrolledCount FROM tblCourseRetakeQuota WHERE offeringId LIKE 'bulk-%'")) {
-                while(r.next()) {
-                    require(r.getInt(2)==5,"Retake capacity "+r.getString(1));
-                    require(r.getInt(3)==retakes.getOrDefault(r.getString(1),0),"Retake count "+r.getString(1));
-                }
-            }
-            require(count(c,"SELECT COUNT(*) FROM tblCourseOffering o LEFT JOIN tblCourseRetakeQuota q "
-                    +"ON o.offeringId=q.offeringId WHERE q.offeringId IS NULL")==0,
-                    "Missing retake quota");
-            require(count(c,"SELECT COUNT(*) FROM (SELECT o.offeringId FROM tblCourseOffering o "
-                    +"LEFT JOIN tblCourseSchedule s ON o.offeringId=s.offeringId GROUP BY o.offeringId "
-                    +"HAVING COUNT(s.scheduleId)<>1)")==0,
-                    "Offering schedule must be one-to-one");
-            require(count(c,"SELECT COUNT(*) FROM tblEnrollment e LEFT JOIN tblCourseSchedule s "
-                    +"ON e.offeringId=s.offeringId WHERE e.enrollmentStatus='ACTIVE' "
-                    +"AND s.scheduleId IS NULL")==0,
-                    "Active enrollment has no schedule");
-            require(count(c,"SELECT COUNT(*) FROM (SELECT e.studentId,o.courseId FROM "
-                    +"tblEnrollment e INNER JOIN tblCourseOffering o ON e.offeringId=o.offeringId "
-                    +"WHERE e.enrollmentStatus='ACTIVE' GROUP BY e.studentId,o.courseId "
-                    +"HAVING COUNT(*)<>1)")==0,
-                    "Duplicate active student course");
-            require(count(c,"SELECT COUNT(*) FROM tblCourseRetakeQuota WHERE capacity<>5")==0,
-                    "Non-default retake capacity");
-            String[] cleanTextQueries={
-                "SELECT COUNT(*) FROM tblCourse WHERE courseName LIKE '%测试%' OR description LIKE '%测试%'",
-                "SELECT COUNT(*) FROM tblCourseOffering WHERE className LIKE '%测试%'",
-                "SELECT COUNT(*) FROM tblCourseSchedule WHERE classroom LIKE '%测试%'",
-                "SELECT COUNT(*) FROM tblDepartment WHERE departmentName LIKE '%测试%'",
-                "SELECT COUNT(*) FROM tblMajor WHERE majorName LIKE '%测试%'",
-                "SELECT COUNT(*) FROM tblBook WHERE title LIKE '%测试%' OR author LIKE '%测试%' OR publisher LIKE '%测试%' OR description LIKE '%测试%'",
-                "SELECT COUNT(*) FROM tblShop WHERE shopName LIKE '%测试%' OR description LIKE '%测试%'",
-                "SELECT COUNT(*) FROM tblProduct WHERE productName LIKE '%测试%' OR description LIKE '%测试%'"};
-            for(String query:cleanTextQueries) require(count(c,query)==0,"Visible test marker remains");
-            try(var s=c.createStatement();var r=s.executeQuery("SELECT offeringId,enrolledCount,capacity FROM tblCourseOffering WHERE offeringId LIKE 'bulk-%'")) {
-                while(r.next()) {
-                    require(r.getInt(2)==enrolled.getOrDefault(r.getString(1),0),"Enrollment count "+r.getString(1));
-                    require(r.getInt(2)<=r.getInt(3),"Capacity "+r.getString(1));
-                }
-            }
-            require(count(c,"SELECT COUNT(*) FROM tblCourseSelectionPhase WHERE phaseStatus IN ('OPEN','PREVIEW')")==1,"Global selection phase count");
-            require(count(c,"SELECT COUNT(*) FROM tblBookLoan l INNER JOIN tblBookCopy p ON l.copyId=p.copyId "
-                    +"WHERE l.loanId LIKE 'bulk-%' AND l.loanStatus IN ('ACTIVE','OVERDUE') AND p.copyStatus<>'BORROWED'")==0,"Borrowed copy mismatch");
-            require(count(c,"SELECT COUNT(*) FROM tblBookLoan WHERE loanId LIKE 'bulk-%' "
-                    +"AND loanStatus='OVERDUE' AND dueAt < #2026-09-07#")>=200,
-                    "Past-due borrowing cohort");
-            require(count(c,"SELECT COUNT(*) FROM tblUser WHERE roleCode='STUDENT' "
-                    +"AND mustChangePassword=FALSE AND loginId<>'213242478'")==0,
-                    "Student initial password flag");
-            require(count(c,"SELECT COUNT(*) FROM tblBookLoan WHERE loanId LIKE 'bulk-%' AND loanStatus='RETURNED' AND returnedAt IS NULL")==0,"Return timestamp missing");
-            var lineTotals=totals(c,"tblOrderItem","orderId","lineAmount");
-            var orderTotals=totals(c,"tblOrder","orderGroupId","orderAmount");
-            try(var s=c.createStatement();var r=s.executeQuery("SELECT orderId,orderAmount FROM tblOrder WHERE orderId LIKE 'bulk-%'")) {
-                while(r.next()) require(r.getBigDecimal(2).compareTo(lineTotals.get(r.getString(1)))==0,"Order amount "+r.getString(1));
-            }
-            try(var s=c.createStatement();var r=s.executeQuery("SELECT orderGroupId,totalAmount FROM tblOrderGroup WHERE orderGroupId LIKE 'bulk-%'")) {
-                while(r.next()) require(r.getBigDecimal(2).compareTo(orderTotals.get(r.getString(1)))==0,"Group amount "+r.getString(1));
-            }
-            require(count(c,"SELECT COUNT(*) FROM tblOrderItem WHERE orderItemId LIKE 'bulk-%' AND lineAmount<>unitPrice*quantity")==0,"Line multiplication");
-            require(count(c,"SELECT COUNT(*) FROM tblPayment p INNER JOIN tblOrderGroup g ON p.orderGroupId=g.orderGroupId "
-                    +"WHERE p.paymentId LIKE 'bulk-%' AND p.amount<>g.totalAmount")==0,"Payment amount");
-            Map<String,Integer> reserved=new HashMap<>();
-            try(var s=c.createStatement();var r=s.executeQuery("SELECT skuId,quantity FROM tblInventoryReservation WHERE reservationStatus='ACTIVE'")) {
-                while(r.next()) reserved.merge(r.getString(1),r.getInt(2),Integer::sum);
-            }
-            try(var s=c.createStatement();var r=s.executeQuery("SELECT skuId,stockQuantity,reservedQuantity FROM tblProductSku WHERE skuId LIKE 'bulk-%'")) {
-                while(r.next()) {
-                    require(r.getInt(3)==reserved.getOrDefault(r.getString(1),0),"Reservation mismatch "+r.getString(1));
-                    require(r.getInt(2)>=r.getInt(3)&&r.getInt(3)>=0,"Stock bounds");
-                }
-            }
-            int accounts=0;
-            try(var s=c.createStatement();var r=s.executeQuery("SELECT loginId,passwordHash,passwordSalt,passwordIterations FROM tblUser WHERE userId LIKE 'bulk-%'")) {
-                while(r.next()) {
-                    var spec=new PBEKeySpec("123456".toCharArray(),Base64.getDecoder().decode(r.getString(3)),r.getInt(4),256);
-                    byte[] hash=SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).getEncoded();
-                    spec.clearPassword();
-                    require(MessageDigest.isEqual(hash,Base64.getDecoder().decode(r.getString(2))),"Password mismatch "+r.getString(1));
-                    accounts++;
-                }
-            }
-            System.out.println("Password verified accounts="+accounts);
-            System.out.println("PASS checks="+checks);
+        if (args.length != 2) throw new IllegalArgumentException("DATABASE COUNTS_TSV required");
+        try (Connection connection = DriverManager.getConnection(
+                "jdbc:ucanaccess://" + args[0] + ";immediatelyReleaseResources=true")) {
+            connection.setReadOnly(true);
+            Map<String, Long> expected = readCounts(Path.of(args[1]));
+            validateCounts(connection, expected);
+            validatePeople(connection);
+            validateAcademics(connection);
+            validateTransfersAndLibrary(connection);
+            validateCommerce(connection);
+            validateText(connection, expected.keySet().stream().toList());
         }
+        System.out.println("PASS checks=" + checks);
+    }
+    private static Map<String, Long> readCounts(Path file) throws Exception {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        for (String line : Files.readAllLines(file)) {
+            if (!line.isBlank()) {
+                String[] parts = line.split("\\t");
+                counts.put(parts[0], Long.parseLong(parts[1]));
+            }
+        }
+        return counts;
+    }
+    private static void validateCounts(Connection connection, Map<String, Long> expected)
+            throws Exception {
+        for (var entry : expected.entrySet()) {
+            require(count(connection, "SELECT COUNT(*) FROM " + entry.getKey()) == entry.getValue(),
+                    entry.getKey() + " count mismatch");
+        }
+        for (String legacy : List.of("tblCurriculumPlan", "tblCurriculumCourse",
+                "tblCurriculumPrerequisite", "tblCourseAttempt")) {
+            require(!tableExists(connection, legacy), "legacy table remains: " + legacy);
+        }
+    }
+    private static void validatePeople(Connection connection) throws Exception {
+        require(count(connection, "SELECT COUNT(*) FROM tblDepartment") == 2, "department count");
+        require(count(connection, "SELECT COUNT(*) FROM tblMajor") == 5, "major count");
+        require(count(connection, "SELECT COUNT(*) FROM tblStudent") == 120, "student count");
+        require(count(connection, "SELECT COUNT(*) FROM tblClass c LEFT JOIN tblStudent s "
+                + "ON c.classId=s.classId GROUP BY c.classId HAVING COUNT(s.studentId)<5") == 0,
+                "class without enough students");
+        Map<String, String> admins = Map.of(
+                "ADMIN", "SUPER_ADMIN", "STUDENT", "STUDENT_ADMIN",
+                "COURSE", "COURSE_ADMIN", "LIBRARY", "LIBRARY_ADMIN",
+                "SHOP", "SHOP_ADMIN", "USER", "USER_ADMIN",
+                "CSADMIN", "COLLEGE_ADMIN", "MATHADMIN", "COLLEGE_ADMIN");
+        for (var admin : admins.entrySet()) {
+            require(count(connection, "SELECT COUNT(*) FROM tblUser WHERE loginId='"
+                    + admin.getKey() + "' AND roleCode='" + admin.getValue() + "'") == 1,
+                    "missing administrator " + admin.getKey());
+        }
+        require(count(connection, "SELECT COUNT(*) FROM tblStudentCollegeAdministrator") == 2,
+                "college administrator bindings");
+        require(count(connection, "SELECT COUNT(*) FROM tblUser WHERE roleCode='STUDENT' "
+                + "AND mustChangePassword=FALSE") == 0, "student password-change flag");
+        try (var statement = connection.createStatement();
+             var rows = statement.executeQuery("SELECT loginId FROM tblUser WHERE roleCode='STUDENT'")) {
+            boolean[][] found = new boolean[3][41];
+            while (rows.next()) {
+                String login = rows.getString(1);
+                require(login.matches("213(24|25|26)00(0[1-9]|[1-3][0-9]|40)"),
+                        "invalid card number " + login);
+                int year = Integer.parseInt(login.substring(3, 5)) - 24;
+                int serial = Integer.parseInt(login.substring(5));
+                found[year][serial] = true;
+            }
+            for (boolean[] cohort : found) for (int serial = 1; serial <= 40; serial++)
+                require(cohort[serial], "card range is incomplete");
+        }
+        verifyPasswords(connection);
+    }
+    private static void verifyPasswords(Connection connection) throws Exception {
+        int verified = 0;
+        try (var statement = connection.createStatement(); var rows = statement.executeQuery(
+                "SELECT loginId,passwordHash,passwordSalt,passwordIterations FROM tblUser")) {
+            while (rows.next()) {
+                var spec = new PBEKeySpec("123456".toCharArray(),
+                        Base64.getDecoder().decode(rows.getString(3)), rows.getInt(4), 256);
+                byte[] actual = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+                        .generateSecret(spec).getEncoded();
+                require(MessageDigest.isEqual(actual, Base64.getDecoder().decode(rows.getString(2))),
+                        "password mismatch " + rows.getString(1));
+                verified++;
+            }
+        }
+        require(verified == 152, "verified password count");
+    }
+    private static void validateAcademics(Connection connection) throws Exception {
+        require(count(connection, "SELECT COUNT(*) FROM tblEnrollment") == 0, "enrollments not empty");
+        require(count(connection, "SELECT COUNT(*) FROM tblEnrollmentAdjustment") == 0,
+                "enrollment adjustments not empty");
+        require(count(connection, "SELECT COUNT(*) FROM tblTerm WHERE termStatus='ACTIVE'") == 1,
+                "active term count");
+        require(count(connection, "SELECT COUNT(*) FROM tblCourseSelectionPhase "
+                + "WHERE phaseStatus='OPEN'") == 1, "open phase count");
+        require(count(connection, "SELECT COUNT(*) FROM (SELECT courseId FROM tblCourseOffering "
+                + "GROUP BY courseId HAVING COUNT(*)<>2)") == 0, "two offerings per course");
+        require(count(connection, "SELECT COUNT(*) FROM tblCourseOffering WHERE teacherUserId IS NULL "
+                + "OR className IS NULL OR capacity<=0 OR enrolledCount<>0") == 0,
+                "incomplete offering");
+        require(count(connection, "SELECT COUNT(*) FROM (SELECT o.offeringId FROM tblCourseOffering o "
+                + "LEFT JOIN tblCourseSchedule s ON o.offeringId=s.offeringId GROUP BY o.offeringId "
+                + "HAVING COUNT(s.scheduleId)<>1)") == 0, "offering schedule count");
+        require(count(connection, "SELECT COUNT(*) FROM (SELECT planId FROM tblTrainingPlanCourse "
+                + "GROUP BY planId HAVING MIN(semester)<>1 OR MAX(semester)<>8)") == 0,
+                "training plan semester coverage");
+    }
+    private static void validateTransfersAndLibrary(Connection connection) throws Exception {
+        require(count(connection, "SELECT COUNT(*) FROM tblMajorTransferApplication "
+                + "WHERE applicationStatus='SUBMITTED'") == 5, "transfer applications");
+        require(count(connection, "SELECT COUNT(*) FROM tblMajorTransferApplication a "
+                + "INNER JOIN tblMajorTransferOption o ON a.optionId=o.optionId "
+                + "WHERE a.fromDepartmentName='数学学院' "
+                + "AND o.targetDepartmentName='计算机科学与工程学院'") == 5,
+                "transfer direction");
+        require(count(connection, "SELECT COUNT(*) FROM tblBookLoan WHERE loanStatus='OVERDUE' "
+                + "AND overdueFine>0 AND dueAt<#2026-09-16 12:00:00#") == 2, "overdue loans");
+        require(count(connection, "SELECT COUNT(*) FROM tblBookLoan l INNER JOIN tblBookCopy c "
+                + "ON l.copyId=c.copyId WHERE l.loanStatus IN ('ACTIVE','OVERDUE') "
+                + "AND c.copyStatus<>'BORROWED'") == 0, "loan-copy status mismatch");
+    }
+    private static void validateCommerce(Connection connection) throws Exception {
+        require(count(connection, "SELECT COUNT(*) FROM tblShop WHERE shopStatus='ACTIVE'") == 5,
+                "active shops");
+        require(count(connection, "SELECT COUNT(*) FROM tblShop WHERE shopStatus='SUSPENDED'") == 1,
+                "suspended shops");
+        require(count(connection, "SELECT COUNT(*) FROM tblSellerApplication WHERE "
+                + "applicationStatus='APPROVED'") == 6, "approved seller applications");
+        require(count(connection, "SELECT COUNT(*) FROM tblSellerApplication WHERE "
+                + "applicationStatus='PENDING'") == 1, "pending seller application");
+        require(count(connection, "SELECT COUNT(*) FROM tblSellerApplication WHERE "
+                + "applicationStatus='REJECTED'") == 1, "rejected seller application");
+        require(count(connection, "SELECT COUNT(*) FROM tblProduct") == 72, "products");
+        require(count(connection, "SELECT COUNT(*) FROM (SELECT productId FROM tblProductSku "
+                + "GROUP BY productId HAVING COUNT(*)>=2)") >= 12, "multi-SKU products");
+        require(count(connection, "SELECT COUNT(*) FROM tblOrder") == 20, "orders");
+        require(count(connection, "SELECT COUNT(*) FROM tblShopQualification") == 5,
+                "qualifications");
+        require(count(connection, "SELECT COUNT(*) FROM tblShopGovCase") == 5, "governance cases");
+        require(count(connection, "SELECT COUNT(*) FROM tblShopGovAudit") >= 5, "governance audit");
+        require(count(connection, "SELECT COUNT(*) FROM tblWalletAccount") == 10, "wallet accounts");
+        require(count(connection, "SELECT COUNT(*) FROM tblProductSku WHERE reservedQuantity<0 "
+                + "OR reservedQuantity>stockQuantity") == 0, "SKU stock bounds");
+        require(count(connection, "SELECT COUNT(*) FROM tblOrderItem WHERE lineAmount<>unitPrice*quantity")
+                == 0, "order line amount");
+    }
+    private static void validateText(Connection connection, List<String> tables) throws Exception {
+        for (String table : tables) try (var statement = connection.createStatement();
+                                         var rows = statement.executeQuery("SELECT * FROM " + table)) {
+            int columns = rows.getMetaData().getColumnCount();
+            while (rows.next()) for (int index = 1; index <= columns; index++) {
+                Object value = rows.getObject(index);
+                if (value instanceof String text) for (String marker : BANNED)
+                    require(!text.toLowerCase(Locale.ROOT).contains(marker),
+                            "banned marker in " + table + "." + rows.getMetaData().getColumnName(index));
+            }
+        }
+    }
+    private static long count(Connection connection, String sql) throws Exception {
+        try (var statement = connection.createStatement(); var rows = statement.executeQuery(sql)) {
+            return rows.next() ? rows.getLong(1) : 0;
+        }
+    }
+    private static boolean tableExists(Connection connection, String table) throws Exception {
+        try (ResultSet rows = connection.getMetaData().getTables(null, null, table,
+                new String[]{"TABLE"})) { return rows.next(); }
+    }
+    private static void require(boolean condition, String message) {
+        if (!condition) throw new IllegalStateException(message);
+        checks++;
     }
 }

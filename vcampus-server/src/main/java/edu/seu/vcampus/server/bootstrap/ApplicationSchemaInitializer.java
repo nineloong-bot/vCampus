@@ -23,7 +23,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Installs the common, user, role seed, and course database resources in dependency order. */
+/** Installs schemas and the role-permission reference data in dependency order. */
 public final class ApplicationSchemaInitializer {
     private static final Pattern CREATE_TABLE = Pattern.compile(
             "(?is)^\\s*CREATE\\s+TABLE\\s+([A-Za-z0-9_]+)");
@@ -90,7 +90,7 @@ public final class ApplicationSchemaInitializer {
         this.resourceRoot = Objects.requireNonNull(resourceRoot, "resourceRoot").toAbsolutePath().normalize();
     }
 
-    /** Repeatedly safe installer for all module schemas and the unified manual-test dataset. */
+    /** Repeatedly safe installer for all module schemas and role-permission reference data. */
     public void initialize(ConnectionProvider connections) throws IOException, SQLException {
         Objects.requireNonNull(connections, "connections");
         installSchema(connections, schema("001_common.sql"));
@@ -115,15 +115,6 @@ public final class ApplicationSchemaInitializer {
         try (Connection connection = connections.open()) { LibraryReservationSchema.initialize(connection); }
         installSchema(connections, schema("050_shop.sql"));
         installSeeds(connections, seed("010_roles_permissions.sql"));
-        installSeeds(connections, seed("019_canonical_organizations.sql"));
-        installSeeds(connections, seed("020_test_accounts.sql"));
-        installSeeds(connections, seed("021_more_students.sql"));
-        installSeeds(connections, seed("025_major_transfer_demo.sql"));
-        installSeeds(connections, seed("030_training_plan_demo.sql"));
-        installSeeds(connections, seed("035_course_pool_demo.sql"));
-        installSeeds(connections, seed("040_library_policy.sql"));
-        installSeeds(connections, seed("060_unified_demo_data.sql"));
-        installSeeds(connections, seed("099_canonical_organization_migration.sql"));
     }
 
     private static void backfillTrainingPlanCourseHours(ConnectionProvider connections)

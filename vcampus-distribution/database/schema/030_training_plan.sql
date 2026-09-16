@@ -27,7 +27,7 @@ CREATE TABLE tblTrainingPlanCourse (
     totalHours LONG,
     courseType VARCHAR(32) NOT NULL,
     semester LONG NOT NULL,
-    courseNature VARCHAR(16),
+    courseNature VARCHAR(32),
     courseCategory VARCHAR(64),
     offeringUnit VARCHAR(64),
     courseId VARCHAR(36),

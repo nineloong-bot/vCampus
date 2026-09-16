@@ -5,7 +5,6 @@ import edu.seu.vcampus.common.governance.RemoveModuleAdministratorCommand;
 import edu.seu.vcampus.common.governance.SwapModuleAdministratorsCommand;
 import edu.seu.vcampus.common.user.AccountStatus;
 import edu.seu.vcampus.common.user.UserRole;
-import edu.seu.vcampus.server.bootstrap.DatabaseInitializer;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
 import edu.seu.vcampus.server.persistence.TransactionManager;
@@ -25,11 +24,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /** Integration tests for dedicated-role module-administrator governance. */
 class ModuleAdministrationServiceTest {
-    private static final String SUPER = "00000000-0000-0000-0000-000000000001";
-    private static final String STUDENT_ADMIN = "00000000-0000-0000-0000-000000000201";
-    private static final String COURSE_ADMIN = "00000000-0000-0000-0000-000000000204";
-    private static final String SHOP_ADMIN = "00000000-0000-0000-0000-000000000206";
-    private static final String USER_ADMIN = "00000000-0000-0000-0000-000000000207";
+    private static final String SUPER = "user-admin";
+    private static final String STUDENT_ADMIN = "user-student-admin";
+    private static final String COURSE_ADMIN = "user-course-admin";
+    private static final String SHOP_ADMIN = "user-shop-admin";
+    private static final String USER_ADMIN = "user-account-admin";
     private static final String SECOND_USER_ADMIN =
             "00000000-0000-0000-0000-000000000301";
     private TransactionManager transactions;
@@ -40,8 +39,7 @@ class ModuleAdministrationServiceTest {
     void createDatabase() throws Exception {
         Path database = Path.of("target", "test-data", UUID.randomUUID() + ".accdb");
         Files.createDirectories(database.getParent());
-        DatabaseInitializer.main(new String[] {projectDirectory("schema").toString(),
-                projectDirectory("seed").toString(), database.toString()});
+        Files.copy(distributionDatabase(), database);
         ConnectionProvider provider = () -> DriverManager.getConnection(
                 "jdbc:ucanaccess://" + database + ";immediatelyReleaseResources=true");
         transactions = new TransactionManager(provider);
@@ -247,11 +245,10 @@ class ModuleAdministrationServiceTest {
         });
     }
 
-    private static Path projectDirectory(String child) {
+    private static Path distributionDatabase() {
         Path current = Path.of("").toAbsolutePath();
-        Path database = current.getFileName().toString().equals("vcampus-server")
-                ? current.resolve("..").resolve("vcampus-database")
-                : current.resolve("vcampus-database");
-        return database.resolve(child).normalize();
+        Path root = current.getFileName().toString().equals("vcampus-server")
+                ? current.resolve("..") : current;
+        return root.resolve("vcampus-distribution/data/vCampus.accdb").normalize();
     }
 }

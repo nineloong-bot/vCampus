@@ -99,45 +99,11 @@ public final class IntegratedDemoServerMain {
                 "STUDENT", false, clock.instant());
         String teacherId = seedUser(connections, "demo-teacher", "DEMO_TEACHER", DEMO_PASSWORD,
                 "TEACHER", false, clock.instant());
-        seedUser(connections, "demo-admin", "DEMO_ADMIN", DEMO_PASSWORD,
-                "ADMIN", true, clock.instant());
-        seedDemoStudent(connections, studentId);
+        seedUser(connections, "demo-admin", "DEMO_ADMIN", "123456",
+                "SUPER_ADMIN", false, clock.instant());
+        IntegratedDemoStudentSeeder.seed(connections, studentId, clock.instant());
         seedCourses(runtime.course().service(), connections, clock, studentId, teacherId);
         return runtime;
-    }
-
-    private static void seedDemoStudent(ConnectionProvider connections, String userId) throws Exception {
-        try (var connection = connections.open(); var query = connection.prepareStatement(
-                "SELECT 1 FROM tblStudent WHERE studentId=?")) {
-            query.setString(1, "demo-student");
-            try (var rows = query.executeQuery()) {
-                if (rows.next()) return;
-            }
-        }
-        try (var connection = connections.open(); var insert = connection.prepareStatement("""
-                INSERT INTO tblStudent
-                    (studentId, userId, studentNumber, studentType, studentName, gender,
-                     email, phone, classId, enrollmentDate, studentStatus, rowVersion,
-                     createdAt, updatedAt)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """)) {
-            insert.setString(1, "demo-student");
-            insert.setString(2, userId);
-            insert.setString(3, "09999999");
-            insert.setString(4, "UNDERGRADUATE");
-            insert.setString(5, "课程演示学生");
-            insert.setString(6, "未知");
-            insert.setString(7, "demo.student@seu.edu.cn");
-            insert.setString(8, null);
-            insert.setString(9, "00000000-0000-0000-0000-000000000103");
-            Timestamp now = Timestamp.from(Instant.now());
-            insert.setTimestamp(10, now);
-            insert.setString(11, "ACTIVE");
-            insert.setLong(12, 0);
-            insert.setTimestamp(13, now);
-            insert.setTimestamp(14, now);
-            insert.executeUpdate();
-        }
     }
 
     private static String seedUser(ConnectionProvider connections, String userId, String loginId,

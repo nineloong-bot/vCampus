@@ -71,6 +71,10 @@ class AccessMajorTransferEnrollmentAdapterTest {
     }
 
     private void seed() throws Exception {
+        execute("INSERT INTO tblUser (userId,loginId,passwordHash,passwordSalt,passwordIterations,"+
+                "roleCode,accountStatus,mustChangePassword,failedLoginCount,rowVersion,createdAt,updatedAt) " +
+                "VALUES ('mt-teacher','MT_TEACHER','qX+wANpmojiY0I1qjpBBoUCjiFP6bZJnWg5qgeHmNh4='," +
+                "'mW5pbqIFUpGT2Zlkq7TsSA==',120000,'TEACHER','ACTIVE',FALSE,0,0,NOW(),NOW())");
         execute("INSERT INTO tblDepartment (departmentId,departmentCode,departmentName,isActive,rowVersion) "
                 + "VALUES ('mt-dept','MT','目标学院',TRUE,0)");
         execute("INSERT INTO tblMajor (majorId,departmentId,majorCode,majorName,isActive,rowVersion) "
@@ -79,7 +83,7 @@ class AccessMajorTransferEnrollmentAdapterTest {
                 + "isActive,rowVersion) VALUES ('mt-class','mt-major','MT-26-1','目标班级',2026,1,TRUE,0)");
         execute("INSERT INTO tblStudent (studentId,userId,studentNumber,studentType,studentName,gender,"
                 + "classId,enrollmentDate,studentStatus,rowVersion,createdAt,updatedAt) VALUES "
-                + "('mt-student','mt-user','21326001','UNDERGRADUATE','测试学生','男','mt-class',"
+                + "('mt-student','mt-user','21326001','UNDERGRADUATE','陈思远','男','mt-class',"
                 + "#2026-09-01#,'ACTIVE',0,NOW(),NOW())");
         execute("INSERT INTO tblTrainingPlan (planId,majorId,enrollmentYear,planName,minElectiveCount,"+
                 "minElectiveCredits,isActive,rowVersion,createdAt,updatedAt) VALUES "
@@ -104,7 +108,7 @@ class AccessMajorTransferEnrollmentAdapterTest {
     private void offering(String suffix, int normalCount) throws Exception {
         execute("INSERT INTO tblCourseOffering (offeringId,termId,courseId,teacherUserId,className,"+
                 "capacity,enrolledCount,offeringStatus,rowVersion,createdAt,updatedAt) VALUES ('mt-offer-"+
-                suffix + "','mt-term','mt-course-" + suffix + "','00000000-0000-0000-0000-000000000002','"+
+                suffix + "','mt-term','mt-course-" + suffix + "','mt-teacher','"+
                 suffix + "班',40," + normalCount + ",'OPEN',0,NOW(),NOW())");
         execute("INSERT INTO tblCourseRetakeQuota (offeringId,capacity,enrolledCount) VALUES "
                 + "('mt-offer-" + suffix + "',5,0)");
