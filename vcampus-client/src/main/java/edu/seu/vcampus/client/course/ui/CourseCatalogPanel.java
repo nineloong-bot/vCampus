@@ -78,8 +78,8 @@ public final class CourseCatalogPanel extends AbstractCoursePanel {
         panel.add(Box.createHorizontalStrut(UiSpacing.LG));
         panel.add(label("开课学院", UiTypography.BODY, UiColors.TEXT_PRIMARY));
         panel.add(Box.createHorizontalStrut(UiSpacing.SM));
-        department.setPreferredSize(new Dimension(220, UiDimensions.CONTROL_HEIGHT + 24));
-        department.setMaximumSize(new Dimension(260, UiDimensions.CONTROL_HEIGHT + 24));
+        department.setPreferredSize(new Dimension(220, UiDimensions.CONTROL_HEIGHT));
+        department.setMaximumSize(new Dimension(260, UiDimensions.CONTROL_HEIGHT));
         department.inputComponent().setFont(UiTypography.BODY);
         department.inputComponent().getAccessibleContext().setAccessibleName("开课学院");
         department.inputComponent().setToolTipText("输入学院名称并从匹配结果中选择");

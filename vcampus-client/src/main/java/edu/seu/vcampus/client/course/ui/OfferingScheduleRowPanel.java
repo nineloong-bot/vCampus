@@ -24,7 +24,7 @@ final class OfferingScheduleRowPanel extends JPanel {
                              SuggestionLoader classroomLoader) {
         super(new FlowLayout(FlowLayout.LEFT, UiSpacing.SM, UiSpacing.SM));
         classroom = new AutocompleteSelectionField(classroomLoader);
-        configure(classroom, 150);
+        configure(classroom, 200);
         setOpaque(true);
         setBackground(UiColors.BACKGROUND_SUBTLE);
         setBorder(BorderFactory.createLineBorder(UiColors.BORDER_DEFAULT));

@@ -3,6 +3,7 @@ package edu.seu.vcampus.client.core.ui.autocomplete;
 import org.junit.jupiter.api.Test;
 
 import javax.swing.Action;
+import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
 import java.awt.event.ActionEvent;
 import java.awt.event.MouseEvent;
@@ -14,6 +15,26 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AutocompleteSelectionFieldTest {
+    @Test
+    void hidesEmptyStatusRowAndOnlyShowsItForUsefulFeedback() throws Exception {
+        ManualDebouncer debouncer = new ManualDebouncer();
+        ControlledLoader loader = new ControlledLoader();
+        AutocompleteSelectionField field = new AutocompleteSelectionField(loader, debouncer);
+        JLabel status = (JLabel) java.util.Arrays.stream(field.getComponents())
+                .filter(JLabel.class::isInstance).findFirst().orElseThrow();
+
+        assertThat(status.isVisible()).isFalse();
+        onEdt(() -> field.inputForTest().setText("数据库"));
+        debouncer.fire();
+        assertThat(status.isVisible()).isTrue();
+        assertThat(status.getText()).isEqualTo("正在搜索…");
+
+        loader.responses.get(0).complete(List.of(
+                new AutocompleteChoice("course-1", "数据库原理", "")));
+        flushEdt();
+        assertThat(status.isVisible()).isFalse();
+    }
+
     @Test
     void debouncesLimitsAndRejectsLateResponses() throws Exception {
         ManualDebouncer debouncer = new ManualDebouncer();

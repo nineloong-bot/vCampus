@@ -177,6 +177,29 @@ class CourseUiTest {
                 new CreateOfferingCommand.ScheduleInput("MONDAY", 1, 2, 1, 16, "待定"));
     }
 
+    @Test
+    void classroomAutocompleteHasEnoughWidthForFullRoomNames() throws Exception {
+        OfferingScheduleEditorPanel editor = onEdt(OfferingScheduleEditorPanel::new);
+        SwingUtilities.invokeAndWait(() -> button(editor, "添加上课时间").doClick());
+        JTextField input = textField(editor, "第 1 行教室");
+        var autocomplete = (edu.seu.vcampus.client.core.ui.autocomplete.AutocompleteSelectionField)
+                SwingUtilities.getAncestorOfClass(
+                        edu.seu.vcampus.client.core.ui.autocomplete.AutocompleteSelectionField.class, input);
+
+        assertThat(autocomplete.getPreferredSize().width).isGreaterThanOrEqualTo(200);
+    }
+
+    @Test
+    void catalogDepartmentAutocompleteUsesStandardControlHeight() throws Exception {
+        CourseCatalogPanel panel = onEdt(() -> new CourseCatalogPanel(CourseUiGateway.preview()));
+        JTextField input = textField(panel, "开课学院");
+        var autocomplete = (edu.seu.vcampus.client.core.ui.autocomplete.AutocompleteSelectionField)
+                SwingUtilities.getAncestorOfClass(
+                        edu.seu.vcampus.client.core.ui.autocomplete.AutocompleteSelectionField.class, input);
+
+        assertThat(autocomplete.getPreferredSize().height).isEqualTo(UiDimensions.CONTROL_HEIGHT);
+    }
+
     @ParameterizedTest
     @CsvSource({
             "第 1 行起始节次,3,第 1 行结束节次,2,第 1 行：结束节次不能早于起始节次",
@@ -228,12 +251,10 @@ class CourseUiTest {
     void deletingThirdScheduleRowKeepsVisibleRowsAndSubmittedRowsInSync() throws Exception {
         OfferingScheduleEditorPanel editor = onEdt(OfferingScheduleEditorPanel::new);
         SwingUtilities.invokeAndWait(() -> {
-            button(editor, "添加上课时间").doClick();
-            button(editor, "添加上课时间").doClick();
-            button(editor, "添加上课时间").doClick();
-            textField(editor, "第 1 行教室").setText("教室一");
-            textField(editor, "第 2 行教室").setText("教室二");
-            textField(editor, "第 3 行教室").setText("教室三");
+            editor.setSchedules(List.of(
+                    scheduleItem("schedule-1", "教室一"),
+                    scheduleItem("schedule-2", "教室二"),
+                    scheduleItem("schedule-3", "教室三")));
             component(editor, "删除第 3 行", JButton.class).doClick();
         });
 
@@ -244,6 +265,11 @@ class CourseUiTest {
                 .doesNotContain("删除第 3 行");
         assertThat(editor.scheduleInputs()).extracting(CreateOfferingCommand.ScheduleInput::classroom)
                 .containsExactly("教室一", "教室二");
+    }
+
+    private static ScheduleItem scheduleItem(String scheduleId, String classroom) {
+        return new ScheduleItem(scheduleId, "offering-1", "CS101", "程序设计", "01班",
+                "teacher-1", "MONDAY", 1, 2, 1, 16, classroom);
     }
 
     @ParameterizedTest

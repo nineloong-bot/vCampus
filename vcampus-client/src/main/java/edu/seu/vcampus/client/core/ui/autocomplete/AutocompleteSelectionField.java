@@ -43,6 +43,7 @@ public final class AutocompleteSelectionField extends JPanel {
         suggestions = new SuggestionPopup(this::acceptSelection);
         add(input, BorderLayout.CENTER);
         add(status, BorderLayout.SOUTH);
+        showStatus(" ");
         input.getDocument().addDocumentListener(new DocumentListener() {
             @Override public void insertUpdate(DocumentEvent event) { changed(); }
             @Override public void removeUpdate(DocumentEvent event) { changed(); }
@@ -73,7 +74,7 @@ public final class AutocompleteSelectionField extends JPanel {
         }
         debouncer.cancel();
         suggestions.dismiss();
-        status.setText(" ");
+        showStatus(" ");
     }
 
     /** Observes choices accepted by mouse or keyboard. */
@@ -102,31 +103,36 @@ public final class AutocompleteSelectionField extends JPanel {
         debouncer.cancel();
         suggestions.dismiss();
         if (query.isEmpty()) {
-            status.setText(" ");
+            showStatus(" ");
             return;
         }
         debouncer.schedule(DEBOUNCE_MILLIS, () -> load(query, candidate));
     }
 
     private void load(String query, long candidate) {
-        status.setText("正在搜索…");
+        showStatus("正在搜索…");
         try {
             loader.load(query, LIMIT).whenComplete((choices, failure) -> onEdt(() -> {
                 if (candidate != requestSequence) return;
                 if (failure != null) {
                     suggestions.dismiss();
-                    status.setText("匹配结果加载失败");
+                    showStatus("匹配结果加载失败");
                     return;
                 }
                 List<AutocompleteChoice> safe = choices == null ? List.of()
                         : choices.stream().limit(LIMIT).toList();
                 suggestions.setChoices(safe);
-                status.setText(safe.isEmpty() ? "没有匹配结果" : " ");
+                showStatus(safe.isEmpty() ? "没有匹配结果" : " ");
                 suggestions.show(() -> input);
             }));
         } catch (RuntimeException failure) {
-            if (candidate == requestSequence) status.setText("匹配结果加载失败");
+            if (candidate == requestSequence) showStatus("匹配结果加载失败");
         }
+    }
+
+    private void showStatus(String message) {
+        status.setText(message);
+        status.setVisible(!message.isBlank());
     }
 
     private void bindKeys() {
