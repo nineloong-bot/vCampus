@@ -29,6 +29,7 @@ import java.util.function.BiFunction;
 /** Registers the ten student commands and enforces their authorization boundary. */
 public final class StudentHandlers {
     public static final List<String> COMMANDS = List.of("STUDENT_CREATE", "STUDENT_CREATE_MANUAL", "STUDENT_BATCH_IMPORT",
+            "STUDENT_FRESHMAN_PREVIEW", "STUDENT_FRESHMAN_ADMIT",
             "STUDENT_GET_CURRENT",
             "STUDENT_GET", "STUDENT_SEARCH", "STUDENT_UPDATE_CONTACT",
             "STUDENT_UPDATE_ENROLLMENT", "STUDENT_CHANGE_STATUS", "STUDENT_UPDATE_INFO",

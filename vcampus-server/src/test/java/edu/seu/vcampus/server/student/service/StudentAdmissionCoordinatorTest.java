@@ -4,6 +4,8 @@ import edu.seu.vcampus.common.student.BatchImportCommand;
 import edu.seu.vcampus.common.student.BatchStudentEntry;
 import edu.seu.vcampus.common.student.CreateStudentAdmissionCommand;
 import edu.seu.vcampus.common.student.CreateStudentManualCommand;
+import edu.seu.vcampus.common.student.FreshmanAdmissionCommand;
+import edu.seu.vcampus.common.student.FreshmanAdmissionResult;
 import edu.seu.vcampus.common.student.StudentType;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
 import edu.seu.vcampus.server.persistence.TransactionContext;
@@ -27,6 +29,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 import java.util.List;
+import java.util.stream.IntStream;
 import java.util.UUID;
 import java.time.LocalDate;
 
@@ -223,6 +226,42 @@ class StudentAdmissionCoordinatorTest {
                 .hasMessageContaining("已停用");
     }
 
+    @Test
+    void freshmanPreviewRejectsMajorThatDoesNotBelongToNamedDepartmentWithoutWriting() throws Exception {
+        database.transactions().inTransaction(connection -> {
+            new AccessOrganizationRepository().insertDepartment(connection,
+                    new Department("department-2", "MATH", "数学学院", true, 0));
+            return null;
+        });
+        var command = new FreshmanAdmissionCommand("姓名,性别,身份证,学院,专业\n"
+                + "张三,男,11010519491231002X,数学学院,计算机科学\n", 2027);
+
+        assertThatThrownBy(() -> coordinator.previewFreshmanAdmission(command,
+                request(UUID.randomUUID().toString())))
+                .isInstanceOf(StudentAdmissionException.class)
+                .hasMessageContaining("专业不属于学院");
+        assertThat(database.count("tblStudent")).isZero();
+        assertThat(database.count("tblClass")).isEqualTo(2);
+    }
+
+    @Test
+    void freshmanAdmissionAtomicallyCreatesTwoClassesForThirtySixStudents() throws Exception {
+        String csv = "姓名,性别,身份证,学院,专业\n" + IntStream.range(0, 36)
+                .mapToObj(index -> "新生" + index + "," + (index < 18 ? "男" : "女") + ","
+                        + residentId(index) + ",计算机学院,计算机科学\n")
+                .collect(java.util.stream.Collectors.joining());
+
+        FreshmanAdmissionResult result = coordinator.admitFreshmen(
+                new FreshmanAdmissionCommand(csv, 2027), request(UUID.randomUUID().toString()));
+
+        assertThat(result.totalCreated()).isEqualTo(36);
+        assertThat(result.students()).extracting(value -> value.className())
+                .containsOnly("计算机科学2701班", "计算机科学2702班");
+        assertThat(database.count("tblClass")).isEqualTo(4);
+        assertThat(database.count("tblStudent")).isEqualTo(36);
+        assertThat(database.count("tblUser")).isEqualTo(36);
+    }
+
     private static CreateStudentAdmissionCommand command() {
         return new CreateStudentAdmissionCommand("张三", "MALE", "zhangsan@seu.edu.cn",
                 "13800000000", "major-1", "class-1", 2024, StudentType.UNDERGRADUATE);
@@ -236,5 +275,14 @@ class StudentAdmissionCoordinatorTest {
 
     private static RequestContext request(String requestId) {
         return new RequestContext(requestId, "admin-1", "test-client");
+    }
+
+    private static String residentId(int value) {
+        String first = "11010520000101" + String.format("%03d", value);
+        int[] weights = {7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2};
+        String codes = "10X98765432";
+        int sum = 0;
+        for (int index = 0; index < weights.length; index++) sum += (first.charAt(index) - '0') * weights[index];
+        return first + codes.charAt(sum % 11);
     }
 }

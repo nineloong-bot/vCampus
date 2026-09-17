@@ -85,6 +85,20 @@ class StudentClientServiceTest {
     }
 
     @Test
+    void freshmanAdmissionUsesPreviewAndCommitCommands() {
+        var client = new RecordingClient();
+        var service = new StudentClientService(client, Duration.ofSeconds(3));
+        var command = new FreshmanAdmissionCommand("姓名,性别,身份证,学院,专业\n张三,男,11010519491231002X,计算机学院,软件工程\n", 2027);
+
+        service.previewFreshmanAdmission(command).join();
+        assertThat(client.command).isEqualTo("STUDENT_FRESHMAN_PREVIEW");
+        assertThat(client.body).isSameAs(command);
+        service.admitFreshmen(command).join();
+        assertThat(client.command).isEqualTo("STUDENT_FRESHMAN_ADMIT");
+        assertThat(client.body).isSameAs(command);
+    }
+
+    @Test
     void organizationSaveUsesAdministrativeMessageContract() {
         var client = new RecordingClient();
         var service = new StudentClientService(client, Duration.ofSeconds(3));

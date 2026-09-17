@@ -7,6 +7,9 @@ import edu.seu.vcampus.common.student.BatchImportCommand;
 import edu.seu.vcampus.common.student.BatchImportResult;
 import edu.seu.vcampus.common.student.CreateStudentAdmissionCommand;
 import edu.seu.vcampus.common.student.CreateStudentManualCommand;
+import edu.seu.vcampus.common.student.FreshmanAdmissionCommand;
+import edu.seu.vcampus.common.student.FreshmanAdmissionPreview;
+import edu.seu.vcampus.common.student.FreshmanAdmissionResult;
 import edu.seu.vcampus.common.student.StudentFieldError;
 import edu.seu.vcampus.common.student.StudentFieldValidator;
 import edu.seu.vcampus.common.student.StudentAdmissionResult;
@@ -151,6 +154,38 @@ public final class StudentAdmissionCoordinator implements StudentAdmissionServic
         return transactions.inTransaction(connection -> batchImportInTransaction(
                 new TransactionContext(connection, request.userId(), request.clientInstanceId()),
                 command, request, trustedDepartmentId));
+    }
+
+    @Override
+    public FreshmanAdmissionPreview previewFreshmanAdmission(FreshmanAdmissionCommand command,
+            RequestContext request, String trustedDepartmentId) {
+        Objects.requireNonNull(command, "command");
+        Objects.requireNonNull(request, "request");
+        return transactions.inTransaction(connection -> new FreshmanAdmissionPlanner(organizations, students)
+                .preview(connection, command, trustedDepartmentId));
+    }
+
+    @Override
+    public FreshmanAdmissionResult admitFreshmen(FreshmanAdmissionCommand command,
+            RequestContext request, String trustedDepartmentId) {
+        Objects.requireNonNull(command, "command");
+        Objects.requireNonNull(request, "request");
+        return locks.withLocks(List.of(new ResourceKey("FRESHMAN_ADMISSION",
+                Integer.toString(command.enrollmentYear()))), () -> transactions.inTransaction(connection ->
+                new FreshmanAdmissionCommitter(organizations, campusCards, studentNumbers, accounts, students,
+                        changes, deduplicator).admit(new TransactionContext(connection, request.userId(),
+                        request.clientInstanceId()), command, request, trustedDepartmentId)));
+    }
+
+    /** Atomically admits freshmen without a college restriction. */
+    public FreshmanAdmissionResult admitFreshmen(FreshmanAdmissionCommand command, RequestContext request) {
+        return admitFreshmen(command, request, null);
+    }
+
+    /** Previews freshman admission without a college restriction. */
+    public FreshmanAdmissionPreview previewFreshmanAdmission(FreshmanAdmissionCommand command,
+            RequestContext request) {
+        return previewFreshmanAdmission(command, request, null);
     }
 
     private BatchImportResult batchImportInTransaction(TransactionContext tx,

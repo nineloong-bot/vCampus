@@ -316,7 +316,7 @@ public final class OrganizationManagementPanel extends JPanel {
         if (classManagementAllowed) {
             addClassButton.setEnabled(connected && (isMajor || isYear));
             addStudentButton.setEnabled(connected && isClass);
-            batchAssignButton.setEnabled(connected && (isMajor || isYear));
+            batchAssignButton.setEnabled(connected);
         }
     }
 
@@ -722,33 +722,8 @@ public final class OrganizationManagementPanel extends JPanel {
     }
 
     private void startBatchAssign() {
-        if (selectedNode == null) return;
-        MajorView major = resolveMajor();
-        if (major == null) return;
-        long gen = requestGeneration.incrementAndGet();
-        errorLabel.setText("正在加载班级列表...");
-        MajorView selectedMajor = major;
-        students.listClasses(selectedMajor.majorId(), true).whenComplete((body, failure) -> onEdt(() -> {
-            if (!active || gen != requestGeneration.get()) return;
-            if (failure != null || body == null || !body.success() || body.data() == null) {
-                errorLabel.setText("无法加载班级列表");
-                return;
-            }
-            ArrayList<ClassView> classes = body.data();
-            if (classes.size() < 2) {
-                errorLabel.setText("至少需要2个启用的班级才能批量分班");
-                return;
-            }
-            errorLabel.setText(" ");
-            editorHost.showEditor((complete, cancel) -> new BatchClassAssignmentPanel(students,
-                    selectedMajor, classes,
-                    result -> { batchImportCompleted(result); complete.run(); }, cancel));
-        }));
-    }
-
-    private void batchImportCompleted(BatchImportResult result) {
-        errorLabel.setText("批量导入完成：成功 " + result.totalCreated()
-                + " 条，失败 " + result.totalFailed() + " 条");
+        editorHost.showEditor((complete, cancel) -> new FreshmanAdmissionPanel(students,
+                result -> { errorLabel.setText("新生录取完成：" + result.totalCreated() + " 人"); complete.run(); }, cancel));
     }
 
     private void connectionChanged(ConnectionState state) {

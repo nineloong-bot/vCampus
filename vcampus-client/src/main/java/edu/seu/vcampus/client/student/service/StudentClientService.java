@@ -27,6 +27,12 @@ public final class StudentClientService {
     public CompletableFuture<ResponseBody<StudentAdmissionResult>> admit(CreateStudentAdmissionCommand value) { return sendAsync("STUDENT_CREATE", value); }
     public CompletableFuture<ResponseBody<StudentAdmissionResult>> createManual(CreateStudentManualCommand value) { return sendAsync("STUDENT_CREATE_MANUAL", value); }
     public CompletableFuture<ResponseBody<BatchImportResult>> batchImport(BatchImportCommand value) { return sendAsync("STUDENT_BATCH_IMPORT", value); }
+    /** Requests server-side validation and class planning without writing students. */
+    public CompletableFuture<ResponseBody<FreshmanAdmissionPreview>> previewFreshmanAdmission(
+            FreshmanAdmissionCommand value) { return sendAsync("STUDENT_FRESHMAN_PREVIEW", value); }
+    /** Commits a server-validated freshman CSV as one atomic admission batch. */
+    public CompletableFuture<ResponseBody<FreshmanAdmissionResult>> admitFreshmen(
+            FreshmanAdmissionCommand value) { return sendAsync("STUDENT_FRESHMAN_ADMIT", value); }
     public CompletableFuture<ResponseBody<StudentView>> getCurrent() { return sendAsync("STUDENT_GET_CURRENT", EmptyRequest.INSTANCE); }
     public CompletableFuture<ResponseBody<StudentView>> get(String id) { return sendAsync("STUDENT_GET", new EntityIdRequest(id)); }
     public CompletableFuture<ResponseBody<PageResult<StudentSummary>>> search(StudentSearchQuery value) { return sendAsync("STUDENT_SEARCH", value); }

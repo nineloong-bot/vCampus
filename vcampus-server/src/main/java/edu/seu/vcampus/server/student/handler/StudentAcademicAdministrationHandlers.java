@@ -50,6 +50,12 @@ public final class StudentAcademicAdministrationHandlers {
         router.register("STUDENT_BATCH_IMPORT", typed(BatchImportCommand.class,
                 (message, body) -> write(message, () -> scoped(message, departmentId ->
                         admissions.batchImport(body, context(message), departmentId)))));
+        router.register("STUDENT_FRESHMAN_PREVIEW", typed(FreshmanAdmissionCommand.class,
+                (message, body) -> scoped(message, departmentId ->
+                        admissions.previewFreshmanAdmission(body, context(message), departmentId))));
+        router.register("STUDENT_FRESHMAN_ADMIT", typed(FreshmanAdmissionCommand.class,
+                (message, body) -> write(message, () -> scoped(message, departmentId ->
+                        admissions.admitFreshmen(body, context(message), departmentId)))));
         router.register("STUDENT_LIST_DEPARTMENTS", typed(ActiveOnlyQuery.class,
                 (message, body) -> listDepartments(message, body)));
         router.register("STUDENT_LIST_MAJORS", typed(OrganizationChildrenQuery.class,

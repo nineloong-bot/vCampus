@@ -31,4 +31,14 @@ class FreshmanAdmissionCsvTest {
                         org.assertj.core.groups.Tuple.tuple(3, "身份证"),
                         org.assertj.core.groups.Tuple.tuple(4, "CSV"));
     }
+
+    @Test
+    void rejectsResidentIdWithChecksumButImpossibleBirthDate() {
+        var result = FreshmanAdmissionCsv.parse("姓名,性别,身份证,学院,专业\n"
+                + "张三,男,110105200001000010,计算机科学与工程学院,软件工程\n");
+
+        assertThat(result.rows()).isEmpty();
+        assertThat(result.errors()).extracting(FreshmanAdmissionValidationError::field)
+                .containsExactly("身份证");
+    }
 }

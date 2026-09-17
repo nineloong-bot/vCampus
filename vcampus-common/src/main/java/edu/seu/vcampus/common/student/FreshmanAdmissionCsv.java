@@ -5,6 +5,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 
 /** Parses and validates the fixed five-column freshman admission CSV format. */
 public final class FreshmanAdmissionCsv {
@@ -75,7 +78,13 @@ public final class FreshmanAdmissionCsv {
         if (!value.matches("[1-9]\\d{16}[0-9X]")) return false;
         int sum = 0;
         for (int index = 0; index < WEIGHTS.length; index++) sum += (value.charAt(index) - '0') * WEIGHTS[index];
-        return CHECK_CODES.charAt(sum % 11) == value.charAt(17);
+        if (CHECK_CODES.charAt(sum % 11) != value.charAt(17)) return false;
+        try {
+            LocalDate.parse(value.substring(6, 14), DateTimeFormatter.BASIC_ISO_DATE);
+            return true;
+        } catch (DateTimeParseException error) {
+            return false;
+        }
     }
 
     private static FreshmanAdmissionValidationError error(int line, String field, String message) {
