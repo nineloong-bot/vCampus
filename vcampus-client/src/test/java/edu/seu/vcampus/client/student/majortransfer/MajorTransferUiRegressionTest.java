@@ -120,6 +120,17 @@ class MajorTransferUiRegressionTest {
         });
     }
 
+    @Test void collegeFinalReviewRequiresAnExplicitTargetOption() throws Exception {
+        StudentClientService students = mock(StudentClientService.class);
+        SwingUtilities.invokeAndWait(() -> {
+            var panel = new MajorTransferCollegeProcessingPanel(students);
+            assertThat(find(panel, "major-transfer.finalization-option")).isInstanceOf(JComboBox.class);
+            assertThat(((JButton) find(panel, "major-transfer.finalize-option")).getText())
+                    .isEqualTo("专业终审");
+            assertThat(find(panel, "major-transfer.finalize-batch")).isNull();
+        });
+    }
+
     private static java.util.List<Component> all(Container root) {
         java.util.List<Component> result = new java.util.ArrayList<>();
         for (Component child : root.getComponents()) {

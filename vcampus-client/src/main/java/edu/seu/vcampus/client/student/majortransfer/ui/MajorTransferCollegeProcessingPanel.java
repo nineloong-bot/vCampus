@@ -19,31 +19,33 @@ import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditor;
 public final class MajorTransferCollegeProcessingPanel extends JPanel {
     private final StudentClientService students;
     private final JComboBox<MajorTransferBatchView> batches = new JComboBox<>();
+    private final JComboBox<MajorTransferOptionView> finalizationOptions = new JComboBox<>();
     private final DefaultListModel<MajorTransferApplicationView> model = new DefaultListModel<>();
     private final JList<MajorTransferApplicationView> applications = new JList<>(model);
     private final JPanel attachments = new JPanel();
     private final JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT));
     private final JLabel status = new JLabel(" ");
     private final JLabel readiness = new JLabel("终审状态：未加载");
-    private final JButton finalizeBatch = new JButton("批次终审");
-    private final JButton effectiveBatch = new JButton("生效");
-    private final JButton rollbackBatch = new JButton("回退终审");
+    private final JButton finalizeOption = new JButton("专业终审");
+    private final JButton effectiveOption = new JButton("专业生效");
+    private final JButton rollbackOption = new JButton("回退专业终审");
     private final Set<String> ownedOptions = new HashSet<>();
     private final MajorTransferCollegeActions collegeActions;
-    private final MajorTransferCollegeBatchFinalizer batchFinalizer;
+    private final MajorTransferCollegeOptionFinalizer optionFinalizer;
     private MajorTransferCollegeWorkspaceView workspaceView;
     private EmbeddedEditorHost editorHost;
     private long batchRequest;
+    private long readinessRequest;
     private long detailRequest;
 
     /** Creates the college-scoped transfer workspace. */
     public MajorTransferCollegeProcessingPanel(StudentClientService students) {
         super(new BorderLayout(UiSpacing.SPACE_2, UiSpacing.SPACE_2));
         this.students = Objects.requireNonNull(students);
-        batchFinalizer = new MajorTransferCollegeBatchFinalizer(this, students, readiness,
-                finalizeBatch, effectiveBatch, rollbackBatch, status,
-                () -> (MajorTransferBatchView) batches.getSelectedItem(),
-                () -> batchRequest, this::refresh);
+        optionFinalizer = new MajorTransferCollegeOptionFinalizer(this, students, readiness,
+                finalizeOption, effectiveOption, rollbackOption, status,
+                () -> (MajorTransferOptionView) finalizationOptions.getSelectedItem(),
+                () -> readinessRequest, this::loadSelectedBatch);
         collegeActions = new MajorTransferCollegeActions(this, students, actions, status,
                 this::loadDetail, this::refreshReadiness, this::openEditor);
         setName("major-transfer.college-processing");
@@ -68,20 +70,37 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
         batches.setRenderer(new MajorTransferBatchChoiceRenderer());
         batches.setPreferredSize(new Dimension(360, batches.getPreferredSize().height));
         toolbar.add(batches);
+        toolbar.add(new JLabel("终审专业："));
+        finalizationOptions.setName("major-transfer.finalization-option");
+        finalizationOptions.setPreferredSize(new Dimension(220,
+                finalizationOptions.getPreferredSize().height));
+        finalizationOptions.setRenderer(new DefaultListCellRenderer() {
+            @Override public Component getListCellRendererComponent(JList<?> list, Object value,
+                    int index, boolean selected, boolean focus) {
+                super.getListCellRendererComponent(list, value, index, selected, focus);
+                if (value instanceof MajorTransferOptionView optionView) {
+                    setText(optionView.targetMajorName() + "（名额 "
+                            + optionView.receiveQuota() + "）");
+                }
+                return this;
+            }
+        });
+        finalizationOptions.addActionListener(event -> loadSelectedOptionReadiness());
+        toolbar.add(finalizationOptions);
         toolbar.add(option);
         toolbar.add(refresh);
-        finalizeBatch.setName("major-transfer.finalize-batch");
-        finalizeBatch.setEnabled(false);
-        finalizeBatch.addActionListener(event -> batchFinalizer.finalizeSelectedBatch());
-        toolbar.add(finalizeBatch);
-        effectiveBatch.setName("major-transfer.effective-batch");
-        effectiveBatch.setEnabled(false);
-        effectiveBatch.addActionListener(event -> batchFinalizer.effectiveSelectedBatch());
-        toolbar.add(effectiveBatch);
-        rollbackBatch.setName("major-transfer.rollback-batch");
-        rollbackBatch.setEnabled(false);
-        rollbackBatch.addActionListener(event -> batchFinalizer.rollbackSelectedBatch());
-        toolbar.add(rollbackBatch);
+        finalizeOption.setName("major-transfer.finalize-option");
+        finalizeOption.setEnabled(false);
+        finalizeOption.addActionListener(event -> optionFinalizer.finalizeSelectedOption());
+        toolbar.add(finalizeOption);
+        effectiveOption.setName("major-transfer.effective-option");
+        effectiveOption.setEnabled(false);
+        effectiveOption.addActionListener(event -> optionFinalizer.effectiveSelectedOption());
+        toolbar.add(effectiveOption);
+        rollbackOption.setName("major-transfer.rollback-option");
+        rollbackOption.setEnabled(false);
+        rollbackOption.addActionListener(event -> optionFinalizer.rollbackSelectedOption());
+        toolbar.add(rollbackOption);
         toolbar.add(readiness);
         batches.addActionListener(event -> loadSelectedBatch());
 
@@ -130,27 +149,49 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
         long request = ++batchRequest;
         model.clear();
         ownedOptions.clear();
+        finalizationOptions.removeAllItems();
+        readinessRequest++;
         if (workspaceView != null) workspaceView.clearDetail();
         actions.removeAll();
-        finalizeBatch.setEnabled(false);
-        effectiveBatch.setEnabled(false);
-        rollbackBatch.setEnabled(false);
+        setFinalizationActions(false);
         readiness.setText("终审状态：加载中…");
         if (batch == null) return;
         students.listTransferOptions(batch.batchId()).whenComplete((response, failure) ->
                 SwingUtilities.invokeLater(() -> {
                     if (request != batchRequest) return;
                     if (response != null && response.success()) {
-                        response.data().forEach(option -> ownedOptions.add(option.optionId()));
+                        response.data().forEach(option -> {
+                            ownedOptions.add(option.optionId());
+                            finalizationOptions.addItem(option);
+                        });
+                        if (finalizationOptions.getItemCount() > 0) {
+                            finalizationOptions.setSelectedIndex(0);
+                        } else {
+                            readiness.setText("终审状态：本学院该批次暂无招生专业");
+                        }
                     }
                     loadApplications(batch.batchId());
-                    batchFinalizer.loadReadiness(batch.batchId(), request);
                 }));
     }
 
     void refreshReadiness() {
-        MajorTransferBatchView batch = (MajorTransferBatchView) batches.getSelectedItem();
-        if (batch != null) batchFinalizer.loadReadiness(batch.batchId(), batchRequest);
+        loadSelectedOptionReadiness();
+    }
+
+    private void loadSelectedOptionReadiness() {
+        setFinalizationActions(false);
+        MajorTransferOptionView option =
+                (MajorTransferOptionView) finalizationOptions.getSelectedItem();
+        long request = ++readinessRequest;
+        if (option == null) return;
+        readiness.setText("终审状态：加载中…");
+        optionFinalizer.loadReadiness(option.optionId(), request);
+    }
+
+    private void setFinalizationActions(boolean enabled) {
+        finalizeOption.setEnabled(enabled);
+        effectiveOption.setEnabled(enabled);
+        rollbackOption.setEnabled(enabled);
     }
 
     private void loadApplications(String batchId) {

@@ -49,8 +49,9 @@ class MajorTransferRoleUiTest {
             render(panel, application(MajorTransferStatus.PENDING_EFFECTIVE));
             assertThat(find(panel, "executeButton")).isNull();
             assertThat(find(panel, "finalizeButton")).isNull();
-            assertThat(find(panel, "major-transfer.finalize-batch")).isNotNull();
-            assertThat(find(panel, "major-transfer.rollback-batch")).isNotNull();
+            assertThat(find(panel, "major-transfer.finalization-option")).isNotNull();
+            assertThat(find(panel, "major-transfer.finalize-option")).isNotNull();
+            assertThat(find(panel, "major-transfer.rollback-option")).isNotNull();
             render(panel, applicationWithAttachment());
             assertThat(find(panel, "downloadAttachmentButton")).isNotNull();
         });
