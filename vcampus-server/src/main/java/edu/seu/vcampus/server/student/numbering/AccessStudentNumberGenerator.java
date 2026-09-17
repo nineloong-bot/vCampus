@@ -35,6 +35,15 @@ public final class AccessStudentNumberGenerator implements StudentNumberGenerato
         return normalizedCode + year + classNumber + String.format("%02d", nextValue);
     }
 
+    @Override
+    public void reset(TransactionContext transaction, String majorCode,
+            int enrollmentYear, int classNumber) {
+        String key = "STUDENT_NUMBER:" + normalizeMajorCode(majorCode) + ":"
+                + AccessCampusCardNumberGenerator.twoDigits(enrollmentYear % 100) + ":" + classNumber;
+        var current = sequences.getOrCreate(transaction.connection(), key, 99);
+        sequences.reset(transaction.connection(), current);
+    }
+
     private static String normalizeMajorCode(String majorCode) {
         String normalized = majorCode == null ? null : majorCode.toUpperCase(Locale.ROOT);
         if (normalized == null || !normalized.matches("[0-9A-Z]{3}")) {

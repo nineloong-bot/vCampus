@@ -28,6 +28,7 @@ import edu.seu.vcampus.server.student.domain.StudentClass;
 import edu.seu.vcampus.server.student.numbering.CampusCardNumberGenerator;
 import edu.seu.vcampus.server.student.numbering.StudentNumberGenerator;
 import edu.seu.vcampus.server.student.repository.OrganizationRepository;
+import edu.seu.vcampus.server.student.repository.AccessAutumnTermCalendar;
 import edu.seu.vcampus.server.student.repository.StudentChangeRepository;
 import edu.seu.vcampus.server.student.repository.StudentRepository;
 import edu.seu.vcampus.server.user.service.UserAccountProvisioningPort;
@@ -53,13 +54,25 @@ public final class StudentAdmissionCoordinator implements StudentAdmissionServic
     private final UserAccountProvisioningPort accounts;
     private final StudentRepository students;
     private final StudentChangeRepository changes;
+    private final AutumnTermCalendarPort calendar;
     private AdmissionFailureInjector failureInjector = AdmissionFailureInjector.NONE;
 
+    /** Creates the coordinator with the Access-backed academic calendar. */
     public StudentAdmissionCoordinator(TransactionManager transactions, ResourceLockManager locks,
             RequestDeduplicator deduplicator, OrganizationRepository organizations,
             CampusCardNumberGenerator campusCards, StudentNumberGenerator studentNumbers,
             UserAccountProvisioningPort accounts, StudentRepository students,
             StudentChangeRepository changes) {
+        this(transactions, locks, deduplicator, organizations, campusCards, studentNumbers, accounts,
+                students, changes, new AccessAutumnTermCalendar());
+    }
+
+    /** Creates the coordinator with its narrow academic-calendar dependency. */
+    public StudentAdmissionCoordinator(TransactionManager transactions, ResourceLockManager locks,
+            RequestDeduplicator deduplicator, OrganizationRepository organizations,
+            CampusCardNumberGenerator campusCards, StudentNumberGenerator studentNumbers,
+            UserAccountProvisioningPort accounts, StudentRepository students,
+            StudentChangeRepository changes, AutumnTermCalendarPort calendar) {
         this.transactions = Objects.requireNonNull(transactions);
         this.locks = Objects.requireNonNull(locks);
         this.deduplicator = Objects.requireNonNull(deduplicator);
@@ -69,6 +82,7 @@ public final class StudentAdmissionCoordinator implements StudentAdmissionServic
         this.accounts = Objects.requireNonNull(accounts);
         this.students = Objects.requireNonNull(students);
         this.changes = Objects.requireNonNull(changes);
+        this.calendar = Objects.requireNonNull(calendar);
     }
 
     public void setFailureInjector(AdmissionFailureInjector failureInjector) {
@@ -161,7 +175,7 @@ public final class StudentAdmissionCoordinator implements StudentAdmissionServic
             RequestContext request, String trustedDepartmentId) {
         Objects.requireNonNull(command, "command");
         Objects.requireNonNull(request, "request");
-        return transactions.inTransaction(connection -> new FreshmanAdmissionPlanner(organizations, students)
+        return transactions.inTransaction(connection -> new FreshmanAdmissionPlanner(organizations, students, calendar)
                 .preview(connection, command, trustedDepartmentId));
     }
 
@@ -173,7 +187,7 @@ public final class StudentAdmissionCoordinator implements StudentAdmissionServic
         return locks.withLocks(List.of(new ResourceKey("FRESHMAN_ADMISSION",
                 Integer.toString(command.enrollmentYear()))), () -> transactions.inTransaction(connection ->
                 new FreshmanAdmissionCommitter(organizations, campusCards, studentNumbers, accounts, students,
-                        changes, deduplicator).admit(new TransactionContext(connection, request.userId(),
+                        changes, deduplicator, calendar).admit(new TransactionContext(connection, request.userId(),
                         request.clientInstanceId()), command, request, trustedDepartmentId)));
     }
 

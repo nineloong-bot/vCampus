@@ -40,32 +40,47 @@ final class FreshmanAdmissionCommitter {
     private final StudentRepository students;
     private final StudentChangeRepository changes;
     private final RequestDeduplicator deduplicator;
+    private final AutumnTermCalendarPort calendar;
 
     FreshmanAdmissionCommitter(OrganizationRepository organizations, CampusCardNumberGenerator campusCards,
             StudentNumberGenerator studentNumbers, UserAccountProvisioningPort accounts,
-            StudentRepository students, StudentChangeRepository changes, RequestDeduplicator deduplicator) {
+            StudentRepository students, StudentChangeRepository changes, RequestDeduplicator deduplicator,
+            AutumnTermCalendarPort calendar) {
         this.organizations = organizations; this.campusCards = campusCards; this.studentNumbers = studentNumbers;
         this.accounts = accounts; this.students = students; this.changes = changes; this.deduplicator = deduplicator;
+        this.calendar = calendar;
     }
 
     FreshmanAdmissionResult admit(TransactionContext tx, FreshmanAdmissionCommand command,
             RequestContext request, String trustedDepartmentId) throws Exception {
         var replay = deduplicator.replayCompleted(tx, request.requestId());
         if (replay.isPresent()) return replay(replay.get());
-        FreshmanAdmissionPlan plan = new FreshmanAdmissionPlanner(organizations, students)
+        FreshmanAdmissionPlan plan = new FreshmanAdmissionPlanner(organizations, students, calendar)
                 .plan(tx.connection(), command, trustedDepartmentId);
         Map<String, StudentClass> classes = createClasses(tx, plan, command.enrollmentYear());
         Instant now = Instant.now();
         LocalDate date = LocalDate.of(command.enrollmentYear(), 9, 1);
         List<FreshmanAdmissionStudentResult> results = new java.util.ArrayList<>();
+        temporarilyReleaseStudentNumbers(tx, plan, now);
+        resetStudentNumbers(tx, plan, command.enrollmentYear());
         for (FreshmanClassAssignment assignment : plan.preview().assignments()) {
             Major major = plan.majorsByLine().get(assignment.row().lineNumber());
             StudentClass studentClass = classes.get(key(major.majorId(), assignment.classNumber()));
+            Student existing = plan.existingByLine().get(assignment.row().lineNumber());
+            String number = studentNumbers.next(tx, major.majorCode(), command.enrollmentYear(),
+                    assignment.classNumber());
+            if (existing != null) {
+                students.updateEnrollment(tx.connection(), existing.studentId(), studentClass.classId(), number,
+                        existing.rowVersion() + 1, now);
+                changes.insertChange(tx.connection(), UUID.randomUUID().toString(), existing.studentId(),
+                        "FRESHMAN_REBALANCE", null, "studentNumber=" + number + ";classId=" + studentClass.classId(),
+                        "新生分批录取重分班", request.userId(), date, now);
+                continue;
+            }
             if (students.existsByIdDocumentNumber(tx.connection(), assignment.row().idDocumentNumber()))
                 throw new StudentAdmissionException("STUDENT_ID_DOCUMENT_DUPLICATE",
                         "第 " + assignment.row().lineNumber() + " 行身份证已录取");
             String card = campusCards.next(tx, StudentType.UNDERGRADUATE, command.enrollmentYear());
-            String number = studentNumbers.next(tx, major.majorCode(), command.enrollmentYear(), assignment.classNumber());
             var account = accounts.createStudentAccount(tx, card, "12345678".toCharArray());
             Student student = new Student(UUID.randomUUID().toString(), account.userId(), number,
                     StudentType.UNDERGRADUATE, assignment.row().name(), assignment.row().gender(), null, null,
@@ -82,23 +97,40 @@ final class FreshmanAdmissionCommitter {
         return result;
     }
 
+    private void temporarilyReleaseStudentNumbers(TransactionContext tx, FreshmanAdmissionPlan plan,
+            Instant now) {
+        int temporaryNumber = 1;
+        for (Student student : plan.existingByLine().values()) {
+            students.updateEnrollment(tx.connection(), student.studentId(), student.classId(),
+                    "T" + String.format("%07d", temporaryNumber++),
+                    student.rowVersion(), now);
+        }
+    }
+
+    private void resetStudentNumbers(TransactionContext tx, FreshmanAdmissionPlan plan, int year) {
+        Set<String> reset = new HashSet<>();
+        for (FreshmanClassAssignment assignment : plan.preview().assignments()) {
+            Major major = plan.majorsByLine().get(assignment.row().lineNumber());
+            String key = key(major.majorId(), assignment.classNumber());
+            if (reset.add(key)) studentNumbers.reset(tx, major.majorCode(), year, assignment.classNumber());
+        }
+    }
+
     private Map<String, StudentClass> createClasses(TransactionContext tx, FreshmanAdmissionPlan plan, int year) {
         Map<String, StudentClass> result = new HashMap<>();
-        Set<String> checkedMajors = new HashSet<>();
         for (FreshmanClassAssignment assignment : plan.preview().assignments()) {
             Major major = plan.majorsByLine().get(assignment.row().lineNumber());
             String key = key(major.majorId(), assignment.classNumber());
             if (result.containsKey(key)) continue;
-            if (checkedMajors.add(major.majorId())) {
-                boolean exists = organizations.listClasses(tx.connection(), major.majorId(), false).stream()
-                        .anyMatch(value -> value.enrollmentYear() == year);
-                if (exists) throw new StudentAdmissionException("STUDENT_FRESHMAN_CLASS_EXISTS",
-                        "专业已有该入学年份班级：" + major.majorName());
+            StudentClass studentClass = organizations.listClasses(tx.connection(), major.majorId(), false).stream()
+                    .filter(value -> value.enrollmentYear() == year
+                            && value.classNumber() == assignment.classNumber()).findFirst().orElse(null);
+            if (studentClass == null) {
+                studentClass = new StudentClass(UUID.randomUUID().toString(), major.majorId(),
+                        major.majorCode() + "-" + year + "-" + String.format("%02d", assignment.classNumber()),
+                        assignment.className(), year, assignment.classNumber(), true, 0);
+                organizations.insertClass(tx.connection(), studentClass);
             }
-            StudentClass studentClass = new StudentClass(UUID.randomUUID().toString(), major.majorId(),
-                    major.majorCode() + "-" + year + "-" + String.format("%02d", assignment.classNumber()),
-                    assignment.className(), year, assignment.classNumber(), true, 0);
-            organizations.insertClass(tx.connection(), studentClass);
             result.put(key, studentClass);
         }
         return result;

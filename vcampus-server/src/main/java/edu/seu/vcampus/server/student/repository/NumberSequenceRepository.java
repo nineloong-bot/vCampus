@@ -53,6 +53,23 @@ public final class NumberSequenceRepository {
         }
     }
 
+    /** Resets a sequence before a deterministic cohort-wide reallocation. */
+    public NumberSequence reset(Connection connection, NumberSequence current) {
+        NumberSequence reset = new NumberSequence(current.sequenceKey(), 0, current.maxValue(),
+                current.rowVersion() + 1);
+        String sql = "UPDATE tblNumberSequence SET currentValue=?, rowVersion=?, updatedAt=? WHERE sequenceKey=? AND rowVersion=?";
+        try (var statement = connection.prepareStatement(sql)) {
+            statement.setInt(1, 0); statement.setLong(2, reset.rowVersion());
+            statement.setTimestamp(3, Timestamp.from(Instant.now())); statement.setString(4, current.sequenceKey());
+            statement.setLong(5, current.rowVersion());
+            if (statement.executeUpdate() != 1) throw new ConcurrentModificationException(
+                    "Number sequence changed: " + current.sequenceKey());
+            return reset;
+        } catch (SQLException error) {
+            throw new OrganizationPersistenceException("Cannot reset number sequence " + current.sequenceKey(), error);
+        }
+    }
+
     private Optional<NumberSequence> find(Connection connection, String key) {
         String sql = "SELECT sequenceKey, currentValue, maxValue, rowVersion FROM tblNumberSequence WHERE sequenceKey = ?";
         try (var statement = connection.prepareStatement(sql)) {

@@ -3,25 +3,34 @@ package edu.seu.vcampus.server.student.service;
 import edu.seu.vcampus.common.student.FreshmanAdmissionCommand;
 import edu.seu.vcampus.common.student.FreshmanAdmissionCsv;
 import edu.seu.vcampus.common.student.FreshmanAdmissionPreview;
+import edu.seu.vcampus.common.student.FreshmanAdmissionRow;
 import edu.seu.vcampus.common.student.FreshmanClassAssigner;
 import edu.seu.vcampus.server.student.domain.Department;
 import edu.seu.vcampus.server.student.domain.Major;
+import edu.seu.vcampus.server.student.domain.Student;
 import edu.seu.vcampus.server.student.repository.OrganizationRepository;
 import edu.seu.vcampus.server.student.repository.StudentRepository;
 
 import java.sql.Connection;
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 /** Resolves a validated freshman CSV against the live organization hierarchy. */
 final class FreshmanAdmissionPlanner {
+    private static final int EXISTING_LINE_BASE = 1_000_000;
     private final OrganizationRepository organizations;
     private final StudentRepository students;
+    private final AutumnTermCalendarPort calendar;
 
-    FreshmanAdmissionPlanner(OrganizationRepository organizations, StudentRepository students) {
+    FreshmanAdmissionPlanner(OrganizationRepository organizations, StudentRepository students,
+            AutumnTermCalendarPort calendar) {
         this.organizations = Objects.requireNonNull(organizations);
         this.students = Objects.requireNonNull(students);
+        this.calendar = Objects.requireNonNull(calendar);
     }
 
     FreshmanAdmissionPreview preview(Connection connection, FreshmanAdmissionCommand command,
@@ -31,6 +40,7 @@ final class FreshmanAdmissionPlanner {
 
     FreshmanAdmissionPlan plan(Connection connection, FreshmanAdmissionCommand command,
                                String trustedDepartmentId) {
+        requireAdmissionOpen(connection, command.enrollmentYear());
         var parsed = FreshmanAdmissionCsv.parse(command.csv());
         if (!parsed.errors().isEmpty()) {
             var error = parsed.errors().getFirst();
@@ -40,6 +50,7 @@ final class FreshmanAdmissionPlanner {
         Map<String, Department> departments = new HashMap<>();
         Map<String, Major> majors = new HashMap<>();
         Map<Integer, Major> majorsByLine = new HashMap<>();
+        List<FreshmanAdmissionRow> cohort = new ArrayList<>(parsed.rows());
         for (var row : parsed.rows()) {
             Department department = departments.computeIfAbsent(row.departmentName(),
                     name -> department(connection, name));
@@ -56,8 +67,27 @@ final class FreshmanAdmissionPlanner {
                         "第 " + row.lineNumber() + " 行身份证已录取");
             majorsByLine.put(row.lineNumber(), major);
         }
+        Map<Integer, Student> existingByLine = new HashMap<>();
+        int existingLine = EXISTING_LINE_BASE;
+        for (Major major : majors.values()) {
+            Department department = departments.values().stream()
+                    .filter(value -> value.departmentId().equals(major.departmentId())).findFirst().orElseThrow();
+            for (Student student : students.findFreshmen(connection, major.majorId(), command.enrollmentYear())) {
+                FreshmanAdmissionRow row = new FreshmanAdmissionRow(existingLine++, student.studentName(),
+                        student.gender(), "~" + student.studentId(), department.departmentName(), major.majorName());
+                cohort.add(row); majorsByLine.put(row.lineNumber(), major);
+                existingByLine.put(row.lineNumber(), student);
+            }
+        }
         return new FreshmanAdmissionPlan(new FreshmanAdmissionPreview(command.enrollmentYear(),
-                FreshmanClassAssigner.assign(parsed.rows(), command.enrollmentYear())), majorsByLine);
+                FreshmanClassAssigner.assign(cohort, command.enrollmentYear())), majorsByLine, existingByLine);
+    }
+
+    private void requireAdmissionOpen(Connection connection, int year) {
+        LocalDate start = calendar.findAutumnStartDate(connection, year).orElseThrow(() ->
+                new StudentAdmissionException("STUDENT_FRESHMAN_TERM_MISSING", "未配置该入学年份秋季学期"));
+        if (!LocalDate.now().isBefore(start)) throw new StudentAdmissionException(
+                "STUDENT_FRESHMAN_ADMISSION_CLOSED", "秋季学期开课后不允许录取新生");
     }
 
     private Department department(Connection connection, String name) {
@@ -79,8 +109,10 @@ final class FreshmanAdmissionPlanner {
 }
 
 /** Resolved organization metadata associated with a safe freshman preview. */
-record FreshmanAdmissionPlan(FreshmanAdmissionPreview preview, Map<Integer, Major> majorsByLine) {
+record FreshmanAdmissionPlan(FreshmanAdmissionPreview preview, Map<Integer, Major> majorsByLine,
+        Map<Integer, Student> existingByLine) {
     FreshmanAdmissionPlan {
         majorsByLine = Map.copyOf(majorsByLine);
+        existingByLine = Map.copyOf(existingByLine);
     }
 }

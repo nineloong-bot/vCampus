@@ -46,6 +46,7 @@ public final class OrganizationManagementPanel extends JPanel {
     private final JButton addStudentButton = new JButton("新增学生");
     private final JButton batchAssignButton = new JButton("批量分班");
     private final JPanel editPanel = new JPanel(new BorderLayout());
+    private final ClassStudentPanel classStudentPanel = new ClassStudentPanel();
     private EmbeddedEditorHost editorHost;
 
     private DefaultMutableTreeNode selectedNode;
@@ -149,7 +150,11 @@ public final class OrganizationManagementPanel extends JPanel {
         showPlaceholder();
         editorHost = new EmbeddedEditorHost(editPanel);
         editorHost.setOpaque(false);
-        add(editorHost, BorderLayout.CENTER);
+        JPanel workspace = new JPanel(new BorderLayout(0, UiSpacing.SPACE_3));
+        workspace.setOpaque(false);
+        workspace.add(editorHost, BorderLayout.CENTER);
+        workspace.add(classStudentPanel, BorderLayout.SOUTH);
+        add(workspace, BorderLayout.CENTER);
 
         JPanel bottom = new JPanel(new BorderLayout(UiSpacing.SPACE_3, 0));
         bottom.setOpaque(false);
@@ -273,6 +278,7 @@ public final class OrganizationManagementPanel extends JPanel {
             selectedNode = null;
             editingTarget = null;
             isNewItem = false;
+            classStudentPanel.clear();
             showPlaceholder();
             updateAddButtons();
             return;
@@ -295,12 +301,14 @@ public final class OrganizationManagementPanel extends JPanel {
             editingTarget = cls;
             isNewItem = false;
             showClassForm(cls, false, null);
+            classStudentPanel.load(students, cls.classId());
         } else {
             selectedNode = null;
             editingTarget = null;
             isNewItem = false;
             showPlaceholder();
         }
+        if (!(userObject instanceof ClassView)) classStudentPanel.clear();
         updateAddButtons();
     }
 

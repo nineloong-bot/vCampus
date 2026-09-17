@@ -119,6 +119,21 @@ public final class StudentRepository {
         return list(connection, sql, departmentId);
     }
 
+    /** Lists active undergraduate students in one major and enrollment cohort. */
+    public List<Student> findFreshmen(Connection connection, String majorId, int enrollmentYear) {
+        String sql = "SELECT s.*, c.majorId FROM tblStudent s INNER JOIN tblClass c ON s.classId=c.classId "
+                + "WHERE c.majorId=? AND c.enrollmentYear=? AND s.studentType='UNDERGRADUATE' "
+                + "AND s.studentStatus='ACTIVE' ORDER BY s.studentNumber";
+        try (var statement = connection.prepareStatement(sql)) {
+            statement.setString(1, majorId); statement.setInt(2, enrollmentYear);
+            try (var result = statement.executeQuery()) {
+                List<Student> values = new ArrayList<>();
+                while (result.next()) values.add(map(result));
+                return List.copyOf(values);
+            }
+        } catch (SQLException error) { throw new OrganizationPersistenceException("Cannot list freshmen", error); }
+    }
+
     /** Returns whether the student's current class belongs to the trusted department. */
     public boolean belongsToDepartment(Connection connection, String studentId,
             String departmentId) {

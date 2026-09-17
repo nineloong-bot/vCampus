@@ -56,7 +56,7 @@ class SimplifiedPasswordLoginTest {
 
         // Student admin with mustChangePassword=true
         UserAccount stuAdmin = new UserAccount(
-                UUID.randomUUID().toString(), "STUDENT_ADMIN",
+                UUID.randomUUID().toString(), "STUDENT",
                 "complexHash", "salt", 120_000,
                 edu.seu.vcampus.common.user.UserRole.STUDENT_ADMIN, ACTIVE, true, 0, null, null, 0, now, now);
 
@@ -81,7 +81,7 @@ class SimplifiedPasswordLoginTest {
         LoginResult stuResult = service.login(
                 new LoginCommand("stu", "123456".toCharArray(), "demo-client"),
                 new ClientContext("conn-2", "127.0.0.1"));
-        assertThat(stuResult.user().loginId()).isEqualTo("STUDENT_ADMIN");
+        assertThat(stuResult.user().loginId()).isEqualTo("STUDENT");
         assertThat(stuResult.mustChangePassword()).isTrue();
     }
 

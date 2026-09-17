@@ -29,6 +29,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.IntStream;
 import java.util.UUID;
 import java.time.LocalDate;
@@ -74,7 +75,8 @@ class StudentAdmissionCoordinatorTest {
                 new StripedResourceLockManager(), new RequestDeduplicator(database.transactions()),
                 organizations, new AccessCampusCardNumberGenerator(sequences),
                 new AccessStudentNumberGenerator(sequences), accounts,
-                new StudentRepository(), new StudentChangeRepository());
+                new StudentRepository(), new StudentChangeRepository(),
+                (connection, year) -> Optional.of(LocalDate.of(year, year == 2026 ? 10 : 9, 1)));
     }
 
     @Test
@@ -260,6 +262,40 @@ class StudentAdmissionCoordinatorTest {
         assertThat(database.count("tblClass")).isEqualTo(4);
         assertThat(database.count("tblStudent")).isEqualTo(36);
         assertThat(database.count("tblUser")).isEqualTo(36);
+    }
+
+    @Test
+    void freshmanAdmissionAddsToAnExistingCohortInsteadOfRejectingIt() throws Exception {
+        database.transactions().inTransaction(connection -> {
+            new AccessOrganizationRepository().insertClass(connection,
+                    new StudentClass("class-2026", "major-1", "090-26-1", "计算机科学2601班",
+                            2026, 1, true, 0));
+            return null;
+        });
+        coordinator.createManual(new CreateStudentManualCommand("213260099", "09026101", "原有学生", "男",
+                StudentType.UNDERGRADUATE, "居民身份证", residentId(90),
+                LocalDate.of(2000, 1, 1), LocalDate.of(2026, 9, 1), "class-2026"),
+                request(UUID.randomUUID().toString()));
+
+        FreshmanAdmissionResult result = coordinator.admitFreshmen(new FreshmanAdmissionCommand(
+                "姓名,性别,身份证,学院,专业\n新生,女," + residentId(91)
+                        + ",计算机学院,计算机科学\n", 2026), request(UUID.randomUUID().toString()));
+
+        assertThat(result.totalCreated()).isEqualTo(1);
+        assertThat(database.count("tblClass")).isEqualTo(3);
+        assertThat(database.count("tblStudent")).isEqualTo(2);
+    }
+
+    @Test
+    void freshmanAdmissionRejectsAfterAutumnTermHasStarted() {
+        FreshmanAdmissionCommand command = new FreshmanAdmissionCommand(
+                "姓名,性别,身份证,学院,专业\n新生,女," + residentId(92)
+                        + ",计算机学院,计算机科学\n", 2025);
+
+        assertThatThrownBy(() -> coordinator.previewFreshmanAdmission(command,
+                request(UUID.randomUUID().toString())))
+                .isInstanceOf(StudentAdmissionException.class)
+                .hasMessageContaining("开课后不允许录取");
     }
 
     private static CreateStudentAdmissionCommand command() {
