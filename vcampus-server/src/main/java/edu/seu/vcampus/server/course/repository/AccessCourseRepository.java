@@ -11,6 +11,22 @@ public final class AccessCourseRepository implements CourseRepository {
     private final AccessOfferingRepository offerings = new AccessOfferingRepository();
     private final AccessEnrollmentRepository enrollments = new AccessEnrollmentRepository();
     private final AccessAuditRepository audits = new AccessAuditRepository();
+    private final AccessClassroomRepository classrooms = new AccessClassroomRepository();
+
+    @Override public List<Classroom> findClassrooms(Connection c, String keyword, int capacity, int limit) {
+        return classrooms.search(c, keyword, capacity, limit);
+    }
+    @Override public Optional<Classroom> findClassroom(Connection c, String room) {
+        return classrooms.find(c, room);
+    }
+    @Override public List<Schedule> findClassroomSchedules(Connection c, String term, String room,
+                                                           String excluded) {
+        return classrooms.roomSchedules(c, term, room, excluded);
+    }
+    @Override public List<Schedule> findTeacherSchedules(Connection c, String term, String teacher,
+                                                         String excluded) {
+        return classrooms.teacherSchedules(c, term, teacher, excluded);
+    }
 
     @Override public Term insertTerm(Connection c, Term value) { return catalog.insertTerm(c, value); }
     @Override public Term requireTerm(Connection c, String id) { return catalog.requireTerm(c, id); }

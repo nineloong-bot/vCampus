@@ -14,14 +14,30 @@ import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.util.ArrayList;
 import java.util.List;
+import edu.seu.vcampus.client.core.ui.autocomplete.SuggestionLoader;
 
 /** Structured editor for one or more offering schedule rows. */
 public final class OfferingScheduleEditorPanel extends JPanel {
     private final JPanel rowsPanel = new JPanel();
     private final List<OfferingScheduleRowPanel> rows = new ArrayList<>();
+    private final SuggestionLoader classroomLoader;
+    private final String defaultClassroom;
 
     public OfferingScheduleEditorPanel() {
+        this((query, limit) -> java.util.concurrent.CompletableFuture.completedFuture(
+                List.of(new edu.seu.vcampus.client.core.ui.autocomplete.AutocompleteChoice(
+                        "待定", "待定", ""))), "待定");
+    }
+
+    /** Creates a schedule editor backed by the classroom suggestion endpoint. */
+    public OfferingScheduleEditorPanel(SuggestionLoader classroomLoader) {
+        this(classroomLoader, null);
+    }
+
+    private OfferingScheduleEditorPanel(SuggestionLoader classroomLoader, String defaultClassroom) {
         super(new BorderLayout(0, UiSpacing.SM));
+        this.classroomLoader = java.util.Objects.requireNonNull(classroomLoader, "classroomLoader");
+        this.defaultClassroom = defaultClassroom;
         setOpaque(false);
         setName("offering-schedule-card");
         setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(UiColors.BORDER_DEFAULT),
@@ -42,14 +58,17 @@ public final class OfferingScheduleEditorPanel extends JPanel {
     public void setSchedules(List<ScheduleItem> schedules) {
         rows.clear();
         rowsPanel.removeAll();
-        for (ScheduleItem item : schedules) addRow(new OfferingScheduleRowPanel(item, this::removeRow));
+        for (ScheduleItem item : schedules) addRow(new OfferingScheduleRowPanel(
+                item, this::removeRow, classroomLoader));
         revalidate();
         repaint();
     }
 
     /** Adds a localized row with the standard Monday, periods 1-2, weeks 1-16 default. */
     public void addDefaultRow() {
-        addRow(new OfferingScheduleRowPanel(null, this::removeRow));
+        OfferingScheduleRowPanel row = new OfferingScheduleRowPanel(null, this::removeRow, classroomLoader);
+        if (defaultClassroom != null) row.setClassroom(defaultClassroom);
+        addRow(row);
         revalidate();
         repaint();
     }

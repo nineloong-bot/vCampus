@@ -5,6 +5,11 @@ from decimal import Decimal
 
 import people
 
+TRANSFER_APPLICANTS = {
+    "student-2025-025", "student-2025-026", "student-2026-025",
+    "student-2026-026", "student-2026-027",
+}
+
 COMMON = (
     (("SEU101", "思想道德与法治", "3.0"), ("SEU102", "大学英语Ⅰ", "2.0"), ("SEU103", "体育Ⅰ", "0.5")),
     (("SEU104", "中国近现代史纲要", "3.0"), ("SEU105", "大学英语Ⅱ", "2.0"), ("SEU106", "体育Ⅱ", "0.5")),
@@ -97,6 +102,17 @@ def generate(add, now):
 
     departments = {row[0]: row[2] for row in people.DEPARTMENTS}
     definitions = _definitions()
+    ordinary_rooms = []
+    add("tblClassroom", classroom="纪忠楼-空闲小教室", capacity=30,
+        isActive=True, sharedSportsVenue=False)
+    for tier, count in ((50, 8), (100, 8), (200, 8)):
+        for number in range(1, count + 1):
+            room = f"纪忠楼-{tier}-{number:02d}"
+            ordinary_rooms.append(room)
+            add("tblClassroom", classroom=room, capacity=tier,
+                isActive=True, sharedSportsVenue=False)
+    add("tblClassroom", classroom="桃园操场", capacity=2147483647,
+        isActive=True, sharedSportsVenue=True)
     for code, (name, credit, semester, department_id) in definitions.items():
         add("tblCourse", courseId=f"course-{code.lower()}", courseCode=code,
             courseName=name, departmentId=department_id, departmentName=departments[department_id],
@@ -148,28 +164,37 @@ def generate(add, now):
                 student_index += 1
                 cohort_serial = (list(m[0] for m in people.MAJORS).index(major_id)) * 8 + local
                 for grade_no, (plan_course_id, semester, _, _) in enumerate(required, 1):
-                    score_passed = (student_index + grade_no) % 17 != 0
+                    student_id = f"student-{cohort}-{cohort_serial:03d}"
+                    score_passed = (student_index + grade_no) % 17 != 0 \
+                        or student_id in TRANSFER_APPLICANTS
                     add("tblStudentGrade", gradeId=f"grade-{cohort}-{cohort_serial:03d}-{grade_no:02d}",
-                        studentId=f"student-{cohort}-{cohort_serial:03d}",
+                        studentId=student_id,
                         planCourseId=plan_course_id, result="PASSED" if score_passed else "FAILED",
                         recordedSemester=f"{cohort + (semester - 1) // 2}-{semester}",
                         operatorUserId="user-teacher-01", rowVersion=0,
                         createdAt=now, updatedAt=now)
 
+    offering_index = 0
     for course_index, code in enumerate(definitions, 1):
         for section in (1, 2):
+            offering_index += 1
             offering_id = f"offering-{code.lower()}-{section}"
+            teacher_number = ((offering_index - 1) % 24) + 1
+            teacher_round = (offering_index - 1) // 24
+            day = teacher_round % 5 + 1
+            start_period = 1 + (teacher_round // 5) * 2
+            room = "桃园操场" if definitions[code][0].startswith("体育") \
+                else ordinary_rooms[teacher_number - 1]
             add("tblCourseOffering", offeringId=offering_id, termId=term_id,
                 courseId=f"course-{code.lower()}",
-                teacherUserId=f"user-teacher-{((course_index + section - 2) % 24) + 1:02d}",
+                teacherUserId=f"user-teacher-{teacher_number:02d}",
                 className=f"{definitions[code][0]}-{section:02d}班", capacity=35 + section * 5,
                 enrolledCount=0, offeringStatus="OPEN", **stamp)
             add("tblCourseSchedule", scheduleId=f"schedule-{code.lower()}-{section}",
-                offeringId=offering_id, dayOfWeek=(course_index + section) % 5 + 1,
-                startPeriod=1 + ((course_index + section) % 5) * 2,
-                endPeriod=2 + ((course_index + section) % 5) * 2,
+                offeringId=offering_id, dayOfWeek=day,
+                startPeriod=start_period, endPeriod=start_period + 1,
                 startWeek=1, endWeek=16,
-                classroom=f"纪忠楼{100 + (course_index * 2 + section) % 80}")
+                classroom=room)
             add("tblCourseRetakeQuota", offeringId=offering_id, capacity=5, enrolledCount=0)
 
 

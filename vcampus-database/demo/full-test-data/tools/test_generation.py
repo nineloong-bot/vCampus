@@ -134,6 +134,34 @@ class AcademicContractTest(unittest.TestCase):
         self.assertTrue(all(row["teacherUserId"] and row["className"]
                             and row["capacity"] > 0 for row in self.rows["tblCourseOffering"]))
 
+    def test_classrooms_cover_capacity_tiers_and_all_schedules_are_valid(self):
+        rooms = {row["classroom"]: row for row in self.rows["tblClassroom"]}
+        self.assertTrue({30, 50, 100, 200}.issubset(
+            {row["capacity"] for row in rooms.values() if not row["sharedSportsVenue"]}))
+        self.assertTrue(rooms["桃园操场"]["sharedSportsVenue"])
+        offerings = {row["offeringId"]: row for row in self.rows["tblCourseOffering"]}
+        courses_by_id = {row["courseId"]: row for row in self.rows["tblCourse"]}
+        occupied = set()
+        teacher_occupied = set()
+        for schedule in self.rows["tblCourseSchedule"]:
+            room = rooms[schedule["classroom"]]
+            offering = offerings[schedule["offeringId"]]
+            course = courses_by_id[offering["courseId"]]
+            for week in range(schedule["startWeek"], schedule["endWeek"] + 1):
+                for period in range(schedule["startPeriod"], schedule["endPeriod"] + 1):
+                    teacher_key = (offering["teacherUserId"], schedule["dayOfWeek"], week, period)
+                    self.assertNotIn(teacher_key, teacher_occupied)
+                    teacher_occupied.add(teacher_key)
+            if room["sharedSportsVenue"]:
+                self.assertTrue(course["courseName"].startswith("体育"))
+                continue
+            self.assertLessEqual(offering["capacity"], room["capacity"])
+            for week in range(schedule["startWeek"], schedule["endWeek"] + 1):
+                for period in range(schedule["startPeriod"], schedule["endPeriod"] + 1):
+                    key = (schedule["classroom"], schedule["dayOfWeek"], week, period)
+                    self.assertNotIn(key, occupied)
+                    occupied.add(key)
+
     def test_historical_grades_follow_cohort_rules(self):
         students = {row["studentId"]: row for row in self.rows["tblStudent"]}
         classes = {row["classId"]: row for row in self.rows["tblClass"]}
@@ -162,6 +190,11 @@ class ScenarioContractTest(unittest.TestCase):
         self.assertEqual({"数学学院"}, {row["fromDepartmentName"] for row in apps})
         self.assertEqual({"计算机科学与工程学院"},
                          {options[row["optionId"]]["targetDepartmentName"] for row in apps})
+        applicant_ids = {row["studentId"] for row in apps}
+        applicant_grades = [row for row in self.rows["tblStudentGrade"]
+                            if row["studentId"] in applicant_ids]
+        self.assertTrue(applicant_grades)
+        self.assertEqual({"PASSED"}, {row["result"] for row in applicant_grades})
 
     def test_transfer_batch_initializes_target_college_lifecycle(self):
         colleges = self.rows["tblMajorTransferBatchCollege"]

@@ -6,6 +6,27 @@ import java.util.Optional;
 
 /** Transaction-scoped persistence operations for every course-owned table. */
 public interface CourseRepository {
+    /** Finds active classrooms suitable for an autocomplete query. */
+    default List<Classroom> findClassrooms(Connection connection, String keyword,
+                                           int minimumCapacity, int limit) { return List.of(); }
+
+    /** Returns a classroom by its durable name. */
+    default Optional<Classroom> findClassroom(Connection connection, String classroom) {
+        return Optional.empty();
+    }
+
+    /** Lists room occupancy in one term, excluding the offering being edited. */
+    default List<Schedule> findClassroomSchedules(Connection connection, String termId,
+                                                  String classroom, String excludedOfferingId) {
+        return List.of();
+    }
+
+    /** Lists a teacher's scheduled rows in one term, excluding the offering being edited. */
+    default List<Schedule> findTeacherSchedules(Connection connection, String termId,
+                                                String teacherUserId, String excludedOfferingId) {
+        return List.of();
+    }
+
     /** Inserts a term with an initial version and audit timestamps. */
     Term insertTerm(Connection connection, Term term);
 

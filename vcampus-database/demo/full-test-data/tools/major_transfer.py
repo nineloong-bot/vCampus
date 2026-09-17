@@ -70,6 +70,7 @@ def validate_transfer_fixture(rows, application_start=None):
     options = {row["optionId"]: row for row in rows.get("tblMajorTransferOption", [])}
     students = {row["studentId"]: row for row in rows.get("tblStudent", [])}
     classes = {row["classId"]: row for row in rows.get("tblClass", [])}
+    grades = rows.get("tblStudentGrade", [])
     if len(applications) != 5:
         raise AssertionError("exactly five transfer applications are required")
     colleges = rows.get("tblMajorTransferBatchCollege", [])
@@ -91,3 +92,6 @@ def validate_transfer_fixture(rows, application_start=None):
             raise AssertionError("student number mismatch in transfer application")
         if student["classId"] != application["fromClassId"]:
             raise AssertionError("classId mismatch in transfer application")
+        if any(row["studentId"] == application["studentId"] and row["result"] != "PASSED"
+               for row in grades):
+            raise AssertionError("transfer applicants must have no failed course result")

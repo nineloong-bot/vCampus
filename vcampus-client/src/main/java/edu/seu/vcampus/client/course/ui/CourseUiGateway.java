@@ -14,6 +14,8 @@ import edu.seu.vcampus.common.course.CourseStudentCandidateQuery;
 import edu.seu.vcampus.common.course.CourseCatalogQuery;
 import edu.seu.vcampus.common.course.CourseView;
 import edu.seu.vcampus.common.course.CourseDepartmentOption;
+import edu.seu.vcampus.common.course.ClassroomQuery;
+import edu.seu.vcampus.common.course.ClassroomView;
 import edu.seu.vcampus.common.course.CurriculumCourseCandidate;
 import edu.seu.vcampus.common.course.CurriculumCourseCandidateQuery;
 import edu.seu.vcampus.common.course.TermView;
@@ -63,6 +65,7 @@ public interface CourseUiGateway {
             CourseStudentCandidateQuery query) { return unsupported(); }
     default CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery query) { return unsupported(); }
     default CompletableFuture<List<CourseDepartmentOption>> listCourseDepartments() { return unsupported(); }
+    default CompletableFuture<List<ClassroomView>> searchClassrooms(ClassroomQuery query) { return unsupported(); }
     default CompletableFuture<PageResult<CurriculumCourseCandidate>> searchCurriculumCandidates(CurriculumCourseCandidateQuery query) { return unsupported(); }
     default CompletableFuture<PageResult<UserSummary>> searchTeachers(String keyword) { return unsupported(); }
     default CompletableFuture<Optional<UserSummary>> resolveTeacher(String userId) { return unsupported(); }

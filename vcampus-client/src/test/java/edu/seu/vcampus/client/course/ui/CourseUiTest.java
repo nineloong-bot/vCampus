@@ -205,7 +205,7 @@ class CourseUiTest {
         });
         assertThatThrownBy(editor::scheduleInputs)
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("第 1 行：请输入教室");
+                .hasMessage("第 1 行：请从匹配结果中选择教室");
 
         SwingUtilities.invokeAndWait(() -> component(editor, "删除第 1 行", JButton.class).doClick());
         assertThatThrownBy(editor::scheduleInputs)

@@ -24,6 +24,10 @@ public interface CourseService {
     PageResult<CourseView> searchCatalog(CourseCatalogQuery query);
     /** Lists owning colleges available to catalog filters. */
     default List<CourseDepartmentOption> listCourseDepartments() { throw new UnsupportedOperationException(); }
+    /** Searches active classrooms for teaching-class schedule entry. */
+    default List<ClassroomView> searchClassrooms(ClassroomQuery query) {
+        throw new UnsupportedOperationException();
+    }
     /** Searches catalog definitions approved in active training plans. */
     default PageResult<CurriculumCourseCandidate> searchCurriculumCandidates(
             CurriculumCourseCandidateQuery query) { throw new UnsupportedOperationException(); }

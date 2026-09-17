@@ -43,6 +43,7 @@ public final class CourseCatalogPanel extends AbstractCoursePanel {
                         .map(option -> new AutocompleteChoice(option.departmentId(),
                                 option.departmentName(), ""))
                         .toList()));
+        this.department.onSelection(ignored -> search(0));
         this.pager = new CoursePager(50, this::search);
         table.setModel(model);
         table.getTableHeader().setBackground(UiColors.BACKGROUND_SUBTLE);
@@ -99,6 +100,10 @@ public final class CourseCatalogPanel extends AbstractCoursePanel {
     }
 
     private void search(int pageNumber) {
+        if (!department.inputComponent().getText().isBlank() && department.selectedId().isEmpty()) {
+            showState(ViewState.EMPTY, "请从匹配结果中选择开课学院");
+            return;
+        }
         long request = beginAsyncRequest();
         showState(ViewState.LOADING, "正在查询课程目录，请稍候");
         String departmentName = department.selectedId().isPresent()

@@ -68,6 +68,14 @@ CREATE TABLE tblCourseOffering (
     CONSTRAINT fk_tblCourseOffering_course FOREIGN KEY (courseId) REFERENCES tblCourse (courseId)
 );
 
+CREATE TABLE tblClassroom (
+    classroom VARCHAR(64) NOT NULL,
+    capacity LONG NOT NULL,
+    isActive YESNO NOT NULL,
+    sharedSportsVenue YESNO NOT NULL,
+    CONSTRAINT pk_tblClassroom PRIMARY KEY (classroom)
+);
+
 CREATE INDEX idx_tblCourseOffering_termId ON tblCourseOffering (termId);
 CREATE INDEX idx_tblCourseOffering_courseId ON tblCourseOffering (courseId);
 CREATE INDEX idx_tblCourseOffering_teacherUserId ON tblCourseOffering (teacherUserId);

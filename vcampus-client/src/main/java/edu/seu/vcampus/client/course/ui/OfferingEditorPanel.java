@@ -24,7 +24,7 @@ public final class OfferingEditorPanel implements EmbeddedEditor {
     private final JSpinner capacity;
     private final JSpinner retakeCapacity;
     private final JComboBox<Status> status = new JComboBox<>(Status.values());
-    private final OfferingScheduleEditorPanel schedules = new OfferingScheduleEditorPanel();
+    private final OfferingScheduleEditorPanel schedules;
     private final JLabel error = AbstractCoursePanel.label(" ", UiTypography.BODY, UiColors.ACCENT);
     private final JButton save;
     private Snapshot initial;
@@ -49,6 +49,9 @@ public final class OfferingEditorPanel implements EmbeddedEditor {
         int retakeValue = existing == null ? 5 : Math.max(retakeMinimum, existing.retakeCapacity());
         capacity = spinner(normalValue, normalMinimum, "容量");
         retakeCapacity = spinner(retakeValue, retakeMinimum, "重修容量");
+        schedules = new OfferingScheduleEditorPanel(
+                (query, limit) -> loader.searchClassrooms(query, limit,
+                        ((Number) capacity.getValue()).intValue()));
         status.getAccessibleContext().setAccessibleName("教学班状态");
         root.setOpaque(false);
         root.setBorder(BorderFactory.createEmptyBorder(UiSpacing.LG, UiSpacing.LG, UiSpacing.LG, UiSpacing.LG));
@@ -136,7 +139,7 @@ public final class OfferingEditorPanel implements EmbeddedEditor {
         save.setEnabled(false); long request = guard.begin();
         operation.whenComplete((result, failure) -> SwingUtilities.invokeLater(() -> {
             if (!guard.accepts(request)) return; save.setEnabled(true);
-            if (failure != null) { error.setText("保存失败，请刷新后重试"); return; }
+            if (failure != null) { showSaveFailure(failure); return; }
             initial = snapshot(); saved.run();
         }));
     }
@@ -150,6 +153,21 @@ public final class OfferingEditorPanel implements EmbeddedEditor {
                 schedules.fingerprint());
     }
     private static JSpinner spinner(int value, int minimum, String name) { JSpinner spinner = new JSpinner(new SpinnerNumberModel(value, minimum, 10_000, 1)); spinner.getAccessibleContext().setAccessibleName(name); return spinner; }
+    private void showSaveFailure(Throwable failure) {
+        Throwable cause = failure;
+        while (cause.getCause() != null && cause != cause.getCause()) cause = cause.getCause();
+        if (cause instanceof edu.seu.vcampus.client.course.service.CourseClientException client
+                && (client.code().startsWith("COURSE_CLASSROOM_")
+                || "COURSE_TEACHER_CONFLICT".equals(client.code()))) {
+            error.setText(client.getMessage());
+            if (!GraphicsEnvironment.isHeadless()) {
+                JOptionPane.showMessageDialog(root, client.getMessage(), "排课冲突",
+                        JOptionPane.WARNING_MESSAGE);
+            }
+            return;
+        }
+        error.setText("保存失败，请刷新后重试");
+    }
     private record Snapshot(String courseId, String teacherId, String className,
                             int capacity, int retakeCapacity, Object status, String schedules) { }
     private enum Status { DRAFT, OPEN, CLOSED, CANCELLED }

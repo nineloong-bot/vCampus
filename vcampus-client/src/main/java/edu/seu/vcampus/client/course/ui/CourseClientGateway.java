@@ -16,6 +16,8 @@ import edu.seu.vcampus.common.course.CourseStudentCandidateQuery;
 import edu.seu.vcampus.common.course.CourseCatalogQuery;
 import edu.seu.vcampus.common.course.CourseView;
 import edu.seu.vcampus.common.course.CourseDepartmentOption;
+import edu.seu.vcampus.common.course.ClassroomQuery;
+import edu.seu.vcampus.common.course.ClassroomView;
 import edu.seu.vcampus.common.course.CurriculumCourseCandidate;
 import edu.seu.vcampus.common.course.CurriculumCourseCandidateQuery;
 import edu.seu.vcampus.common.course.TermView;
@@ -93,6 +95,9 @@ public final class CourseClientGateway implements CourseUiGateway {
             CourseStudentCandidateQuery query) { return client.searchStudentCandidates(query); }
     public CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery query) { return client.searchCatalog(query); }
     public CompletableFuture<List<CourseDepartmentOption>> listCourseDepartments() { return client.listCourseDepartments(); }
+    public CompletableFuture<List<ClassroomView>> searchClassrooms(ClassroomQuery query) {
+        return client.searchClassrooms(query);
+    }
     public CompletableFuture<PageResult<CurriculumCourseCandidate>> searchCurriculumCandidates(CurriculumCourseCandidateQuery query) { return client.searchCurriculumCandidates(query); }
     public CompletableFuture<PageResult<UserSummary>> searchTeachers(String keyword) {
         if (users == null) {

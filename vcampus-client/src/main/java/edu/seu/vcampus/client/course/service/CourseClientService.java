@@ -57,6 +57,10 @@ public final class CourseClientService {
     public CompletableFuture<List<CourseDepartmentOption>> listCourseDepartments() {
         return callList("COURSE_CATALOG_DEPARTMENT_LIST", EmptyRequest.INSTANCE, READ, CourseDepartmentOption.class);
     }
+    /** Searches active classrooms for teaching-class autocomplete. */
+    public CompletableFuture<List<ClassroomView>> searchClassrooms(ClassroomQuery query) {
+        return callList("COURSE_CLASSROOM_SEARCH", query, READ, ClassroomView.class);
+    }
     /** Searches course definitions approved by college training plans. */
     public CompletableFuture<PageResult<CurriculumCourseCandidate>> searchCurriculumCandidates(CurriculumCourseCandidateQuery q) { return callPage("COURSE_CURRICULUM_CANDIDATE_SEARCH", q, READ, CurriculumCourseCandidate.class); }
     public CompletableFuture<PageResult<AdjustmentAuditView>> searchAdjustmentAudits(AdjustmentAuditQuery q) { return callPage("COURSE_ADJUSTMENT_AUDIT_SEARCH", q, READ, AdjustmentAuditView.class); }
