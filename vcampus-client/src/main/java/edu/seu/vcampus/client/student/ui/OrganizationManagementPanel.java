@@ -733,7 +733,11 @@ public final class OrganizationManagementPanel extends JPanel {
 
     private void startBatchAssign() {
         editorHost.showEditor((complete, cancel) -> new FreshmanAdmissionPanel(students,
-                result -> { errorLabel.setText("新生录取完成：" + result.totalCreated() + " 人"); complete.run(); }, cancel));
+                result -> {
+                    errorLabel.setText("新生录取完成：" + result.totalCreated() + " 人");
+                    loadAll();
+                    complete.run();
+                }, cancel));
     }
 
     private void connectionChanged(ConnectionState state) {
