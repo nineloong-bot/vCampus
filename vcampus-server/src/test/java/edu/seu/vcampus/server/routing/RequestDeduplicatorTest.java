@@ -6,6 +6,7 @@ import edu.seu.vcampus.common.protocol.Message;
 import edu.seu.vcampus.common.protocol.MessageType;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.server.persistence.ConnectionProvider;
+import edu.seu.vcampus.server.persistence.TransactionContext;
 import edu.seu.vcampus.server.persistence.TransactionManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,6 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class RequestDeduplicatorTest {
+    private TransactionManager transactions;
     private RequestDeduplicator deduplicator;
 
     @BeforeEach
@@ -35,7 +37,8 @@ class RequestDeduplicatorTest {
                     + "processingStatus VARCHAR(16) NOT NULL, resultCode VARCHAR(64), "
                     + "responseSnapshot MEMO, createdAt DATETIME NOT NULL, completedAt DATETIME)");
         }
-        deduplicator = new RequestDeduplicator(new TransactionManager(provider));
+        transactions = new TransactionManager(provider);
+        deduplicator = new RequestDeduplicator(transactions);
     }
 
     @Test
@@ -58,6 +61,29 @@ class RequestDeduplicatorTest {
         assertThat(firstResult).isEqualTo(success);
         assertThat(replayResult).isEqualTo(success);
         assertThat(calls).hasValue(1);
+    }
+
+    @Test
+    void storeCompletedUpdatesExistingClaimedRequest() {
+        Message message = request(UUID.randomUUID().toString());
+        var success = ResponseBody.success(EmptyResponse.INSTANCE);
+
+        var result = deduplicator.executeOnce(message, "user-1", "client-a", () -> {
+            try {
+                transactions.inTransaction(connection -> {
+                    deduplicator.storeCompleted(
+                            new TransactionContext(connection, "user-1", "client-a"),
+                            message,
+                            success);
+                    return null;
+                });
+                return success;
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        assertThat(result).isEqualTo(success);
     }
 
     private static Message request(String requestId) {

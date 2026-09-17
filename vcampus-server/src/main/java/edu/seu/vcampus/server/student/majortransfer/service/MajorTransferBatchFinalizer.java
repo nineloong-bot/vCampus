@@ -46,6 +46,8 @@ public final class MajorTransferBatchFinalizer {
         return transactions.inTransaction(c -> readiness.evaluate(c, batchId, departmentId));
     }
 
+    private final MajorTransferBatchRanker ranker = new MajorTransferBatchRanker();
+
     /** Gives final approval to every assessed application without changing enrollment. */
     public MajorTransferBatchReviewResult finalizeBatch(String operatorUserId,
             FinalizeMajorTransferBatchCommand command, String departmentId) {
@@ -59,11 +61,12 @@ public final class MajorTransferBatchFinalizer {
                     command.batchId(), departmentId).stream()
                     .filter(a -> a.status() == MajorTransferStatus.ASSESSED).toList();
             var options = optionMap(c, command.batchId(), departmentId);
-            var assignments = processor.plan(c, applications, options);
+            var ranked = ranker.rank(applications, options);
+            var assignments = processor.plan(c, ranked.approved(), options);
             Instant now = Instant.now();
             List<MajorTransferCollegeBatchRepository.PreparedTransferRow> prepared = new ArrayList<>();
             for (var assignment : assignments) {
-                var app = applications.stream().filter(value -> value.applicationId()
+                var app = ranked.approved().stream().filter(value -> value.applicationId()
                         .equals(assignment.applicationId())).findFirst().orElseThrow();
                 var student = processor.currentStudent(c, app);
                 prepared.add(new MajorTransferCollegeBatchRepository.PreparedTransferRow(
@@ -73,21 +76,27 @@ public final class MajorTransferBatchFinalizer {
                         app.applicationVersion() + 1, now));
             }
             colleges.replacePrepared(c, command.batchId(), departmentId, prepared);
-            for (var app : applications) {
+            for (var app : ranked.approved()) {
                 if (transfers.updateApplicationStatus(c, app.applicationId(),
                         MajorTransferStatus.ASSESSED, MajorTransferStatus.PENDING_EFFECTIVE,
-                        app.applicationVersion(), now) != 1) {
-                    throw new ConcurrentModificationException("转专业申请已被修改");
-                }
+                        app.applicationVersion(), now) != 1) throw concurrent();
                 transfers.insertReview(c, new MajorTransferRepository.ReviewRow(UUID.randomUUID().toString(),
                         app.applicationId(), MajorTransferReviewStage.FINAL_APPROVAL,
                         MajorTransferDecision.APPROVE, operatorUserId, "批次终审通过", null, null, null, now));
+            }
+            for (var app : ranked.rejected()) {
+                if (transfers.updateApplicationStatus(c, app.applicationId(),
+                        MajorTransferStatus.ASSESSED, MajorTransferStatus.REJECTED,
+                        app.applicationVersion(), now) != 1) throw concurrent();
+                transfers.insertReview(c, new MajorTransferRepository.ReviewRow(UUID.randomUUID().toString(),
+                        app.applicationId(), MajorTransferReviewStage.FINAL_APPROVAL,
+                        MajorTransferDecision.REJECT, operatorUserId, "成绩排名超出招生名额自动淘汰", null, null, null, now));
             }
             if (colleges.updateStatus(c, command.batchId(), departmentId,
                     MajorTransferCollegeStatus.PROCESSING, MajorTransferCollegeStatus.REVIEWED,
                     command.expectedCollegeVersion(), operatorUserId, now) != 1) throw concurrent();
             return new MajorTransferBatchReviewResult(command.batchId(), departmentId,
-                    applications.size(), MajorTransferCollegeStatus.REVIEWED,
+                    ranked.approved().size(), MajorTransferCollegeStatus.REVIEWED,
                     command.expectedCollegeVersion() + 1);
         }));
     }

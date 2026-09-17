@@ -119,6 +119,11 @@ public final class RequestDeduplicator {
     public void storeCompleted(TransactionContext context, Message request,
             ResponseBody<?> body) throws Exception {
         requireRequestId(request);
+        if (exists(context, request.requestId())) {
+            complete(context, new Message(request.requestId(), MessageType.RESPONSE,
+                    request.command(), null, body, System.currentTimeMillis()));
+            return;
+        }
         String sql = "INSERT INTO tblRequestDedup (requestId, userId, clientInstanceId, command, "
                 + "processingStatus, resultCode, responseSnapshot, createdAt, completedAt) "
                 + "VALUES (?, ?, ?, ?, 'COMPLETED', ?, ?, ?, ?)";

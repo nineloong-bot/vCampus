@@ -40,7 +40,7 @@ final class MajorTransferBatchReadinessEvaluator {
         boolean processing = college.status() == MajorTransferCollegeStatus.PROCESSING;
         boolean reviewed = college.status() == MajorTransferCollegeStatus.REVIEWED;
         String reason = readinessReason(batch.status(), processing, reviewed, assessed,
-                pendingEffective, unresolved, applications, options);
+                pendingEffective, unresolved);
         boolean readyNow = reason == null;
         return new MajorTransferCollegeReadinessView(batchId, departmentId, college.status(),
                 assessed, pendingEffective, rejected, cancelled, unresolved,
@@ -49,27 +49,11 @@ final class MajorTransferBatchReadinessEvaluator {
     }
 
     private String readinessReason(MajorTransferBatchStatus batchStatus, boolean processing,
-            boolean reviewed, int assessed, int pendingEffective, int unresolved,
-            List<MajorTransferRepository.ApplicationRow> applications,
-            List<MajorTransferRepository.OptionRow> options) {
+            boolean reviewed, int assessed, int pendingEffective, int unresolved) {
         if (batchStatus != MajorTransferBatchStatus.CLOSED) return "批次尚未关闭";
         if (unresolved > 0) return "还有 " + unresolved + " 份申请未处理完毕";
         if (processing && pendingEffective > 0) return "存在未回退的待生效申请";
         if (reviewed && assessed > 0) return "还有 " + assessed + " 份申请未处理完毕";
-        return quotaReason(applications, options);
-    }
-
-    private String quotaReason(List<MajorTransferRepository.ApplicationRow> applications,
-            List<MajorTransferRepository.OptionRow> options) {
-        for (var option : options) {
-            long accepted = applications.stream().filter(a ->
-                    (a.status() == MajorTransferStatus.ASSESSED
-                            || a.status() == MajorTransferStatus.PENDING_EFFECTIVE)
-                            && option.optionId().equals(a.optionId())).count();
-            if (accepted > option.receiveQuota()) {
-                return option.targetMajorName() + "拟录取人数超过名额";
-            }
-        }
         return null;
     }
 

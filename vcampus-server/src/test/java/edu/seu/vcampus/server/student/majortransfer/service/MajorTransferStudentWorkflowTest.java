@@ -258,6 +258,36 @@ class MajorTransferStudentWorkflowTest {
                 + "WHERE applicationId='" + app.applicationId() + "'")).isEqualTo("EFFECTIVE");
     }
 
+    @Test void finalizeBatchRanksByScoreAndAdmitsTopQuotaWhileRejectingRest() throws Exception {
+        var app1 = assessed();
+        sql("UPDATE tblMajorTransferOption SET receiveQuota=1 WHERE optionId='opt-1'");
+        var app2 = service.saveDraft("user-2", new SaveMajorTransferDraftCommand(null,
+                "batch-1", "opt-1", MajorTransferApplicationType.ORDINARY, "申请理由2", 0));
+        app2 = service.submit("user-2", new SubmitMajorTransferCommand(app2.applicationId(), app2.applicationVersion()));
+        app2 = service.reviewSource("admin", new ReviewMajorTransferSourceCommand(app2.applicationId(),
+                MajorTransferDecision.APPROVE, true, true, true, "核实通过", app2.applicationVersion()));
+        app2 = service.reviewQualification("admin", new ReviewMajorTransferQualificationCommand(app2.applicationId(),
+                MajorTransferDecision.APPROVE, "符合要求", app2.applicationVersion()));
+        app2 = service.recordScore("admin", new RecordMajorTransferScoreCommand(app2.applicationId(),
+                new java.math.BigDecimal("95"), new java.math.BigDecimal("95"), app2.applicationVersion()));
+
+        sql("UPDATE tblMajorTransferBatch SET batchStatus='CLOSED', effectiveDate=#2027-09-01# WHERE batchId='batch-1'");
+
+        var readiness = service.getBatchReadiness("batch-1", "dept-2");
+        assertThat(readiness.canReview()).isTrue();
+
+        var result = service.finalizeBatch("admin",
+                new FinalizeMajorTransferBatchCommand("batch-1", readiness.collegeVersion()), "dept-2");
+
+        assertThat(result.status()).isEqualTo(MajorTransferCollegeStatus.REVIEWED);
+        assertThat(result.preparedApplications()).isEqualTo(1);
+
+        assertThat(database.stringValue("SELECT applicationStatus FROM tblMajorTransferApplication "
+                + "WHERE applicationId='" + app2.applicationId() + "'")).isEqualTo("PENDING_EFFECTIVE");
+        assertThat(database.stringValue("SELECT applicationStatus FROM tblMajorTransferApplication "
+                + "WHERE applicationId='" + app1.applicationId() + "'")).isEqualTo("REJECTED");
+    }
+
     @Test void unresolvedApplicationBlocksWholeBatch() throws Exception {
         var app = draft();
         service.submit("user-1", new SubmitMajorTransferCommand(app.applicationId(), 0));
