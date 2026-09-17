@@ -14,14 +14,23 @@ import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import edu.seu.vcampus.client.core.ui.autocomplete.SuggestionLoader;
 
 /** Structured editor for one or more offering schedule rows. */
 public final class OfferingScheduleEditorPanel extends JPanel {
     private final JPanel rowsPanel = new JPanel();
     private final List<OfferingScheduleRowPanel> rows = new ArrayList<>();
+    private final SuggestionLoader classroomLoader;
 
     public OfferingScheduleEditorPanel() {
+        this((query, limit) -> CompletableFuture.completedFuture(List.of()));
+    }
+
+    /** Creates a schedule editor backed by classroom autocomplete. */
+    public OfferingScheduleEditorPanel(SuggestionLoader classroomLoader) {
         super(new BorderLayout(0, UiSpacing.SM));
+        this.classroomLoader = classroomLoader;
         setOpaque(false);
         setName("offering-schedule-card");
         setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(UiColors.BORDER_DEFAULT),
@@ -42,14 +51,14 @@ public final class OfferingScheduleEditorPanel extends JPanel {
     public void setSchedules(List<ScheduleItem> schedules) {
         rows.clear();
         rowsPanel.removeAll();
-        for (ScheduleItem item : schedules) addRow(new OfferingScheduleRowPanel(item, this::removeRow));
+        for (ScheduleItem item : schedules) addRow(new OfferingScheduleRowPanel(item, this::removeRow, classroomLoader));
         revalidate();
         repaint();
     }
 
     /** Adds a localized row with the standard Monday, periods 1-2, weeks 1-16 default. */
     public void addDefaultRow() {
-        addRow(new OfferingScheduleRowPanel(null, this::removeRow));
+        addRow(new OfferingScheduleRowPanel(null, this::removeRow, classroomLoader));
         revalidate();
         repaint();
     }

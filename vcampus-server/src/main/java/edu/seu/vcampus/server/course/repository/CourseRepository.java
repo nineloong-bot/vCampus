@@ -33,6 +33,22 @@ public interface CourseRepository {
     /** Lists catalog courses by code. */
     List<Course> findCourses(Connection connection);
 
+    /** Searches active classrooms whose capacity can hold the teaching class. */
+    default List<Classroom> findClassrooms(Connection connection, String keyword, int minimumCapacity, int limit) {
+        return List.of();
+    }
+
+    /** Returns one classroom when it exists. */
+    default Optional<Classroom> findClassroom(Connection connection, String classroom) {
+        return Optional.of(new Classroom(classroom, Integer.MAX_VALUE, true));
+    }
+
+    /** Lists schedules occupying a classroom during one term, excluding an edited offering. */
+    default List<Schedule> findClassroomSchedules(Connection connection, String termId,
+                                                   String classroom, String excludedOfferingId) {
+        return List.of();
+    }
+
     /** Replaces a catalog course when its optimistic-lock version matches. */
     Course updateCourse(Connection connection, Course course, long expectedVersion);
 

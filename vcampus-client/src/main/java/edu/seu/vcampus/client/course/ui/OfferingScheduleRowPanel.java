@@ -7,6 +7,8 @@ import edu.seu.vcampus.common.course.ScheduleItem;
 import javax.swing.*;
 import java.awt.*;
 import java.util.function.Consumer;
+import edu.seu.vcampus.client.core.ui.autocomplete.AutocompleteSelectionField;
+import edu.seu.vcampus.client.core.ui.autocomplete.SuggestionLoader;
 
 /** One editable and removable teaching-class schedule row. */
 final class OfferingScheduleRowPanel extends JPanel {
@@ -15,11 +17,13 @@ final class OfferingScheduleRowPanel extends JPanel {
     private final JSpinner endPeriod = spinner(2, 1, 13);
     private final JSpinner startWeek = spinner(1, 1, 30);
     private final JSpinner endWeek = spinner(16, 1, 30);
-    private final JTextField classroom = field("待定", 120);
+    private final AutocompleteSelectionField classroom;
     private final JButton remove = AbstractCoursePanel.secondary("删除");
 
-    OfferingScheduleRowPanel(ScheduleItem item, Consumer<OfferingScheduleRowPanel> removal) {
+    OfferingScheduleRowPanel(ScheduleItem item, Consumer<OfferingScheduleRowPanel> removal,
+                             SuggestionLoader classroomLoader) {
         super(new FlowLayout(FlowLayout.LEFT, UiSpacing.SM, UiSpacing.SM));
+        classroom = new AutocompleteSelectionField(classroomLoader);
         setOpaque(true);
         setBackground(UiColors.BACKGROUND_SUBTLE);
         setBorder(BorderFactory.createLineBorder(UiColors.BORDER_DEFAULT));
@@ -27,6 +31,7 @@ final class OfferingScheduleRowPanel extends JPanel {
         configure(day, 92);
         add(control("星期", day)); add(control("起始节", startPeriod));
         add(control("结束节", endPeriod)); add(control("起始周", startWeek));
+        configure(classroom, 150);
         add(control("结束周", endWeek)); add(control("教室", classroom));
         remove.addActionListener(event -> removal.accept(this));
         add(control("操作", remove));
@@ -39,8 +44,9 @@ final class OfferingScheduleRowPanel extends JPanel {
         endPeriod.getAccessibleContext().setAccessibleName("第 " + rowNumber + " 行结束节次");
         startWeek.getAccessibleContext().setAccessibleName("第 " + rowNumber + " 行起始周");
         endWeek.getAccessibleContext().setAccessibleName("第 " + rowNumber + " 行结束周");
-        classroom.getAccessibleContext().setAccessibleName("第 " + rowNumber + " 行教室");
-        remove.setText("删除第 " + rowNumber + " 行");
+        classroom.inputComponent().getAccessibleContext().setAccessibleName("第 " + rowNumber + " 行教室");
+        remove.setText("删除");
+        remove.getAccessibleContext().setAccessibleName("删除第 " + rowNumber + " 行");
     }
 
     CreateOfferingCommand.ScheduleInput toInput(int rowNumber) {
@@ -50,8 +56,11 @@ final class OfferingScheduleRowPanel extends JPanel {
                 "第 " + rowNumber + " 行：结束节次不能早于起始节次");
         if (startW > endW) throw new IllegalArgumentException(
                 "第 " + rowNumber + " 行：结束周不能早于起始周");
-        String room = classroom.getText().trim();
-        if (room.isEmpty()) throw new IllegalArgumentException("第 " + rowNumber + " 行：请输入教室");
+        String room;
+        try { room = classroom.requireSelection().id(); }
+        catch (IllegalArgumentException invalid) {
+            throw new IllegalArgumentException("第 " + rowNumber + " 行：请选择匹配结果中的教室");
+        }
         Weekday selected = (Weekday) day.getSelectedItem();
         return new CreateOfferingCommand.ScheduleInput(selected.code, startP, endP, startW, endW, room);
     }
@@ -60,14 +69,15 @@ final class OfferingScheduleRowPanel extends JPanel {
         Weekday selected = (Weekday) day.getSelectedItem();
         return String.join("\u0000", selected == null ? "" : selected.code,
                 startPeriod.getValue().toString(), endPeriod.getValue().toString(),
-                startWeek.getValue().toString(), endWeek.getValue().toString(), classroom.getText());
+                startWeek.getValue().toString(), endWeek.getValue().toString(),
+                classroom.selectedId().orElse(classroom.inputComponent().getText()));
     }
 
     private void load(ScheduleItem item) {
         day.setSelectedItem(Weekday.from(item.dayOfWeek()));
         startPeriod.setValue(item.startPeriod()); endPeriod.setValue(item.endPeriod());
         startWeek.setValue(item.startWeek()); endWeek.setValue(item.endWeek());
-        classroom.setText(item.classroom());
+        classroom.setSelection(item.classroom(), item.classroom());
     }
 
     private static JPanel control(String caption, Component component) {
@@ -81,10 +91,6 @@ final class OfferingScheduleRowPanel extends JPanel {
     private static JSpinner spinner(int value, int minimum, int maximum) {
         JSpinner spinner = new JSpinner(new BoundedModel(value, minimum, maximum));
         configure(spinner, 58); return spinner;
-    }
-
-    private static JTextField field(String value, int width) {
-        JTextField field = new JTextField(value); configure(field, width); return field;
     }
 
     private static void configure(JComponent component, int width) {

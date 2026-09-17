@@ -11,6 +11,7 @@ public final class AccessCourseRepository implements CourseRepository {
     private final AccessOfferingRepository offerings = new AccessOfferingRepository();
     private final AccessEnrollmentRepository enrollments = new AccessEnrollmentRepository();
     private final AccessAuditRepository audits = new AccessAuditRepository();
+    private final AccessClassroomRepository classrooms = new AccessClassroomRepository();
 
     @Override public Term insertTerm(Connection c, Term value) { return catalog.insertTerm(c, value); }
     @Override public Term requireTerm(Connection c, String id) { return catalog.requireTerm(c, id); }
@@ -30,6 +31,16 @@ public final class AccessCourseRepository implements CourseRepository {
     @Override public Course insertCourse(Connection c, Course value) { return catalog.insertCourse(c, value); }
     @Override public Course requireCourse(Connection c, String id) { return catalog.requireCourse(c, id); }
     @Override public List<Course> findCourses(Connection c) { return catalog.findCourses(c); }
+    @Override public List<Classroom> findClassrooms(Connection c, String keyword, int capacity, int limit) {
+        return classrooms.search(c, keyword, capacity, limit);
+    }
+    @Override public Optional<Classroom> findClassroom(Connection c, String room) {
+        return classrooms.find(c, room);
+    }
+    @Override public List<Schedule> findClassroomSchedules(Connection c, String termId,
+                                                           String room, String excluded) {
+        return classrooms.schedules(c, termId, room, excluded);
+    }
     @Override public Course updateCourse(Connection c, Course value, long version) {
         return catalog.updateCourse(c, value, version);
     }
