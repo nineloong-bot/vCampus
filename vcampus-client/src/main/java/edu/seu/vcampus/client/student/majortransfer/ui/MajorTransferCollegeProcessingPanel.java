@@ -55,8 +55,6 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
     }
 
     private void build() {
-        JPanel toolbar = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        toolbar.setOpaque(false);
         JButton option = new JButton("维护本学院招生专业");
         option.setName("saveOptionButton");
         option.addActionListener(event -> {
@@ -66,11 +64,8 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
         });
         JButton refresh = new JButton("刷新");
         refresh.addActionListener(event -> refresh());
-        toolbar.add(new JLabel("批次："));
         batches.setRenderer(new MajorTransferBatchChoiceRenderer());
         batches.setPreferredSize(new Dimension(360, batches.getPreferredSize().height));
-        toolbar.add(batches);
-        toolbar.add(new JLabel("终审专业："));
         finalizationOptions.setName("major-transfer.finalization-option");
         finalizationOptions.setPreferredSize(new Dimension(220,
                 finalizationOptions.getPreferredSize().height));
@@ -86,23 +81,18 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
             }
         });
         finalizationOptions.addActionListener(event -> loadSelectedOptionReadiness());
-        toolbar.add(finalizationOptions);
-        toolbar.add(option);
-        toolbar.add(refresh);
         finalizeOption.setName("major-transfer.finalize-option");
         finalizeOption.setEnabled(false);
         finalizeOption.addActionListener(event -> optionFinalizer.finalizeSelectedOption());
-        toolbar.add(finalizeOption);
         effectiveOption.setName("major-transfer.effective-option");
         effectiveOption.setEnabled(false);
         effectiveOption.addActionListener(event -> optionFinalizer.effectiveSelectedOption());
-        toolbar.add(effectiveOption);
         rollbackOption.setName("major-transfer.rollback-option");
         rollbackOption.setEnabled(false);
         rollbackOption.addActionListener(event -> optionFinalizer.rollbackSelectedOption());
-        toolbar.add(rollbackOption);
-        toolbar.add(readiness);
         batches.addActionListener(event -> loadSelectedBatch());
+        JPanel toolbar = new MajorTransferCollegeToolbar(batches, option, refresh,
+                finalizationOptions, finalizeOption, effectiveOption, rollbackOption, readiness);
 
         applications.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         applications.setCellRenderer(new MajorTransferApplicationListRenderer());

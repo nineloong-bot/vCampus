@@ -131,6 +131,17 @@ class MajorTransferUiRegressionTest {
         });
     }
 
+    @Test void collegeFinalReviewActionsRemainVisibleAtSupportedWidth() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            var panel = new MajorTransferCollegeProcessingPanel(mock(StudentClientService.class));
+            panel.setSize(1080, 700);
+            layout(panel);
+            assertVisible(panel, find(panel, "major-transfer.finalize-option"));
+            assertVisible(panel, find(panel, "major-transfer.effective-option"));
+            assertVisible(panel, find(panel, "major-transfer.rollback-option"));
+        });
+    }
+
     private static java.util.List<Component> all(Container root) {
         java.util.List<Component> result = new java.util.ArrayList<>();
         for (Component child : root.getComponents()) {
@@ -146,6 +157,24 @@ class MajorTransferUiRegressionTest {
             if (child instanceof Container container) { Component found = find(container, name); if (found != null) return found; }
         }
         return null;
+    }
+
+    private static void layout(Container container) {
+        container.doLayout();
+        for (Component child : container.getComponents())
+            if (child instanceof Container nested) layout(nested);
+    }
+
+    private static void assertVisible(Container root, Component child) {
+        assertThat(child).isNotNull();
+        assertThat(child.getWidth()).as("%s laid out", child.getName()).isPositive();
+        for (Container parent = child.getParent(); parent != null; parent = parent.getParent()) {
+            Rectangle bounds = SwingUtilities.convertRectangle(child.getParent(), child.getBounds(), parent);
+            assertThat(new Rectangle(0, 0, parent.getWidth(), parent.getHeight()).contains(bounds))
+                    .as("%s clipped in %s: %s", child.getName(), parent.getClass().getSimpleName(), bounds)
+                    .isTrue();
+            if (parent == root) break;
+        }
     }
 
     private static MajorTransferWorkspace workspace() {
