@@ -20,6 +20,7 @@ public final class MajorTransferRepository {
                            Instant publicityStart, Instant publicityEnd, Instant effectiveDate,
                            long rowVersion, Instant createdAt, Instant updatedAt) {}
 
+
     public record OptionRow(String optionId, String batchId, String targetMajorId,
                             String targetDepartmentId, String targetMajorName,
                             String targetDepartmentName, String grades, int receiveQuota,
@@ -128,6 +129,7 @@ public final class MajorTransferRepository {
             throw new OrganizationPersistenceException("Cannot update batch status", error);
         }
     }
+
 
     public Optional<BatchRow> findBatch(Connection connection, String batchId) {
         String sql = "SELECT * FROM tblMajorTransferBatch WHERE batchId = ?";
@@ -507,6 +509,25 @@ public final class MajorTransferRepository {
         }
     }
 
+    /** Lists formal applications targeting one college in a school-wide batch. */
+    public List<ApplicationRow> listApplicationsByBatchAndTargetCollege(Connection connection,
+            String batchId, String departmentId) {
+        String sql = "SELECT a.* FROM tblMajorTransferApplication a "
+                + "INNER JOIN tblMajorTransferOption o ON a.optionId=o.optionId "
+                + "WHERE a.batchId=? AND a.applicationStatus<>'DRAFT' "
+                + "AND o.targetDepartmentId=? ORDER BY a.applicationId";
+        try (var statement = connection.prepareStatement(sql)) {
+            statement.setString(1, batchId); statement.setString(2, departmentId);
+            try (var result = statement.executeQuery()) {
+                List<ApplicationRow> rows = new ArrayList<>();
+                while (result.next()) rows.add(mapApplication(result));
+                return List.copyOf(rows);
+            }
+        } catch (SQLException error) {
+            throw new OrganizationPersistenceException("Cannot list target-college applications", error);
+        }
+    }
+
     public List<ApplicationRow> listApplicationsByBatchAndCollege(Connection connection,
             String batchId, String departmentId) {
         String sql = """
@@ -660,16 +681,6 @@ public final class MajorTransferRepository {
             }
         } catch (SQLException e) {
             throw new OrganizationPersistenceException("Cannot list reviews", e);
-        }
-    }
-
-    /** Removes a final-approval audit when that approval is rolled back. */
-    public int deleteFinalApproval(Connection connection, String applicationId) {
-        try (var ps = connection.prepareStatement("DELETE FROM tblMajorTransferReview WHERE applicationId=? AND reviewStage='FINAL_APPROVAL'")) {
-            ps.setString(1, applicationId);
-            return ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new OrganizationPersistenceException("Cannot rollback review", e);
         }
     }
 

@@ -47,6 +47,7 @@ final class MajorTransferStatusText {
             case QUALIFICATION_REVIEW -> "转入学院资格审核";
             case ASSESSMENT -> "考核与成绩录入";
             case FINAL_APPROVAL -> "终审";
+            case FINAL_APPROVAL_ROLLBACK -> "终审撤销";
             case EXECUTION -> "转专业生效";
         };
     }

@@ -8,5 +8,6 @@ public enum MajorTransferReviewStage implements Serializable {
     QUALIFICATION_REVIEW,
     ASSESSMENT,
     FINAL_APPROVAL,
+    FINAL_APPROVAL_ROLLBACK,
     EXECUTION
 }

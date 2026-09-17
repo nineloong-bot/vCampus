@@ -4,8 +4,9 @@ import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.student.majortransfer.FinalizeMajorTransferBatchCommand;
 import edu.seu.vcampus.common.student.majortransfer.EffectiveMajorTransferBatchCommand;
-import edu.seu.vcampus.common.student.majortransfer.MajorTransferBatchReadinessView;
+import edu.seu.vcampus.common.student.majortransfer.MajorTransferCollegeReadinessView;
 import edu.seu.vcampus.common.student.majortransfer.MajorTransferBatchView;
+import edu.seu.vcampus.common.student.majortransfer.RollbackMajorTransferBatchCommand;
 
 import javax.swing.*;
 import java.awt.Component;
@@ -20,13 +21,15 @@ final class MajorTransferCollegeBatchFinalizer {
     private final JLabel readiness;
     private final JButton finalizeBatch;
     private final JButton effectiveBatch;
+    private final JButton rollbackBatch;
     private final JLabel status;
     private final Supplier<MajorTransferBatchView> selectedBatch;
     private final LongSupplier currentBatchRequest;
     private final Runnable onFinalized;
 
     MajorTransferCollegeBatchFinalizer(Component parent, StudentClientService students,
-            JLabel readiness, JButton finalizeBatch, JButton effectiveBatch, JLabel status,
+            JLabel readiness, JButton finalizeBatch, JButton effectiveBatch,
+            JButton rollbackBatch, JLabel status,
             Supplier<MajorTransferBatchView> selectedBatch,
             LongSupplier currentBatchRequest, Runnable onFinalized) {
         this.parent = Objects.requireNonNull(parent);
@@ -34,6 +37,7 @@ final class MajorTransferCollegeBatchFinalizer {
         this.readiness = Objects.requireNonNull(readiness);
         this.finalizeBatch = Objects.requireNonNull(finalizeBatch);
         this.effectiveBatch = Objects.requireNonNull(effectiveBatch);
+        this.rollbackBatch = Objects.requireNonNull(rollbackBatch);
         this.status = Objects.requireNonNull(status);
         this.selectedBatch = Objects.requireNonNull(selectedBatch);
         this.currentBatchRequest = Objects.requireNonNull(currentBatchRequest);
@@ -50,21 +54,21 @@ final class MajorTransferCollegeBatchFinalizer {
                         readiness.setText("终审状态：" + message(response, "加载失败"));
                         finalizeBatch.setEnabled(false);
                         effectiveBatch.setEnabled(false);
+                        rollbackBatch.setEnabled(false);
                         return;
                     }
-                    MajorTransferBatchReadinessView value = response.data();
-                    readiness.setText("拟录取 " + value.assessed() + " / 驳回 " + value.rejected()
-                            + " / 取消 " + value.cancelled() + " / 未处理 " + value.unresolved()
-                            + (value.ready() ? "" : " — " + value.reason()));
-                    finalizeBatch.putClientProperty("batchVersion", value.batchVersion());
-                    finalizeBatch.setEnabled(value.ready() && value.assessed() > 0);
-                    effectiveBatch.setEnabled(value.ready() && value.assessed() == 0);
+                    MajorTransferCollegeReadinessView value = response.data();
+                    readiness.setText(summarize(value));
+                    finalizeBatch.putClientProperty("collegeVersion", value.collegeVersion());
+                    finalizeBatch.setEnabled(value.canReview());
+                    effectiveBatch.setEnabled(value.canEffect());
+                    rollbackBatch.setEnabled(value.canRollback());
                 }));
     }
 
     void finalizeSelectedBatch() {
         MajorTransferBatchView batch = selectedBatch.get();
-        Object version = finalizeBatch.getClientProperty("batchVersion");
+        Object version = finalizeBatch.getClientProperty("collegeVersion");
         if (batch == null || !(version instanceof Long expectedVersion)) return;
         int answer = JOptionPane.showConfirmDialog(parent,
                 "将把本批次拟录取申请置为待生效，不修改学生学籍。是否继续？",
@@ -77,7 +81,7 @@ final class MajorTransferCollegeBatchFinalizer {
         future.whenComplete((response, failure) ->
                 SwingUtilities.invokeLater(() -> {
                     if (response != null && response.success()) {
-                        status.setText("批次终审完成，" + response.data().effectiveStudents() + " 份申请待生效");
+                        status.setText("批次终审完成，" + response.data().preparedApplications() + " 份申请待生效");
                         onFinalized.run();
                     } else {
                         status.setText(message(response, "批次终审失败"));
@@ -88,7 +92,7 @@ final class MajorTransferCollegeBatchFinalizer {
 
     void effectiveSelectedBatch() {
         MajorTransferBatchView batch = selectedBatch.get();
-        Object version = finalizeBatch.getClientProperty("batchVersion");
+        Object version = finalizeBatch.getClientProperty("collegeVersion");
         if (batch == null || !(version instanceof Long expectedVersion)) return;
         int answer = JOptionPane.showConfirmDialog(parent,
                 "生效后将一次性修改学生学籍，且不可重复。是否继续？", "确认批次生效",
@@ -108,7 +112,41 @@ final class MajorTransferCollegeBatchFinalizer {
         }));
     }
 
+    void rollbackSelectedBatch() {
+        MajorTransferBatchView batch = selectedBatch.get();
+        Object version = finalizeBatch.getClientProperty("collegeVersion");
+        if (batch == null || !(version instanceof Long expectedVersion)) return;
+        int answer = JOptionPane.showConfirmDialog(parent,
+                "回退后待生效申请将恢复为已评定，可重新调整。是否继续？",
+                "确认回退终审", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (answer != JOptionPane.YES_OPTION) return;
+        rollbackBatch.setEnabled(false);
+        var future = students.rollbackTransferBatch(
+                new RollbackMajorTransferBatchCommand(batch.batchId(), expectedVersion));
+        if (future == null) return;
+        future.whenComplete((response, failure) -> SwingUtilities.invokeLater(() -> {
+            if (response != null && response.success()) {
+                status.setText("已回退 " + response.data().restoredApplications() + " 份申请，可重新终审");
+                onFinalized.run();
+            } else {
+                status.setText(message(response, "回退终审失败"));
+                loadReadiness(batch.batchId(), currentBatchRequest.getAsLong());
+            }
+        }));
+    }
+
     private static String message(ResponseBody<?> response, String fallback) {
         return response == null || response.message() == null ? fallback : response.message();
+    }
+
+    private static String summarize(MajorTransferCollegeReadinessView value) {
+        String counts = "拟录取 " + value.assessed() + " / 待生效 "
+                + value.pendingEffective() + " / 驳回 " + value.rejected()
+                + " / 取消 " + value.cancelled() + " / 未处理 " + value.unresolved();
+        return switch (value.status()) {
+            case PROCESSING -> counts + (value.reason() == null ? "" : " — " + value.reason());
+            case REVIEWED -> "终审已完成，待生效 — " + counts;
+            case EFFECTIVE -> "本学院转专业已结束 — " + counts;
+        };
     }
 }

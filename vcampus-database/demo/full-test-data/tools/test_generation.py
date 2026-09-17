@@ -156,6 +156,13 @@ class ScenarioContractTest(unittest.TestCase):
         self.assertEqual({"计算机科学与工程学院"},
                          {options[row["optionId"]]["targetDepartmentName"] for row in apps})
 
+    def test_transfer_batch_initializes_target_college_lifecycle(self):
+        colleges = self.rows["tblMajorTransferBatchCollege"]
+        self.assertEqual(1, len(colleges))
+        self.assertEqual("dept-cse", colleges[0]["targetDepartmentId"])
+        self.assertEqual("PROCESSING", colleges[0]["collegeStatus"])
+        self.assertEqual(0, colleges[0]["rowVersion"])
+
     def test_library_has_two_traceable_overdue_users(self):
         overdue = [row for row in self.rows["tblBookLoan"] if row["loanStatus"] == "OVERDUE"]
         self.assertEqual(2, len(overdue))

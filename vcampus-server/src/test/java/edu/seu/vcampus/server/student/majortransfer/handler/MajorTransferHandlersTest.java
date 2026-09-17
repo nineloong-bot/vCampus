@@ -14,6 +14,11 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class MajorTransferHandlersTest {
+    @Test void commandCatalogIncludesBothPostReviewActions() {
+        assertThat(MajorTransferHandlers.ADMIN_COMMANDS).contains(
+                "MAJOR_TRANSFER_EFFECTIVE_BATCH", "MAJOR_TRANSFER_ROLLBACK_BATCH");
+    }
+
     @Test void nonAdminCannotDownloadMaterialsOrReplayAdminWrites() {
         var service = mock(MajorTransferService.class);
         for (String role : List.of("STUDENT", "TEACHER")) {

@@ -171,12 +171,14 @@ public final class MajorTransferFlowChartPanel extends JPanel {
     private static int findRejectedStageIndex(MajorTransferApplicationView app) {
         if (app.reviews() != null) {
             for (var rev : app.reviews()) {
-                if (rev.decision() == MajorTransferDecision.REJECT) {
+                if (rev.decision() == MajorTransferDecision.REJECT
+                        && rev.reviewStage() != MajorTransferReviewStage.FINAL_APPROVAL_ROLLBACK) {
                     return switch (rev.reviewStage()) {
                         case SOURCE_REVIEW -> 1;
                         case QUALIFICATION_REVIEW -> 2;
                         case ASSESSMENT -> 3;
                         case FINAL_APPROVAL -> 4;
+                        case FINAL_APPROVAL_ROLLBACK -> 4;
                         case EXECUTION -> 5;
                     };
                 }
@@ -188,7 +190,9 @@ public final class MajorTransferFlowChartPanel extends JPanel {
     private static String getRejectionComment(MajorTransferApplicationView app) {
         if (app.reviews() != null) {
             for (var rev : app.reviews()) {
-                if (rev.decision() == MajorTransferDecision.REJECT && rev.comment() != null && !rev.comment().isBlank()) {
+                if (rev.decision() == MajorTransferDecision.REJECT
+                        && rev.reviewStage() != MajorTransferReviewStage.FINAL_APPROVAL_ROLLBACK
+                        && rev.comment() != null && !rev.comment().isBlank()) {
                     return rev.comment().trim();
                 }
             }

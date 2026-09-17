@@ -41,6 +41,25 @@ CREATE TABLE tblMajorTransferOption (
 CREATE INDEX idx_tblMajorTransferOption_batch ON tblMajorTransferOption (batchId);
 CREATE INDEX idx_tblMajorTransferOption_major ON tblMajorTransferOption (targetMajorId);
 
+CREATE TABLE tblMajorTransferBatchCollege (
+    batchId VARCHAR(36) NOT NULL,
+    targetDepartmentId VARCHAR(36) NOT NULL,
+    collegeStatus VARCHAR(16) NOT NULL,
+    rowVersion LONG NOT NULL,
+    reviewedBy VARCHAR(36),
+    reviewedAt DATETIME,
+    effectiveBy VARCHAR(36),
+    effectiveAt DATETIME,
+    createdAt DATETIME NOT NULL,
+    updatedAt DATETIME NOT NULL,
+    CONSTRAINT pk_tblMajorTransferBatchCollege PRIMARY KEY (batchId, targetDepartmentId),
+    CONSTRAINT fk_tblMajorTransferBatchCollege_batch FOREIGN KEY (batchId)
+        REFERENCES tblMajorTransferBatch (batchId)
+);
+
+CREATE INDEX idx_tblMajorTransferBatchCollege_status
+    ON tblMajorTransferBatchCollege (collegeStatus);
+
 CREATE TABLE tblMajorTransferApplication (
     applicationId VARCHAR(36) PRIMARY KEY,
     batchId VARCHAR(36) NOT NULL,
@@ -87,6 +106,23 @@ CREATE INDEX idx_tblMajorTransferApplication_option
 CREATE INDEX idx_tblMajorTransferApplication_status
     ON tblMajorTransferApplication (applicationStatus);
 
+CREATE TABLE tblMajorTransferPreparedTransfer (
+    applicationId VARCHAR(36) PRIMARY KEY,
+    batchId VARCHAR(36) NOT NULL,
+    targetDepartmentId VARCHAR(36) NOT NULL,
+    targetMajorId VARCHAR(36) NOT NULL,
+    targetClassId VARCHAR(36) NOT NULL,
+    targetCohortYear LONG NOT NULL,
+    studentVersion LONG NOT NULL,
+    applicationVersion LONG NOT NULL,
+    preparedAt DATETIME NOT NULL,
+    CONSTRAINT fk_tblMajorTransferPrepared_application FOREIGN KEY (applicationId)
+        REFERENCES tblMajorTransferApplication (applicationId)
+);
+
+CREATE INDEX idx_tblMajorTransferPrepared_college
+    ON tblMajorTransferPreparedTransfer (batchId, targetDepartmentId);
+
 CREATE TABLE tblMajorTransferAttachment (
     attachmentId VARCHAR(36) PRIMARY KEY,
     applicationId VARCHAR(36) NOT NULL,
@@ -117,7 +153,7 @@ CREATE TABLE tblMajorTransferReview (
         REFERENCES tblMajorTransferApplication (applicationId)
 );
 
-CREATE UNIQUE INDEX uk_tblMajorTransferReview_app_stage
+CREATE INDEX idx_tblMajorTransferReview_app_stage
     ON tblMajorTransferReview (applicationId, reviewStage);
 CREATE INDEX idx_tblMajorTransferReview_application
     ON tblMajorTransferReview (applicationId);

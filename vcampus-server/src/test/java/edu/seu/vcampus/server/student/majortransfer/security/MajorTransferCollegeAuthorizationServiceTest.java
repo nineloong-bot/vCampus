@@ -76,6 +76,29 @@ class MajorTransferCollegeAuthorizationServiceTest {
     }
 
     @Test
+    void eachCollegeCanFinalizeItsPartOfAMixedCollegeBatch() {
+        transactions.inTransaction(connection -> {
+            try (var statement = connection.prepareStatement("""
+                    INSERT INTO tblMajorTransferOption
+                    (optionId,batchId,targetMajorId,targetDepartmentId,targetMajorName,
+                     targetDepartmentName,grades,receiveQuota,interviewQuota,writtenPassScore,
+                     interviewPassScore,writtenWeightPct,interviewWeightPct,difficultyQuotaExempt,
+                     requirements,isActive,rowVersion,createdAt,updatedAt)
+                    VALUES ('option-math-finalize','transfer-2026-autumn','major-math','dept-math',
+                            '数学与应用数学','数学学院','2025',1,1,60,60,50,50,FALSE,'test',TRUE,0,NOW(),NOW())
+                    """)) {
+                statement.executeUpdate();
+            }
+            return null;
+        });
+
+        assertThatCode(() -> authorization.requireTargetApprovalForBatch(
+                CS_ADMIN, "transfer-2026-autumn")).doesNotThrowAnyException();
+        assertThatCode(() -> authorization.requireTargetApprovalForBatch(
+                MATH_ADMIN, "transfer-2026-autumn")).doesNotThrowAnyException();
+    }
+
+    @Test
     void unrelatedAdministratorCannotReadApplication() {
         assertThatThrownBy(() -> authorization.requireCanRead("user-super-admin", APPLICATION_TO_CS))
                 .isInstanceOf(IllegalArgumentException.class)

@@ -29,6 +29,7 @@ class MajorTransferStudentWorkflowTest {
     private MajorTransferRepository repository;
     private int reconciledEnrollments;
     private boolean reconciliationFails;
+    private boolean validationFails;
 
     private static final Instant NOW = Instant.now();
     private static final Instant YESTERDAY = NOW.minus(1, ChronoUnit.DAYS);
@@ -81,11 +82,21 @@ class MajorTransferStudentWorkflowTest {
         };
         service = new MajorTransferServiceImpl(database.transactions(), new StripedResourceLockManager(),
                 repository, studentRepo, new StudentChangeRepository(), orgs, users,
-                (connection, studentId, majorCode, cohortYear, operator, occurredAt) -> {
-                    if (reconciliationFails) throw new MajorTransferException(
-                            "CURRICULUM_NOT_CONFIGURED", "目标专业缺少培养方案");
-                    reconciledEnrollments++;
-                    return new MajorTransferEnrollmentPort.Reconciliation(1);
+                new MajorTransferEnrollmentPort() {
+                    @Override public void validate(java.sql.Connection connection,
+                            String majorCode, int cohortYear) {
+                        if (validationFails) throw new MajorTransferException(
+                                "CURRICULUM_NOT_CONFIGURED", "目标专业缺少培养方案");
+                    }
+
+                    @Override public Reconciliation reconcile(java.sql.Connection connection,
+                            String studentId, String majorCode, int cohortYear,
+                            String operator, Instant occurredAt) {
+                        if (reconciliationFails) throw new MajorTransferException(
+                                "CURRICULUM_NOT_CONFIGURED", "目标专业缺少培养方案");
+                        reconciledEnrollments++;
+                        return new Reconciliation(1);
+                    }
                 });
     }
 
@@ -190,6 +201,34 @@ class MajorTransferStudentWorkflowTest {
         assertThat(assessed().status()).isEqualTo(MajorTransferStatus.ASSESSED);
     }
 
+    @Test void closedBatchCannotBeReopened() {
+        seedOpenBatchWithOption();
+        sql("UPDATE tblMajorTransferBatch SET batchStatus='CLOSED' WHERE batchId='batch-1'");
+
+        assertThatThrownBy(() -> service.saveBatch("admin", new SaveMajorTransferBatchCommand(
+                "batch-1", "2026春季转专业", MajorTransferBatchStatus.OPEN,
+                YESTERDAY, TOMORROW, null, null, null, 0)))
+                .isInstanceOf(MajorTransferException.class)
+                .extracting(error -> ((MajorTransferException) error).code())
+                .isEqualTo("TRANSFER_BATCH_CLOSED");
+    }
+
+    @Test void sameSchoolWideBatchAllowsIndependentTargetCollegeReadiness() {
+        seedOpenBatchWithOption();
+        database.transactions().inTransaction(connection -> {
+            repository.insertOption(connection, new MajorTransferRepository.OptionRow(
+                    "opt-2", "batch-1", "major-3", "dept-1", "人工智能", "计算机学院",
+                    "2026", 10, 5, 60.0, 60.0, 60, 40, false, null, true, 0, NOW, NOW));
+            return null;
+        });
+        sql("UPDATE tblMajorTransferBatch SET batchStatus='CLOSED' WHERE batchId='batch-1'");
+
+        assertThatCode(() -> service.getBatchReadiness("batch-1", "dept-2"))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> service.getBatchReadiness("batch-1", "dept-1"))
+                .doesNotThrowAnyException();
+    }
+
     @Test void closedBatchRequiresReviewThenOneTimeEffect() throws Exception {
         var app = assessed();
         sql("UPDATE tblMajorTransferBatch SET batchStatus='CLOSED', effectiveDate=#2027-09-01# "
@@ -197,16 +236,17 @@ class MajorTransferStudentWorkflowTest {
 
         var readiness = service.getBatchReadiness("batch-1", "dept-2");
         var result = service.finalizeBatch("admin",
-                new FinalizeMajorTransferBatchCommand("batch-1", readiness.batchVersion()), "dept-2");
+                new FinalizeMajorTransferBatchCommand("batch-1", readiness.collegeVersion()), "dept-2");
 
-        assertThat(result.status()).isEqualTo(MajorTransferBatchStatus.CLOSED);
-        assertThat(result.effectiveStudents()).isEqualTo(1);
-        assertThat(result.droppedEnrollments()).isZero();
+        assertThat(result.status()).isEqualTo(MajorTransferCollegeStatus.REVIEWED);
+        assertThat(result.preparedApplications()).isEqualTo(1);
+        assertThat(result.collegeVersion()).isOne();
+        assertThat(database.count("tblMajorTransferPreparedTransfer")).isOne();
         assertThat(database.stringValue("SELECT classId FROM tblStudent WHERE studentId='student-1'"))
                 .isEqualTo("class-1");
         var effective = service.effectiveBatch("admin", new EffectiveMajorTransferBatchCommand(
-                "batch-1", readiness.batchVersion()), "dept-2");
-        assertThat(effective.status()).isEqualTo(MajorTransferBatchStatus.EFFECTIVE);
+                "batch-1", result.collegeVersion()), "dept-2");
+        assertThat(effective.status()).isEqualTo(MajorTransferCollegeStatus.EFFECTIVE);
         assertThat(effective.effectiveStudents()).isEqualTo(1);
         assertThat(effective.droppedEnrollments()).isEqualTo(1);
         assertThat(reconciledEnrollments).isEqualTo(1);
@@ -225,13 +265,128 @@ class MajorTransferStudentWorkflowTest {
 
         var readiness = service.getBatchReadiness("batch-1", "dept-2");
 
-        assertThat(readiness.ready()).isFalse();
+        assertThat(readiness.canReview()).isFalse();
         assertThat(readiness.unresolved()).isOne();
         assertThatThrownBy(() -> service.finalizeBatch("admin",
-                new FinalizeMajorTransferBatchCommand("batch-1", readiness.batchVersion()), "dept-2"))
+                new FinalizeMajorTransferBatchCommand("batch-1", readiness.collegeVersion()), "dept-2"))
                 .isInstanceOf(MajorTransferException.class);
         assertThat(database.stringValue("SELECT classId FROM tblStudent WHERE studentId='student-1'"))
                 .isEqualTo("class-1");
+    }
+
+    @Test void unresolvedApplicationBlocksOnlyItsTargetCollege() throws Exception {
+        assessed();
+        database.transactions().inTransaction(connection -> {
+            repository.insertOption(connection, new MajorTransferRepository.OptionRow(
+                    "opt-2", "batch-1", "major-3", "dept-1", "人工智能", "计算机学院",
+                    "2026", 10, 5, 60.0, 60.0, 60, 40, false, null, true, 0, NOW, NOW));
+            return null;
+        });
+        sql("UPDATE tblStudent SET classId='class-2' WHERE studentId='student-2'");
+        var other = service.saveDraft("user-2", new SaveMajorTransferDraftCommand(null,
+                "batch-1", "opt-2", MajorTransferApplicationType.ORDINARY, "申请理由", 0));
+        service.submit("user-2", new SubmitMajorTransferCommand(
+                other.applicationId(), other.applicationVersion()));
+        sql("UPDATE tblMajorTransferBatch SET batchStatus='CLOSED' WHERE batchId='batch-1'");
+
+        assertThat(service.getBatchReadiness("batch-1", "dept-2").canReview()).isTrue();
+        assertThat(service.getBatchReadiness("batch-1", "dept-1").unresolved()).isOne();
+    }
+
+    @Test void reviewCanBeRolledBackWithoutDeletingItsAudit() throws Exception {
+        var app = assessed();
+        sql("UPDATE tblMajorTransferBatch SET batchStatus='CLOSED' WHERE batchId='batch-1'");
+        var reviewed = service.finalizeBatch("admin",
+                new FinalizeMajorTransferBatchCommand("batch-1", 0), "dept-2");
+
+        var rolledBack = service.rollbackBatch("admin",
+                new RollbackMajorTransferBatchCommand("batch-1", reviewed.collegeVersion()), "dept-2");
+
+        assertThat(rolledBack.status()).isEqualTo(MajorTransferCollegeStatus.PROCESSING);
+        assertThat(database.stringValue("SELECT applicationStatus FROM tblMajorTransferApplication "
+                + "WHERE applicationId='" + app.applicationId() + "'")).isEqualTo("ASSESSED");
+        assertThat(database.count("tblMajorTransferPreparedTransfer")).isZero();
+        assertThat(database.stringValue("SELECT COUNT(*) FROM tblMajorTransferReview WHERE "
+                + "applicationId='" + app.applicationId() + "' AND reviewStage IN "
+                + "('FINAL_APPROVAL','FINAL_APPROVAL_ROLLBACK')")).isEqualTo("2");
+        assertThat(service.getBatchReadiness("batch-1", "dept-2").canReview()).isTrue();
+    }
+
+    @Test void effectiveCollegeCannotBeEffectedOrRolledBackAgain() {
+        assessed();
+        sql("UPDATE tblMajorTransferBatch SET batchStatus='CLOSED' WHERE batchId='batch-1'");
+        var reviewed = service.finalizeBatch("admin",
+                new FinalizeMajorTransferBatchCommand("batch-1", 0), "dept-2");
+        var effective = service.effectiveBatch("admin", new EffectiveMajorTransferBatchCommand(
+                "batch-1", reviewed.collegeVersion()), "dept-2");
+
+        assertThatThrownBy(() -> service.effectiveBatch("admin",
+                new EffectiveMajorTransferBatchCommand("batch-1", effective.collegeVersion()), "dept-2"))
+                .isInstanceOf(MajorTransferException.class);
+        assertThatThrownBy(() -> service.rollbackBatch("admin",
+                new RollbackMajorTransferBatchCommand("batch-1", effective.collegeVersion()), "dept-2"))
+                .isInstanceOf(MajorTransferException.class);
+    }
+
+    @Test void collegeWithNoAdmissionsCanStillReviewAndCloseOnce() {
+        seedOpenBatchWithOption();
+        sql("UPDATE tblMajorTransferBatch SET batchStatus='CLOSED' WHERE batchId='batch-1'");
+
+        var reviewed = service.finalizeBatch("admin",
+                new FinalizeMajorTransferBatchCommand("batch-1", 0), "dept-2");
+        var effective = service.effectiveBatch("admin", new EffectiveMajorTransferBatchCommand(
+                "batch-1", reviewed.collegeVersion()), "dept-2");
+
+        assertThat(reviewed.preparedApplications()).isZero();
+        assertThat(effective.effectiveStudents()).isZero();
+        assertThat(effective.status()).isEqualTo(MajorTransferCollegeStatus.EFFECTIVE);
+    }
+
+    @Test void changedStudentSnapshotCannotBeEffected() throws Exception {
+        var app = assessed();
+        sql("UPDATE tblMajorTransferBatch SET batchStatus='CLOSED' WHERE batchId='batch-1'");
+        var reviewed = service.finalizeBatch("admin",
+                new FinalizeMajorTransferBatchCommand("batch-1", 0), "dept-2");
+        sql("UPDATE tblStudent SET rowVersion=rowVersion+1 WHERE studentId='student-1'");
+
+        assertThatThrownBy(() -> service.effectiveBatch("admin",
+                new EffectiveMajorTransferBatchCommand("batch-1", reviewed.collegeVersion()), "dept-2"))
+                .isInstanceOf(MajorTransferException.class);
+        assertThat(database.stringValue("SELECT applicationStatus FROM tblMajorTransferApplication "
+                + "WHERE applicationId='" + app.applicationId() + "'"))
+                .isEqualTo("PENDING_EFFECTIVE");
+        assertThat(database.stringValue("SELECT classId FROM tblStudent WHERE studentId='student-1'"))
+                .isEqualTo("class-1");
+    }
+
+    @Test void assessedApplicationAppearingAfterReviewBlocksEffectuation() {
+        var app = assessed();
+        sql("UPDATE tblMajorTransferBatch SET batchStatus='CLOSED' WHERE batchId='batch-1'");
+        var reviewed = service.finalizeBatch("admin",
+                new FinalizeMajorTransferBatchCommand("batch-1", 0), "dept-2");
+        sql("UPDATE tblMajorTransferApplication SET applicationStatus='ASSESSED' WHERE applicationId='"
+                + app.applicationId() + "'");
+
+        assertThat(service.getBatchReadiness("batch-1", "dept-2").canEffect()).isFalse();
+        assertThatThrownBy(() -> service.effectiveBatch("admin",
+                new EffectiveMajorTransferBatchCommand("batch-1", reviewed.collegeVersion()), "dept-2"))
+                .isInstanceOf(MajorTransferException.class)
+                .hasMessageContaining("未处理完毕");
+    }
+
+    @Test void reviewPreflightsCurriculumBeforeChangingApplicationState() throws Exception {
+        var app = assessed();
+        sql("UPDATE tblMajorTransferBatch SET batchStatus='CLOSED' WHERE batchId='batch-1'");
+        validationFails = true;
+
+        assertThatThrownBy(() -> service.finalizeBatch("admin",
+                new FinalizeMajorTransferBatchCommand("batch-1", 0), "dept-2"))
+                .isInstanceOf(MajorTransferException.class)
+                .extracting(error -> ((MajorTransferException) error).code())
+                .isEqualTo("CURRICULUM_NOT_CONFIGURED");
+        assertThat(database.stringValue("SELECT applicationStatus FROM tblMajorTransferApplication "
+                + "WHERE applicationId='" + app.applicationId() + "'")).isEqualTo("ASSESSED");
+        assertThat(database.count("tblMajorTransferPreparedTransfer")).isZero();
     }
 
     @Test void reconciliationFailureRollsBackStudentNumberAndApplication() throws Exception {
@@ -239,9 +394,10 @@ class MajorTransferStudentWorkflowTest {
         sql("UPDATE tblMajorTransferBatch SET batchStatus='CLOSED' WHERE batchId='batch-1'");
         reconciliationFails = true;
 
-        service.finalizeBatch("admin", new FinalizeMajorTransferBatchCommand("batch-1", 0), "dept-2");
+        var reviewed = service.finalizeBatch("admin",
+                new FinalizeMajorTransferBatchCommand("batch-1", 0), "dept-2");
         assertThatThrownBy(() -> service.effectiveBatch("admin",
-                new EffectiveMajorTransferBatchCommand("batch-1", 0), "dept-2"))
+                new EffectiveMajorTransferBatchCommand("batch-1", reviewed.collegeVersion()), "dept-2"))
                 .isInstanceOf(MajorTransferException.class)
                 .extracting(error -> ((MajorTransferException) error).code())
                 .isEqualTo("CURRICULUM_NOT_CONFIGURED");

@@ -27,6 +27,10 @@ def generate(add, now):
             writtenWeightPct=60, interviewWeightPct=40, difficultyQuotaExempt=False,
             requirements="已修课程无不及格记录，具备良好的数学与程序设计基础。",
             isActive=True, rowVersion=0, createdAt=datetime(2026, 8, 20, 9), updatedAt=now)
+    add("tblMajorTransferBatchCollege", batchId=BATCH_ID,
+        targetDepartmentId="dept-cse", collegeStatus="PROCESSING", rowVersion=0,
+        reviewedBy=None, reviewedAt=None, effectiveBy=None, effectiveAt=None,
+        createdAt=datetime(2026, 8, 20, 9), updatedAt=now)
     reasons = (
         "希望系统学习计算机体系结构与算法设计，未来从事基础软件研发。",
         "对计算机系统软件与程序设计有浓厚兴趣，希望系统学习计算机科学专业课程。",
@@ -68,6 +72,9 @@ def validate_transfer_fixture(rows, application_start=None):
     classes = {row["classId"]: row for row in rows.get("tblClass", [])}
     if len(applications) != 5:
         raise AssertionError("exactly five transfer applications are required")
+    colleges = rows.get("tblMajorTransferBatchCollege", [])
+    if len(colleges) != 1 or colleges[0]["collegeStatus"] != "PROCESSING":
+        raise AssertionError("target-college transfer lifecycle must start in PROCESSING")
     for application in applications:
         student = students[application["studentId"]]
         klass = classes[student["classId"]]

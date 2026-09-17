@@ -89,10 +89,7 @@ class MajorTransferRepositoryTest {
         repository.insertBatch(connection, batch("batch-1", MajorTransferBatchStatus.CLOSED));
         var command = new FinalizeMajorTransferBatchCommand("batch-1", 0);
         assertThat(command.batchId()).isEqualTo("batch-1");
-        assertThat(new MajorTransferBatchReadinessView("batch-1", 2, 1, 1, 0,
-                true, null, 0).ready()).isTrue();
-        assertThat(new MajorTransferBatchFinalizationResult("batch-1", 2, 3,
-                MajorTransferBatchStatus.EFFECTIVE).droppedEnrollments()).isEqualTo(3);
+        assertThat(command.expectedCollegeVersion()).isZero();
 
         assertThat(repository.updateBatchStatus(connection, "batch-1",
                 MajorTransferBatchStatus.CLOSED, MajorTransferBatchStatus.EFFECTIVE, 0, NOW))
@@ -102,6 +99,40 @@ class MajorTransferRepositoryTest {
                 .isZero();
         assertThat(repository.findBatch(connection, "batch-1").orElseThrow().status())
                 .isEqualTo(MajorTransferBatchStatus.EFFECTIVE);
+    }
+
+    @Test
+    void collegeBatchStatesAreIndependent() {
+        var colleges = new MajorTransferCollegeBatchRepository();
+        repository.insertBatch(connection, batch("batch-1", MajorTransferBatchStatus.CLOSED));
+
+        colleges.findOrCreate(connection, "batch-1", "dept-1", NOW);
+        colleges.findOrCreate(connection, "batch-1", "dept-2", NOW);
+
+        assertThat(colleges.updateStatus(connection, "batch-1", "dept-1",
+                MajorTransferCollegeStatus.PROCESSING, MajorTransferCollegeStatus.REVIEWED,
+                0, "admin-1", NOW)).isOne();
+        assertThat(colleges.find(connection, "batch-1", "dept-1").orElseThrow().status())
+                .isEqualTo(MajorTransferCollegeStatus.REVIEWED);
+        assertThat(colleges.find(connection, "batch-1", "dept-2").orElseThrow().status())
+                .isEqualTo(MajorTransferCollegeStatus.PROCESSING);
+    }
+
+    @Test
+    void preparedTransfersAreScopedByCollege() {
+        var colleges = new MajorTransferCollegeBatchRepository();
+        repository.insertBatch(connection, batch("batch-1", MajorTransferBatchStatus.CLOSED));
+        repository.insertOption(connection, option("opt-1", "batch-1"));
+        repository.insertDraft(connection, draft("app-1", "batch-1", "student-1", "opt-1"));
+        var prepared = new MajorTransferCollegeBatchRepository.PreparedTransferRow("app-1", "batch-1",
+                "dept-2", "major-2", "class-2", 2024, 0, 0, NOW);
+
+        colleges.replacePrepared(connection, "batch-1", "dept-2", List.of(prepared));
+
+        assertThat(colleges.listPrepared(connection, "batch-1", "dept-2"))
+                .containsExactly(prepared);
+        assertThat(colleges.deletePrepared(connection, "batch-1", "dept-2")).isOne();
+        assertThat(colleges.listPrepared(connection, "batch-1", "dept-2")).isEmpty();
     }
 
     // ── Option tests ──
@@ -275,7 +306,7 @@ class MajorTransferRepositoryTest {
     }
 
     @Test
-    void rejectsDuplicateStageReview() {
+    void preservesRepeatedStageReviewsAsAuditHistory() {
         repository.insertBatch(connection, batch("batch-1", MajorTransferBatchStatus.OPEN));
         repository.insertOption(connection, option("opt-1", "batch-1"));
         repository.insertDraft(connection, draft("app-1", "batch-1", "student-1", "opt-1"));
@@ -283,13 +314,11 @@ class MajorTransferRepositoryTest {
                 "rev-1", "app-1", MajorTransferReviewStage.SOURCE_REVIEW,
                 MajorTransferDecision.APPROVE, "admin-1", "通过",
                 true, true, true, NOW));
-        assertThatThrownBy(() -> repository.insertReview(connection,
-                new MajorTransferRepository.ReviewRow("rev-2", "app-1",
-                        MajorTransferReviewStage.SOURCE_REVIEW,
-                        MajorTransferDecision.APPROVE, "admin-2", "再次通过",
-                        true, true, true, NOW)))
-                .isInstanceOf(RuntimeException.class);
-        assertThat(repository.listReviews(connection, "app-1")).hasSize(1);
+        repository.insertReview(connection, new MajorTransferRepository.ReviewRow(
+                "rev-2", "app-1", MajorTransferReviewStage.SOURCE_REVIEW,
+                MajorTransferDecision.APPROVE, "admin-2", "再次通过",
+                true, true, true, NOW));
+        assertThat(repository.listReviews(connection, "app-1")).hasSize(2);
     }
 
     // ── Execution tests ──

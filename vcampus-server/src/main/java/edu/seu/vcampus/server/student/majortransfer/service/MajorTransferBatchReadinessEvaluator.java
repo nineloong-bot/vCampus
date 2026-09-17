@@ -1,45 +1,62 @@
 package edu.seu.vcampus.server.student.majortransfer.service;
 
-import edu.seu.vcampus.common.student.majortransfer.MajorTransferBatchReadinessView;
+import edu.seu.vcampus.common.student.majortransfer.MajorTransferCollegeReadinessView;
+import edu.seu.vcampus.common.student.majortransfer.MajorTransferCollegeStatus;
 import edu.seu.vcampus.common.student.majortransfer.MajorTransferBatchStatus;
 import edu.seu.vcampus.common.student.majortransfer.MajorTransferStatus;
 import edu.seu.vcampus.server.student.majortransfer.repository.MajorTransferRepository;
 
 import java.sql.Connection;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 final class MajorTransferBatchReadinessEvaluator {
     private final MajorTransferRepository transfers;
+    private final edu.seu.vcampus.server.student.majortransfer.repository.MajorTransferCollegeBatchRepository colleges;
 
-    MajorTransferBatchReadinessEvaluator(MajorTransferRepository transfers) {
+    MajorTransferBatchReadinessEvaluator(MajorTransferRepository transfers,
+            edu.seu.vcampus.server.student.majortransfer.repository.MajorTransferCollegeBatchRepository colleges) {
         this.transfers = transfers;
+        this.colleges = colleges;
     }
 
-    MajorTransferBatchReadinessView evaluate(Connection connection, String batchId,
+    MajorTransferCollegeReadinessView evaluate(Connection connection, String batchId,
             String departmentId) {
         var batch = transfers.findBatch(connection, batchId).orElseThrow(() ->
                 new MajorTransferException("TRANSFER_BATCH_NOT_FOUND", "批次不存在"));
         var options = transfers.listOptionsByBatch(connection, batchId).stream()
-                .filter(MajorTransferRepository.OptionRow::active).toList();
-        Set<String> departments = options.stream().map(
-                MajorTransferRepository.OptionRow::targetDepartmentId).collect(Collectors.toSet());
-        if (departments.size() != 1 || !departments.contains(departmentId)) {
+                .filter(MajorTransferRepository.OptionRow::active)
+                .filter(option -> departmentId.equals(option.targetDepartmentId())).toList();
+        if (options.isEmpty()) {
             throw new IllegalArgumentException("COMMON_FORBIDDEN");
         }
-        var applications = transfers.listApplicationsByBatch(connection, batchId);
+        var college = colleges.findOrCreate(connection, batchId, departmentId, java.time.Instant.now());
+        var applications = transfers.listApplicationsByBatchAndTargetCollege(
+                connection, batchId, departmentId);
         int assessed = count(applications, MajorTransferStatus.ASSESSED);
         int rejected = count(applications, MajorTransferStatus.REJECTED);
         int cancelled = count(applications, MajorTransferStatus.CANCELLED);
         int pendingEffective = count(applications, MajorTransferStatus.PENDING_EFFECTIVE);
         int unresolved = applications.size() - assessed - pendingEffective - rejected - cancelled;
-        String reason = batch.status() != MajorTransferBatchStatus.CLOSED ? "批次尚未关闭"
-                : applications.isEmpty() ? "批次没有正式申请"
-                : unresolved > 0 ? "还有 " + unresolved + " 份申请未处理完毕"
-                : quotaReason(applications, options);
-        return new MajorTransferBatchReadinessView(batchId, assessed, rejected, cancelled,
-                unresolved, reason == null, reason, batch.rowVersion());
+        boolean processing = college.status() == MajorTransferCollegeStatus.PROCESSING;
+        boolean reviewed = college.status() == MajorTransferCollegeStatus.REVIEWED;
+        String reason = readinessReason(batch.status(), processing, reviewed, assessed,
+                pendingEffective, unresolved, applications, options);
+        boolean readyNow = reason == null;
+        return new MajorTransferCollegeReadinessView(batchId, departmentId, college.status(),
+                assessed, pendingEffective, rejected, cancelled, unresolved,
+                processing && readyNow, reviewed, reviewed && readyNow, reason,
+                college.rowVersion());
+    }
+
+    private String readinessReason(MajorTransferBatchStatus batchStatus, boolean processing,
+            boolean reviewed, int assessed, int pendingEffective, int unresolved,
+            List<MajorTransferRepository.ApplicationRow> applications,
+            List<MajorTransferRepository.OptionRow> options) {
+        if (batchStatus != MajorTransferBatchStatus.CLOSED) return "批次尚未关闭";
+        if (unresolved > 0) return "还有 " + unresolved + " 份申请未处理完毕";
+        if (processing && pendingEffective > 0) return "存在未回退的待生效申请";
+        if (reviewed && assessed > 0) return "还有 " + assessed + " 份申请未处理完毕";
+        return quotaReason(applications, options);
     }
 
     private String quotaReason(List<MajorTransferRepository.ApplicationRow> applications,

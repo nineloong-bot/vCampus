@@ -6,6 +6,9 @@ import java.time.Instant;
 /** Reconciles course enrollments when an approved major transfer becomes effective. */
 @FunctionalInterface
 public interface MajorTransferEnrollmentPort {
+    /** Validates that the target curriculum needed for effectuation exists. */
+    default void validate(Connection connection, String targetMajorCode, int cohortYear) { }
+
     /**
      * Drops current-term enrollments that are absent from the target curriculum.
      *

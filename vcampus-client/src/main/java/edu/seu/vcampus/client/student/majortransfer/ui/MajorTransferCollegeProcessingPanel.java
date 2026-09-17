@@ -27,6 +27,7 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
     private final JLabel readiness = new JLabel("终审状态：未加载");
     private final JButton finalizeBatch = new JButton("批次终审");
     private final JButton effectiveBatch = new JButton("生效");
+    private final JButton rollbackBatch = new JButton("回退终审");
     private final Set<String> ownedOptions = new HashSet<>();
     private final MajorTransferCollegeActions collegeActions;
     private final MajorTransferCollegeBatchFinalizer batchFinalizer;
@@ -40,7 +41,8 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
         super(new BorderLayout(UiSpacing.SPACE_2, UiSpacing.SPACE_2));
         this.students = Objects.requireNonNull(students);
         batchFinalizer = new MajorTransferCollegeBatchFinalizer(this, students, readiness,
-                finalizeBatch, effectiveBatch, status, () -> (MajorTransferBatchView) batches.getSelectedItem(),
+                finalizeBatch, effectiveBatch, rollbackBatch, status,
+                () -> (MajorTransferBatchView) batches.getSelectedItem(),
                 () -> batchRequest, this::refresh);
         collegeActions = new MajorTransferCollegeActions(this, students, actions, status,
                 this::loadDetail, this::refreshReadiness, this::openEditor);
@@ -76,6 +78,10 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
         effectiveBatch.setEnabled(false);
         effectiveBatch.addActionListener(event -> batchFinalizer.effectiveSelectedBatch());
         toolbar.add(effectiveBatch);
+        rollbackBatch.setName("major-transfer.rollback-batch");
+        rollbackBatch.setEnabled(false);
+        rollbackBatch.addActionListener(event -> batchFinalizer.rollbackSelectedBatch());
+        toolbar.add(rollbackBatch);
         toolbar.add(readiness);
         batches.addActionListener(event -> loadSelectedBatch());
 
@@ -127,6 +133,8 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
         if (workspaceView != null) workspaceView.clearDetail();
         actions.removeAll();
         finalizeBatch.setEnabled(false);
+        effectiveBatch.setEnabled(false);
+        rollbackBatch.setEnabled(false);
         readiness.setText("终审状态：加载中…");
         if (batch == null) return;
         students.listTransferOptions(batch.batchId()).whenComplete((response, failure) ->

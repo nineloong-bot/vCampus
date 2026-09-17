@@ -34,6 +34,13 @@ public final class AccessMajorTransferEnrollmentAdapter implements MajorTransfer
 
     /** {@inheritDoc} */
     @Override
+    public void validate(Connection connection, String targetMajorCode, int cohortYear) {
+        curricula.findPublishedPlan(connection, targetMajorCode, cohortYear)
+                .orElseThrow(CurriculumNotConfiguredException::new);
+    }
+
+    /** {@inheritDoc} */
+    @Override
     public Reconciliation reconcile(Connection connection, String studentId, String targetMajorCode,
                                     int cohortYear, String operatorUserId, Instant occurredAt) {
         Objects.requireNonNull(connection);

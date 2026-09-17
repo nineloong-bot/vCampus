@@ -93,9 +93,10 @@ public final class StudentClientService {
     public CompletableFuture<ResponseBody<MajorTransferApplicationView>> reviewTransferSource(ReviewMajorTransferSourceCommand value) { return sendAsync("MAJOR_TRANSFER_REVIEW_SOURCE", value); }
     public CompletableFuture<ResponseBody<MajorTransferApplicationView>> reviewTransferQualification(ReviewMajorTransferQualificationCommand value) { return sendAsync("MAJOR_TRANSFER_REVIEW_QUALIFICATION", value); }
     public CompletableFuture<ResponseBody<MajorTransferApplicationView>> recordTransferScore(RecordMajorTransferScoreCommand value) { return sendAsync("MAJOR_TRANSFER_RECORD_SCORE", value); }
-    public CompletableFuture<ResponseBody<MajorTransferBatchReadinessView>> getTransferBatchReadiness(String batchId) { return sendAsync("MAJOR_TRANSFER_GET_BATCH_READINESS", new EntityIdRequest(batchId)); }
-    public CompletableFuture<ResponseBody<MajorTransferBatchFinalizationResult>> finalizeTransferBatch(FinalizeMajorTransferBatchCommand value) { return sendAsync("MAJOR_TRANSFER_FINALIZE_BATCH", value); }
-    public CompletableFuture<ResponseBody<MajorTransferBatchFinalizationResult>> effectiveTransferBatch(EffectiveMajorTransferBatchCommand value) { return sendAsync("MAJOR_TRANSFER_EFFECTIVE_BATCH", value); }
+    public CompletableFuture<ResponseBody<MajorTransferCollegeReadinessView>> getTransferBatchReadiness(String batchId) { return sendAsync("MAJOR_TRANSFER_GET_BATCH_READINESS", new EntityIdRequest(batchId)); }
+    public CompletableFuture<ResponseBody<MajorTransferBatchReviewResult>> finalizeTransferBatch(FinalizeMajorTransferBatchCommand value) { return sendAsync("MAJOR_TRANSFER_FINALIZE_BATCH", value); }
+    public CompletableFuture<ResponseBody<MajorTransferBatchEffectResult>> effectiveTransferBatch(EffectiveMajorTransferBatchCommand value) { return sendAsync("MAJOR_TRANSFER_EFFECTIVE_BATCH", value); }
+    public CompletableFuture<ResponseBody<MajorTransferBatchRollbackResult>> rollbackTransferBatch(RollbackMajorTransferBatchCommand value) { return sendAsync("MAJOR_TRANSFER_ROLLBACK_BATCH", value); }
     public CompletableFuture<ResponseBody<MajorTransferApplicationView>> cancelTransfer(CancelMajorTransferCommand value) { return sendAsync("MAJOR_TRANSFER_CANCEL", value); }
     public CompletableFuture<ResponseBody<MajorTransferImportResult>> importTransferScores(ImportMajorTransferScoresCommand value) { return sendAsync("MAJOR_TRANSFER_IMPORT_SCORES", value); }
     public CompletableFuture<ResponseBody<MajorTransferScoreTemplateDocument>> exportTransferScoreTemplate(String optionId) { return sendAsync("MAJOR_TRANSFER_EXPORT_SCORE_TEMPLATE", new EntityIdRequest(optionId)); }

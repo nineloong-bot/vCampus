@@ -23,7 +23,8 @@ public final class MajorTransferHandlers {
             "MAJOR_TRANSFER_GET_ATTACHMENT", "MAJOR_TRANSFER_REVIEW_SOURCE",
             "MAJOR_TRANSFER_REVIEW_QUALIFICATION", "MAJOR_TRANSFER_RECORD_SCORE",
             "MAJOR_TRANSFER_IMPORT_SCORES", "MAJOR_TRANSFER_GET_BATCH_READINESS",
-            "MAJOR_TRANSFER_FINALIZE_BATCH", "MAJOR_TRANSFER_CANCEL");
+            "MAJOR_TRANSFER_FINALIZE_BATCH", "MAJOR_TRANSFER_EFFECTIVE_BATCH",
+            "MAJOR_TRANSFER_ROLLBACK_BATCH", "MAJOR_TRANSFER_CANCEL");
 
     private final MajorTransferStudentHandlers students;
     private final MajorTransferConfigurationHandlers configuration;

@@ -50,6 +50,7 @@ class MajorTransferRoleUiTest {
             assertThat(find(panel, "executeButton")).isNull();
             assertThat(find(panel, "finalizeButton")).isNull();
             assertThat(find(panel, "major-transfer.finalize-batch")).isNotNull();
+            assertThat(find(panel, "major-transfer.rollback-batch")).isNotNull();
             render(panel, applicationWithAttachment());
             assertThat(find(panel, "downloadAttachmentButton")).isNotNull();
         });

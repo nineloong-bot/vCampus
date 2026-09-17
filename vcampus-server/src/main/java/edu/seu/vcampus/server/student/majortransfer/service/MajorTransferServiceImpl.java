@@ -343,12 +343,14 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
                 MajorTransferRepository.BatchRow existing =
                         repository.findBatch(connection, command.batchId())
                                 .orElseThrow(() -> error("TRANSFER_BATCH_NOT_FOUND", "批次不存在"));
+                MajorTransferBatchStateMachine.requireUpdate(existing.status(), command.status());
                 requireChanged(repository.updateBatch(connection, command.batchId(), command.batchName(),
                         command.status(), command.applicationStart(), command.applicationEnd(),
                         command.publicityStart(), command.publicityEnd(), command.effectiveDate(),
                         command.expectedVersion(), now));
                 return toBatchView(repository.findBatch(connection, command.batchId()).orElseThrow());
             } else {
+                MajorTransferBatchStateMachine.requireCreatable(command.status());
                 List<MajorTransferRepository.BatchRow> overlapping =
                         repository.findOverlappingOpenBatches(connection,
                                 command.applicationStart(), command.applicationEnd(), null);
@@ -721,28 +723,28 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
 
     /** {@inheritDoc} */
     @Override
-    public MajorTransferBatchReadinessView getBatchReadiness(
+    public MajorTransferCollegeReadinessView getBatchReadiness(
             String batchId, String trustedDepartmentId) {
         return batchFinalizer.readiness(batchId, trustedDepartmentId);
     }
 
     /** {@inheritDoc} */
     @Override
-    public MajorTransferBatchFinalizationResult finalizeBatch(String adminUserId,
+    public MajorTransferBatchReviewResult finalizeBatch(String adminUserId,
             FinalizeMajorTransferBatchCommand command, String trustedDepartmentId) {
         return batchFinalizer.finalizeBatch(adminUserId, command, trustedDepartmentId);
     }
 
     /** {@inheritDoc} */
     @Override
-    public MajorTransferBatchFinalizationResult effectiveBatch(String adminUserId,
+    public MajorTransferBatchEffectResult effectiveBatch(String adminUserId,
             EffectiveMajorTransferBatchCommand command, String trustedDepartmentId) {
         return batchFinalizer.effectiveBatch(adminUserId, command, trustedDepartmentId);
     }
 
     /** {@inheritDoc} */
     @Override
-    public MajorTransferBatchFinalizationResult rollbackBatch(String adminUserId,
+    public MajorTransferBatchRollbackResult rollbackBatch(String adminUserId,
             RollbackMajorTransferBatchCommand command, String trustedDepartmentId) {
         return batchFinalizer.rollbackBatch(adminUserId, command, trustedDepartmentId);
     }
