@@ -137,21 +137,19 @@ class LoginDemoUiTest {
         assertThat(component(login[0], "login.demoAdmin", JLabel.class).getText())
                 .isEqualTo("管理员：admin / 123456");
         assertThat(component(login[0], "login.demoTeacher", JLabel.class).getText())
-                .isEqualTo("教师：teacher / 123456");
+                .isEqualTo("教师：teacher / 123456（T001-T024）");
         assertThat(component(login[0], "login.demoStudent", JLabel.class).getText())
-                .isEqualTo("学生：student 或任意学号 / 123456");
+                .isEqualTo("学生：213240001 等一卡通或学号 / 123456");
         assertThat(component(login[0], "login.demoManagementPassword", JLabel.class).getText())
                 .isEqualTo("演示统一密码：123456");
         assertThat(component(login[0], "login.demoModuleAdmins1", JLabel.class).getText())
-                .isEqualTo("模块：学籍 stu ｜ 课程 course");
+                .isEqualTo("模块：学籍 student (stu) ｜ 课程 course");
         assertThat(component(login[0], "login.demoModuleAdmins2", JLabel.class).getText())
-                .isEqualTo("模块：图书 lib ｜ 商城 shop");
+                .isEqualTo("模块：图书 library (lib) ｜ 商城 shop");
         assertThat(component(login[0], "login.demoModuleAdmins3", JLabel.class).getText())
                 .isEqualTo("模块：用户 user");
         assertThat(component(login[0], "login.demoCollegeAdmins", JLabel.class).getText())
-                .isEqualTo("学院：计算机 cs ｜ 数学 math");
-        assertThat(component(login[0], "login.demoCollegeAdmins2", JLabel.class).getText())
-                .isEqualTo("学院：信息工程 ee ｜ 外国语 fl");
+                .isEqualTo("学院：计算机 csadmin (cs) ｜ 数学 mathadmin (math)");
         assertThat(component(login[0], "login.loginId", JTextField.class).getText())
                 .isEmpty();
         assertThat(component(login[0], "login.password", JPasswordField.class).getPassword())

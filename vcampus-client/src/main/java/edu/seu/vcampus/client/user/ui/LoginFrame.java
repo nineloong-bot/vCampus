@@ -68,7 +68,10 @@ public final class LoginFrame extends JFrame {
         add(formPanel(connection), split);
         getRootPane().setDefaultButton(submit);
         submit.addActionListener(event -> submitLogin());
-        loginId.setToolTipText("支持所有学号/一卡通号直接登录；快捷账号：admin, stu, course, lib, shop, user, cs, math, ee, fl, teacher, student；密码：123456");
+        loginId.setBorder(BorderFactory.createCompoundBorder(
+                UiBorders.LINE,
+                BorderFactory.createEmptyBorder(0, UiSpacing.SPACE_2, 0, UiSpacing.SPACE_2)));
+        loginId.setToolTipText("支持所有学号/一卡通号直接登录；快捷账号：admin, student (stu), course, library (lib), shop, user, csadmin (cs), mathadmin (math), teacher；密码：123456");
         setSize(UiDimensions.LOGIN_WINDOW);
         setMinimumSize(UiDimensions.LOGIN_MINIMUM);
         setResizable(true);
@@ -123,7 +126,7 @@ public final class LoginFrame extends JFrame {
                 ? new ConnectionStatusPanel() : new ConnectionStatusPanel(connection);
         panel.add(connectionStatus, c);
         c.gridy = 4;
-        panel.add(demoAccounts(), c);
+        panel.add(new LoginDemoAccountsPanel(), c);
         c.gridy = 5;
         submit.setBackground(UiColors.ACCENT);
         submit.setForeground(UiColors.TEXT_ON_PRIMARY);
@@ -189,36 +192,6 @@ public final class LoginFrame extends JFrame {
         SwingUtilities.invokeLater(() -> onSuccess.accept(result));
     }
 
-    private JPanel demoAccounts() {
-        JPanel panel = new JPanel(new GridLayout(0, 1, 0, UiSpacing.SPACE_1));
-        panel.setOpaque(false);
-        panel.getAccessibleContext().setAccessibleName("课程演示账号");
-        panel.add(demoLabel("演示账号", "login.demoTitle"));
-        panel.add(demoLabel("管理员：admin / 123456", "login.demoAdmin"));
-        panel.add(demoLabel("身份：SUPER_ADMIN（超管 admin）", "login.demoAdminRole"));
-        panel.add(demoLabel("教师：teacher / 123456", "login.demoTeacher"));
-        panel.add(demoLabel("学生：student 或任意学号 / 123456",
-                "login.demoStudent"));
-        panel.add(demoLabel("演示统一密码：123456",
-                "login.demoManagementPassword"));
-        panel.add(demoLabel("模块：学籍 stu ｜ 课程 course",
-                "login.demoModuleAdmins1"));
-        panel.add(demoLabel("模块：图书 lib ｜ 商城 shop",
-                "login.demoModuleAdmins2"));
-        panel.add(demoLabel("模块：用户 user", "login.demoModuleAdmins3"));
-        panel.add(demoLabel("学院：计算机 cs ｜ 数学 math",
-                "login.demoCollegeAdmins"));
-        panel.add(demoLabel("学院：信息工程 ee ｜ 外国语 fl",
-                "login.demoCollegeAdmins2"));
-        return panel;
-    }
-
-    private static JLabel demoLabel(String text, String name) {
-        JLabel label = named(new JLabel(text), name, text);
-        label.setFont(UiTypography.CAPTION);
-        label.setForeground(UiColors.TEXT_SECONDARY);
-        return label;
-    }
 
     private void startLockoutCountdown() {
         lockoutTimer.stop();

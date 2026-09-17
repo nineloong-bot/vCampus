@@ -99,6 +99,7 @@ public final class StudentSearchPanel extends JPanel {
                 super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
                 setBorder(new EmptyBorder(UiSpacing.SPACE_1, UiSpacing.SPACE_2, UiSpacing.SPACE_1, UiSpacing.SPACE_2));
                 if (!isSelected) setBackground(row % 2 == 0 ? UiColors.BACKGROUND_PAGE : UiColors.BACKGROUND_SUBTLE);
+                setToolTipText(value == null ? null : value.toString());
                 return this;
             }
         });

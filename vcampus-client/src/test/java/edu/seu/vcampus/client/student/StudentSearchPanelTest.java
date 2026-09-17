@@ -56,6 +56,9 @@ class StudentSearchPanelTest {
         assertThat(table.getValueAt(1, 2)).isEqualTo("李四");
         assertThat(table.getValueAt(1, 3)).isEqualTo("213240班");
         assertThat(table.getValueAt(1, 4)).isEqualTo("已毕业");
+        Component cell = table.getCellRenderer(0, 3)
+                .getTableCellRendererComponent(table, table.getValueAt(0, 3), false, false, 0, 3);
+        assertThat(((JComponent) cell).getToolTipText()).isEqualTo("213240班");
     }
 
     @Test void filtersStayOnTwoAlignedRowsAtMinimumWindowWidth() throws Exception {

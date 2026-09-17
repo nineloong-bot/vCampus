@@ -9,17 +9,18 @@ class LoginAliasResolverTest {
     void resolvesShortLoginsToCanonicalAccounts() {
         assertThat(LoginAliasResolver.resolve("admin")).isEqualTo("ADMIN");
         assertThat(LoginAliasResolver.resolve("ADMIN")).isEqualTo("ADMIN");
-        assertThat(LoginAliasResolver.resolve("stu")).isEqualTo("STUDENT_ADMIN");
-        assertThat(LoginAliasResolver.resolve("stu_admin")).isEqualTo("STUDENT_ADMIN");
-        assertThat(LoginAliasResolver.resolve("course")).isEqualTo("COURSE_ADMIN");
-        assertThat(LoginAliasResolver.resolve("lib")).isEqualTo("LIBRARY_ADMIN");
-        assertThat(LoginAliasResolver.resolve("library")).isEqualTo("LIBRARY_ADMIN");
-        assertThat(LoginAliasResolver.resolve("shop")).isEqualTo("SHOP_ADMIN");
-        assertThat(LoginAliasResolver.resolve("user")).isEqualTo("USER_ADMIN");
+        assertThat(LoginAliasResolver.resolve("stu")).isEqualTo("STUDENT");
+        assertThat(LoginAliasResolver.resolve("stu_admin")).isEqualTo("STUDENT");
+        assertThat(LoginAliasResolver.resolve("student")).isEqualTo("STUDENT");
+        assertThat(LoginAliasResolver.resolve("course")).isEqualTo("COURSE");
+        assertThat(LoginAliasResolver.resolve("course_admin")).isEqualTo("COURSE");
+        assertThat(LoginAliasResolver.resolve("lib")).isEqualTo("LIBRARY");
+        assertThat(LoginAliasResolver.resolve("library")).isEqualTo("LIBRARY");
+        assertThat(LoginAliasResolver.resolve("shop")).isEqualTo("SHOP");
+        assertThat(LoginAliasResolver.resolve("user")).isEqualTo("USER");
         assertThat(LoginAliasResolver.resolve("cs")).isEqualTo("CSADMIN");
         assertThat(LoginAliasResolver.resolve("math")).isEqualTo("MATHADMIN");
         assertThat(LoginAliasResolver.resolve("teacher")).isEqualTo("T001");
-        assertThat(LoginAliasResolver.resolve("student")).isEqualTo("213240001");
     }
 
     @Test
