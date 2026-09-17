@@ -12,6 +12,7 @@ import edu.seu.vcampus.common.student.majortransfer.SaveMajorTransferBatchComman
 import edu.seu.vcampus.common.student.majortransfer.RecordMajorTransferScoreCommand;
 import edu.seu.vcampus.common.student.majortransfer.FinalizeMajorTransferCommand;
 import edu.seu.vcampus.common.student.majortransfer.FinalizeMajorTransferBatchCommand;
+import edu.seu.vcampus.common.student.majortransfer.FinalizeMajorTransferOptionCommand;
 import edu.seu.vcampus.common.student.majortransfer.ExecuteMajorTransferCommand;
 import edu.seu.vcampus.common.student.majortransfer.SaveMajorTransferOptionCommand;
 import java.math.BigDecimal;
@@ -130,15 +131,15 @@ class MajorTransferRoleAuthorizationTest {
     }
 
     @Test
-    void collegeAdministratorCanFinalizeBatchWithTargetScope() {
+    void collegeAdministratorCanFinalizeOptionWithTargetScope() {
         Fixture fixture = fixture("COLLEGE_ADMIN");
-        var command = new FinalizeMajorTransferBatchCommand("batch", 0);
+        var command = new FinalizeMajorTransferOptionCommand("option-ai", 0);
 
-        var result = fixture.route("MAJOR_TRANSFER_FINALIZE_BATCH", command);
+        var result = fixture.route("MAJOR_TRANSFER_FINALIZE_OPTION", command);
 
         assertThat(result.success()).isTrue();
-        verify(fixture.scope).requireTargetApprovalForBatch("operator", "batch");
-        verify(fixture.service).finalizeBatch("operator", command, "managed-department");
+        verify(fixture.scope).requireTargetApprovalForOption("operator", "option-ai");
+        verify(fixture.service).finalizeOption("operator", command, "managed-department");
     }
 
     @Test
@@ -153,14 +154,14 @@ class MajorTransferRoleAuthorizationTest {
     }
 
     @Test
-    void studentAdministratorCannotFinalizeBatch() {
+    void studentAdministratorCannotFinalizeOption() {
         Fixture fixture = fixture("STUDENT_ADMIN");
-        var command = new FinalizeMajorTransferBatchCommand("batch", 0);
+        var command = new FinalizeMajorTransferOptionCommand("option-ai", 0);
 
-        var result = fixture.route("MAJOR_TRANSFER_FINALIZE_BATCH", command);
+        var result = fixture.route("MAJOR_TRANSFER_FINALIZE_OPTION", command);
 
         assertThat(result.code()).isEqualTo("COMMON_FORBIDDEN");
-        verify(fixture.service, never()).finalizeBatch(anyString(), any(), anyString());
+        verify(fixture.service, never()).finalizeOption(anyString(), any(), anyString());
     }
 
     @Test

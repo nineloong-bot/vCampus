@@ -16,6 +16,8 @@ import static org.mockito.Mockito.*;
 class MajorTransferHandlersTest {
     @Test void commandCatalogIncludesBothPostReviewActions() {
         assertThat(MajorTransferHandlers.ADMIN_COMMANDS).contains(
+                "MAJOR_TRANSFER_EFFECTIVE_OPTION", "MAJOR_TRANSFER_ROLLBACK_OPTION");
+        assertThat(MajorTransferHandlers.ADMIN_COMMANDS).doesNotContain(
                 "MAJOR_TRANSFER_EFFECTIVE_BATCH", "MAJOR_TRANSFER_ROLLBACK_BATCH");
     }
 

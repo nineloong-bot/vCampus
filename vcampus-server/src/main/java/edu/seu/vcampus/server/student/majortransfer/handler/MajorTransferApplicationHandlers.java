@@ -74,25 +74,25 @@ final class MajorTransferApplicationHandlers {
                         () -> support.service.exportScoreTemplate(
                                 support.principal(message).userId(), body.entityId(),
                                 support.scope.findActiveDepartmentId(support.principal(message).userId())))));
-        router.register("MAJOR_TRANSFER_GET_BATCH_READINESS", typed(EntityIdRequest.class,
-                (message, body) -> batchRead(message, body.entityId())));
-        router.register("MAJOR_TRANSFER_FINALIZE_BATCH", typed(FinalizeMajorTransferBatchCommand.class,
+        router.register("MAJOR_TRANSFER_GET_OPTION_READINESS", typed(EntityIdRequest.class,
+                (message, body) -> optionRead(message, body.entityId())));
+        router.register("MAJOR_TRANSFER_FINALIZE_OPTION", typed(FinalizeMajorTransferOptionCommand.class,
                 (message, body) -> support.collegeWrite(message,
-                        () -> support.scope.requireTargetApprovalForBatch(
-                                support.principal(message).userId(), body.batchId()),
-                        departmentId -> support.service.finalizeBatch(
+                        () -> support.scope.requireTargetApprovalForOption(
+                                support.principal(message).userId(), body.optionId()),
+                        departmentId -> support.service.finalizeOption(
                                 support.principal(message).userId(), body, departmentId))));
-        router.register("MAJOR_TRANSFER_EFFECTIVE_BATCH", typed(EffectiveMajorTransferBatchCommand.class,
+        router.register("MAJOR_TRANSFER_EFFECTIVE_OPTION", typed(EffectiveMajorTransferOptionCommand.class,
                 (message, body) -> support.collegeWrite(message,
-                        () -> support.scope.requireTargetApprovalForBatch(
-                                support.principal(message).userId(), body.batchId()),
-                        departmentId -> support.service.effectiveBatch(
+                        () -> support.scope.requireTargetApprovalForOption(
+                                support.principal(message).userId(), body.optionId()),
+                        departmentId -> support.service.effectiveOption(
                                 support.principal(message).userId(), body, departmentId))));
-        router.register("MAJOR_TRANSFER_ROLLBACK_BATCH", typed(RollbackMajorTransferBatchCommand.class,
+        router.register("MAJOR_TRANSFER_ROLLBACK_OPTION", typed(RollbackMajorTransferOptionCommand.class,
                 (message, body) -> support.collegeWrite(message,
-                        () -> support.scope.requireTargetApprovalForBatch(
-                                support.principal(message).userId(), body.batchId()),
-                        departmentId -> support.service.rollbackBatch(
+                        () -> support.scope.requireTargetApprovalForOption(
+                                support.principal(message).userId(), body.optionId()),
+                        departmentId -> support.service.rollbackOption(
                                 support.principal(message).userId(), body, departmentId))));
         router.register("MAJOR_TRANSFER_CANCEL", typed(CancelMajorTransferCommand.class,
                 (message, body) -> targetWrite(message, body.applicationId(),
@@ -100,11 +100,11 @@ final class MajorTransferApplicationHandlers {
                                 support.principal(message).userId(), body, departmentId))));
     }
 
-    private ResponseBody<? extends Serializable> batchRead(Message message, String batchId) {
+    private ResponseBody<? extends Serializable> optionRead(Message message, String optionId) {
         return support.collegeRead(message,
-                () -> support.scope.requireTargetApprovalForBatch(
-                        support.principal(message).userId(), batchId),
-                () -> support.service.getBatchReadiness(batchId,
+                () -> support.scope.requireTargetApprovalForOption(
+                        support.principal(message).userId(), optionId),
+                () -> support.service.getOptionReadiness(optionId,
                         support.scope.findActiveDepartmentId(support.principal(message).userId())));
     }
 
