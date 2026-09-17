@@ -72,13 +72,6 @@ CREATE INDEX idx_tblCourseOffering_termId ON tblCourseOffering (termId);
 CREATE INDEX idx_tblCourseOffering_courseId ON tblCourseOffering (courseId);
 CREATE INDEX idx_tblCourseOffering_teacherUserId ON tblCourseOffering (teacherUserId);
 
-CREATE TABLE tblClassroom (
-    classroom VARCHAR(64) NOT NULL,
-    capacity LONG NOT NULL,
-    isActive YESNO NOT NULL,
-    CONSTRAINT pk_tblClassroom PRIMARY KEY (classroom)
-);
-
 CREATE TABLE tblCourseSchedule (
     scheduleId VARCHAR(36) NOT NULL,
     offeringId VARCHAR(36) NOT NULL,
@@ -94,7 +87,6 @@ CREATE TABLE tblCourseSchedule (
 );
 
 CREATE INDEX idx_tblCourseSchedule_offeringId ON tblCourseSchedule (offeringId);
-CREATE INDEX idx_tblCourseSchedule_classroom ON tblCourseSchedule (classroom);
 
 CREATE TABLE tblEnrollment (
     enrollmentId VARCHAR(36) NOT NULL,

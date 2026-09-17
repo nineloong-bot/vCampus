@@ -2,7 +2,6 @@ package edu.seu.vcampus.client.course.ui;
 
 import edu.seu.vcampus.client.core.ui.autocomplete.AutocompleteChoice;
 import edu.seu.vcampus.common.course.CourseCatalogQuery;
-import edu.seu.vcampus.common.course.ClassroomQuery;
 import edu.seu.vcampus.common.user.AccountStatus;
 
 import java.util.List;
@@ -37,13 +36,5 @@ public final class OfferingReferenceLoader {
                 .filter(teacher -> teacher.accountStatus() == AccountStatus.ACTIVE).limit(capped)
                 .map(teacher -> new AutocompleteChoice(teacher.userId(), teacher.loginId(), "在职教师"))
                 .toList());
-    }
-
-    /** Finds active classrooms large enough for the current normal capacity. */
-    public CompletableFuture<List<AutocompleteChoice>> searchClassrooms(String query, int capacity, int limit) {
-        int capped = Math.min(MAX_CHOICES, Math.max(1, limit));
-        return gateway.searchClassrooms(new ClassroomQuery(query == null ? "" : query.strip(), capacity, capped))
-                .thenApply(rooms -> rooms.stream().map(room -> new AutocompleteChoice(
-                        room.classroom(), room.classroom(), "容量 " + room.capacity() + " 人")).toList());
     }
 }

@@ -22,8 +22,6 @@ import edu.seu.vcampus.common.course.ScheduleItem;
 import edu.seu.vcampus.common.course.AdjustmentAuditQuery;
 import edu.seu.vcampus.common.course.AdjustmentAuditView;
 import edu.seu.vcampus.common.course.CourseCatalogQuery;
-import edu.seu.vcampus.common.course.ClassroomQuery;
-import edu.seu.vcampus.common.course.ClassroomView;
 import edu.seu.vcampus.common.course.CourseSelectionQuery;
 import edu.seu.vcampus.common.course.CourseSelectionView;
 import edu.seu.vcampus.common.course.TeachingClassOptionView;
@@ -162,10 +160,7 @@ class CourseUiTest {
     @Test
     void scheduleEditorCreatesStructuredRowsAndMapsThemWithoutCsvParsing() throws Exception {
         OfferingScheduleEditorPanel editor = onEdt(OfferingScheduleEditorPanel::new);
-        SwingUtilities.invokeAndWait(() -> {
-            button(editor, "添加上课时间").doClick();
-            classroom(editor, 1).setSelection("待定", "待定");
-        });
+        SwingUtilities.invokeAndWait(() -> button(editor, "添加上课时间").doClick());
 
         assertThat(descendants(editor).stream().filter(JComboBox.class::isInstance)).isNotEmpty();
         assertThat(descendants(editor).stream().filter(JSpinner.class::isInstance)).hasSizeGreaterThanOrEqualTo(4);
@@ -209,7 +204,7 @@ class CourseUiTest {
         });
         assertThatThrownBy(editor::scheduleInputs)
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("第 1 行：请选择匹配结果中的教室");
+                .hasMessage("第 1 行：请输入教室");
 
         SwingUtilities.invokeAndWait(() -> component(editor, "删除第 1 行", JButton.class).doClick());
         assertThatThrownBy(editor::scheduleInputs)
@@ -235,16 +230,17 @@ class CourseUiTest {
             button(editor, "添加上课时间").doClick();
             button(editor, "添加上课时间").doClick();
             button(editor, "添加上课时间").doClick();
-            classroom(editor, 1).setSelection("教室一", "教室一");
-            classroom(editor, 2).setSelection("教室二", "教室二");
-            classroom(editor, 3).setSelection("教室三", "教室三");
+            textField(editor, "第 1 行教室").setText("教室一");
+            textField(editor, "第 2 行教室").setText("教室二");
+            textField(editor, "第 3 行教室").setText("教室三");
             component(editor, "删除第 3 行", JButton.class).doClick();
         });
 
         assertThat(textField(editor, "第 1 行教室").getText()).isEqualTo("教室一");
         assertThat(textField(editor, "第 2 行教室").getText()).isEqualTo("教室二");
         assertThat(component(editor, "第 3 行教室", JTextField.class)).isNull();
-        assertThat(buttons(editor)).contains("删除", "删除");
+        assertThat(buttons(editor)).contains("删除", "删除")
+                .doesNotContain("删除第 3 行");
         assertThat(editor.scheduleInputs()).extracting(CreateOfferingCommand.ScheduleInput::classroom)
                 .containsExactly("教室一", "教室二");
     }
@@ -2246,14 +2242,13 @@ class CourseUiTest {
         SwingUtilities.invokeAndWait(() -> {
             textField(dialog, "教学班名称").setText("  软件工程 01 班  ");
             component(dialog, "容量", JSpinner.class).setValue(48);
-            classroom(dialog, 1).setSelection("教一-201", "教一-201");
             button(dialog, "创建教学班").doClick();
         });
         flushEdt(2);
 
         assertThat(submitted.get()).isEqualTo(new CreateOfferingCommand(
                 "c1", "teacher-zhang", "软件工程 01 班", 48, "DRAFT",
-                List.of(new CreateOfferingCommand.ScheduleInput("MONDAY", 1, 2, 1, 16, "教一-201"))));
+                List.of(new CreateOfferingCommand.ScheduleInput("MONDAY", 1, 2, 1, 16, "待定"))));
         SwingUtilities.invokeAndWait(dialog::dispose);
     }
 
@@ -2502,7 +2497,6 @@ class CourseUiTest {
         flushEdt(4);
         SwingUtilities.invokeAndWait(() -> {
             textField(dialog, "教学班名称").setText("错误消息测试班");
-            classroom(dialog, 1).setSelection("教一-201", "教一-201");
             button(dialog, "创建教学班").doClick();
         });
         flushEdt(3);
@@ -2787,12 +2781,6 @@ class CourseUiTest {
                 .findFirst().orElseThrow();
     }
 
-    private static edu.seu.vcampus.client.core.ui.autocomplete.AutocompleteSelectionField classroom(
-            Container root, int rowNumber) {
-        JTextField input = textField(root, "第 " + rowNumber + " 行教室");
-        return (edu.seu.vcampus.client.core.ui.autocomplete.AutocompleteSelectionField) input.getParent();
-    }
-
     private abstract static class DelegatingCourseUiGateway implements CourseUiGateway {
         private final CourseUiGateway delegate;
 
@@ -2817,9 +2805,6 @@ class CourseUiTest {
         @Override public CompletableFuture<List<TermView>> listTerms() { return delegate.listTerms(); }
         @Override public CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery query) {
             return delegate.searchCatalog(query);
-        }
-        @Override public CompletableFuture<List<ClassroomView>> searchClassrooms(ClassroomQuery query) {
-            return delegate.searchClassrooms(query);
         }
         @Override public CompletableFuture<PageResult<UserSummary>> searchTeachers(String keyword) {
             return delegate.searchTeachers(keyword);

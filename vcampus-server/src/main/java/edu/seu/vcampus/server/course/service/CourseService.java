@@ -22,8 +22,6 @@ public interface CourseService {
     default SelectionPhaseView updateSelectionPhase(UpdateSelectionPhaseCommand command) { throw new UnsupportedOperationException(); }
     default SelectionPhaseView changeSelectionPhaseStatus(ChangeSelectionPhaseStatusCommand command) { throw new UnsupportedOperationException(); }
     PageResult<CourseView> searchCatalog(CourseCatalogQuery query);
-    /** Searches classrooms suitable for an offering capacity. */
-    default List<ClassroomView> searchClassrooms(ClassroomQuery query) { throw new UnsupportedOperationException(); }
     /** Searches catalog definitions approved in active training plans. */
     default PageResult<CurriculumCourseCandidate> searchCurriculumCandidates(
             CurriculumCourseCandidateQuery query) { throw new UnsupportedOperationException(); }

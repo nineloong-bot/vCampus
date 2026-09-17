@@ -24,7 +24,7 @@ public final class OfferingEditorPanel implements EmbeddedEditor {
     private final JSpinner capacity;
     private final JSpinner retakeCapacity;
     private final JComboBox<Status> status = new JComboBox<>(Status.values());
-    private final OfferingScheduleEditorPanel schedules;
+    private final OfferingScheduleEditorPanel schedules = new OfferingScheduleEditorPanel();
     private final JLabel error = AbstractCoursePanel.label(" ", UiTypography.BODY, UiColors.ACCENT);
     private final JButton save;
     private Snapshot initial;
@@ -49,8 +49,6 @@ public final class OfferingEditorPanel implements EmbeddedEditor {
         int retakeValue = existing == null ? 5 : Math.max(retakeMinimum, existing.retakeCapacity());
         capacity = spinner(normalValue, normalMinimum, "容量");
         retakeCapacity = spinner(retakeValue, retakeMinimum, "重修容量");
-        schedules = new OfferingScheduleEditorPanel((query, limit) ->
-                loader.searchClassrooms(query, ((Number) capacity.getValue()).intValue(), limit));
         status.getAccessibleContext().setAccessibleName("教学班状态");
         root.setOpaque(false);
         root.setBorder(BorderFactory.createEmptyBorder(UiSpacing.LG, UiSpacing.LG, UiSpacing.LG, UiSpacing.LG));

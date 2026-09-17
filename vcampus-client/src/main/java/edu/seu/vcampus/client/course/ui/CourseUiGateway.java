@@ -13,8 +13,6 @@ import edu.seu.vcampus.common.course.CourseStudentCandidate;
 import edu.seu.vcampus.common.course.CourseStudentCandidateQuery;
 import edu.seu.vcampus.common.course.CourseCatalogQuery;
 import edu.seu.vcampus.common.course.CourseView;
-import edu.seu.vcampus.common.course.ClassroomQuery;
-import edu.seu.vcampus.common.course.ClassroomView;
 import edu.seu.vcampus.common.course.CurriculumCourseCandidate;
 import edu.seu.vcampus.common.course.CurriculumCourseCandidateQuery;
 import edu.seu.vcampus.common.course.TermView;
@@ -63,7 +61,6 @@ public interface CourseUiGateway {
     default CompletableFuture<PageResult<CourseStudentCandidate>> searchStudentCandidates(
             CourseStudentCandidateQuery query) { return unsupported(); }
     default CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery query) { return unsupported(); }
-    default CompletableFuture<List<ClassroomView>> searchClassrooms(ClassroomQuery query) { return unsupported(); }
     default CompletableFuture<PageResult<CurriculumCourseCandidate>> searchCurriculumCandidates(CurriculumCourseCandidateQuery query) { return unsupported(); }
     default CompletableFuture<PageResult<UserSummary>> searchTeachers(String keyword) { return unsupported(); }
     default CompletableFuture<Optional<UserSummary>> resolveTeacher(String userId) { return unsupported(); }
@@ -197,11 +194,6 @@ public interface CourseUiGateway {
                         new CourseView("c2", "B09G0011", "数字图像处理", new java.math.BigDecimal("3.0"), 56,
                                 "2024级计算机科学与技术培养方案", true, 1, java.time.Instant.parse("2026-08-20T00:00:00Z"), java.time.Instant.parse("2026-08-27T00:00:00Z")));
                 return CompletableFuture.completedFuture(new PageResult<>(courses, 0, query.pageSize(), courses.size()));
-            }
-            public CompletableFuture<List<ClassroomView>> searchClassrooms(ClassroomQuery query) {
-                return CompletableFuture.completedFuture(List.of(
-                        new ClassroomView("教一-201", 50),
-                        new ClassroomView("教二-302", 100)));
             }
             public CompletableFuture<PageResult<CurriculumCourseCandidate>> searchCurriculumCandidates(
                     CurriculumCourseCandidateQuery query) {

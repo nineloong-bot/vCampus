@@ -68,11 +68,6 @@ SPECIALTY = {
     ),
 }
 
-CLASSROOMS = (
-    ("教一-101", 30), ("教一-102", 30), ("教二-201", 30), ("教二-202", 30),
-) + tuple((f"纪忠楼{floor}-{room:02d}", (50, 100, 200)[(floor + room) % 3])
-          for floor in range(1, 5) for room in range(1, 13))
-
 
 def _definitions():
     rows = {}
@@ -161,11 +156,6 @@ def generate(add, now):
                         operatorUserId="user-teacher-01", rowVersion=0,
                         createdAt=now, updatedAt=now)
 
-    for classroom, capacity in CLASSROOMS:
-        add("tblClassroom", classroom=classroom, capacity=capacity, isActive=True)
-
-    usable_rooms = [room for room in CLASSROOMS if room[1] >= 50]
-    slot_counts = defaultdict(int)
     for course_index, code in enumerate(definitions, 1):
         for section in (1, 2):
             offering_id = f"offering-{code.lower()}-{section}"
@@ -174,17 +164,12 @@ def generate(add, now):
                 teacherUserId=f"user-teacher-{((course_index + section - 2) % 24) + 1:02d}",
                 className=f"{definitions[code][0]}-{section:02d}班", capacity=35 + section * 5,
                 enrolledCount=0, offeringStatus="OPEN", **stamp)
-            day = (course_index + section) % 5 + 1
-            start_period = 1 + ((course_index + section) % 5) * 2
-            slot = (day, start_period)
-            classroom = usable_rooms[slot_counts[slot] % len(usable_rooms)][0]
-            slot_counts[slot] += 1
             add("tblCourseSchedule", scheduleId=f"schedule-{code.lower()}-{section}",
-                offeringId=offering_id, dayOfWeek=day,
-                startPeriod=start_period,
-                endPeriod=start_period + 1,
+                offeringId=offering_id, dayOfWeek=(course_index + section) % 5 + 1,
+                startPeriod=1 + ((course_index + section) % 5) * 2,
+                endPeriod=2 + ((course_index + section) % 5) * 2,
                 startWeek=1, endWeek=16,
-                classroom=classroom)
+                classroom=f"纪忠楼{100 + (course_index * 2 + section) % 80}")
             add("tblCourseRetakeQuota", offeringId=offering_id, capacity=5, enrolledCount=0)
 
 
@@ -212,21 +197,6 @@ def validate_course_fixture(rows):
     schedules = Counter(row["offeringId"] for row in rows["tblCourseSchedule"])
     if set(schedules.values()) != {1}:
         raise AssertionError("every offering must have one schedule")
-    rooms = {row["classroom"]: row["capacity"] for row in rows["tblClassroom"]}
-    if set(rooms.values()) != {30, 50, 100, 200}:
-        raise AssertionError("classroom capacities must cover 30, 50, 100, and 200")
-    offerings = {row["offeringId"]: row for row in rows["tblCourseOffering"]}
-    occupied = set()
-    for row in rows["tblCourseSchedule"]:
-        if rooms[row["classroom"]] < offerings[row["offeringId"]]["capacity"]:
-            raise AssertionError("offering capacity exceeds classroom capacity")
-        key = (row["classroom"], row["dayOfWeek"], row["startPeriod"],
-               row["endPeriod"], row["startWeek"], row["endWeek"])
-        if key in occupied:
-            raise AssertionError("classroom schedule conflict")
-        occupied.add(key)
-    if set(rooms).issubset({row["classroom"] for row in rows["tblCourseSchedule"]}):
-        raise AssertionError("at least one classroom must remain unused")
     semesters = defaultdict(set)
     for row in rows["tblTrainingPlanCourse"]:
         semesters[row["planId"]].add(row["semester"])

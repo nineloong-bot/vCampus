@@ -18,7 +18,7 @@ public final class SelectionPhaseManagementPanel extends AbstractCoursePanel {
             .withZone(ZoneId.systemDefault());
     private final CourseUiGateway gateway;
     private final DefaultTableModel model = new DefaultTableModel(
-            new Object[]{"学期", "阶段类型", "学生端标题", "更新时间", "版本"}, 0) {
+            new Object[]{"学期", "阶段类型", "学生端标题", "状态", "更新时间"}, 0) {
         @Override public boolean isCellEditable(int row, int column) { return false; }
     };
     private final JTable table = table(new Object[0][0], new Object[0]);
@@ -63,7 +63,7 @@ public final class SelectionPhaseManagementPanel extends AbstractCoursePanel {
                     model.setRowCount(0);
                     for (SelectionPhaseView phase : phases) model.addRow(new Object[]{
                             termName(phase.termId()), typeName(phase.phaseType()), phase.displayTitle(),
-                            TIME.format(phase.updatedAt()), "v" + phase.rowVersion()});
+                            statusName(phase.phaseStatus()), TIME.format(phase.updatedAt())});
                     showState(phases.isEmpty() ? ViewState.EMPTY : ViewState.NORMAL,
                             phases.isEmpty() ? "尚未配置选课阶段" : "");
                 }));
@@ -85,5 +85,9 @@ public final class SelectionPhaseManagementPanel extends AbstractCoursePanel {
     private String termName(String id) { return terms.stream().filter(term -> term.termId().equals(id))
             .map(TermView::termName).findFirst().orElse(id); }
     private static String typeName(String value) { return "ENROLLMENT".equals(value) ? "正常选课" : "退改补选课"; }
+    private static String statusName(String value) { return switch (value) {
+        case "DRAFT" -> "草稿"; case "PREVIEW" -> "预选课"; case "OPEN" -> "正式开放";
+        case "CLOSED" -> "已关闭"; default -> value;
+    }; }
     private record PhaseData(List<TermView> terms, List<SelectionPhaseView> phases) { }
 }
