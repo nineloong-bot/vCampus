@@ -20,6 +20,7 @@ public final class CourseHandlers {
   r.register("COURSE_SELECTION_PHASE_UPDATE",write(UpdateSelectionPhaseCommand.class,Set.of("ADMIN"),(m,b)->service.updateSelectionPhase(b)));
   r.register("COURSE_SELECTION_PHASE_CHANGE_STATUS",write(ChangeSelectionPhaseStatusCommand.class,Set.of("ADMIN"),(m,b)->service.changeSelectionPhaseStatus(b)));
   r.register("COURSE_CATALOG_SEARCH",read(CourseCatalogQuery.class,Set.of("ADMIN"),(m,b)->service.searchCatalog(b)));
+  r.register("COURSE_CATALOG_DEPARTMENT_LIST",read(EmptyRequest.class,Set.of("ADMIN"),(m,b)->(Serializable)new ArrayList<>(service.listCourseDepartments())));
   r.register("COURSE_CURRICULUM_CANDIDATE_SEARCH",read(CurriculumCourseCandidateQuery.class,Set.of("ADMIN"),(m,b)->service.searchCurriculumCandidates(b)));
   r.register("COURSE_ADJUSTMENT_AUDIT_SEARCH",read(AdjustmentAuditQuery.class,Set.of("ADMIN"),(m,b)->service.searchAdjustmentAudits(b)));
   r.register("COURSE_STUDENT_CANDIDATE_SEARCH",read(CourseStudentCandidateQuery.class,Set.of("ADMIN"),(m,b)->service.searchStudentCandidates(b)));

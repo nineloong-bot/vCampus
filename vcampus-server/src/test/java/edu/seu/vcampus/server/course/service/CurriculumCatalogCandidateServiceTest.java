@@ -1,10 +1,12 @@
 package edu.seu.vcampus.server.course.service;
 
 import edu.seu.vcampus.server.course.repository.CurriculumCatalogCandidateRepository.Definition;
+import edu.seu.vcampus.common.course.CourseDepartmentOption;
 import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 class CurriculumCatalogCandidateServiceTest {
     @Test void fillsLegacyHoursAndOwnerFromAnExistingCatalogCourse() {
@@ -43,6 +45,18 @@ class CurriculumCatalogCandidateServiceTest {
         assertThat(result.get(1).conflicted()).isTrue();
         assertThat(result.get(2).courseCode()).isEqualTo("CS103");
         assertThat(result.get(2).conflicted()).isFalse();
+    }
+
+    @Test void derivesUniqueCollegeOptionsFromCanonicalDefinitions() {
+        var rows = List.of(
+                definition("pc-1", "CS101", "程序设计", "3", 48, "REQUIRED", "dept-cse"),
+                definition("pc-2", "CS102", "数据结构", "3", 48, "REQUIRED", "dept-cse"),
+                new Definition("pc-3", "MA101", "高等数学", new BigDecimal("5"), 80,
+                        "REQUIRED", "dept-math", "数学学院"));
+
+        assertThat(CurriculumCatalogCandidateService.departmentOptions(rows))
+                .extracting(CourseDepartmentOption::departmentId, CourseDepartmentOption::departmentName)
+                .containsExactly(tuple("dept-cse", "计算机学院"), tuple("dept-math", "数学学院"));
     }
 
     private static Definition definition(String id, String code, String name, String credits,

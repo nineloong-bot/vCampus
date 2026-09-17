@@ -169,6 +169,24 @@ class CourseManagementServiceTest {
                 .extracting("code").isEqualTo("COMMON_CONCURRENT_MODIFICATION");
     }
 
+    @Test void catalogFiltersByStableOwningDepartmentBeforePaging() {
+        transactions.inTransaction(connection -> {
+            repository.insertCourse(connection, new Course(null, "MATH101", "高等数学",
+                    "dept-math", "数学学院", new BigDecimal("5"), 80, null,
+                    true, 0, null, null));
+            repository.insertCourse(connection, new Course(null, "CS101", "程序设计",
+                    "dept-cse", "计算机科学与工程学院", new BigDecimal("4"), 64, null,
+                    true, 0, null, null));
+            return null;
+        });
+
+        PageResult<CourseView> page = service.searchCatalog(new CourseCatalogQuery(
+                "", null, "dept-math", "数学学院", 0, 20));
+
+        assertThat(page.items()).extracting(CourseView::courseCode).containsExactly("MATH101");
+        assertThat(page.total()).isEqualTo(1);
+    }
+
     @Test void createsEditsOpensAndClosesManualSelectionPhase() {
         TermView term = service.createTerm(termCommand());
         TermView active = service.updateTerm(new UpdateTermCommand(term.termId(), term.termCode(), term.termName(),

@@ -132,7 +132,8 @@ public final class CourseServiceImpl implements CourseService, CourseQueryPort {
     @Override public SelectionPhaseView createSelectionPhase(CreateSelectionPhaseCommand x){return selectionPhases.create(x);}
     @Override public SelectionPhaseView updateSelectionPhase(UpdateSelectionPhaseCommand x){return selectionPhases.update(x);}
     @Override public SelectionPhaseView changeSelectionPhaseStatus(ChangeSelectionPhaseStatusCommand x){return selectionPhases.changeStatus(x);}
-    @Override public PageResult<CourseView> searchCatalog(CourseCatalogQuery q){return transactions.inTransaction(c->{var all=repository.findCourses(c).stream().filter(x->q.keyword()==null||x.courseCode().contains(q.keyword())||x.courseName().contains(q.keyword())).filter(x->!Boolean.TRUE.equals(q.activeOnly())||x.active()).map(CourseServiceImpl::toView).toList();int from=Math.min(all.size(),q.page()*q.pageSize());return new PageResult<>(all.subList(from,Math.min(all.size(),from+q.pageSize())),q.page(),q.pageSize(),all.size());});}
+    @Override public PageResult<CourseView> searchCatalog(CourseCatalogQuery q){return curriculumCandidates.searchCatalog(q);}
+    @Override public List<CourseDepartmentOption> listCourseDepartments(){return curriculumCandidates.listDepartments();}
     @Override public PageResult<CurriculumCourseCandidate> searchCurriculumCandidates(CurriculumCourseCandidateQuery q){return curriculumCandidates.search(q);}
     @Override public PageResult<AdjustmentAuditView> searchAdjustmentAudits(AdjustmentAuditQuery q){return adjustmentAudits.search(q);}
     @Override public PageResult<CourseStudentCandidate> searchStudentCandidates(CourseStudentCandidateQuery q){return students.searchActiveStudents(q);}

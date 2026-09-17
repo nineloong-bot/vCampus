@@ -110,6 +110,13 @@ class AcademicContractTest(unittest.TestCase):
         self.assertEqual({1, 2, 3, 4, 5, 6, 7, 8}, set.intersection(*semesters.values()))
         self.assertGreaterEqual(len(credits), 5)
 
+    def test_every_unique_plan_course_has_one_operational_catalog_reference(self):
+        plan_codes = {row["courseCode"] for row in self.rows["tblTrainingPlanCourse"]
+                      if row["isActive"]}
+        catalog_codes = {row["courseCode"] for row in self.rows["tblCourse"]
+                         if row["isActive"]}
+        self.assertEqual(plan_codes, catalog_codes)
+
     def test_initial_selection_state_is_empty_with_one_open_phase(self):
         self.assertEqual([], self.rows["tblEnrollment"])
         self.assertEqual([], self.rows["tblEnrollmentAdjustment"])

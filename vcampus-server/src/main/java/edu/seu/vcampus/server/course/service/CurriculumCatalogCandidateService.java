@@ -2,6 +2,9 @@ package edu.seu.vcampus.server.course.service;
 
 import edu.seu.vcampus.common.course.CurriculumCourseCandidate;
 import edu.seu.vcampus.common.course.CurriculumCourseCandidateQuery;
+import edu.seu.vcampus.common.course.CourseDepartmentOption;
+import edu.seu.vcampus.common.course.CourseCatalogQuery;
+import edu.seu.vcampus.common.course.CourseView;
 import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.server.course.repository.CourseRepository;
 import edu.seu.vcampus.server.course.repository.CurriculumCatalogCandidateRepository;
@@ -34,6 +37,42 @@ public final class CurriculumCatalogCandidateService {
     public PageResult<CurriculumCourseCandidate> search(CurriculumCourseCandidateQuery query) {
         Objects.requireNonNull(query, "query");
         return transactions.inTransaction(connection -> search(connection, query));
+    }
+
+    /** Lists unique owning colleges referenced by active canonical curricula. */
+    public List<CourseDepartmentOption> listDepartments() {
+        return transactions.inTransaction(connection -> departmentOptions(definitions(connection)));
+    }
+
+    /** Searches operational course references with stable canonical college filters. */
+    public PageResult<CourseView> searchCatalog(CourseCatalogQuery query) {
+        Objects.requireNonNull(query, "query");
+        return transactions.inTransaction(connection -> {
+            String keyword = normalize(query.keyword());
+            List<CourseView> matches = courses.findCourses(connection).stream()
+                    .filter(row -> keyword.isEmpty() || normalize(row.courseCode()).contains(keyword)
+                            || normalize(row.courseName()).contains(keyword))
+                    .filter(row -> !Boolean.TRUE.equals(query.activeOnly()) || row.active())
+                    .filter(row -> blank(query.departmentId())
+                            || query.departmentId().equals(row.departmentId()))
+                    .filter(row -> !blank(query.departmentId()) || blank(query.departmentName())
+                            || query.departmentName().equals(row.departmentName()))
+                    .map(CurriculumCatalogCandidateService::view).toList();
+            int from = Math.min(matches.size(), Math.multiplyExact(query.page(), query.pageSize()));
+            return new PageResult<>(matches.subList(from,
+                    Math.min(matches.size(), from + query.pageSize())), query.page(),
+                    query.pageSize(), matches.size());
+        });
+    }
+
+    static List<CourseDepartmentOption> departmentOptions(List<Definition> definitions) {
+        return definitions.stream()
+                .filter(row -> row.departmentId() != null && !row.departmentId().isBlank())
+                .filter(row -> row.departmentName() != null && !row.departmentName().isBlank())
+                .collect(java.util.stream.Collectors.toMap(Definition::departmentId,
+                        Definition::departmentName, (left, right) -> left, java.util.TreeMap::new))
+                .entrySet().stream().map(entry -> new CourseDepartmentOption(
+                        entry.getKey(), entry.getValue())).toList();
     }
 
     /** Returns whether the connected database exposes canonical curriculum definitions. */
@@ -105,5 +144,14 @@ public final class CurriculumCatalogCandidateService {
 
     private static String normalize(String value) {
         return value == null ? "" : value.strip().toUpperCase(Locale.ROOT);
+    }
+
+    private static boolean blank(String value) { return value == null || value.isBlank(); }
+
+    private static CourseView view(Course course) {
+        return new CourseView(course.courseId(), course.courseCode(), course.courseName(),
+                course.departmentId(), course.departmentName(), course.credit(), course.totalHours(),
+                course.description(), course.active(), course.rowVersion(), course.createdAt(),
+                course.updatedAt());
     }
 }

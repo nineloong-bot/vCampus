@@ -22,6 +22,7 @@ import edu.seu.vcampus.common.course.ScheduleItem;
 import edu.seu.vcampus.common.course.AdjustmentAuditQuery;
 import edu.seu.vcampus.common.course.AdjustmentAuditView;
 import edu.seu.vcampus.common.course.CourseCatalogQuery;
+import edu.seu.vcampus.common.course.CourseDepartmentOption;
 import edu.seu.vcampus.common.course.CourseSelectionQuery;
 import edu.seu.vcampus.common.course.CourseSelectionView;
 import edu.seu.vcampus.common.course.TeachingClassOptionView;
@@ -1854,6 +1855,36 @@ class CourseUiTest {
         assertThat(table.getValueAt(0, 4)).isEqualTo("启用");
         assertThat(buttons(panel)).doesNotContain("新建课程", "编辑所选");
         assertThat(panel.viewState()).isEqualTo(AbstractCoursePanel.ViewState.NORMAL);
+    }
+
+    @Test
+    void courseCatalogQueriesWithTheSelectedCollegeIdentifier() throws Exception {
+        AtomicReference<CourseCatalogQuery> captured = new AtomicReference<>();
+        CourseUiGateway gateway = new DelegatingCourseUiGateway(CourseUiGateway.preview()) {
+            @Override public CompletableFuture<List<CourseDepartmentOption>> listCourseDepartments() {
+                return CompletableFuture.completedFuture(List.of(
+                        new CourseDepartmentOption("dept-math", "数学学院")));
+            }
+            @Override public CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery query) {
+                captured.set(query);
+                return CompletableFuture.completedFuture(new PageResult<>(List.of(), 0, 50, 0));
+            }
+        };
+        CourseCatalogPanel panel = onEdt(() -> new CourseCatalogPanel(gateway));
+        edu.seu.vcampus.client.core.ui.autocomplete.AutocompleteSelectionField college = descendants(panel)
+                .stream().filter(edu.seu.vcampus.client.core.ui.autocomplete.AutocompleteSelectionField.class::isInstance)
+                .map(edu.seu.vcampus.client.core.ui.autocomplete.AutocompleteSelectionField.class::cast)
+                .findFirst().orElseThrow();
+
+        SwingUtilities.invokeAndWait(() -> {
+            college.setSelection("dept-math", "数学学院");
+            descendants(panel).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
+                    .filter(button -> "查询课程".equals(button.getText())).findFirst().orElseThrow().doClick();
+        });
+        SwingUtilities.invokeAndWait(() -> { });
+
+        assertThat(captured.get().departmentId()).isEqualTo("dept-math");
+        assertThat(captured.get().departmentName()).isEqualTo("数学学院");
     }
 
     @Test

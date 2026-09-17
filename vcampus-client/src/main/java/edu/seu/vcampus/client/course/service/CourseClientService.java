@@ -53,6 +53,10 @@ public final class CourseClientService {
     public CompletableFuture<StudentSelectionContextView> getStudentSelectionContext() { return call("COURSE_STUDENT_SELECTION_CONTEXT", EmptyRequest.INSTANCE, READ, StudentSelectionContextView.class); }
     public CompletableFuture<PageResult<CourseSelectionView>> searchStudentCourses(CourseSelectionQuery q) { return callPage("COURSE_STUDENT_COURSE_SEARCH", q, READ, CourseSelectionView.class); }
     public CompletableFuture<PageResult<CourseView>> searchCatalog(CourseCatalogQuery q) { return callPage("COURSE_CATALOG_SEARCH", q, READ, CourseView.class); }
+    /** Lists stable owning-college choices for the catalog filter. */
+    public CompletableFuture<List<CourseDepartmentOption>> listCourseDepartments() {
+        return callList("COURSE_CATALOG_DEPARTMENT_LIST", EmptyRequest.INSTANCE, READ, CourseDepartmentOption.class);
+    }
     /** Searches course definitions approved by college training plans. */
     public CompletableFuture<PageResult<CurriculumCourseCandidate>> searchCurriculumCandidates(CurriculumCourseCandidateQuery q) { return callPage("COURSE_CURRICULUM_CANDIDATE_SEARCH", q, READ, CurriculumCourseCandidate.class); }
     public CompletableFuture<PageResult<AdjustmentAuditView>> searchAdjustmentAudits(AdjustmentAuditQuery q) { return callPage("COURSE_ADJUSTMENT_AUDIT_SEARCH", q, READ, AdjustmentAuditView.class); }

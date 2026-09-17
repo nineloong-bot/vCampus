@@ -37,7 +37,7 @@ class CourseHandlersTest {
                 "COURSE_ADJUSTMENT_ADD", "COURSE_DROP", "COURSE_ADJUSTMENT_DROP",
                 "COURSE_RETAKE_CHECK", "COURSE_RETAKE_ENROLL", "COURSE_GET_MY_SCHEDULE",
                 "COURSE_GET_MY_ENROLLMENTS",
-                "COURSE_STUDENT_CANDIDATE_SEARCH",
+                "COURSE_STUDENT_CANDIDATE_SEARCH", "COURSE_CATALOG_DEPARTMENT_LIST",
                 "COURSE_CREATE_OFFERING", "COURSE_UPDATE_OFFERING");
         commands.forEach(command -> assertThat(route(router, command, "student", validBody(command)).code())
                 .isNotEqualTo("COMMON_INTERNAL_ERROR"));
@@ -220,7 +220,7 @@ class CourseHandlersTest {
     private static Serializable validBody(String c) {
         return switch (c) {
             case "COURSE_SEARCH_OFFERINGS" -> new OfferingSearchQuery(null, null, null, false, 0, 20);
-            case "COURSE_TERM_LIST", "COURSE_GET_CURRENT_TERM", "COURSE_SELECTION_PHASE_LIST", "COURSE_STUDENT_SELECTION_CONTEXT" -> EmptyRequest.INSTANCE;
+            case "COURSE_TERM_LIST", "COURSE_GET_CURRENT_TERM", "COURSE_SELECTION_PHASE_LIST", "COURSE_STUDENT_SELECTION_CONTEXT", "COURSE_CATALOG_DEPARTMENT_LIST" -> EmptyRequest.INSTANCE;
             case "COURSE_SELECTION_PHASE_CREATE" -> new CreateSelectionPhaseCommand("t", "ENROLLMENT", "Fall selection");
             case "COURSE_SELECTION_PHASE_UPDATE" -> new UpdateSelectionPhaseCommand("p", "Fall selection", 0);
             case "COURSE_SELECTION_PHASE_CHANGE_STATUS" -> new ChangeSelectionPhaseStatusCommand("p", "OPEN", 0);
@@ -271,6 +271,7 @@ class CourseHandlersTest {
         RuntimeException dropFailure;
         public List<TermView> listTerms(){listTermsCalls++;return termListResult;} public TermView getCurrentTerm(){currentTermCalls++;return currentTermResult;} public TermView createTerm(CreateTermCommand c){createTermCommands.add(c);return createdTermResult;} public TermView updateTerm(UpdateTermCommand c){updateTermCommands.add(c);return updatedTermResult;}
         public edu.seu.vcampus.common.paging.PageResult<CourseView> searchCatalog(CourseCatalogQuery q){catalogQueries.add(q);return catalogResult;}
+        public List<CourseDepartmentOption> listCourseDepartments(){return List.of(new CourseDepartmentOption("dept-cse","计算机学院"));}
         public edu.seu.vcampus.common.paging.PageResult<AdjustmentAuditView> searchAdjustmentAudits(AdjustmentAuditQuery q){auditQueries.add(q);return auditResult;}
         public edu.seu.vcampus.common.paging.PageResult<CourseStudentCandidate> searchStudentCandidates(CourseStudentCandidateQuery q){return new edu.seu.vcampus.common.paging.PageResult<>(List.of(),0,20,0);}
         public TermPhaseView getTermPhase(String id){phaseTermIds.add(id);return phaseResult;}
