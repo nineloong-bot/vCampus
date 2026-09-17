@@ -144,6 +144,41 @@ class MajorTransferStudentWorkflowTest {
         assertThat(service.getStudentWorkspace("user-1").application()).isNotNull();
     }
 
+    @Test void workspaceOffersFundedSameAndCrossCollegeOptionsButNotCurrentMajor() {
+        seedOpenBatchWithOption();
+        database.transactions().inTransaction(connection -> {
+            repository.insertOption(connection, new MajorTransferRepository.OptionRow(
+                    "opt-ai", "batch-1", "major-3", "dept-1", "人工智能", "计算机学院",
+                    "2026", 5, 5, 60.0, 60.0, 60, 40, false, null, true, 0, NOW, NOW));
+            repository.insertOption(connection, new MajorTransferRepository.OptionRow(
+                    "opt-current", "batch-1", "major-1", "dept-1", "计算机科学", "计算机学院",
+                    "2026", 5, 5, 60.0, 60.0, 60, 40, false, null, true, 0, NOW, NOW));
+            return null;
+        });
+        sql("UPDATE tblMajorTransferOption SET receiveQuota=0 WHERE optionId='opt-1'");
+
+        assertThat(service.getStudentWorkspace("user-1").availableOptions())
+                .extracting(MajorTransferOptionView::optionId)
+                .containsExactly("opt-ai");
+    }
+
+    @Test void oneStudentCannotCreateTwoApplicationsInTheSameBatch() throws Exception {
+        var first = draft();
+
+        assertThatThrownBy(() -> service.saveDraft("user-1",
+                new SaveMajorTransferDraftCommand(null, "batch-1", "opt-1",
+                        MajorTransferApplicationType.ORDINARY, "第二份申请", 0)))
+                .isInstanceOf(MajorTransferException.class)
+                .extracting(error -> ((MajorTransferException) error).code())
+                .isEqualTo("TRANSFER_DUPLICATE_APPLICATION");
+        assertThat(database.count("tblMajorTransferApplication")).isOne();
+        assertThat(service.saveDraft("user-1", new SaveMajorTransferDraftCommand(
+                first.applicationId(), "batch-1", "opt-1",
+                MajorTransferApplicationType.ORDINARY, "修改原申请", first.applicationVersion())))
+                .extracting(MajorTransferApplicationView::applicationId)
+                .isEqualTo(first.applicationId());
+    }
+
     @Test void submitRechecksStudentStatus() {
         var app = draft();
         sql("UPDATE tblStudent SET studentStatus='SUSPENDED' WHERE studentId='student-1'");

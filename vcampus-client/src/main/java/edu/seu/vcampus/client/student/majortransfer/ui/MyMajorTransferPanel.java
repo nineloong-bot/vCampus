@@ -254,9 +254,13 @@ public final class MyMajorTransferPanel extends JPanel {
 
     private void render(MajorTransferWorkspace ws) {
         this.workspace = ws;
-        boolean eligible = ws.activeBatch() != null && ws.eligibilityItems().stream()
+        boolean batchOpen = ws.activeBatch() != null
+                && ws.activeBatch().status() == MajorTransferBatchStatus.OPEN;
+        boolean eligible = batchOpen && ws.eligibilityItems().stream()
                 .allMatch(MajorTransferEligibilityItem::passed);
-        statusLabel.setText(ws.activeBatch() != null ? "批次: " + ws.activeBatch().batchName() : "暂无开放批次");
+        statusLabel.setText(ws.activeBatch() == null ? "暂无开放批次"
+                : batchOpen ? "批次: " + ws.activeBatch().batchName()
+                : "批次已关闭，仅可查看: " + ws.activeBatch().batchName());
         infoPanel.removeAll();
         infoPanel.add(new JLabel("学院：" + Objects.toString(ws.currentDepartmentName(), "未填写")));
         infoPanel.add(new JLabel("专业：" + Objects.toString(ws.currentMajorName(), "未填写")));
@@ -294,9 +298,9 @@ public final class MyMajorTransferPanel extends JPanel {
         editApplicationButton.setEnabled(canEdit);
         editApplicationButton.setText(app == null ? "新建申请" : "编辑申请");
         saveButton.setEnabled(canEdit);
-        submitButton.setEnabled(isDraft && app.reason() != null && !app.reason().isBlank());
+        submitButton.setEnabled(canEdit && isDraft && app.reason() != null && !app.reason().isBlank());
         withdrawButton.setVisible(isSubmitted);
-        uploadButton.setEnabled(isDraft);
+        uploadButton.setEnabled(canEdit && isDraft);
 
         if (app != null) {
             currentApplicationId = app.applicationId();
@@ -305,9 +309,9 @@ public final class MyMajorTransferPanel extends JPanel {
             }
             applicationTypeCombo.setSelectedIndex(app.applicationType() == MajorTransferApplicationType.DIFFICULTY ? 1 : 0);
             reasonArea.setText(app.reason() != null ? app.reason() : "");
-            reasonArea.setEditable(isDraft);
-            targetMajorCombo.setEnabled(isDraft);
-            applicationTypeCombo.setEnabled(isDraft);
+            reasonArea.setEditable(canEdit && isDraft);
+            targetMajorCombo.setEnabled(canEdit && isDraft);
+            applicationTypeCombo.setEnabled(canEdit && isDraft);
             renderAttachments(app.attachments());
             renderTimeline(app);
         } else {

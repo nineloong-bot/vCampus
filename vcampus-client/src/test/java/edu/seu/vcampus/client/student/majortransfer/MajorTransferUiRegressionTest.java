@@ -49,6 +49,26 @@ class MajorTransferUiRegressionTest {
         });
     }
 
+    @Test void closedBatchExplainsReadOnlyStateAndDisablesEditing() throws Exception {
+        ClientConnection connection = mock(ClientConnection.class);
+        when(connection.state()).thenReturn(ConnectionState.CONNECTED);
+        SwingUtilities.invokeAndWait(() -> {
+            var panel = new MyMajorTransferPanel(client(), connection);
+            try {
+                var method = MyMajorTransferPanel.class.getDeclaredMethod(
+                        "render", MajorTransferWorkspace.class);
+                method.setAccessible(true);
+                method.invoke(panel, workspace(MajorTransferBatchStatus.CLOSED));
+            } catch (ReflectiveOperationException error) {
+                throw new AssertionError(error);
+            }
+            assertThat(((JLabel) find(panel, "major-transfer.student.status")).getText())
+                    .contains("已关闭");
+            assertThat(((JButton) find(panel, "major-transfer.student.edit-application")).isEnabled())
+                    .isFalse();
+        });
+    }
+
     @Test void adminHasWorkingAssessmentAndExecutionLists() throws Exception {
         try (ClientConnection connection = new ClientConnection("localhost", 1)) {
             SwingUtilities.invokeAndWait(() -> {
@@ -118,8 +138,12 @@ class MajorTransferUiRegressionTest {
     }
 
     private static MajorTransferWorkspace workspace() {
+        return workspace(MajorTransferBatchStatus.OPEN);
+    }
+
+    private static MajorTransferWorkspace workspace(MajorTransferBatchStatus status) {
         Instant now = Instant.now();
-        var batch = new MajorTransferBatchView("batch", "批次", MajorTransferBatchStatus.OPEN,
+        var batch = new MajorTransferBatchView("batch", "批次", status,
                 now.minusSeconds(60), now.plusSeconds(60), null, null, null, 0);
         var first = new MajorTransferOptionView("one", "batch", "m1", "d", "专业一", "学院", "2024", 10, 20, 60.0, 60.0, 60, 40, false, "", true, 0);
         var second = new MajorTransferOptionView("two", "batch", "m2", "d", "专业二", "学院", "2024", 10, 20, 60.0, 60.0, 60, 40, true, "", true, 0);

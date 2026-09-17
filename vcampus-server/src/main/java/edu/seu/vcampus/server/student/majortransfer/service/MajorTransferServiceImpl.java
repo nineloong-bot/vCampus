@@ -123,6 +123,7 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
                 }
             }
             List<MajorTransferOptionView> availableOptions = allOptions.stream()
+                    .filter(option -> option.receiveQuota() > 0)
                     .filter(o -> !student.majorId().equals(o.targetMajorId()))
                     .toList();
             List<MajorTransferEligibilityItem> eligibility = checkEligibility(connection, student,
