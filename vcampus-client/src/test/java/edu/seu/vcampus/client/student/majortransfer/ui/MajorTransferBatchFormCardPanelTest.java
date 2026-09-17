@@ -1,8 +1,11 @@
 package edu.seu.vcampus.client.student.majortransfer.ui;
 
+import edu.seu.vcampus.client.core.ui.theme.UiColors;
+import edu.seu.vcampus.client.core.ui.theme.UiTypography;
 import edu.seu.vcampus.common.student.majortransfer.MajorTransferBatchStatus;
 import org.junit.jupiter.api.Test;
 
+import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JList;
@@ -17,6 +20,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class MajorTransferBatchFormCardPanelTest {
+    @Test
+    void saveActionUsesReadablePrimaryButtonStyle() throws Exception {
+        onEdt(() -> {
+            MajorTransferBatchFormCardPanel card = new MajorTransferBatchFormCardPanel();
+            JButton save = component(card, "saveBatchButton", JButton.class);
+
+            assertThat(save.getBackground()).isEqualTo(UiColors.ACCENT);
+            assertThat(save.getForeground()).isEqualTo(UiColors.TEXT_ON_PRIMARY);
+            assertThat(save.getFont()).isEqualTo(UiTypography.BODY_BOLD);
+            assertThat(save.isOpaque()).isTrue();
+            assertThat(save.isContentAreaFilled()).isTrue();
+        });
+    }
+
     @Test
     void statusSelectorUsesChineseLabels() throws Exception {
         onEdt(() -> {

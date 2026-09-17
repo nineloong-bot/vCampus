@@ -9,6 +9,7 @@ import edu.seu.vcampus.common.student.majortransfer.MajorTransferBatchView;
 import edu.seu.vcampus.common.student.majortransfer.SaveMajorTransferBatchCommand;
 
 import javax.swing.*;
+import javax.swing.plaf.basic.BasicButtonUI;
 import java.awt.*;
 import java.time.Instant;
 
@@ -78,8 +79,15 @@ public final class MajorTransferBatchFormCardPanel extends JPanel {
 
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, UiSpacing.SPACE_2, 0));
         actions.setOpaque(false);
+        saveButton.setUI(new BasicButtonUI());
+        saveButton.setFont(UiTypography.BODY_BOLD);
         saveButton.setBackground(UiColors.ACCENT);
         saveButton.setForeground(UiColors.TEXT_ON_PRIMARY);
+        saveButton.setOpaque(true);
+        saveButton.setContentAreaFilled(true);
+        saveButton.setFocusPainted(false);
+        saveButton.setBorder(BorderFactory.createEmptyBorder(
+                UiSpacing.SPACE_2, UiSpacing.SPACE_4, UiSpacing.SPACE_2, UiSpacing.SPACE_4));
         actions.add(resetButton);
         actions.add(saveButton);
 
