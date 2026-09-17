@@ -19,10 +19,15 @@ MAJORS = (
 ADMINISTRATORS = (
     ("user-admin", "ADMIN", "SUPER_ADMIN", "平台超级管理员"),
     ("user-student-admin", "STUDENT", "STUDENT_ADMIN", "学籍管理员"),
+    ("user-student-admin-2", "STUDENT2", "STUDENT_ADMIN", "学籍管理员（二）"),
     ("user-course-admin", "COURSE", "COURSE_ADMIN", "选课管理员"),
+    ("user-course-admin-2", "COURSE2", "COURSE_ADMIN", "选课管理员（二）"),
     ("user-library-admin", "LIBRARY", "LIBRARY_ADMIN", "图书管理员"),
+    ("user-library-admin-2", "LIBRARY2", "LIBRARY_ADMIN", "图书管理员（二）"),
     ("user-shop-admin", "SHOP", "SHOP_ADMIN", "商城管理员"),
+    ("user-shop-admin-2", "SHOP2", "SHOP_ADMIN", "商城管理员（二）"),
     ("user-account-admin", "USER", "USER_ADMIN", "用户管理员"),
+    ("user-account-admin-2", "USER2", "USER_ADMIN", "用户管理员（二）"),
     ("user-cse-admin", "CSADMIN", "COLLEGE_ADMIN", "计算机学院管理员"),
     ("user-math-admin", "MATHADMIN", "COLLEGE_ADMIN", "数学学院管理员"),
 )

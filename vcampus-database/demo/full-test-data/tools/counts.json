@@ -47,7 +47,7 @@
   "tblTrainingPlan": 15,
   "tblTrainingPlanCourse": 600,
   "tblTrainingPlanPrerequisite": 105,
-  "tblUser": 152,
+  "tblUser": 157,
   "tblWalletAccount": 10,
   "tblWalletEntry": 56,
   "tblWalletEscrow": 14,

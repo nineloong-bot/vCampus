@@ -338,7 +338,9 @@ public final class CourseServiceImpl implements CourseService, CourseQueryPort {
         List<Enrollment> active = repository.findActiveByStudentAndTerm(
                 connection, studentId, offering.termId());
         requireNoDuplicate(connection, active, offering);
-        requireNoScheduleConflict(connection, active, offering);
+        if (!"RETAKE".equals(enrollmentType)) {
+            requireNoScheduleConflict(connection, active, offering);
+        }
         boolean full = "RETAKE".equals(enrollmentType)
                 ? repository.findRetakeQuota(connection, offeringId).enrolledCount()
                     >= repository.findRetakeQuota(connection, offeringId).capacity()

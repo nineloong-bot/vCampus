@@ -2,6 +2,7 @@ package edu.seu.vcampus.server.course.service;
 
 import edu.seu.vcampus.common.course.EnrollCommand;
 import edu.seu.vcampus.common.course.EnrollmentView;
+import edu.seu.vcampus.common.course.RetakeCommand;
 import edu.seu.vcampus.server.concurrency.ResourceKey;
 import edu.seu.vcampus.server.concurrency.ResourceLockManager;
 import edu.seu.vcampus.server.concurrency.StripedResourceLockManager;
@@ -310,6 +311,24 @@ class CourseEnrollmentServiceTest {
                 .isInstanceOf(ScheduleConflictException.class)
                 .extracting("code").isEqualTo("COURSE_SCHEDULE_CONFLICT");
         assertThat(activeCount("conflicting-offering")).isZero();
+    }
+
+    @Test
+    void retakeEnrollmentIgnoresScheduleConflictWithAnExistingCourse() {
+        seedCatalog("PLANNED", NOW.minusSeconds(60), NOW.plusSeconds(60));
+        seedCourse("course-2", "CS102");
+        seedOffering("selected-offering", "course-1", 3, 1, "OPEN",
+                List.of(schedule("selected", "selected-offering", DayOfWeek.MONDAY, 1, 2, 1, 16)));
+        seedOffering("retake-offering", "course-2", 3, 0, "OPEN",
+                List.of(schedule("retake", "retake-offering", DayOfWeek.MONDAY, 2, 3, 8, 12)));
+        seedActive("selected-offering", STUDENT_ID);
+        academicResults.add(new CourseAcademicResult("failed", "CS102", "FAILED"));
+        inTransaction(connection -> repository.saveRetakeCapacity(connection, "retake-offering", 5));
+
+        EnrollmentView result = service.enrollRetake(TOKEN, new RetakeCommand("retake-offering"));
+
+        assertThat(result.enrollmentType()).isEqualTo("RETAKE");
+        assertThat(activeCount("retake-offering")).isEqualTo(1);
     }
 
     @Test
