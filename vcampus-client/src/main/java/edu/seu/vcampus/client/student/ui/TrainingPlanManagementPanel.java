@@ -12,6 +12,8 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -26,6 +28,12 @@ public final class TrainingPlanManagementPanel extends JPanel {
     private final JComboBox<String> yearBox = new JComboBox<>();
     private final JLabel planInfoLabel = new JLabel("请选择院系、专业和年级");
     private TrainingPlanDetailView currentPlan;
+
+    private JButton addCourseBtn;
+    private JButton coursePoolBtn;
+    private JButton editCourseBtn;
+    private JButton removeBtn;
+    private JButton editPlanBtn;
 
     private final CardLayout workspaceCardLayout = new CardLayout();
     private final JPanel workspaceCardPanel = new JPanel(workspaceCardLayout);
@@ -246,17 +254,17 @@ public final class TrainingPlanManagementPanel extends JPanel {
     private JPanel buildCoursePanel() {
         JPanel panel = new JPanel(new BorderLayout(4, 4));
         JPanel topBar = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JButton addCourseBtn = new JButton("添加课程");
+        addCourseBtn = new JButton("添加课程");
         addCourseBtn.addActionListener(e -> openCourseWorkspace(null));
-        JButton coursePoolBtn = new JButton("全校课程库引入");
+        coursePoolBtn = new JButton("全校课程库引入");
         coursePoolBtn.addActionListener(e -> openCoursePoolDialog());
-        JButton editCourseBtn = new JButton("编辑选中课程");
+        editCourseBtn = new JButton("编辑选中课程");
         editCourseBtn.addActionListener(e -> editSelectedCourse());
-        JButton removeBtn = new JButton("删除选中课程");
+        removeBtn = new JButton("删除选中课程");
         removeBtn.addActionListener(e -> removeSelectedCourse());
         JButton reviewAppsBtn = new JButton("跨学科审批");
         reviewAppsBtn.addActionListener(e -> openCrossCourseReviewDialog());
-        JButton editPlanBtn = new JButton("编辑方案信息");
+        editPlanBtn = new JButton("编辑方案信息");
         editPlanBtn.addActionListener(e -> openEditPlanWorkspace());
         topBar.add(addCourseBtn);
         topBar.add(coursePoolBtn);
@@ -335,6 +343,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
                     } else {
                         currentPlan = null;
                         courseModel.setCourses(List.of());
+                        updateEditabilityUi(null);
                         planInfoLabel.setText(major.name() + " " + year + "级 — 暂无方案，可点击\"新建方案\"");
                     }
                 }));
@@ -345,20 +354,38 @@ public final class TrainingPlanManagementPanel extends JPanel {
             if (response.success() && response.data() != null) {
                 currentPlan = response.data();
                 courseModel.setCourses(currentPlan.courses());
+                boolean editable = updateEditabilityUi(currentPlan);
                 long required = currentPlan.courses().stream()
                         .filter(c -> c.courseType() == CourseType.REQUIRED).count();
                 long elective = currentPlan.courses().stream()
                         .filter(c -> c.courseType() == CourseType.ELECTIVE).count();
                 long cross = currentPlan.courses().stream()
                         .filter(c -> c.courseType() == CourseType.CROSS_DISCIPLINARY).count();
+                String lockSuffix = editable ? "" : " [已锁定: 仅允许秋季开课前编辑大一方案]";
                 planInfoLabel.setText(currentPlan.majorName() + " " + currentPlan.enrollmentYear()
                         + "级 — " + currentPlan.planName()
                         + " | 必修" + required + "门 选修" + elective + "门 跨学科" + cross + "门"
                         + " | 选修毕业要求≥" + currentPlan.minElectiveCount() + "门"
-                        + "≥" + currentPlan.minElectiveCredits() + "学分");
-                statusLabel.setText(" ");
+                        + "≥" + currentPlan.minElectiveCredits() + "学分"
+                        + lockSuffix);
+                statusLabel.setText(editable ? "就绪" : "该培养方案已锁定，不可编辑课程与方案信息");
             }
         }));
+    }
+
+    private boolean updateEditabilityUi(TrainingPlanDetailView plan) {
+        boolean editable = isPlanEditable(plan);
+        if (addCourseBtn != null) addCourseBtn.setEnabled(editable);
+        if (coursePoolBtn != null) coursePoolBtn.setEnabled(editable);
+        if (editCourseBtn != null) editCourseBtn.setEnabled(editable);
+        if (removeBtn != null) removeBtn.setEnabled(editable);
+        if (editPlanBtn != null) editPlanBtn.setEnabled(editable);
+        return editable;
+    }
+
+    private boolean isPlanEditable(TrainingPlanDetailView plan) {
+        if (plan == null) return true;
+        return plan.editable();
     }
 
     private void showEmptyWorkspace() {
@@ -491,10 +518,39 @@ public final class TrainingPlanManagementPanel extends JPanel {
             statusLabel.setText("请先选择院系、专业和年级");
             return;
         }
+        int year = Integer.parseInt(yearStr.replace("级", ""));
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Shanghai"));
+        int currentAcademicYear = today.getMonthValue() >= 9 ? today.getYear() : today.getYear() - 1;
+        if (year < currentAcademicYear) {
+            JOptionPane.showMessageDialog(this,
+                    "大二、大三、大四等往届培养方案不可新建或编辑！",
+                    "提示", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        if (currentPlan != null && currentPlan.enrollmentYear() == year
+                && currentPlan.majorId().equals(major.majorId())) {
+            JOptionPane.showMessageDialog(this,
+                    major.name() + " " + year + "级培养方案已存在，无需重复新建！",
+                    "提示", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        students.searchTrainingPlans(new TrainingPlanQuery(major.majorId(), year, 1, 1))
+                .thenAccept(r -> SwingUtilities.invokeLater(() -> {
+                    if (r.success() && r.data() != null && !r.data().items().isEmpty()) {
+                        JOptionPane.showMessageDialog(TrainingPlanManagementPanel.this,
+                                major.name() + " " + year + "级培养方案已存在，无需重复新建！",
+                                "提示", JOptionPane.WARNING_MESSAGE);
+                        loadPlanDetail(r.data().items().get(0).planId());
+                        return;
+                    }
+                    doOpenNewPlanWorkspace(major, year);
+                }));
+    }
+
+    private void doOpenNewPlanWorkspace(MajorView major, int year) {
         EmbeddedEditor editor = new TrainingPlanEditorPanel(workspaceCardPanel, () -> workspaceDirty);
         if (!editorHost.showEditor(editor)) return;
         workspaceEditor = editor;
-        int year = Integer.parseInt(yearStr.replace("级", ""));
         isEditingPlan = false;
         planBorder.setTitle("新建培养方案");
         workspaceCardPanel.repaint();
@@ -587,6 +643,11 @@ public final class TrainingPlanManagementPanel extends JPanel {
                 } else {
                     planMsgLabel.setText("创建失败: " + r.message());
                     statusLabel.setText("创建失败: " + r.message());
+                    String msg = r.message();
+                    if (msg != null && (msg.contains("已存在") || msg.contains("DUPLICATE"))) {
+                        msg = "该专业此年级的培养方案已存在，无法重复创建！";
+                    }
+                    JOptionPane.showMessageDialog(TrainingPlanManagementPanel.this, msg, "创建失败", JOptionPane.ERROR_MESSAGE);
                 }
             }));
         }
@@ -684,7 +745,15 @@ public final class TrainingPlanManagementPanel extends JPanel {
             students.listCoursePool(new CoursePoolQuery(deptId, kw.isEmpty() ? null : kw))
                     .thenAccept(r -> SwingUtilities.invokeLater(() -> {
                         if (r.success() && r.data() != null) {
-                            poolModel.setCourses(r.data());
+                            var existingCodes = currentPlan != null
+                                    ? currentPlan.courses().stream()
+                                            .map(c -> c.courseCode().trim().toUpperCase(java.util.Locale.ROOT))
+                                            .collect(java.util.stream.Collectors.toSet())
+                                    : java.util.Set.<String>of();
+                            var filtered = r.data().stream()
+                                    .filter(c -> !existingCodes.contains(c.courseCode().trim().toUpperCase(java.util.Locale.ROOT)))
+                                    .toList();
+                            poolModel.setCourses(filtered);
                         } else {
                             JOptionPane.showMessageDialog(dialog, "获取课程库失败: " + r.message(), "错误", JOptionPane.ERROR_MESSAGE);
                         }

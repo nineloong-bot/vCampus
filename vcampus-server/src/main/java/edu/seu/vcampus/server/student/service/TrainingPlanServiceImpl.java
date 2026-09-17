@@ -288,10 +288,20 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
                 .map(d -> d.departmentName()).orElse(null);
         List<TrainingPlanCourseView> courses = plans.listCourses(connection, plan.planId())
                 .stream().map(this::courseView).toList();
+        boolean editable = isPlanEditable(connection, plan);
         return new TrainingPlanDetailView(plan.planId(), plan.majorId(), majorName,
                 departmentName, plan.enrollmentYear(), plan.planName(),
                 plan.minElectiveCount(), plan.minElectiveCredits(),
-                plan.active(), plan.rowVersion(), courses);
+                plan.active(), plan.rowVersion(), courses, editable);
+    }
+
+    private boolean isPlanEditable(java.sql.Connection connection, TrainingPlan plan) {
+        try {
+            requirePlanEditable(connection, plan);
+            return true;
+        } catch (TrainingPlanException ignored) {
+            return false;
+        }
     }
 
     private TrainingPlanCourseView courseView(TrainingPlanCourse course) {
@@ -483,24 +493,44 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
     private void requirePlanEditable(java.sql.Connection connection, TrainingPlan plan) {
         LocalDate today = LocalDate.now(ZoneId.of("Asia/Shanghai"));
         int currentAcademicYear = today.getMonthValue() >= 9 ? today.getYear() : today.getYear() - 1;
-        if (plan.enrollmentYear() >= currentAcademicYear) {
-            return;
-        }
+        LocalDate autumnStart = LocalDate.of(currentAcademicYear, 9, 1);
 
-        String sql = "SELECT COUNT(*) FROM (tblStudent s INNER JOIN tblClass c "
-                + "ON s.classId=c.classId) WHERE c.majorId=? AND c.enrollmentYear=?";
-        try (var statement = connection.prepareStatement(sql)) {
-            statement.setString(1, plan.majorId());
-            statement.setInt(2, plan.enrollmentYear());
+        String termSql = "SELECT academicYearStart, startDate FROM tblTerm "
+                + "WHERE termStatus='ACTIVE' AND season='AUTUMN'";
+        try (var statement = connection.prepareStatement(termSql)) {
             try (var result = statement.executeQuery()) {
-                result.next();
-                if (result.getLong(1) > 0) {
-                    throw new TrainingPlanException("TRAINING_PLAN_IMMUTABLE",
-                            "已有学生使用该培养方案，历史培养方案不可修改");
+                if (result.next()) {
+                    currentAcademicYear = (int) result.getLong("academicYearStart");
+                    java.sql.Date d = result.getDate("startDate");
+                    if (d != null) {
+                        autumnStart = d.toLocalDate();
+                    }
+                } else {
+                    String fallbackSql = "SELECT academicYearStart, startDate FROM tblTerm "
+                            + "WHERE season='AUTUMN' ORDER BY academicYearStart DESC";
+                    try (var fallbackSt = connection.prepareStatement(fallbackSql);
+                         var fallbackRs = fallbackSt.executeQuery()) {
+                        if (fallbackRs.next()) {
+                            currentAcademicYear = (int) fallbackRs.getLong("academicYearStart");
+                            java.sql.Date d = fallbackRs.getDate("startDate");
+                            if (d != null) {
+                                autumnStart = d.toLocalDate();
+                            }
+                        }
+                    }
                 }
             }
-        } catch (java.sql.SQLException error) {
-            throw new TrainingPlanException("TRAINING_PLAN_VALIDATION_FAILED", "无法校验培养方案是否可修改");
+        } catch (java.sql.SQLException ignored) {
+            // Fallback to default calendar-derived currentAcademicYear and autumnStart if tblTerm is absent
+        }
+
+        if (plan.enrollmentYear() < currentAcademicYear) {
+            throw new TrainingPlanException("TRAINING_PLAN_IMMUTABLE",
+                    "大二、大三、大四等往届培养方案不可修改");
+        }
+        if (plan.enrollmentYear() == currentAcademicYear && !today.isBefore(autumnStart)) {
+            throw new TrainingPlanException("TRAINING_PLAN_IMMUTABLE",
+                    "秋季学期已开课，培养方案已锁定，仅允许在秋季开课前编辑大一培养方案");
         }
     }
 

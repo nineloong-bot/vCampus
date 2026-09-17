@@ -86,8 +86,8 @@ def generate(add, now):
     stamp = dict(rowVersion=0, createdAt=now, updatedAt=now)
     term_id = "term-2026-autumn"
     add("tblTerm", termId=term_id, termCode="2026-2027-AUTUMN",
-        termName="2026-2027学年秋季学期", startDate=date(2026, 9, 7),
-        endDate=date(2027, 1, 15), academicYearStart=2026, season="AUTUMN",
+        termName="2026-2027学年秋季学期", startDate=date(2026, 10, 12),
+        endDate=date(2027, 2, 19), academicYearStart=2026, season="AUTUMN",
         enrollmentStartAt=now - timedelta(days=1), enrollmentEndAt=now + timedelta(days=14),
         adjustmentStartAt=now + timedelta(days=15), adjustmentEndAt=now + timedelta(days=21),
         termStatus="ACTIVE", **stamp)

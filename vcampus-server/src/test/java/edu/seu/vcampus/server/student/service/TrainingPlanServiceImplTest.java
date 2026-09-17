@@ -78,6 +78,12 @@ class TrainingPlanServiceImplTest {
                         + "reviewerUserId VARCHAR(36), reviewComment VARCHAR(255), "
                         + "reviewedAt DATETIME, rowVersion LONG NOT NULL, "
                         + "createdAt DATETIME NOT NULL, updatedAt DATETIME NOT NULL)");
+                statement.execute("CREATE TABLE tblTerm ("
+                        + "termId VARCHAR(36) PRIMARY KEY, termCode VARCHAR(24) NOT NULL, "
+                        + "termName VARCHAR(64) NOT NULL, startDate DATETIME NOT NULL, "
+                        + "endDate DATETIME NOT NULL, academicYearStart LONG NOT NULL, "
+                        + "season VARCHAR(16) NOT NULL, termStatus VARCHAR(16) NOT NULL, "
+                        + "rowVersion LONG NOT NULL, createdAt DATETIME NOT NULL, updatedAt DATETIME NOT NULL)");
             }
             return null;
         });
@@ -102,6 +108,20 @@ class TrainingPlanServiceImplTest {
                 st.setLong(10, 0);
                 st.setTimestamp(11, java.sql.Timestamp.from(java.time.Instant.now()));
                 st.setTimestamp(12, java.sql.Timestamp.from(java.time.Instant.now()));
+                st.executeUpdate();
+            }
+            try (var st = connection.prepareStatement("INSERT INTO tblTerm (termId, termCode, termName, startDate, endDate, academicYearStart, season, termStatus, rowVersion, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
+                st.setString(1, "term-2024-autumn");
+                st.setString(2, "2024-2025-AUTUMN");
+                st.setString(3, "2024-2025学年秋季学期");
+                st.setDate(4, java.sql.Date.valueOf(java.time.LocalDate.now().plusDays(10)));
+                st.setDate(5, java.sql.Date.valueOf(java.time.LocalDate.now().plusMonths(4)));
+                st.setLong(6, 2024);
+                st.setString(7, "AUTUMN");
+                st.setString(8, "ACTIVE");
+                st.setLong(9, 0);
+                st.setTimestamp(10, java.sql.Timestamp.from(java.time.Instant.now()));
+                st.setTimestamp(11, java.sql.Timestamp.from(java.time.Instant.now()));
                 st.executeUpdate();
             }
             return null;
@@ -140,32 +160,11 @@ class TrainingPlanServiceImplTest {
 
     @Test
     void refusesToEditHistoricalPlanWithEnrolledStudents() {
-        var plan = service.savePlan(new SaveTrainingPlanCommand(null, "major-1", 2024,
-                "2024级培养方案", 2, new BigDecimal("10.0"), true, 0), "admin");
-        database.transactions().inTransaction(connection -> {
-            try (var classInsert = connection.prepareStatement(
-                    "INSERT INTO tblClass (classId, majorId, classCode, className, enrollmentYear, classNumber, isActive, rowVersion) VALUES (?, ?, ?, ?, ?, ?, TRUE, 0)");
-                 var studentInsert = connection.prepareStatement(
-                         "INSERT INTO tblStudent (studentId, userId, studentNumber, studentType, studentName, gender, classId, enrollmentDate, studentStatus, rowVersion, createdAt, updatedAt) VALUES (?, ?, ?, 'UNDERGRADUATE', ?, '男', ?, #2024-09-01#, 'ACTIVE', 0, NOW(), NOW())")) {
-                classInsert.setString(1, "class-2024");
-                classInsert.setString(2, "major-1");
-                classInsert.setString(3, "090-2024-01");
-                classInsert.setString(4, "计算机科学2024级");
-                classInsert.setInt(5, 2024);
-                classInsert.setInt(6, 1);
-                classInsert.executeUpdate();
-                studentInsert.setString(1, "student-2024");
-                studentInsert.setString(2, "user-2024");
-                studentInsert.setString(3, "20240001");
-                studentInsert.setString(4, "历史学生");
-                studentInsert.setString(5, "class-2024");
-                studentInsert.executeUpdate();
-            }
-            return null;
-        });
+        var plan = service.savePlan(new SaveTrainingPlanCommand(null, "major-1", 2023,
+                "2023级培养方案", 2, new BigDecimal("10.0"), true, 0), "admin");
 
         assertThatThrownBy(() -> service.savePlan(new SaveTrainingPlanCommand(plan.planId(),
-                "major-1", 2024, "被禁止修改", 2, new BigDecimal("10.0"), true,
+                "major-1", 2023, "被禁止修改", 2, new BigDecimal("10.0"), true,
                 plan.rowVersion()), "admin"))
                 .isInstanceOfSatisfying(TrainingPlanException.class,
                         error -> assertThat(error.code()).isEqualTo("TRAINING_PLAN_IMMUTABLE"));
@@ -173,29 +172,26 @@ class TrainingPlanServiceImplTest {
 
     @Test
     void refusesToAddCourseToHistoricalPlanWithEnrolledStudents() {
-        var plan = service.savePlan(new SaveTrainingPlanCommand(null, "major-1", 2024,
-                "2024级培养方案", 2, new BigDecimal("10.0"), true, 0), "admin");
+        var plan = service.savePlan(new SaveTrainingPlanCommand(null, "major-1", 2023,
+                "2023级培养方案", 2, new BigDecimal("10.0"), true, 0), "admin");
+
+        assertThatThrownBy(() -> service.saveCourse(courseCommand(plan.planId(), "CS001"), "admin"))
+                .isInstanceOfSatisfying(TrainingPlanException.class,
+                        error -> assertThat(error.code()).isEqualTo("TRAINING_PLAN_IMMUTABLE"));
+    }
+
+    @Test
+    void refusesToEditFreshmanPlanAfterAutumnStartDate() {
         database.transactions().inTransaction(connection -> {
-            try (var classInsert = connection.prepareStatement(
-                    "INSERT INTO tblClass (classId, majorId, classCode, className, enrollmentYear, classNumber, isActive, rowVersion) VALUES (?, ?, ?, ?, ?, ?, TRUE, 0)");
-                 var studentInsert = connection.prepareStatement(
-                         "INSERT INTO tblStudent (studentId, userId, studentNumber, studentType, studentName, gender, classId, enrollmentDate, studentStatus, rowVersion, createdAt, updatedAt) VALUES (?, ?, ?, 'UNDERGRADUATE', ?, '男', ?, #2024-09-01#, 'ACTIVE', 0, NOW(), NOW())")) {
-                classInsert.setString(1, "class-2024");
-                classInsert.setString(2, "major-1");
-                classInsert.setString(3, "090-2024-01");
-                classInsert.setString(4, "计算机科学2024级");
-                classInsert.setInt(5, 2024);
-                classInsert.setInt(6, 1);
-                classInsert.executeUpdate();
-                studentInsert.setString(1, "student-2024");
-                studentInsert.setString(2, "user-2024");
-                studentInsert.setString(3, "20240001");
-                studentInsert.setString(4, "历史学生");
-                studentInsert.setString(5, "class-2024");
-                studentInsert.executeUpdate();
+            try (var st = connection.prepareStatement("UPDATE tblTerm SET startDate=? WHERE termId='term-2024-autumn'")) {
+                st.setDate(1, java.sql.Date.valueOf(java.time.LocalDate.now().minusDays(1)));
+                st.executeUpdate();
             }
             return null;
         });
+
+        var plan = service.savePlan(new SaveTrainingPlanCommand(null, "major-1", 2024,
+                "2024级培养方案", 2, new BigDecimal("10.0"), true, 0), "admin");
 
         assertThatThrownBy(() -> service.saveCourse(courseCommand(plan.planId(), "CS001"), "admin"))
                 .isInstanceOfSatisfying(TrainingPlanException.class,

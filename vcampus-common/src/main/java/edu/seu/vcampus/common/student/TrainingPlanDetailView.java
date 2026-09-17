@@ -16,4 +16,25 @@ public record TrainingPlanDetailView(
         BigDecimal minElectiveCredits,
         boolean isActive,
         long rowVersion,
-        List<TrainingPlanCourseView> courses) implements Serializable { }
+        List<TrainingPlanCourseView> courses,
+        boolean editable) implements Serializable {
+
+    /**
+     * Backward-compatible constructor defaulting {@code editable} to true.
+     */
+    public TrainingPlanDetailView(
+            String planId,
+            String majorId,
+            String majorName,
+            String departmentName,
+            int enrollmentYear,
+            String planName,
+            long minElectiveCount,
+            BigDecimal minElectiveCredits,
+            boolean isActive,
+            long rowVersion,
+            List<TrainingPlanCourseView> courses) {
+        this(planId, majorId, majorName, departmentName, enrollmentYear, planName,
+                minElectiveCount, minElectiveCredits, isActive, rowVersion, courses, true);
+    }
+}
