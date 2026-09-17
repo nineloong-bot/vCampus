@@ -59,6 +59,7 @@ public final class MainFrame extends JFrame {
                      StudentClientService students) {
         super("vCampus");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        AppIcon.applyTo(this);
         setLayout(new BorderLayout());
         header = new IdentityHeader(user, connection);
         footer = new ApplicationStatusBar();

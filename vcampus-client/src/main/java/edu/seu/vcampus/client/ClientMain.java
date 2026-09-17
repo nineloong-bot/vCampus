@@ -1,6 +1,7 @@
 package edu.seu.vcampus.client;
 
 import edu.seu.vcampus.client.core.network.ClientConnection;
+import edu.seu.vcampus.client.core.ui.AppIcon;
 import edu.seu.vcampus.client.core.ui.theme.UiThemeInstaller;
 import edu.seu.vcampus.client.student.service.StudentClientService;
 import edu.seu.vcampus.client.course.service.CourseClientService;
@@ -42,6 +43,7 @@ public final class ClientMain {
             LibraryClientService library = new LibraryClientService(connection, timeout);
             ShopClientService shop = new ShopClientService(connection, timeout);
             SwingUtilities.invokeLater(() -> {
+                AppIcon.install();
                 UiThemeInstaller.install();
                 new UserUiCoordinator(users, students, courses, library, shop, connection).start();
             });
