@@ -134,10 +134,11 @@ class ValidateDataset {
                 + "WHERE a.fromDepartmentName='数学学院' "
                 + "AND o.targetDepartmentName='计算机科学与工程学院'") == 5,
                 "transfer direction");
-        require(count(connection, "SELECT COUNT(*) FROM tblMajorTransferBatchCollege "
-                + "WHERE batchId='transfer-2026-autumn' AND targetDepartmentId='dept-cse' "
-                + "AND collegeStatus='PROCESSING' AND rowVersion=0") == 1,
-                "transfer college lifecycle");
+        require(count(connection, "SELECT COUNT(*) FROM tblMajorTransferOptionFinalization f "
+                + "INNER JOIN tblMajorTransferOption o ON f.optionId=o.optionId "
+                + "WHERE o.batchId='transfer-2026-autumn' "
+                + "AND f.finalizationStatus='PROCESSING' AND f.rowVersion=0") == 3,
+                "transfer option lifecycle");
         require(count(connection, "SELECT COUNT(*) FROM tblMajorTransferPreparedTransfer") == 0,
                 "prepared transfers initially empty");
         require(count(connection, "SELECT COUNT(*) FROM tblBookLoan WHERE loanStatus='OVERDUE' "

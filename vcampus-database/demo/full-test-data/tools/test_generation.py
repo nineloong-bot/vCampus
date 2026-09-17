@@ -196,12 +196,13 @@ class ScenarioContractTest(unittest.TestCase):
         self.assertTrue(applicant_grades)
         self.assertEqual({"PASSED"}, {row["result"] for row in applicant_grades})
 
-    def test_transfer_batch_initializes_target_college_lifecycle(self):
-        colleges = self.rows["tblMajorTransferBatchCollege"]
-        self.assertEqual(1, len(colleges))
-        self.assertEqual("dept-cse", colleges[0]["targetDepartmentId"])
-        self.assertEqual("PROCESSING", colleges[0]["collegeStatus"])
-        self.assertEqual(0, colleges[0]["rowVersion"])
+    def test_transfer_batch_initializes_each_option_lifecycle(self):
+        finalizations = self.rows["tblMajorTransferOptionFinalization"]
+        self.assertEqual({"option-cs", "option-se", "option-ai"},
+                         {row["optionId"] for row in finalizations})
+        self.assertEqual({"PROCESSING"},
+                         {row["finalizationStatus"] for row in finalizations})
+        self.assertFalse(self.rows["tblMajorTransferBatchCollege"])
 
     def test_library_has_two_traceable_overdue_users(self):
         overdue = [row for row in self.rows["tblBookLoan"] if row["loanStatus"] == "OVERDUE"]

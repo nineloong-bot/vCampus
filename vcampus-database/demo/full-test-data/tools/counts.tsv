@@ -17,8 +17,8 @@ tblLibraryPolicy	2
 tblMajor	5
 tblMajorTransferApplication	5
 tblMajorTransferBatch	1
-tblMajorTransferBatchCollege	1
 tblMajorTransferOption	3
+tblMajorTransferOptionFinalization	3
 tblNumberSequence	16
 tblOrder	20
 tblOrderGroup	20
