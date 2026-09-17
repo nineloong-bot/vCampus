@@ -39,6 +39,18 @@ public record MajorTransferApplicationView(
         Instant updatedAt
 ) implements Serializable {
 
+    /** Returns this view with review permissions supplied by a scoped query. */
+    public MajorTransferApplicationView withReviewPermissions(
+            boolean sourceApprovalAllowed, boolean targetApprovalAllowed) {
+        return new MajorTransferApplicationView(applicationId, batchId, studentId, studentName,
+                applicationType, status, optionId, targetMajorId, targetMajorName,
+                targetDepartmentId, targetDepartmentName, fromDepartmentId, fromDepartmentName,
+                fromMajorId, fromMajorName, fromClassId, fromClassName, fromStudentNumber,
+                fromGrade, reason, writtenScore, interviewScore, finalScore, reviews, attachments,
+                sourceApprovalAllowed, targetApprovalAllowed, applicationVersion, submittedAt,
+                createdAt, updatedAt);
+    }
+
     public record AttachmentInfo(
             String attachmentId,
             String fileName,

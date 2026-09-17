@@ -102,6 +102,7 @@ final class MajorTransferCollegeActions {
             if (response != null && response.success()) {
                 close.run();
                 reloadDetail.run();
+                reloadBatch.run();
             }
             else status.setText(response == null || response.message() == null
                     ? "操作失败" : response.message());

@@ -21,7 +21,6 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
     private final JComboBox<MajorTransferBatchView> batches = new JComboBox<>();
     private final DefaultListModel<MajorTransferApplicationView> model = new DefaultListModel<>();
     private final JList<MajorTransferApplicationView> applications = new JList<>(model);
-    private final JTextArea detail = new JTextArea();
     private final JPanel attachments = new JPanel();
     private final JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT));
     private final JLabel status = new JLabel(" ");
@@ -29,6 +28,8 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
     private final JButton finalizeBatch = new JButton("批次终审并生效");
     private final Set<String> ownedOptions = new HashSet<>();
     private final MajorTransferCollegeActions collegeActions;
+    private final MajorTransferCollegeBatchFinalizer batchFinalizer;
+    private MajorTransferCollegeWorkspaceView workspaceView;
     private EmbeddedEditorHost editorHost;
     private long batchRequest;
     private long detailRequest;
@@ -37,12 +38,14 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
     public MajorTransferCollegeProcessingPanel(StudentClientService students) {
         super(new BorderLayout(UiSpacing.SPACE_2, UiSpacing.SPACE_2));
         this.students = Objects.requireNonNull(students);
+        batchFinalizer = new MajorTransferCollegeBatchFinalizer(this, students, readiness,
+                finalizeBatch, status, () -> (MajorTransferBatchView) batches.getSelectedItem(),
+                () -> batchRequest, this::refresh);
         collegeActions = new MajorTransferCollegeActions(this, students, actions, status,
-                this::loadDetail, this::loadSelectedBatch, this::openEditor);
+                this::loadDetail, this::refreshReadiness, this::openEditor);
         setName("major-transfer.college-processing");
         setBackground(UiColors.BACKGROUND_PAGE);
-        setBorder(new EmptyBorder(UiSpacing.SPACE_2, UiSpacing.SPACE_2,
-                UiSpacing.SPACE_2, UiSpacing.SPACE_2));
+        setBorder(new EmptyBorder(UiSpacing.SPACE_2, UiSpacing.SPACE_2, UiSpacing.SPACE_2, UiSpacing.SPACE_2));
         build();
     }
 
@@ -66,38 +69,24 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
         toolbar.add(refresh);
         finalizeBatch.setName("major-transfer.finalize-batch");
         finalizeBatch.setEnabled(false);
-        finalizeBatch.addActionListener(event -> finalizeSelectedBatch());
+        finalizeBatch.addActionListener(event -> batchFinalizer.finalizeSelectedBatch());
         toolbar.add(finalizeBatch);
         toolbar.add(readiness);
         batches.addActionListener(event -> loadSelectedBatch());
 
         applications.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        applications.setCellRenderer(new DefaultListCellRenderer() {
-            @Override public Component getListCellRendererComponent(JList<?> list, Object value,
-                    int index, boolean selected, boolean focus) {
-                super.getListCellRendererComponent(list, value, index, selected, focus);
-                if (value instanceof MajorTransferApplicationView app) {
-                    setText(app.studentName() + "  " + app.fromMajorName() + " → "
-                            + app.targetMajorName() + "  [" + MajorTransferStatusText.status(app.status()) + "]");
-                }
-                return this;
-            }
-        });
+        applications.setCellRenderer(new MajorTransferApplicationListRenderer());
         applications.addListSelectionListener(event -> {
             if (!event.getValueIsAdjusting()) loadDetail();
         });
-        detail.setEditable(false);
-        detail.setLineWrap(true);
-        detail.setWrapStyleWord(true);
         attachments.setLayout(new BoxLayout(attachments, BoxLayout.Y_AXIS));
-        MajorTransferCollegeWorkspaceView split = new MajorTransferCollegeWorkspaceView(
-                applications, detail, attachments);
+        workspaceView = new MajorTransferCollegeWorkspaceView(applications, attachments);
         JPanel bottom = new JPanel(new BorderLayout());
         bottom.add(actions, BorderLayout.CENTER);
         bottom.add(status, BorderLayout.SOUTH);
         JPanel list = new JPanel(new BorderLayout());
         list.add(toolbar, BorderLayout.NORTH);
-        list.add(split, BorderLayout.CENTER);
+        list.add(workspaceView, BorderLayout.CENTER);
         list.add(bottom, BorderLayout.SOUTH);
         editorHost = new EmbeddedEditorHost(list);
         add(editorHost, BorderLayout.CENTER);
@@ -130,7 +119,7 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
         long request = ++batchRequest;
         model.clear();
         ownedOptions.clear();
-        detail.setText("请选择一条转专业申请查看详情");
+        if (workspaceView != null) workspaceView.clearDetail();
         actions.removeAll();
         finalizeBatch.setEnabled(false);
         readiness.setText("终审状态：加载中…");
@@ -142,60 +131,33 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
                         response.data().forEach(option -> ownedOptions.add(option.optionId()));
                     }
                     loadApplications(batch.batchId());
-                    loadReadiness(batch.batchId(), request);
+                    batchFinalizer.loadReadiness(batch.batchId(), request);
                 }));
     }
 
-    private void loadReadiness(String batchId, long request) {
-        students.getTransferBatchReadiness(batchId).whenComplete((response, failure) ->
-                SwingUtilities.invokeLater(() -> {
-                    if (request != batchRequest) return;
-                    if (response == null || !response.success()) {
-                        readiness.setText("终审状态：" + message(response, "加载失败"));
-                        finalizeBatch.setEnabled(false);
-                        return;
-                    }
-                    MajorTransferBatchReadinessView value = response.data();
-                    readiness.setText("拟录取 " + value.assessed() + " / 驳回 " + value.rejected()
-                            + " / 取消 " + value.cancelled() + " / 未处理 " + value.unresolved()
-                            + (value.ready() ? "" : " — " + value.reason()));
-                    finalizeBatch.putClientProperty("batchVersion", value.batchVersion());
-                    finalizeBatch.setEnabled(value.ready());
-                }));
-    }
-
-    private void finalizeSelectedBatch() {
+    void refreshReadiness() {
         MajorTransferBatchView batch = (MajorTransferBatchView) batches.getSelectedItem();
-        Object version = finalizeBatch.getClientProperty("batchVersion");
-        if (batch == null || !(version instanceof Long expectedVersion)) return;
-        int answer = JOptionPane.showConfirmDialog(this,
-                "将一次性生效本批次全部拟录取学生，并自动分班、换学号和清理选课。是否继续？",
-                "确认批次终审", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-        if (answer != JOptionPane.YES_OPTION) return;
-        finalizeBatch.setEnabled(false);
-        students.finalizeTransferBatch(new FinalizeMajorTransferBatchCommand(
-                batch.batchId(), expectedVersion)).whenComplete((response, failure) ->
-                SwingUtilities.invokeLater(() -> {
-                    if (response != null && response.success()) {
-                        status.setText("已生效 " + response.data().effectiveStudents()
-                                + " 名学生，自动退选 "
-                                + response.data().droppedEnrollments() + " 条课程");
-                        refresh();
-                    } else {
-                        status.setText(message(response, "批次终审失败"));
-                        loadReadiness(batch.batchId(), batchRequest);
-                    }
-                }));
+        if (batch != null) batchFinalizer.loadReadiness(batch.batchId(), batchRequest);
     }
 
     private void loadApplications(String batchId) {
         long request = batchRequest;
+        MajorTransferApplicationView selected = applications.getSelectedValue();
+        String selectedId = selected == null ? null : selected.applicationId();
         students.listTransferApplications(new MajorTransferApplicationQuery(batchId, null, null))
                 .whenComplete((response, failure) -> SwingUtilities.invokeLater(() -> {
                     if (request != batchRequest) return;
                     model.clear();
-                    if (response != null && response.success()) response.data().forEach(model::addElement);
-                    else status.setText(message(response, "申请加载失败"));
+                    if (response != null && response.success()) {
+                        MajorTransferApplicationView toSelect = null;
+                        for (MajorTransferApplicationView item : response.data()) {
+                            model.addElement(item);
+                            if (selectedId != null && selectedId.equals(item.applicationId())) {
+                                toSelect = item;
+                            }
+                        }
+                        if (toSelect != null) applications.setSelectedValue(toSelect, true);
+                    } else status.setText(message(response, "申请加载失败"));
                 }));
     }
 
@@ -212,10 +174,18 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
     }
 
     void renderDetail(MajorTransferApplicationView app) {
-        detail.setText("学生：" + app.studentName() + "（" + app.fromStudentNumber() + "）\n"
-                + "原学院/专业：" + app.fromDepartmentName() + " / " + app.fromMajorName() + "\n"
-                + "目标学院/专业：" + app.targetDepartmentName() + " / " + app.targetMajorName() + "\n"
-                + "状态：" + MajorTransferStatusText.status(app.status()) + "\n申请理由：" + app.reason());
+        MajorTransferApplicationView scoped = applications.getSelectedValue();
+        if (scoped != null && scoped.applicationId().equals(app.applicationId())) {
+            app = app.withReviewPermissions(scoped.sourceApprovalAllowed(),
+                    scoped.targetApprovalAllowed());
+        }
+        for (int i = 0; i < model.getSize(); i++) {
+            if (model.get(i).applicationId().equals(app.applicationId())) {
+                model.set(i, app);
+                break;
+            }
+        }
+        if (workspaceView != null) workspaceView.renderApplicationDetail(app);
         MajorTransferAttachmentDownloader.render(
                 this, students, attachments, status, app.attachments());
         collegeActions.render(app, ownedOptions.contains(app.optionId()));

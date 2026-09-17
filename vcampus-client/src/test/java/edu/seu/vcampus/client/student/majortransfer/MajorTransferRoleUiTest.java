@@ -55,6 +55,62 @@ class MajorTransferRoleUiTest {
         });
     }
 
+    @Test
+    void collegeDetailKeepsReviewPermissionsFromCollegeScopedList() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            var panel = new MajorTransferCollegeProcessingPanel(client());
+            try {
+                var modelField = MajorTransferCollegeProcessingPanel.class
+                        .getDeclaredField("model");
+                modelField.setAccessible(true);
+                @SuppressWarnings("unchecked")
+                var model = (javax.swing.DefaultListModel<MajorTransferApplicationView>)
+                        modelField.get(panel);
+                model.addElement(application(MajorTransferStatus.SUBMITTED));
+
+                var applicationsField = MajorTransferCollegeProcessingPanel.class
+                        .getDeclaredField("applications");
+                applicationsField.setAccessible(true);
+                ((javax.swing.JList<?>) applicationsField.get(panel)).setSelectedIndex(0);
+
+                render(panel, applicationWithoutReviewPermissions());
+                assertThat(find(panel, "sourceReviewButton")).isNotNull();
+            } catch (ReflectiveOperationException error) {
+                throw new AssertionError(error);
+            }
+        });
+    }
+
+    @Test
+    void collegeDetailUpdatesApplicationStatusInModelAndList() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            var panel = new MajorTransferCollegeProcessingPanel(client());
+            try {
+                var modelField = MajorTransferCollegeProcessingPanel.class.getDeclaredField("model");
+                modelField.setAccessible(true);
+                @SuppressWarnings("unchecked")
+                var model = (javax.swing.DefaultListModel<MajorTransferApplicationView>) modelField.get(panel);
+                model.addElement(application(MajorTransferStatus.SUBMITTED));
+
+                var applicationsField = MajorTransferCollegeProcessingPanel.class.getDeclaredField("applications");
+                applicationsField.setAccessible(true);
+                @SuppressWarnings("unchecked")
+                var applications = (javax.swing.JList<MajorTransferApplicationView>) applicationsField.get(panel);
+                applications.setSelectedIndex(0);
+                assertThat(model.get(0).status()).isEqualTo(MajorTransferStatus.SUBMITTED);
+                render(panel, application(MajorTransferStatus.SOURCE_APPROVED));
+
+                assertThat(model.get(0).status()).isEqualTo(MajorTransferStatus.SOURCE_APPROVED);
+                var renderer = applications.getCellRenderer();
+                var component = (javax.swing.JLabel) renderer.getListCellRendererComponent(
+                        applications, model.get(0), 0, true, true);
+                assertThat(component.getText()).contains("[待转入学院审核]");
+            } catch (ReflectiveOperationException error) {
+                throw new AssertionError(error);
+            }
+        });
+    }
+
     private static StudentClientService client() {
         return new StudentClientService(new edu.seu.vcampus.client.student.service.StudentRequestClient() {
             @Override
@@ -91,6 +147,19 @@ class MajorTransferRoleUiTest {
                         "attachment", "证明.pdf", "application/pdf", 1024)),
                 app.sourceApprovalAllowed(), app.targetApprovalAllowed(),
                 app.applicationVersion(), app.submittedAt(), app.createdAt(), app.updatedAt());
+    }
+
+    private static MajorTransferApplicationView applicationWithoutReviewPermissions() {
+        MajorTransferApplicationView app = application(MajorTransferStatus.SUBMITTED);
+        return new MajorTransferApplicationView(app.applicationId(), app.batchId(), app.studentId(),
+                app.studentName(), app.applicationType(), app.status(), app.optionId(),
+                app.targetMajorId(), app.targetMajorName(), app.targetDepartmentId(),
+                app.targetDepartmentName(), app.fromDepartmentId(), app.fromDepartmentName(),
+                app.fromMajorId(), app.fromMajorName(), app.fromClassId(), app.fromClassName(),
+                app.fromStudentNumber(), app.fromGrade(), app.reason(), app.writtenScore(),
+                app.interviewScore(), app.finalScore(), app.reviews(), app.attachments(),
+                false, false, app.applicationVersion(), app.submittedAt(), app.createdAt(),
+                app.updatedAt());
     }
 
     private static void render(MajorTransferCollegeProcessingPanel panel,
