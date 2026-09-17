@@ -52,10 +52,16 @@ public final class MajorTransferCollegeWorkspaceView extends JPanel {
 
     /** Formats and displays the application detail. */
     public void renderApplicationDetail(MajorTransferApplicationView app) {
-        detail.setText("学生：" + app.studentName() + "（" + app.fromStudentNumber() + "）\n"
-                + "原学院/专业：" + app.fromDepartmentName() + " / " + app.fromMajorName() + "\n"
-                + "目标学院/专业：" + app.targetDepartmentName() + " / " + app.targetMajorName() + "\n"
-                + "状态：" + MajorTransferStatusText.status(app.status()) + "\n申请理由：" + app.reason());
+        StringBuilder sb = new StringBuilder();
+        sb.append("学生：").append(app.studentName()).append("（学号：").append(app.fromStudentNumber()).append("）\n");
+        if (app.campusCardNumber() != null && !app.campusCardNumber().isBlank()) {
+            sb.append("一卡通号：").append(app.campusCardNumber()).append("\n");
+        }
+        sb.append("原学院/专业：").append(app.fromDepartmentName()).append(" / ").append(app.fromMajorName()).append("\n")
+                .append("目标学院/专业：").append(app.targetDepartmentName()).append(" / ").append(app.targetMajorName()).append("\n")
+                .append("状态：").append(MajorTransferStatusText.status(app.status())).append("\n")
+                .append("申请理由：").append(app.reason() != null ? app.reason() : "无");
+        detail.setText(sb.toString());
     }
 
     private static JScrollPane card(JScrollPane scroll, String name) {

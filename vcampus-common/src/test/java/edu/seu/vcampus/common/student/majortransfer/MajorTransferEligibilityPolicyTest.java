@@ -27,7 +27,7 @@ class MajorTransferEligibilityPolicyTest {
     }
 
     @Test
-    void acceptsGradeOneAndTwoRegardlessOfAgeAndRejectsSameDepartment() {
+    void acceptsGradeOneAndTwoRegardlessOfAgeAndDepartment() {
         // Younger student in grade 1
         assertThat(policy.check(input(2026, LocalDate.of(2011, 1, 1), "dept-cs", "dept-math")).eligible())
                 .isTrue();
@@ -36,8 +36,21 @@ class MajorTransferEligibilityPolicyTest {
                 .isTrue();
 
         var sameCollege = policy.check(input(2026, LocalDate.of(2008, 9, 1), "dept-cs", "dept-cs"));
-        assertThat(sameCollege.eligible()).isFalse();
-        assertThat(sameCollege.reasonCode()).isEqualTo("TRANSFER_INVALID_TARGET");
+        assertThat(sameCollege.eligible()).isTrue();
+    }
+
+    @Test
+    void rejectsCurrentMajorEvenWhenDepartmentMatches() {
+        MajorTransferEligibilityInput input = new MajorTransferEligibilityInput(
+                StudentType.UNDERGRADUATE, true, true, true,
+                LocalDate.of(2008, 9, 1), LocalDate.of(2026, 9, 15), 2026,
+                "dept-cs", "dept-cs", "major-current", "major-current");
+
+        var result = policy.check(input);
+
+        assertThat(result.eligible()).isFalse();
+        assertThat(result.reasonCode()).isEqualTo("TRANSFER_INVALID_TARGET");
+        assertThat(result.message()).isEqualTo("目标专业不能与当前专业相同");
     }
 
     private static MajorTransferEligibilityInput input(int enrollmentYear, LocalDate birthDate,

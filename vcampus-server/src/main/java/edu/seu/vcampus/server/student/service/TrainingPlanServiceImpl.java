@@ -171,13 +171,28 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
             requireMajor(connection, plan.majorId(), departmentId);
             requirePlanEditable(connection, plan);
             Instant now = Instant.now();
+            String offeringDeptId = command.offeringDepartmentId();
+            String offeringDeptName = command.offeringDepartmentName();
+            if (offeringDeptId == null || offeringDeptId.isBlank()
+                    || offeringDeptName == null || offeringDeptName.isBlank()) {
+                var planDept = organizations.findMajor(connection, plan.majorId())
+                        .flatMap(m -> organizations.findDepartment(connection, m.departmentId()));
+                if (planDept.isPresent()) {
+                    if (offeringDeptId == null || offeringDeptId.isBlank()) {
+                        offeringDeptId = planDept.get().departmentId();
+                    }
+                    if (offeringDeptName == null || offeringDeptName.isBlank()) {
+                        offeringDeptName = planDept.get().departmentName();
+                    }
+                }
+            }
             if (command.planCourseId() == null || command.planCourseId().isBlank()) {
                 rejectDuplicateCourse(connection, command.planId(), command.courseCode(), null);
                 String id = UUID.randomUUID().toString();
                 TrainingPlanCourse course = new TrainingPlanCourse(id, command.planId(),
                         command.courseCode(), command.courseName(), command.credits(),
                         command.totalHours(), command.courseType(), command.semester(), command.isActive(), 0, now, now,
-                        command.courseId(), command.offeringDepartmentId(), command.offeringDepartmentName(), command.allocatedQuota());
+                        command.courseId(), offeringDeptId, offeringDeptName, command.allocatedQuota());
                 plans.insertCourse(connection, course);
                 return courseView(course);
             } else {
@@ -189,13 +204,18 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
                 }
                 rejectDuplicateCourse(connection, command.planId(), command.courseCode(),
                         existing.planCourseId());
+                String targetDeptId = command.offeringDepartmentId() != null
+                        ? command.offeringDepartmentId()
+                        : (existing.offeringDepartmentId() != null ? existing.offeringDepartmentId() : offeringDeptId);
+                String targetDeptName = command.offeringDepartmentName() != null
+                        ? command.offeringDepartmentName()
+                        : (existing.offeringDepartmentName() != null ? existing.offeringDepartmentName() : offeringDeptName);
                 TrainingPlanCourse updated = new TrainingPlanCourse(existing.planCourseId(),
                         existing.planId(), command.courseCode(), command.courseName(),
                         command.credits(), command.totalHours(), command.courseType(), command.semester(),
                         command.isActive(), existing.rowVersion(), existing.createdAt(), now,
                         command.courseId() != null ? command.courseId() : existing.courseId(),
-                        command.offeringDepartmentId() != null ? command.offeringDepartmentId() : existing.offeringDepartmentId(),
-                        command.offeringDepartmentName() != null ? command.offeringDepartmentName() : existing.offeringDepartmentName(),
+                        targetDeptId, targetDeptName,
                         command.allocatedQuota() != null ? command.allocatedQuota() : existing.allocatedQuota());
                 plans.updateCourse(connection, updated, command.expectedVersion());
                 return courseView(updated);
@@ -283,11 +303,11 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
     private TrainingPlanDetailView detailView(java.sql.Connection connection, TrainingPlan plan) {
         var major = organizations.findMajor(connection, plan.majorId());
         String majorName = major.map(m -> m.majorName()).orElse(null);
-        String departmentName = major.flatMap(m ->
-                organizations.findDepartment(connection, m.departmentId()))
-                .map(d -> d.departmentName()).orElse(null);
+        var dept = major.flatMap(m -> organizations.findDepartment(connection, m.departmentId()));
+        String departmentName = dept.map(d -> d.departmentName()).orElse(null);
+        String departmentId = dept.map(d -> d.departmentId()).orElse(null);
         List<TrainingPlanCourseView> courses = plans.listCourses(connection, plan.planId())
-                .stream().map(this::courseView).toList();
+                .stream().map(c -> courseView(c, departmentId, departmentName)).toList();
         boolean editable = isPlanEditable(connection, plan);
         return new TrainingPlanDetailView(plan.planId(), plan.majorId(), majorName,
                 departmentName, plan.enrollmentYear(), plan.planName(),
@@ -305,10 +325,19 @@ public final class TrainingPlanServiceImpl implements TrainingPlanService {
     }
 
     private TrainingPlanCourseView courseView(TrainingPlanCourse course) {
+        return courseView(course, course.offeringDepartmentId(), course.offeringDepartmentName());
+    }
+
+    private TrainingPlanCourseView courseView(TrainingPlanCourse course,
+            String fallbackDeptId, String fallbackDeptName) {
+        String deptId = course.offeringDepartmentId() != null && !course.offeringDepartmentId().isBlank()
+                ? course.offeringDepartmentId() : fallbackDeptId;
+        String deptName = course.offeringDepartmentName() != null && !course.offeringDepartmentName().isBlank()
+                ? course.offeringDepartmentName() : fallbackDeptName;
         return new TrainingPlanCourseView(course.planCourseId(), course.courseCode(),
                 course.courseName(), course.credits(), course.totalHours(), course.courseType(),
                 course.semester(), course.active(), course.rowVersion(),
-                course.courseId(), course.offeringDepartmentId(), course.offeringDepartmentName(),
+                course.courseId(), deptId, deptName,
                 course.allocatedQuota());
     }
 

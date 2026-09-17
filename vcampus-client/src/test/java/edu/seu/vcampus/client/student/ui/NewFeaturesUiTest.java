@@ -59,6 +59,8 @@ class NewFeaturesUiTest {
         when(mockService.listMajors("d")).thenReturn(CompletableFuture.completedFuture(ResponseBody.success(
                 new ArrayList<>(List.of(new edu.seu.vcampus.common.student.MajorView(
                         "m", "d", "090", "计算机科学", null, true, 0))))));
+        when(mockService.searchTrainingPlans(any())).thenReturn(CompletableFuture.completedFuture(
+                ResponseBody.success(new edu.seu.vcampus.common.paging.PageResult<>(List.of(), 0, 1, 1))));
 
         TrainingPlanManagementPanel panel = new TrainingPlanManagementPanel(mockService);
         SwingUtilities.invokeAndWait(() -> { });
@@ -68,6 +70,7 @@ class NewFeaturesUiTest {
         JButton create = descendants(panel).stream().filter(JButton.class::isInstance).map(JButton.class::cast)
                 .filter(button -> "新建方案".equals(button.getText())).findFirst().orElseThrow();
         SwingUtilities.invokeAndWait(create::doClick);
+        SwingUtilities.invokeAndWait(() -> { });
         assertThat(host.isEditorOpen()).isTrue();
     }
 

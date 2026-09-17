@@ -26,9 +26,21 @@ final class MajorTransferScoreImport {
                     optionId, entries, 0)).whenComplete((response, failure) ->
                     SwingUtilities.invokeLater(() -> {
                         if (response != null && response.success()) {
-                            JOptionPane.showMessageDialog(parent, "导入完成：成功 "
-                                    + response.data().successCount() + " 条，失败 "
-                                    + response.data().failureCount() + " 条");
+                            var data = response.data();
+                            StringBuilder msg = new StringBuilder("导入完成：成功 ")
+                                    .append(data.successCount()).append(" 条，失败 ")
+                                    .append(data.failureCount()).append(" 条");
+                            if (data.failureCount() > 0 && data.failures() != null && !data.failures().isEmpty()) {
+                                msg.append("\n\n失败详情：");
+                                for (int i = 0; i < Math.min(5, data.failures().size()); i++) {
+                                    var f = data.failures().get(i);
+                                    msg.append("\n• ").append(f.applicationId()).append(": ").append(f.reason());
+                                }
+                                if (data.failures().size() > 5) {
+                                    msg.append("\n...等共 ").append(data.failures().size()).append(" 条失败");
+                                }
+                            }
+                            JOptionPane.showMessageDialog(parent, msg.toString());
                             completed.run();
                         } else {
                             JOptionPane.showMessageDialog(parent, response == null

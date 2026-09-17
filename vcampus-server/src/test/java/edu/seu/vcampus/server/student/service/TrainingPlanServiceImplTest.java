@@ -366,4 +366,18 @@ class TrainingPlanServiceImplTest {
         var updatedPlan = service.getPlan(plan.planId());
         assertThat(updatedPlan.courses()).isEmpty();
     }
+
+    @Test
+    void courseWithoutDepartmentDefaultsToPlanDepartment() {
+        var plan = service.savePlan(new SaveTrainingPlanCommand(null, "major-1", 2024,
+                "计算机2024级方案", 2, new BigDecimal("8.0"), true, 0), "admin");
+        var saved = service.saveCourse(courseCommand(plan.planId(), "CS999"), "admin");
+
+        assertThat(saved.offeringDepartmentId()).isEqualTo("department-1");
+        assertThat(saved.offeringDepartmentName()).isEqualTo("计算机学院");
+
+        var reloaded = service.getPlan(plan.planId()).courses().getFirst();
+        assertThat(reloaded.offeringDepartmentId()).isEqualTo("department-1");
+        assertThat(reloaded.offeringDepartmentName()).isEqualTo("计算机学院");
+    }
 }

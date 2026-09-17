@@ -29,8 +29,12 @@ public final class MyTrainingPlanPanel extends JPanel {
     private void buildUi() {
         JPanel topPanel = new JPanel(new BorderLayout(8, 8));
         planInfoLabel.setFont(planInfoLabel.getFont().deriveFont(Font.BOLD, 16f));
-        topPanel.add(planInfoLabel, BorderLayout.NORTH);
+        topPanel.add(planInfoLabel, BorderLayout.CENTER);
         topPanel.add(statusLabel, BorderLayout.SOUTH);
+        JButton refreshBtn = new JButton("刷新");
+        refreshBtn.setName("my-training-plan.refresh");
+        refreshBtn.addActionListener(e -> loadPlan());
+        topPanel.add(refreshBtn, BorderLayout.EAST);
         add(topPanel, BorderLayout.NORTH);
 
         JTabbedPane courseTabs = new JTabbedPane();
@@ -84,9 +88,9 @@ public final class MyTrainingPlanPanel extends JPanel {
                         elective.add(c);
                     }
                 }
-                requiredModel.setCourses(required);
-                electiveModel.setCourses(elective);
-                crossModel.setCourses(cross);
+                requiredModel.setCourses(required, plan.departmentName());
+                electiveModel.setCourses(elective, plan.departmentName());
+                crossModel.setCourses(cross, plan.departmentName());
                 statusLabel.setText("必修 " + required.size() + " 门 | 专业选修 " + elective.size()
                         + " 门 | 跨学科选修 " + cross.size() + " 门 | 毕业要求选修 ≥ " + plan.minElectiveCount() + " 门，≥ "
                         + plan.minElectiveCredits() + " 学分");
@@ -102,9 +106,11 @@ public final class MyTrainingPlanPanel extends JPanel {
     private static class CourseTableModel extends AbstractTableModel {
         private static final String[] COLUMNS = {"课程代码", "课程名称", "学分", "开课学院", "建议学期", "选课名额"};
         private List<TrainingPlanCourseView> courses = List.of();
+        private String defaultDepartmentName;
 
-        void setCourses(List<TrainingPlanCourseView> courses) {
+        void setCourses(List<TrainingPlanCourseView> courses, String defaultDepartmentName) {
             this.courses = List.copyOf(courses);
+            this.defaultDepartmentName = defaultDepartmentName;
             fireTableDataChanged();
         }
 
@@ -118,7 +124,9 @@ public final class MyTrainingPlanPanel extends JPanel {
                 case 0 -> c.courseCode();
                 case 1 -> c.courseName();
                 case 2 -> c.credits();
-                case 3 -> c.offeringDepartmentName() != null && !c.offeringDepartmentName().isBlank() ? c.offeringDepartmentName() : "本院";
+                case 3 -> (c.offeringDepartmentName() != null && !c.offeringDepartmentName().isBlank())
+                        ? c.offeringDepartmentName()
+                        : (defaultDepartmentName != null && !defaultDepartmentName.isBlank() ? defaultDepartmentName : "本院");
                 case 4 -> "第" + c.semester() + "学期";
                 case 5 -> c.courseType() == CourseType.CROSS_DISCIPLINARY ? (c.allocatedQuota() != null ? String.valueOf(c.allocatedQuota()) : "待定") : "不限";
                 default -> "";

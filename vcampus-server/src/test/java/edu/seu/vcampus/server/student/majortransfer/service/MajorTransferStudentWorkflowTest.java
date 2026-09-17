@@ -149,17 +149,48 @@ class MajorTransferStudentWorkflowTest {
                 .isInstanceOf(MajorTransferException.class);
     }
 
-    @Test void sameCollegeTargetIsRejectedBeforeDraftIsPersisted() throws Exception {
+    @Test void sameCollegeDifferentMajorCompletesBothCollegeReviews() throws Exception {
         seedOpenBatchWithOption();
-        sql("UPDATE tblMajorTransferOption SET targetMajorId='major-3', targetDepartmentId='dept-1' WHERE optionId='opt-1'");
+        sql("UPDATE tblMajorTransferOption SET targetMajorId='major-3', targetDepartmentId='dept-1', "
+                + "targetMajorName='人工智能', targetDepartmentName='计算机学院' WHERE optionId='opt-1'");
 
-        assertThatThrownBy(() -> service.saveDraft("user-1", new SaveMajorTransferDraftCommand(
+        MajorTransferApplicationView application = service.saveDraft("user-1", new SaveMajorTransferDraftCommand(
                 null, "batch-1", "opt-1", MajorTransferApplicationType.ORDINARY,
-                "希望拓展学习方向", 0)))
+                "希望拓展学习方向", 0));
+        assertThat(application.status()).isEqualTo(MajorTransferStatus.DRAFT);
+        assertThat(application.targetMajorId()).isEqualTo("major-3");
+        assertThat(database.count("tblMajorTransferApplication")).isOne();
+
+        application = service.submit("user-1", new SubmitMajorTransferCommand(
+                application.applicationId(), application.applicationVersion()));
+        String applicationId = application.applicationId();
+        long submittedVersion = application.applicationVersion();
+        assertThat(service.listApplicationsForCollege(
+                new MajorTransferApplicationQuery("batch-1", null, null), "dept-1"))
+                .singleElement().satisfies(item -> {
+                    assertThat(item.applicationId()).isEqualTo(applicationId);
+                    assertThat(item.sourceApprovalAllowed()).isTrue();
+                    assertThat(item.targetApprovalAllowed()).isTrue();
+                });
+        assertThatThrownBy(() -> service.reviewQualification("college-admin",
+                new ReviewMajorTransferQualificationCommand(applicationId,
+                        MajorTransferDecision.APPROVE, "通过", submittedVersion), "dept-1"))
                 .isInstanceOf(MajorTransferException.class)
                 .extracting(error -> ((MajorTransferException) error).code())
-                .isEqualTo("TRANSFER_INVALID_TARGET");
-        assertThat(database.count("tblMajorTransferApplication")).isZero();
+                .isEqualTo("TRANSFER_STATE_INVALID");
+
+        application = service.reviewSource("college-admin", new ReviewMajorTransferSourceCommand(
+                applicationId, MajorTransferDecision.APPROVE, true, true, true,
+                "原专业审核通过", submittedVersion), "dept-1");
+        application = service.reviewQualification("college-admin",
+                new ReviewMajorTransferQualificationCommand(applicationId,
+                        MajorTransferDecision.APPROVE, "目标专业审核通过",
+                        application.applicationVersion()), "dept-1");
+
+        assertThat(application.status()).isEqualTo(MajorTransferStatus.QUALIFIED);
+        assertThat(application.reviews()).extracting(MajorTransferReviewView::reviewStage)
+                .containsExactly(MajorTransferReviewStage.SOURCE_REVIEW,
+                        MajorTransferReviewStage.QUALIFICATION_REVIEW);
     }
 
     @Test void thirdYearStudentIsRejectedBeforeDraftIsPersisted() throws Exception {
@@ -571,6 +602,24 @@ class MajorTransferStudentWorkflowTest {
         assertThat(workspace.availableOptions()).hasSize(1);
         assertThat(workspace.eligibilityItems()).isNotEmpty();
         assertThat(workspace.eligibilityItems().stream().allMatch(MajorTransferEligibilityItem::passed)).isTrue();
+    }
+
+    @Test
+    void workspaceAllowsStudentWhenBatchContainsBothSameAndCrossCollegeOptions() {
+        seedOpenBatchWithOption();
+        database.transactions().inTransaction(connection -> {
+            repository.insertOption(connection, new MajorTransferRepository.OptionRow(
+                    "opt-ai", "batch-1", "major-3", "dept-1", "人工智能", "计算机学院",
+                    "2026", 5, 5, 60.0, 60.0, 60, 40, false, null, true, 0, NOW, NOW));
+            return null;
+        });
+
+        MajorTransferWorkspace workspace = service.getStudentWorkspace("user-1");
+
+        assertThat(workspace.eligibilityItems().stream().allMatch(MajorTransferEligibilityItem::passed)).isTrue();
+        assertThat(workspace.availableOptions())
+                .extracting(MajorTransferOptionView::targetMajorId)
+                .containsExactlyInAnyOrder("major-2", "major-3");
     }
 
     @Test

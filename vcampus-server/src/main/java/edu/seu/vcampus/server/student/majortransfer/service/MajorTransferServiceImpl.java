@@ -99,12 +99,10 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
             if (activeBatch == null) {
                 return emptyWorkspace(student);
             }
-            List<MajorTransferOptionView> options = repository.listOptionsByBatch(connection,
+            List<MajorTransferOptionView> allOptions = repository.listOptionsByBatch(connection,
                     activeBatch.batchId()).stream()
                     .filter(MajorTransferRepository.OptionRow::active)
                     .map(this::toOptionView).toList();
-            List<MajorTransferEligibilityItem> eligibility = checkEligibility(connection, student,
-                    activeBatch, options);
             MajorTransferApplicationView application = repository.findApplicationByBatchStudent(
                     connection, activeBatch.batchId(), student.studentId())
                     .map(row -> toApplicationView(connection, row)).orElse(null);
@@ -120,12 +118,17 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
                     }
                 }
             }
+            List<MajorTransferOptionView> availableOptions = allOptions.stream()
+                    .filter(o -> !student.majorId().equals(o.targetMajorId()))
+                    .toList();
+            List<MajorTransferEligibilityItem> eligibility = checkEligibility(connection, student,
+                    activeBatch, allOptions, application);
             String className = null;
             if (organizations != null) {
                 var cls = organizations.findClass(connection, student.classId());
                 if (cls.isPresent()) className = cls.get().className();
             }
-            return new MajorTransferWorkspace(activeBatch, options, eligibility,
+            return new MajorTransferWorkspace(activeBatch, availableOptions, eligibility,
                     deptId, deptName, student.majorId(), majorName,
                     student.classId(), className, student.studentNumber(),
                     organizations == null ? null : Integer.toString(organizations.findClass(connection, student.classId()).orElseThrow().enrollmentYear()), application);
@@ -899,7 +902,8 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
     private List<MajorTransferEligibilityItem> checkEligibility(Connection connection,
                                                                  Student student,
                                                                  MajorTransferBatchView batch,
-                                                                 List<MajorTransferOptionView> options) {
+                                                                 List<MajorTransferOptionView> options,
+                                                                 MajorTransferApplicationView application) {
         List<MajorTransferEligibilityItem> items = new ArrayList<>();
         Instant now = Instant.now();
         items.add(new MajorTransferEligibilityItem("报名时间",
@@ -914,13 +918,25 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
         items.add(new MajorTransferEligibilityItem("学籍状态",
                 active && enrolledOnCampus,
                 !active ? "学籍状态异常" : !enrolledOnCampus ? "未在籍或未在校" : "正常"));
-        if (options != null && !options.isEmpty()) {
-            MajorTransferOptionView option = options.get(0);
+
+        int enrollmentYear = organizations != null ? organizations.findClass(connection, student.classId())
+                .map(c -> c.enrollmentYear()).orElse(0) : 0;
+        var term = batch.applicationStart().atZone(java.time.ZoneId.of("Asia/Shanghai"));
+        int grade = term.getYear() - (term.getMonthValue() < 9 ? 1 : 0) - enrollmentYear + 1;
+        if (grade != 1 && grade != 2) {
+            items.add(new MajorTransferEligibilityItem("年级与专业", false, "仅允许大一、大二的学生申请"));
+        } else if (application != null) {
             MajorTransferEligibilityPolicy.Result result = evaluateEligibility(connection, student,
-                    batch.applicationStart(), option.targetMajorId());
-            items.add(new MajorTransferEligibilityItem("年级与学院",
+                    batch.applicationStart(), application.targetMajorId());
+            items.add(new MajorTransferEligibilityItem("年级与专业",
                     result.eligible(), result.message()));
+        } else if (options != null && options.stream().anyMatch(opt ->
+                evaluateEligibility(connection, student, batch.applicationStart(), opt.targetMajorId()).eligible())) {
+            items.add(new MajorTransferEligibilityItem("年级与专业", true, "符合申请条件"));
+        } else {
+            items.add(new MajorTransferEligibilityItem("年级与专业", false, "当前批次无可申请的其他专业名额"));
         }
+
         if (repository.hasSuccessfulTransfer(connection, student.studentId())) {
             items.add(new MajorTransferEligibilityItem("转专业记录", false, "已有生效的转专业记录"));
         } else {
@@ -1048,6 +1064,19 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
             targetDeptId = option.targetDepartmentId();
             targetDeptName = option.targetDepartmentName();
         }
+        String campusCardNumber = null;
+        if (students != null && users != null && row.studentId() != null) {
+            try {
+                var studentOpt = students.findById(connection, row.studentId());
+                if (studentOpt.isPresent()) {
+                    var userOpt = users.findByUserId(studentOpt.get().userId());
+                    if (userOpt.isPresent()) {
+                        campusCardNumber = userOpt.get().loginId();
+                    }
+                }
+            } catch (Exception ignored) {
+            }
+        }
         return new MajorTransferApplicationView(
                 row.applicationId(), row.batchId(), row.studentId(), row.studentName(),
                 row.applicationType(), row.status(), row.optionId(),
@@ -1055,7 +1084,7 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
                 row.fromDepartmentId(), row.fromDepartmentName(),
                 row.fromMajorId(), row.fromMajorName(),
                 row.fromClassId(), row.fromClassName(),
-                row.fromStudentNumber(), row.fromGrade(),
+                row.fromStudentNumber(), campusCardNumber, row.fromGrade(),
                 row.reason(), row.writtenScore(), row.interviewScore(), row.finalScore(),
                 reviews, attachments,
                 managedDepartmentId != null && managedDepartmentId.equals(row.fromDepartmentId()),

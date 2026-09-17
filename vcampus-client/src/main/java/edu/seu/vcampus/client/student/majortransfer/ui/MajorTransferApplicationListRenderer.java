@@ -12,7 +12,11 @@ final class MajorTransferApplicationListRenderer extends DefaultListCellRenderer
             int index, boolean selected, boolean focus) {
         super.getListCellRendererComponent(list, value, index, selected, focus);
         if (value instanceof MajorTransferApplicationView app) {
-            setText(app.studentName() + "  " + app.fromMajorName() + " → "
+            String idTag = app.campusCardNumber() != null && !app.campusCardNumber().isBlank()
+                    ? app.campusCardNumber() : app.fromStudentNumber();
+            String studentDisplay = app.studentName()
+                    + (idTag != null && !idTag.isBlank() ? " (" + idTag + ")" : "");
+            setText(studentDisplay + "  " + app.fromMajorName() + " → "
                     + app.targetMajorName() + "  [" + MajorTransferStatusText.status(app.status()) + "]");
         }
         return this;

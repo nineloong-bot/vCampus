@@ -22,8 +22,8 @@ public final class MajorTransferEligibilityPolicy {
         if (grade != 1 && grade != 2) {
             return ineligible("仅允许大一、大二的学生申请");
         }
-        if (blankOrSame(input.currentDepartmentId(), input.targetDepartmentId())) {
-            return invalidTarget("转专业必须跨学院办理");
+        if (blank(input.currentDepartmentId()) || blank(input.targetDepartmentId())) {
+            return invalidTarget("学院信息不完整");
         }
         if (blankOrSame(input.currentMajorId(), input.targetMajorId())) {
             return invalidTarget("目标专业不能与当前专业相同");
@@ -40,8 +40,11 @@ public final class MajorTransferEligibilityPolicy {
     }
 
     private static boolean blankOrSame(String left, String right) {
-        return left == null || left.isBlank() || right == null || right.isBlank()
-                || left.equals(right);
+        return blank(left) || blank(right) || left.equals(right);
+    }
+
+    private static boolean blank(String value) {
+        return value == null || value.isBlank();
     }
 
     /** Immutable result of an eligibility evaluation. */

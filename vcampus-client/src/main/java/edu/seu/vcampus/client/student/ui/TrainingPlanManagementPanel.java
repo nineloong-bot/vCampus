@@ -325,7 +325,10 @@ public final class TrainingPlanManagementPanel extends JPanel {
         yearBox.removeAllItems();
         MajorView major = (MajorView) majorBox.getSelectedItem();
         if (major == null) return;
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Shanghai"));
+        int currentAcademicYear = today.getMonthValue() >= 9 ? today.getYear() : today.getYear() - 1;
         for (int y = 2024; y <= 2026; y++) yearBox.addItem(y + "级");
+        yearBox.setSelectedItem(currentAcademicYear + "级");
     }
 
     private void queryPlan() {
@@ -353,7 +356,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
         students.getTrainingPlan(planId).thenAccept(response -> SwingUtilities.invokeLater(() -> {
             if (response.success() && response.data() != null) {
                 currentPlan = response.data();
-                courseModel.setCourses(currentPlan.courses());
+                courseModel.setCourses(currentPlan.courses(), currentPlan.departmentName());
                 boolean editable = updateEditabilityUi(currentPlan);
                 long required = currentPlan.courses().stream()
                         .filter(c -> c.courseType() == CourseType.REQUIRED).count();
@@ -488,14 +491,19 @@ public final class TrainingPlanManagementPanel extends JPanel {
         }
         CourseType type = (CourseType) courseTypeBox.getSelectedItem();
         int semester = courseSemesterBox.getSelectedIndex() + 1;
+        DepartmentView currentDept = (DepartmentView) deptBox.getSelectedItem();
+        String currentDeptId = currentDept != null ? currentDept.departmentId() : null;
+        String currentDeptName = currentDept != null ? currentDept.name() : null;
         SaveTrainingPlanCourseCommand cmd = new SaveTrainingPlanCourseCommand(
                 currentPlan.planId(),
                 editingCourse != null ? editingCourse.planCourseId() : null,
                 code, name, credits, totalHours, type, semester, true,
                 editingCourse != null ? editingCourse.rowVersion() : 0,
                 editingCourse != null ? editingCourse.courseId() : null,
-                editingCourse != null ? editingCourse.offeringDepartmentId() : null,
-                editingCourse != null ? editingCourse.offeringDepartmentName() : null,
+                editingCourse != null && editingCourse.offeringDepartmentId() != null
+                        ? editingCourse.offeringDepartmentId() : currentDeptId,
+                editingCourse != null && editingCourse.offeringDepartmentName() != null
+                        ? editingCourse.offeringDepartmentName() : currentDeptName,
                 editingCourse != null ? editingCourse.allocatedQuota() : null);
         courseMsgLabel.setText("正在保存...");
         students.saveTrainingPlanCourse(cmd).thenAccept(r -> SwingUtilities.invokeLater(() -> {
@@ -1100,9 +1108,15 @@ public final class TrainingPlanManagementPanel extends JPanel {
     private static class CourseTableModel extends AbstractTableModel {
         private static final String[] COLUMNS = {"课程代码", "课程名称", "学分", "类型", "开课学院", "学期", "名额"};
         private List<TrainingPlanCourseView> courses = List.of();
+        private String defaultDepartmentName;
 
         void setCourses(List<TrainingPlanCourseView> courses) {
+            setCourses(courses, null);
+        }
+
+        void setCourses(List<TrainingPlanCourseView> courses, String defaultDepartmentName) {
             this.courses = List.copyOf(courses);
+            this.defaultDepartmentName = defaultDepartmentName;
             fireTableDataChanged();
         }
 
@@ -1122,7 +1136,9 @@ public final class TrainingPlanManagementPanel extends JPanel {
                     case ELECTIVE -> "选修";
                     case CROSS_DISCIPLINARY -> "跨学科";
                 };
-                case 4 -> c.offeringDepartmentName() != null && !c.offeringDepartmentName().isBlank() ? c.offeringDepartmentName() : "-";
+                case 4 -> (c.offeringDepartmentName() != null && !c.offeringDepartmentName().isBlank())
+                        ? c.offeringDepartmentName()
+                        : (defaultDepartmentName != null && !defaultDepartmentName.isBlank() ? defaultDepartmentName : "-");
                 case 5 -> "第" + c.semester() + "学期";
                 case 6 -> c.courseType() == CourseType.CROSS_DISCIPLINARY ? (c.allocatedQuota() != null ? String.valueOf(c.allocatedQuota()) : "-") : "不限";
                 default -> "";
