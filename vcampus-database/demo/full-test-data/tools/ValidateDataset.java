@@ -18,6 +18,7 @@ class ValidateDataset {
     private static int checks;
     public static void main(String[] args) throws Exception {
         if (args.length != 2) throw new IllegalArgumentException("DATABASE COUNTS_TSV required");
+        Class.forName("net.ucanaccess.jdbc.UcanaccessDriver");
         try (Connection connection = DriverManager.getConnection(
                 "jdbc:ucanaccess://" + args[0] + ";immediatelyReleaseResources=true")) {
             connection.setReadOnly(true);

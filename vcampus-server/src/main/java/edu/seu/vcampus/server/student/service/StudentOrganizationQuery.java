@@ -42,4 +42,10 @@ public interface StudentOrganizationQuery {
             String trustedDepartmentId) {
         return saveClass(command);
     }
+    default void deleteClass(String classId) {
+        deleteClass(classId, null);
+    }
+    default void deleteClass(String classId, String trustedDepartmentId) {
+        throw new UnsupportedOperationException("组织维护未启用");
+    }
 }

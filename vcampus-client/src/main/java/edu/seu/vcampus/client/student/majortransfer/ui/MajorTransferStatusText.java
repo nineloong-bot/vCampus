@@ -10,10 +10,10 @@ final class MajorTransferStatusText {
         if (value == null) return "未知状态";
         return switch (value) {
             case DRAFT -> "草稿";
-            case SUBMITTED -> "待审核";
-            case SOURCE_APPROVED -> "转出学院已通过";
-            case QUALIFIED -> "资格审核通过";
-            case ASSESSED -> "考核完成";
+            case SUBMITTED -> "待转出学院审核";
+            case SOURCE_APPROVED -> "待转入学院审核";
+            case QUALIFIED -> "待考核与成绩录入";
+            case ASSESSED -> "待教务终审";
             case PENDING_EFFECTIVE -> "待生效";
             case EFFECTIVE -> "已生效";
             case REJECTED -> "已驳回";

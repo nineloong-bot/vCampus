@@ -8,6 +8,7 @@ import java.sql.*;
 /** 创建新的测试库并导入合成数据；拒绝覆盖任何已有数据库。 */
 class BuildDataset {
     public static void main(String[] args) throws Exception {
+        Class.forName("net.ucanaccess.jdbc.UcanaccessDriver");
         Path target = Path.of(args[0]).toAbsolutePath();
         if (Files.exists(target)) throw new IllegalArgumentException("Target already exists: " + target);
         Files.createDirectories(target.getParent());

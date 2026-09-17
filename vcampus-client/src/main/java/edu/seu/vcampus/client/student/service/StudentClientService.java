@@ -2,6 +2,7 @@ package edu.seu.vcampus.client.student.service;
 
 import edu.seu.vcampus.common.paging.PageResult;
 import edu.seu.vcampus.common.protocol.EmptyRequest;
+import edu.seu.vcampus.common.protocol.EmptyResponse;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.student.*;
 import edu.seu.vcampus.common.student.majortransfer.*;
@@ -43,6 +44,7 @@ public final class StudentClientService {
     public CompletableFuture<ResponseBody<DepartmentView>> saveDepartment(SaveDepartmentCommand value) { return sendAsync("STUDENT_SAVE_DEPARTMENT", value); }
     public CompletableFuture<ResponseBody<MajorView>> saveMajor(SaveMajorCommand value) { return sendAsync("STUDENT_SAVE_MAJOR", value); }
     public CompletableFuture<ResponseBody<ClassView>> saveClass(SaveClassCommand value) { return sendAsync("STUDENT_SAVE_CLASS", value); }
+    public CompletableFuture<ResponseBody<EmptyResponse>> deleteClass(String classId) { return sendAsync("STUDENT_DELETE_CLASS", new EntityIdRequest(classId)); }
     public CompletableFuture<ResponseBody<StudentProfileWorkspace>> getProfileWorkspace() { return sendAsync("STUDENT_PROFILE_GET_WORKSPACE", EmptyRequest.INSTANCE); }
     public CompletableFuture<ResponseBody<StudentProfileData>> getProfile(String studentId) { return sendAsync("STUDENT_GET_PROFILE", new EntityIdRequest(studentId)); }
     public CompletableFuture<ResponseBody<StudentProfileWorkspace>> savePersonalDraft(SaveStudentPersonalDraftCommand value) { return sendAsync("STUDENT_PROFILE_SAVE_PERSONAL_DRAFT", value); }

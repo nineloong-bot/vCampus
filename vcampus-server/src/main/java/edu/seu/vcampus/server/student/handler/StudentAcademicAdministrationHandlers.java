@@ -1,5 +1,6 @@
 package edu.seu.vcampus.server.student.handler;
 
+import edu.seu.vcampus.common.protocol.EmptyResponse;
 import edu.seu.vcampus.common.protocol.Message;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.student.*;
@@ -64,6 +65,11 @@ public final class StudentAcademicAdministrationHandlers {
         router.register("STUDENT_SAVE_CLASS", typed(SaveClassCommand.class,
                 (message, body) -> write(message, () -> scoped(message, departmentId ->
                         organizations.saveClass(body, departmentId)))));
+        router.register("STUDENT_DELETE_CLASS", typed(EntityIdRequest.class,
+                (message, body) -> write(message, () -> scoped(message, departmentId -> {
+                    organizations.deleteClass(body.entityId(), departmentId);
+                    return EmptyResponse.INSTANCE;
+                }))));
     }
 
     private ResponseBody<? extends Serializable> listDepartments(Message message,

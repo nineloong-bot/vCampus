@@ -11,7 +11,10 @@ class MajorTransferStatusTextTest {
         for (var status : MajorTransferStatus.values()) {
             assertThat(MajorTransferStatusText.status(status)).doesNotContain(status.name());
         }
-        assertThat(MajorTransferStatusText.status(MajorTransferStatus.SUBMITTED)).isEqualTo("待审核");
+        assertThat(MajorTransferStatusText.status(MajorTransferStatus.SUBMITTED)).isEqualTo("待转出学院审核");
+        assertThat(MajorTransferStatusText.status(MajorTransferStatus.SOURCE_APPROVED)).isEqualTo("待转入学院审核");
+        assertThat(MajorTransferStatusText.status(MajorTransferStatus.QUALIFIED)).isEqualTo("待考核与成绩录入");
+        assertThat(MajorTransferStatusText.status(MajorTransferStatus.ASSESSED)).isEqualTo("待教务终审");
         assertThat(MajorTransferStatusText.status(MajorTransferStatus.PENDING_EFFECTIVE)).isEqualTo("待生效");
         assertThat(MajorTransferStatusText.decision(MajorTransferDecision.APPROVE)).isEqualTo("已通过");
         assertThat(MajorTransferStatusText.decision(MajorTransferDecision.REJECT)).isEqualTo("已驳回");

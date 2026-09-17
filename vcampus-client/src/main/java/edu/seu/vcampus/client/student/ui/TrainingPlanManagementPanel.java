@@ -317,7 +317,7 @@ public final class TrainingPlanManagementPanel extends JPanel {
         yearBox.removeAllItems();
         MajorView major = (MajorView) majorBox.getSelectedItem();
         if (major == null) return;
-        for (int y = 2020; y <= 2030; y++) yearBox.addItem(y + "级");
+        for (int y = 2024; y <= 2026; y++) yearBox.addItem(y + "级");
     }
 
     private void queryPlan() {

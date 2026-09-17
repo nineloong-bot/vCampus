@@ -86,6 +86,9 @@ class OrganizationManagementPanelTest {
         assertThat(componentExists(fixture.panel, "student.org.year")).isTrue();
         assertThat(componentExists(fixture.panel, "student.org.number")).isTrue();
         assertThat(componentExists(fixture.panel, "student.org.parent")).isTrue();
+        assertThat(componentExists(fixture.panel, "student.org.delete")).isTrue();
+        assertThat(componentExists(fixture.panel, "student.org.active")).isFalse();
+        assertThat(fixture.component("student.org.year", JSpinner.class).isEnabled()).isFalse();
     }
 
     @Test

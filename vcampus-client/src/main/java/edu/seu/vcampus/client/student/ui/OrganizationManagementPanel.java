@@ -489,30 +489,35 @@ public final class OrganizationManagementPanel extends JPanel {
         yearSpinner.setName("student.org.year");
         yearSpinner.setFont(UiTypography.BODY);
         yearSpinner.getAccessibleContext().setAccessibleName("入学年份");
-        if (yearContext != null) yearSpinner.setEnabled(false);
+        if (!isNew || yearContext != null) yearSpinner.setEnabled(false);
         JSpinner numberSpinner = new JSpinner(new SpinnerNumberModel(
                 cls == null ? 1 : cls.classNumber(), 1, 9, 1));
         numberSpinner.setName("student.org.number");
         numberSpinner.setFont(UiTypography.BODY);
         numberSpinner.getAccessibleContext().setAccessibleName("班级序号");
-        JCheckBox activeBox = new JCheckBox("启用");
-        activeBox.setName("student.org.active");
-        activeBox.setFont(UiTypography.BODY);
-        activeBox.setOpaque(false);
-        activeBox.setSelected(cls == null || cls.active());
 
         addFormRow(form, c, "所属专业", parentLabel, 0);
         addFormRow(form, c, "编号", codeField, 1);
         addFormRow(form, c, "名称", nameField, 2);
         addFormRow(form, c, "入学年份", yearSpinner, 3);
         addFormRow(form, c, "班级序号", numberSpinner, 4);
-        c.gridy = 5; c.gridx = 0; c.gridwidth = 2; c.fill = GridBagConstraints.NONE;
-        form.add(activeBox, c);
 
+        JPanel buttonRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, UiSpacing.SPACE_2, 0));
+        buttonRow.setOpaque(false);
+        if (!isNew && cls != null) {
+            JButton deleteButton = new JButton("删除");
+            deleteButton.setName("student.org.delete");
+            deleteButton.setFont(UiTypography.BODY);
+            deleteButton.setForeground(UiColors.ERROR_FG);
+            deleteButton.addActionListener(e -> deleteClass(cls));
+            buttonRow.add(deleteButton);
+        }
         JButton saveButton = saveButton();
-        saveButton.addActionListener(e -> saveClass(codeField, nameField, yearSpinner, numberSpinner, activeBox, cls, isNew));
-        c.gridy = 6; c.gridx = 1; c.anchor = GridBagConstraints.EAST;
-        form.add(saveButton, c);
+        saveButton.addActionListener(e -> saveClass(codeField, nameField, yearSpinner, numberSpinner, cls, isNew));
+        buttonRow.add(saveButton);
+
+        c.gridy = 5; c.gridx = 0; c.gridwidth = 2; c.anchor = GridBagConstraints.EAST;
+        form.add(buttonRow, c);
 
         editPanel.add(form, BorderLayout.NORTH);
         editPanel.revalidate();
@@ -586,7 +591,7 @@ public final class OrganizationManagementPanel extends JPanel {
     }
 
     private void saveClass(JTextField codeField, JTextField nameField, JSpinner yearSpinner,
-                           JSpinner numberSpinner, JCheckBox activeBox, ClassView base, boolean isNew) {
+                           JSpinner numberSpinner, ClassView base, boolean isNew) {
         String code = codeField.getText().trim();
         String name = nameField.getText().trim();
         int enrollmentYear = (Integer) yearSpinner.getValue();
@@ -613,13 +618,34 @@ public final class OrganizationManagementPanel extends JPanel {
         long version = isNew || base == null ? 0 : base.rowVersion();
         long generation = requestGeneration.incrementAndGet();
         errorLabel.setText(" ");
-        students.saveClass(new SaveClassCommand(id, majorId, code, name, enrollmentYear, classNum, activeBox.isSelected(), version))
+        boolean activeStatus = base == null || base.active();
+        students.saveClass(new SaveClassCommand(id, majorId, code, name, enrollmentYear, classNum, activeStatus, version))
                 .whenComplete((body, failure) -> onEdt(() -> {
                     if (!active || generation != requestGeneration.get()) return;
                     if (failure != null) { errorLabel.setText("保存失败，请稍后重试"); return; }
                     if (body != null && body.success()) { loadAll(); return; }
                     if (body != null && "COMMON_CONCURRENT_MODIFICATION".equals(body.code())) {
                         loadAll(() -> errorLabel.setText("数据已被修改，请刷新后重试"));
+                        return;
+                    }
+                    errorLabel.setText(safeMessage(body));
+                }));
+    }
+
+    private void deleteClass(ClassView cls) {
+        if (cls == null) return;
+        int confirm = JOptionPane.showConfirmDialog(this,
+                "确定要删除班级【" + cls.name() + "】吗？", "确认删除", JOptionPane.YES_NO_OPTION);
+        if (confirm != JOptionPane.YES_OPTION) return;
+        long generation = requestGeneration.incrementAndGet();
+        errorLabel.setText(" ");
+        students.deleteClass(cls.classId())
+                .whenComplete((body, failure) -> onEdt(() -> {
+                    if (!active || generation != requestGeneration.get()) return;
+                    if (failure != null) { errorLabel.setText("删除失败，请稍后重试"); return; }
+                    if (body != null && body.success()) {
+                        loadAll();
+                        showPlaceholder();
                         return;
                     }
                     errorLabel.setText(safeMessage(body));

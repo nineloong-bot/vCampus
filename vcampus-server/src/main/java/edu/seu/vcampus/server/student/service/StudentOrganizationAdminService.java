@@ -74,18 +74,42 @@ public final class StudentOrganizationAdminService implements StudentOrganizatio
                             .filter(Major::active).orElseThrow(() -> new IllegalArgumentException("专业不可用"));
                     if (trustedDepartmentId != null
                             && !trustedDepartmentId.equals(major.departmentId())) forbidden();
-                    if (trustedDepartmentId != null && !blank(command.classId())) {
+                    if (!blank(command.classId())) {
                         var existing = organizations.findClass(connection, command.classId())
                                 .orElseThrow(() -> new IllegalArgumentException("班级不存在"));
+                        if (existing.enrollmentYear() != command.enrollmentYear()) {
+                            throw new IllegalArgumentException("班级入学年份不允许修改");
+                        }
                         var existingMajor = organizations.findMajor(connection, existing.majorId())
                                 .orElseThrow(() -> new IllegalArgumentException("专业不存在"));
-                        if (!trustedDepartmentId.equals(existingMajor.departmentId())) forbidden();
+                        if (trustedDepartmentId != null && !trustedDepartmentId.equals(existingMajor.departmentId())) forbidden();
                     }
                     var value = new StudentClass(id, major.majorId(), text(command.code()), text(command.name()),
                             command.enrollmentYear(), command.classNumber(), command.active(), 0);
                     if (blank(command.classId())) organizations.insertClass(connection, value);
                     else organizations.updateClass(connection, value, command.expectedVersion());
                     return view(organizations.findClass(connection, id).orElseThrow());
+                }));
+    }
+
+    @Override public void deleteClass(String classId) { deleteClass(classId, null); }
+
+    @Override public void deleteClass(String classId, String trustedDepartmentId) {
+        if (blank(classId)) throw new IllegalArgumentException("班级ID不能为空");
+        locks.withLocks(List.of(new ResourceKey("CLASS", classId)), () ->
+                transactions.inTransaction(connection -> {
+                    var existing = organizations.findClass(connection, classId)
+                            .orElseThrow(() -> new IllegalArgumentException("班级不存在"));
+                    var major = organizations.findMajor(connection, existing.majorId())
+                            .orElseThrow(() -> new IllegalArgumentException("专业不存在"));
+                    if (trustedDepartmentId != null && !trustedDepartmentId.equals(major.departmentId())) {
+                        forbidden();
+                    }
+                    if (organizations.countStudentsInClass(connection, classId) > 0) {
+                        throw new IllegalArgumentException("班级内存在学生，无法删除");
+                    }
+                    organizations.deleteClass(connection, classId);
+                    return null;
                 }));
     }
 

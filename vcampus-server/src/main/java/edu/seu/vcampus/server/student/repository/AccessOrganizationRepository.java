@@ -154,6 +154,16 @@ public final class AccessOrganizationRepository implements OrganizationRepositor
     }
 
     @Override
+    public int countStudentsInClass(Connection connection, String classId) {
+        return count(connection, "SELECT COUNT(*) FROM tblStudent WHERE classId = ?", classId);
+    }
+
+    @Override
+    public void deleteClass(Connection connection, String classId) {
+        update(connection, "DELETE FROM tblClass WHERE classId = ?",
+                statement -> statement.setString(1, classId));
+    }
+    @Override
     public boolean classBelongsTo(Connection connection, String classId,
                                   String majorId, String departmentId) {
         String sql = "SELECT c.classId FROM tblClass c INNER JOIN tblMajor m ON c.majorId = m.majorId WHERE c.classId = ? AND c.majorId = ? AND m.departmentId = ?";

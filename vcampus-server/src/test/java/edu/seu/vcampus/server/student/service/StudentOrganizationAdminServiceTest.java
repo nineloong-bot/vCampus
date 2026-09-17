@@ -91,4 +91,40 @@ class StudentOrganizationAdminServiceTest {
                 "090-24-1", "计科24-1", 2024, 1, true, 0), first.departmentId()))
                 .isNotNull();
     }
+
+    @Test
+    void rejectsModifyingClassEnrollmentYear() throws Exception {
+        var database = new StudentAccessTestDatabase();
+        var service = new StudentOrganizationAdminService(database.transactions(),
+                new StripedResourceLockManager(), new AccessOrganizationRepository());
+        var department = service.saveDepartment(new SaveDepartmentCommand(null, "CS", "计院", true, 0));
+        var major = service.saveMajor(new SaveMajorCommand(null, department.departmentId(), "090", "计科", null, true, 0));
+        var studentClass = service.saveClass(new SaveClassCommand(null, major.majorId(), "090-24-1", "计科24-1", 2024, 1, true, 0));
+
+        assertThatThrownBy(() -> service.saveClass(new SaveClassCommand(studentClass.classId(),
+                major.majorId(), studentClass.code(), studentClass.name(), 2025, 1, true, studentClass.rowVersion())))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("班级入学年份不允许修改");
+    }
+
+    @Test
+    void deletesEmptyClassAndRejectsDeletingClassWithStudents() throws Exception {
+        var database = new StudentAccessTestDatabase();
+        var service = new StudentOrganizationAdminService(database.transactions(),
+                new StripedResourceLockManager(), new AccessOrganizationRepository());
+        var department = service.saveDepartment(new SaveDepartmentCommand(null, "CS", "计院", true, 0));
+        var major = service.saveMajor(new SaveMajorCommand(null, department.departmentId(), "090", "计科", null, true, 0));
+        var emptyClass = service.saveClass(new SaveClassCommand(null, major.majorId(), "090-24-1", "计科24-1", 2024, 1, true, 0));
+        service.deleteClass(emptyClass.classId());
+        assertThat(service.listClasses(major.majorId(), false)).isEmpty();
+
+        var busyClass = service.saveClass(new SaveClassCommand(null, major.majorId(), "090-24-2", "计科24-2", 2024, 2, true, 0));
+        try (var conn = database.provider().open()) {
+            conn.createStatement().execute("INSERT INTO tblStudent (studentId, userId, studentNumber, studentType, studentName, gender, email, phone, classId, enrollmentDate, studentStatus, rowVersion, createdAt, updatedAt) "
+                    + "VALUES ('s-1', 'u-1', '21324001', 'UNDERGRADUATE', '张三', '男', 's@seu.edu.cn', '13800000000', '" + busyClass.classId() + "', #2024-09-01#, 'ACTIVE', 0, #2024-09-01#, #2024-09-01#)");
+        }
+        assertThatThrownBy(() -> service.deleteClass(busyClass.classId()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("班级内存在学生，无法删除");
+    }
 }

@@ -28,4 +28,6 @@ public interface OrganizationRepository {
     void updateDepartment(Connection connection, Department department, long expectedVersion);
     void updateMajor(Connection connection, Major major, long expectedVersion);
     void updateClass(Connection connection, StudentClass studentClass, long expectedVersion);
+    int countStudentsInClass(Connection connection, String classId);
+    void deleteClass(Connection connection, String classId);
 }

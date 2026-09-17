@@ -29,12 +29,12 @@ def generate(add, now):
             isActive=True, rowVersion=0, createdAt=datetime(2026, 8, 20, 9), updatedAt=now)
     reasons = (
         "希望系统学习计算机体系结构与算法设计，未来从事基础软件研发。",
-        "对软件需求分析和工程协作有浓厚兴趣，希望接受完整的软件工程训练。",
-        "在数学建模中接触机器学习后，希望深入学习智能系统的理论与方法。",
+        "对计算机系统软件与程序设计有浓厚兴趣，希望系统学习计算机科学专业课程。",
+        "在数学建模中接触算法理论后，希望深入学习计算机体系结构与理论计算机科学。",
         "希望把数学基础用于算法优化、数据库系统和高性能计算研究。",
-        "对人机协同与自然语言处理感兴趣，希望转入人工智能专业继续学习。",
+        "对计算机网络与分布式系统有浓厚兴趣，希望系统掌握计算机科学技术知识。",
     )
-    option_ids = ("option-cs", "option-se", "option-ai", "option-cs", "option-ai")
+    option_ids = ("option-cs", "option-cs", "option-cs", "option-cs", "option-cs")
     for offset in range(5):
         cohort_serial = 25 + offset
         local = offset + 1
