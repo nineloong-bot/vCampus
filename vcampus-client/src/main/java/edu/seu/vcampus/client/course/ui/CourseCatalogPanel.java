@@ -25,6 +25,7 @@ import java.awt.Dimension;
 public final class CourseCatalogPanel extends AbstractCoursePanel {
     private final CourseUiGateway gateway;
     private final JTextField keyword = new JTextField();
+    private final JTextField department = new JTextField();
     private final JCheckBox activeOnly = new JCheckBox("仅显示启用课程");
     private final DefaultTableModel model = readOnlyModel("课程代码", "课程名称", "学分", "总学时", "状态", "开课学院");
     private final JTable table = table(new Object[0][0], new Object[0]);
@@ -65,12 +66,21 @@ public final class CourseCatalogPanel extends AbstractCoursePanel {
         panel.add(Box.createHorizontalStrut(UiSpacing.SM));
         panel.add(keyword);
         panel.add(Box.createHorizontalStrut(UiSpacing.LG));
+        panel.add(label("开课学院", UiTypography.BODY, UiColors.TEXT_PRIMARY));
+        panel.add(Box.createHorizontalStrut(UiSpacing.SM));
+        department.setPreferredSize(new Dimension(220, UiDimensions.CONTROL_HEIGHT));
+        department.setMaximumSize(new Dimension(260, UiDimensions.CONTROL_HEIGHT));
+        department.setFont(UiTypography.BODY);
+        department.getAccessibleContext().setAccessibleName("开课学院");
+        department.setToolTipText("输入学院名称筛选");
+        panel.add(department);
+        panel.add(Box.createHorizontalStrut(UiSpacing.LG));
         activeOnly.setOpaque(false);
         activeOnly.setFont(UiTypography.BODY);
         panel.add(activeOnly);
         panel.add(Box.createHorizontalGlue());
         JButton reset = secondary("重置条件");
-        reset.addActionListener(event -> { keyword.setText(""); activeOnly.setSelected(false); search(0); });
+        reset.addActionListener(event -> { keyword.setText(""); department.setText(""); activeOnly.setSelected(false); search(0); });
         panel.add(reset);
         panel.add(Box.createHorizontalStrut(UiSpacing.SM));
         JButton search = secondary("查询课程");
@@ -82,8 +92,10 @@ public final class CourseCatalogPanel extends AbstractCoursePanel {
     private void search(int pageNumber) {
         long request = beginAsyncRequest();
         showState(ViewState.LOADING, "正在查询课程目录，请稍候");
+        String departmentName = department.getText().trim();
         CourseCatalogQuery query = new CourseCatalogQuery(keyword.getText().trim(),
-                activeOnly.isSelected() ? Boolean.TRUE : null, pageNumber, 50);
+                activeOnly.isSelected() ? Boolean.TRUE : null,
+                departmentName.isEmpty() ? null : departmentName, pageNumber, 50);
         gateway.searchCatalog(query).whenComplete((page, error) -> SwingUtilities.invokeLater(() -> {
             if (!acceptsAsyncResult(request)) return;
             if (error != null) { showState(ViewState.DISCONNECTED, "无法读取课程目录，请检查连接后重试"); return; }

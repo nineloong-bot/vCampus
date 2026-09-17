@@ -51,7 +51,7 @@ final class OfferingEditorDialog extends JPanel {
     private final JSpinner capacity;
     private final JSpinner retakeCapacity;
     private final JComboBox<StatusChoice> status = new JComboBox<>(StatusChoice.values());
-    private final OfferingScheduleEditorPanel schedules = new OfferingScheduleEditorPanel();
+    private final OfferingScheduleEditorPanel schedules;
     private final JLabel referenceStatus = label("正在加载课程和教师，请稍候…", UiColors.TEXT_SECONDARY);
     private final JLabel error = label(" ", UiColors.ACCENT);
     private final JButton retry = AbstractCoursePanel.secondary("重试加载");
@@ -69,6 +69,9 @@ final class OfferingEditorDialog extends JPanel {
         int minimumCapacity = existing == null ? 1 : Math.max(1, existing.enrolledCount());
         int initialCapacity = existing == null ? 40 : Math.max(minimumCapacity, existing.capacity());
         capacity = spinner(initialCapacity, minimumCapacity, Math.max(10_000, initialCapacity), "容量");
+        OfferingReferenceLoader referenceLoader = new OfferingReferenceLoader(gateway);
+        schedules = new OfferingScheduleEditorPanel((query, limit) ->
+                referenceLoader.searchClassrooms(query, ((Number) capacity.getValue()).intValue(), limit));
         int minimumRetakeCapacity = existing == null ? 0 : existing.retakeEnrolledCount();
         int initialRetakeCapacity = existing == null ? 5
                 : Math.max(minimumRetakeCapacity, existing.retakeCapacity());
