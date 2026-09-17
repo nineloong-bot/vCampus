@@ -32,7 +32,8 @@ final class MajorTransferBatchReadinessEvaluator {
         int assessed = count(applications, MajorTransferStatus.ASSESSED);
         int rejected = count(applications, MajorTransferStatus.REJECTED);
         int cancelled = count(applications, MajorTransferStatus.CANCELLED);
-        int unresolved = applications.size() - assessed - rejected - cancelled;
+        int pendingEffective = count(applications, MajorTransferStatus.PENDING_EFFECTIVE);
+        int unresolved = applications.size() - assessed - pendingEffective - rejected - cancelled;
         String reason = batch.status() != MajorTransferBatchStatus.CLOSED ? "批次尚未关闭"
                 : applications.isEmpty() ? "批次没有正式申请"
                 : unresolved > 0 ? "还有 " + unresolved + " 份申请未处理完毕"
@@ -45,7 +46,8 @@ final class MajorTransferBatchReadinessEvaluator {
             List<MajorTransferRepository.OptionRow> options) {
         for (var option : options) {
             long accepted = applications.stream().filter(a ->
-                    a.status() == MajorTransferStatus.ASSESSED
+                    (a.status() == MajorTransferStatus.ASSESSED
+                            || a.status() == MajorTransferStatus.PENDING_EFFECTIVE)
                             && option.optionId().equals(a.optionId())).count();
             if (accepted > option.receiveQuota()) {
                 return option.targetMajorName() + "拟录取人数超过名额";

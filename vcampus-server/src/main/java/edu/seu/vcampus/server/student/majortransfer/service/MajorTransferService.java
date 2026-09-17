@@ -113,9 +113,17 @@ public interface MajorTransferService {
     /** Returns whether every formal application is ready for atomic finalization. */
     MajorTransferBatchReadinessView getBatchReadiness(String batchId, String trustedDepartmentId);
 
-    /** Finalizes and immediately applies every assessed application in the target-college batch. */
+    /** Gives final approval to every assessed application without changing enrollment. */
     MajorTransferBatchFinalizationResult finalizeBatch(String adminUserId,
             FinalizeMajorTransferBatchCommand command, String trustedDepartmentId);
+
+    /** Applies a previously approved batch exactly once. */
+    MajorTransferBatchFinalizationResult effectiveBatch(String adminUserId,
+            EffectiveMajorTransferBatchCommand command, String trustedDepartmentId);
+
+    /** Rolls back final approval before effectuation. */
+    MajorTransferBatchFinalizationResult rollbackBatch(String adminUserId,
+            RollbackMajorTransferBatchCommand command, String trustedDepartmentId);
 
     // ── Admin: final approval and execution ──
 

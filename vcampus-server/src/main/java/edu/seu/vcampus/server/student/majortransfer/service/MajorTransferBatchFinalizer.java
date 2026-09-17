@@ -57,7 +57,7 @@ public final class MajorTransferBatchFinalizer {
         return transactions.inTransaction(c -> readiness.evaluate(c, batchId, departmentId));
     }
 
-    /** Finalizes and immediately applies every assessed application in one transaction. */
+    /** Gives final approval to every assessed application without changing enrollment. */
     public MajorTransferBatchFinalizationResult finalizeBatch(String operatorUserId,
             FinalizeMajorTransferBatchCommand command, String departmentId) {
         return locks.withLocks(lockKeys(command.batchId()), () -> transactions.inTransaction(c -> {
@@ -68,22 +68,63 @@ public final class MajorTransferBatchFinalizer {
             if (!state.ready()) throw error("TRANSFER_BATCH_NOT_READY", state.reason());
             var applications = transfers.listApplicationsByBatch(c, command.batchId()).stream()
                     .filter(a -> a.status() == MajorTransferStatus.ASSESSED).toList();
-            var options = optionMap(c, command.batchId());
-            List<MajorTransferBatchPlanner.Assignment> assignments = plan(c, applications, options);
+            if (applications.isEmpty()) throw error("TRANSFER_BATCH_ALREADY_REVIEWED", "批次已终审或没有可终审申请");
             Instant now = Instant.now();
-            int dropped = 0;
+            for (var app : applications) {
+                if (transfers.updateApplicationStatus(c, app.applicationId(),
+                        MajorTransferStatus.ASSESSED, MajorTransferStatus.PENDING_EFFECTIVE,
+                        app.applicationVersion(), now) != 1) {
+                    throw new ConcurrentModificationException("转专业申请已被修改");
+                }
+                transfers.insertReview(c, new MajorTransferRepository.ReviewRow(UUID.randomUUID().toString(),
+                        app.applicationId(), MajorTransferReviewStage.FINAL_APPROVAL,
+                        MajorTransferDecision.APPROVE, operatorUserId, "批次终审通过", null, null, null, now));
+            }
+            return new MajorTransferBatchFinalizationResult(command.batchId(), applications.size(), 0,
+                    MajorTransferBatchStatus.CLOSED);
+        }));
+    }
+
+    /** Applies all previously approved applications in one transaction. */
+    public MajorTransferBatchFinalizationResult effectiveBatch(String operatorUserId,
+            EffectiveMajorTransferBatchCommand command, String departmentId) {
+        return locks.withLocks(lockKeys(command.batchId()), () -> transactions.inTransaction(c -> {
+            var state = readiness.evaluate(c, command.batchId(), departmentId);
+            if (state.batchVersion() != command.expectedVersion()) throw new ConcurrentModificationException("转专业批次已被修改");
+            if (!state.ready()) throw error("TRANSFER_BATCH_NOT_READY", "还有转专业申请未处理完毕");
+            var applications = transfers.listApplicationsByBatch(c, command.batchId()).stream()
+                    .filter(a -> a.status() == MajorTransferStatus.PENDING_EFFECTIVE).toList();
+            if (applications.isEmpty()) throw error("TRANSFER_BATCH_NOT_READY", "批次尚未终审");
+            var options = optionMap(c, command.batchId());
+            var assignments = plan(c, applications, options);
+            Instant now = Instant.now(); int dropped = 0;
             for (var assignment : assignments) {
                 dropped += apply(c, operatorUserId, now, assignment,
-                        applications.stream().filter(a -> a.applicationId()
-                                .equals(assignment.applicationId())).findFirst().orElseThrow(),
+                        applications.stream().filter(a -> a.applicationId().equals(assignment.applicationId())).findFirst().orElseThrow(),
                         options.get(assignment.optionId()));
             }
             if (transfers.updateBatchStatus(c, command.batchId(), MajorTransferBatchStatus.CLOSED,
-                    MajorTransferBatchStatus.EFFECTIVE, command.expectedVersion(), now) != 1) {
+                    MajorTransferBatchStatus.EFFECTIVE, command.expectedVersion(), now) != 1)
                 throw new ConcurrentModificationException("转专业批次已被修改");
+            return new MajorTransferBatchFinalizationResult(command.batchId(), assignments.size(), dropped,
+                    MajorTransferBatchStatus.EFFECTIVE);
+        }));
+    }
+
+    /** Rolls back final approval without changing student enrollment. */
+    public MajorTransferBatchFinalizationResult rollbackBatch(String operatorUserId,
+            RollbackMajorTransferBatchCommand command, String departmentId) {
+        return locks.withLocks(lockKeys(command.batchId()), () -> transactions.inTransaction(c -> {
+            var state = readiness.evaluate(c, command.batchId(), departmentId);
+            if (state.batchVersion() != command.expectedVersion()) throw new ConcurrentModificationException("转专业批次已被修改");
+            var apps = transfers.listApplicationsByBatch(c, command.batchId()).stream()
+                    .filter(a -> a.status() == MajorTransferStatus.PENDING_EFFECTIVE).toList();
+            for (var app : apps) {
+                transfers.updateApplicationStatus(c, app.applicationId(), MajorTransferStatus.PENDING_EFFECTIVE,
+                        MajorTransferStatus.ASSESSED, app.applicationVersion(), Instant.now());
+                transfers.deleteFinalApproval(c, app.applicationId());
             }
-            return new MajorTransferBatchFinalizationResult(command.batchId(), assignments.size(),
-                    dropped, MajorTransferBatchStatus.EFFECTIVE);
+            return new MajorTransferBatchFinalizationResult(command.batchId(), 0, 0, MajorTransferBatchStatus.CLOSED);
         }));
     }
 
@@ -128,7 +169,7 @@ public final class MajorTransferBatchFinalizer {
         int dropped = enrollments.reconcile(c, student.studentId(), assignment.targetMajorCode(),
                 assignment.cohortYear(), operator, now).droppedEnrollments();
         writeAudits(c, operator, now, app, option, assignment);
-        if (transfers.updateApplicationStatus(c, app.applicationId(), MajorTransferStatus.ASSESSED,
+        if (transfers.updateApplicationStatus(c, app.applicationId(), MajorTransferStatus.PENDING_EFFECTIVE,
                 MajorTransferStatus.EFFECTIVE, app.applicationVersion(), now) != 1) {
             throw new ConcurrentModificationException("转专业申请已被修改");
         }
@@ -138,9 +179,6 @@ public final class MajorTransferBatchFinalizer {
     private void writeAudits(Connection c, String operator, Instant now,
             MajorTransferRepository.ApplicationRow app, MajorTransferRepository.OptionRow option,
             MajorTransferBatchPlanner.Assignment assignment) {
-        transfers.insertReview(c, new MajorTransferRepository.ReviewRow(UUID.randomUUID().toString(),
-                app.applicationId(), MajorTransferReviewStage.FINAL_APPROVAL,
-                MajorTransferDecision.APPROVE, operator, "批次终审通过", null, null, null, now));
         transfers.insertExecution(c, new MajorTransferRepository.ExecutionRow(UUID.randomUUID().toString(),
                 app.applicationId(), assignment.targetClass().classId(), assignment.targetClass().className(),
                 option.targetMajorId(), option.targetMajorName(), option.targetDepartmentId(),

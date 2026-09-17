@@ -14,7 +14,7 @@ public final class MajorTransferStateMachine {
             Map.entry(SOURCE_APPROVED, Set.of(QUALIFIED, REJECTED, CANCELLED)),
             Map.entry(QUALIFIED, Set.of(ASSESSED, REJECTED, CANCELLED)),
             Map.entry(ASSESSED, Set.of(PENDING_EFFECTIVE, REJECTED, CANCELLED)),
-            Map.entry(PENDING_EFFECTIVE, Set.of(EFFECTIVE, EXECUTION_FAILED, CANCELLED)),
+            Map.entry(PENDING_EFFECTIVE, Set.of(ASSESSED, EFFECTIVE, EXECUTION_FAILED, CANCELLED)),
             Map.entry(EXECUTION_FAILED, Set.of(EFFECTIVE, CANCELLED))
     );
 

@@ -663,6 +663,16 @@ public final class MajorTransferRepository {
         }
     }
 
+    /** Removes a final-approval audit when that approval is rolled back. */
+    public int deleteFinalApproval(Connection connection, String applicationId) {
+        try (var ps = connection.prepareStatement("DELETE FROM tblMajorTransferReview WHERE applicationId=? AND reviewStage='FINAL_APPROVAL'")) {
+            ps.setString(1, applicationId);
+            return ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new OrganizationPersistenceException("Cannot rollback review", e);
+        }
+    }
+
     // ── Execution CRUD ──
 
     public String insertExecution(Connection connection, ExecutionRow row) {

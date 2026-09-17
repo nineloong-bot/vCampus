@@ -733,6 +733,20 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
         return batchFinalizer.finalizeBatch(adminUserId, command, trustedDepartmentId);
     }
 
+    /** {@inheritDoc} */
+    @Override
+    public MajorTransferBatchFinalizationResult effectiveBatch(String adminUserId,
+            EffectiveMajorTransferBatchCommand command, String trustedDepartmentId) {
+        return batchFinalizer.effectiveBatch(adminUserId, command, trustedDepartmentId);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public MajorTransferBatchFinalizationResult rollbackBatch(String adminUserId,
+            RollbackMajorTransferBatchCommand command, String trustedDepartmentId) {
+        return batchFinalizer.rollbackBatch(adminUserId, command, trustedDepartmentId);
+    }
+
     @Override
     public MajorTransferApplicationView finalizeApproval(String adminUserId,
                                                           FinalizeMajorTransferCommand command) {

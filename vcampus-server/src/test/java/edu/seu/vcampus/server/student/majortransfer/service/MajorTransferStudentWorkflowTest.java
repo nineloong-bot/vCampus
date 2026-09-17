@@ -190,7 +190,7 @@ class MajorTransferStudentWorkflowTest {
         assertThat(assessed().status()).isEqualTo(MajorTransferStatus.ASSESSED);
     }
 
-    @Test void closedBatchFinalizationImmediatelyAppliesEveryAssessedStudent() throws Exception {
+    @Test void closedBatchRequiresReviewThenOneTimeEffect() throws Exception {
         var app = assessed();
         sql("UPDATE tblMajorTransferBatch SET batchStatus='CLOSED', effectiveDate=#2027-09-01# "
                 + "WHERE batchId='batch-1'");
@@ -199,9 +199,16 @@ class MajorTransferStudentWorkflowTest {
         var result = service.finalizeBatch("admin",
                 new FinalizeMajorTransferBatchCommand("batch-1", readiness.batchVersion()), "dept-2");
 
-        assertThat(result.status()).isEqualTo(MajorTransferBatchStatus.EFFECTIVE);
+        assertThat(result.status()).isEqualTo(MajorTransferBatchStatus.CLOSED);
         assertThat(result.effectiveStudents()).isEqualTo(1);
-        assertThat(result.droppedEnrollments()).isEqualTo(1);
+        assertThat(result.droppedEnrollments()).isZero();
+        assertThat(database.stringValue("SELECT classId FROM tblStudent WHERE studentId='student-1'"))
+                .isEqualTo("class-1");
+        var effective = service.effectiveBatch("admin", new EffectiveMajorTransferBatchCommand(
+                "batch-1", readiness.batchVersion()), "dept-2");
+        assertThat(effective.status()).isEqualTo(MajorTransferBatchStatus.EFFECTIVE);
+        assertThat(effective.effectiveStudents()).isEqualTo(1);
+        assertThat(effective.droppedEnrollments()).isEqualTo(1);
         assertThat(reconciledEnrollments).isEqualTo(1);
         assertThat(database.stringValue("SELECT classId FROM tblStudent WHERE studentId='student-1'"))
                 .isEqualTo("class-2");
@@ -232,8 +239,9 @@ class MajorTransferStudentWorkflowTest {
         sql("UPDATE tblMajorTransferBatch SET batchStatus='CLOSED' WHERE batchId='batch-1'");
         reconciliationFails = true;
 
-        assertThatThrownBy(() -> service.finalizeBatch("admin",
-                new FinalizeMajorTransferBatchCommand("batch-1", 0), "dept-2"))
+        service.finalizeBatch("admin", new FinalizeMajorTransferBatchCommand("batch-1", 0), "dept-2");
+        assertThatThrownBy(() -> service.effectiveBatch("admin",
+                new EffectiveMajorTransferBatchCommand("batch-1", 0), "dept-2"))
                 .isInstanceOf(MajorTransferException.class)
                 .extracting(error -> ((MajorTransferException) error).code())
                 .isEqualTo("CURRICULUM_NOT_CONFIGURED");
@@ -242,7 +250,7 @@ class MajorTransferStudentWorkflowTest {
         assertThat(database.stringValue("SELECT studentNumber FROM tblStudent WHERE studentId='student-1'"))
                 .isEqualTo("21324001");
         assertThat(database.stringValue("SELECT applicationStatus FROM tblMajorTransferApplication "
-                + "WHERE applicationId='" + app.applicationId() + "'")).isEqualTo("ASSESSED");
+                + "WHERE applicationId='" + app.applicationId() + "'")).isEqualTo("PENDING_EFFECTIVE");
         assertThat(database.sequenceValue("STUDENT_NUMBER:085:26:1")).isZero();
     }
 

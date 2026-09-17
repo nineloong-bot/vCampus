@@ -82,6 +82,18 @@ final class MajorTransferApplicationHandlers {
                                 support.principal(message).userId(), body.batchId()),
                         departmentId -> support.service.finalizeBatch(
                                 support.principal(message).userId(), body, departmentId))));
+        router.register("MAJOR_TRANSFER_EFFECTIVE_BATCH", typed(EffectiveMajorTransferBatchCommand.class,
+                (message, body) -> support.collegeWrite(message,
+                        () -> support.scope.requireTargetApprovalForBatch(
+                                support.principal(message).userId(), body.batchId()),
+                        departmentId -> support.service.effectiveBatch(
+                                support.principal(message).userId(), body, departmentId))));
+        router.register("MAJOR_TRANSFER_ROLLBACK_BATCH", typed(RollbackMajorTransferBatchCommand.class,
+                (message, body) -> support.collegeWrite(message,
+                        () -> support.scope.requireTargetApprovalForBatch(
+                                support.principal(message).userId(), body.batchId()),
+                        departmentId -> support.service.rollbackBatch(
+                                support.principal(message).userId(), body, departmentId))));
         router.register("MAJOR_TRANSFER_CANCEL", typed(CancelMajorTransferCommand.class,
                 (message, body) -> targetWrite(message, body.applicationId(),
                         departmentId -> support.service.cancel(

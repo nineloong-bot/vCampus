@@ -25,7 +25,8 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
     private final JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT));
     private final JLabel status = new JLabel(" ");
     private final JLabel readiness = new JLabel("终审状态：未加载");
-    private final JButton finalizeBatch = new JButton("批次终审并生效");
+    private final JButton finalizeBatch = new JButton("批次终审");
+    private final JButton effectiveBatch = new JButton("生效");
     private final Set<String> ownedOptions = new HashSet<>();
     private final MajorTransferCollegeActions collegeActions;
     private final MajorTransferCollegeBatchFinalizer batchFinalizer;
@@ -39,7 +40,7 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
         super(new BorderLayout(UiSpacing.SPACE_2, UiSpacing.SPACE_2));
         this.students = Objects.requireNonNull(students);
         batchFinalizer = new MajorTransferCollegeBatchFinalizer(this, students, readiness,
-                finalizeBatch, status, () -> (MajorTransferBatchView) batches.getSelectedItem(),
+                finalizeBatch, effectiveBatch, status, () -> (MajorTransferBatchView) batches.getSelectedItem(),
                 () -> batchRequest, this::refresh);
         collegeActions = new MajorTransferCollegeActions(this, students, actions, status,
                 this::loadDetail, this::refreshReadiness, this::openEditor);
@@ -71,6 +72,10 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
         finalizeBatch.setEnabled(false);
         finalizeBatch.addActionListener(event -> batchFinalizer.finalizeSelectedBatch());
         toolbar.add(finalizeBatch);
+        effectiveBatch.setName("major-transfer.effective-batch");
+        effectiveBatch.setEnabled(false);
+        effectiveBatch.addActionListener(event -> batchFinalizer.effectiveSelectedBatch());
+        toolbar.add(effectiveBatch);
         toolbar.add(readiness);
         batches.addActionListener(event -> loadSelectedBatch());
 
