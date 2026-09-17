@@ -116,7 +116,7 @@ def generate(add, now):
                 gender = "男" if global_index % 2 else "女"
                 month = (cohort_serial - 1) % 8 + 1
                 day = (cohort_serial * 3 - 1) % 27 + 1
-                birth = date(cohort - 2018, month, day)
+                birth = date(cohort - 18, month, day)
                 sequence = cohort_serial * 2 + (1 if gender == "男" else 0)
                 student_number = f"{major_code}{cohort % 100:02d}1{local:02d}"
                 user(user_id, login, "STUDENT", name, True,

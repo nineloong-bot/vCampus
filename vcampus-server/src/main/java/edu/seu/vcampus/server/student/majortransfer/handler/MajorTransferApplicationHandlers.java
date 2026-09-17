@@ -67,6 +67,13 @@ final class MajorTransferApplicationHandlers {
                                         support.principal(message).userId(), body.optionId()),
                                 departmentId -> support.service.importScores(
                                         support.principal(message).userId(), body, departmentId))));
+        router.register("MAJOR_TRANSFER_EXPORT_SCORE_TEMPLATE", typed(EntityIdRequest.class,
+                (message, body) -> support.collegeRead(message,
+                        () -> support.scope.requireTargetApprovalForOption(
+                                support.principal(message).userId(), body.entityId()),
+                        () -> support.service.exportScoreTemplate(
+                                support.principal(message).userId(), body.entityId(),
+                                support.scope.findActiveDepartmentId(support.principal(message).userId())))));
         router.register("MAJOR_TRANSFER_GET_BATCH_READINESS", typed(EntityIdRequest.class,
                 (message, body) -> batchRead(message, body.entityId())));
         router.register("MAJOR_TRANSFER_FINALIZE_BATCH", typed(FinalizeMajorTransferBatchCommand.class,

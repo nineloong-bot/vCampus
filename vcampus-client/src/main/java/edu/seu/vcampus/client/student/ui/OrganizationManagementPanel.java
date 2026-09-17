@@ -153,7 +153,9 @@ public final class OrganizationManagementPanel extends JPanel {
         JPanel workspace = new JPanel(new BorderLayout(0, UiSpacing.SPACE_3));
         workspace.setOpaque(false);
         workspace.add(editorHost, BorderLayout.CENTER);
-        workspace.add(classStudentPanel, BorderLayout.SOUTH);
+        if (classManagementAllowed) {
+            workspace.add(classStudentPanel, BorderLayout.SOUTH);
+        }
         add(workspace, BorderLayout.CENTER);
 
         JPanel bottom = new JPanel(new BorderLayout(UiSpacing.SPACE_3, 0));
@@ -278,7 +280,7 @@ public final class OrganizationManagementPanel extends JPanel {
             selectedNode = null;
             editingTarget = null;
             isNewItem = false;
-            classStudentPanel.clear();
+            if (classManagementAllowed) classStudentPanel.clear();
             showPlaceholder();
             updateAddButtons();
             return;
@@ -301,14 +303,14 @@ public final class OrganizationManagementPanel extends JPanel {
             editingTarget = cls;
             isNewItem = false;
             showClassForm(cls, false, null);
-            classStudentPanel.load(students, cls.classId());
+            if (classManagementAllowed) classStudentPanel.load(students, cls.classId());
         } else {
             selectedNode = null;
             editingTarget = null;
             isNewItem = false;
             showPlaceholder();
         }
-        if (!(userObject instanceof ClassView)) classStudentPanel.clear();
+        if (classManagementAllowed && !(userObject instanceof ClassView)) classStudentPanel.clear();
         updateAddButtons();
     }
 

@@ -23,26 +23,21 @@ class MajorTransferEligibilityPolicyTest {
 
         assertThat(result.eligible()).isFalse();
         assertThat(result.reasonCode()).isEqualTo("TRANSFER_INELIGIBLE");
+        assertThat(result.message()).isEqualTo("仅允许大一、大二的学生申请");
     }
 
     @Test
-    void acceptsAgeBoundariesAndRejectsSameDepartment() {
-        assertThat(policy.check(input(2026, LocalDate.of(2009, 9, 1), "dept-cs", "dept-math")).eligible())
+    void acceptsGradeOneAndTwoRegardlessOfAgeAndRejectsSameDepartment() {
+        // Younger student in grade 1
+        assertThat(policy.check(input(2026, LocalDate.of(2011, 1, 1), "dept-cs", "dept-math")).eligible())
                 .isTrue();
-        assertThat(policy.check(input(2026, LocalDate.of(2004, 9, 16), "dept-cs", "dept-math")).eligible())
+        // Older student in grade 2
+        assertThat(policy.check(input(2025, LocalDate.of(1998, 1, 1), "dept-cs", "dept-math")).eligible())
                 .isTrue();
 
         var sameCollege = policy.check(input(2026, LocalDate.of(2008, 9, 1), "dept-cs", "dept-cs"));
         assertThat(sameCollege.eligible()).isFalse();
         assertThat(sameCollege.reasonCode()).isEqualTo("TRANSFER_INVALID_TARGET");
-    }
-
-    @Test
-    void rejectsAgeOutsideAllowedRange() {
-        assertThat(policy.check(input(2026, LocalDate.of(2009, 10, 1), "dept-cs", "dept-math")).eligible())
-                .isFalse();
-        assertThat(policy.check(input(2026, LocalDate.of(2003, 9, 1), "dept-cs", "dept-math")).eligible())
-                .isFalse();
     }
 
     private static MajorTransferEligibilityInput input(int enrollmentYear, LocalDate birthDate,

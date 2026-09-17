@@ -99,6 +99,17 @@ public interface MajorTransferService {
         return importScores(adminUserId, command);
     }
 
+    /**
+     * Exports a CSV score import template populated with qualified applicants for a major transfer option.
+     *
+     * @param adminUserId the requesting admin's user ID
+     * @param optionId the major transfer option ID
+     * @param trustedDepartmentId the verified department ID of the college administrator
+     * @return the generated CSV template document
+     */
+    MajorTransferScoreTemplateDocument exportScoreTemplate(
+            String adminUserId, String optionId, String trustedDepartmentId);
+
     /** Returns whether every formal application is ready for atomic finalization. */
     MajorTransferBatchReadinessView getBatchReadiness(String batchId, String trustedDepartmentId);
 

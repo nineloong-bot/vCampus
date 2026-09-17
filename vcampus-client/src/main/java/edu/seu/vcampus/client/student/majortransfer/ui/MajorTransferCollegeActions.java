@@ -44,6 +44,8 @@ final class MajorTransferCollegeActions {
                             () -> { complete.run(); reloadDetail.run(); }, cancel)));
             add("批量导入成绩", "importScoreButton", () -> MajorTransferScoreImport.choose(
                     parent, students, app.optionId(), reloadBatch));
+            add("下载成绩CSV", "downloadScoreCsvButton", () -> MajorTransferScoreExport.download(
+                    parent, students, app.optionId()));
         }
         if (targetOwned && MajorTransferStateMachine.adminMayCancel(app.status())) {
             add("取消申请", "cancelButton", () -> cancel(app));

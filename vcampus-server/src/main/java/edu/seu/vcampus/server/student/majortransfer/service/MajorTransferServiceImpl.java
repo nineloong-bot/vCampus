@@ -48,6 +48,7 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
     private final AccessOrganizationRepository organizations;
     private final UserQueryPort users;
     private final MajorTransferBatchFinalizer batchFinalizer;
+    private final MajorTransferScoreTemplateExporter scoreTemplateExporter;
     private final MajorTransferEligibilityPolicy eligibilityPolicy =
             new MajorTransferEligibilityPolicy();
 
@@ -72,6 +73,7 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
         this.changes = Objects.requireNonNull(changes);
         this.organizations = organizations;
         this.users = Objects.requireNonNull(users);
+        this.scoreTemplateExporter = new MajorTransferScoreTemplateExporter(transactions, repository);
         this.batchFinalizer = new MajorTransferBatchFinalizer(transactions, locks, repository,
                 students, changes, organizations,
                 new AccessStudentNumberGenerator(new NumberSequenceRepository()), enrollmentPort);
@@ -654,6 +656,11 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
                         try {
                             MajorTransferRepository.ApplicationRow app =
                                     repository.findApplication(connection, entry.applicationId())
+                                            .or(() -> repository.findApplicationByBatchStudent(
+                                                    connection, option.batchId(), entry.applicationId()))
+                                            .or(() -> repository.listApplicationsByBatch(connection, option.batchId()).stream()
+                                                    .filter(a -> entry.applicationId().equals(a.fromStudentNumber()))
+                                                    .findFirst())
                                             .orElseThrow(() -> error("TRANSFER_APPLICATION_NOT_FOUND", "申请不存在"));
                             if (!command.optionId().equals(app.optionId())) {
                                 failures.add(new MajorTransferImportResult.Failure(
@@ -673,7 +680,7 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
                             validateScore(interview, option.interviewWeightPct());
                             Double fs = finalScore(written, interview,
                                     option.writtenWeightPct(), option.interviewWeightPct());
-                            requireChanged(repository.recordScores(connection, entry.applicationId(),
+                            requireChanged(repository.recordScores(connection, app.applicationId(),
                                     written, interview, fs, app.applicationVersion(), Instant.now()));
                             repository.insertReview(connection, new MajorTransferRepository.ReviewRow(
                                     UUID.randomUUID().toString(), app.applicationId(),
@@ -688,6 +695,12 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
                     }
                     return new MajorTransferImportResult(total, success, failures.size(), failures);
                 }));
+    }
+
+    @Override
+    public MajorTransferScoreTemplateDocument exportScoreTemplate(
+            String adminUserId, String optionId, String trustedDepartmentId) {
+        return scoreTemplateExporter.exportScoreTemplate(adminUserId, optionId, trustedDepartmentId);
     }
 
     // ── Admin: final approval and execution ──
@@ -875,7 +888,7 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
             MajorTransferOptionView option = options.get(0);
             MajorTransferEligibilityPolicy.Result result = evaluateEligibility(connection, student,
                     batch.applicationStart(), option.targetMajorId());
-            items.add(new MajorTransferEligibilityItem("年级、年龄与学院",
+            items.add(new MajorTransferEligibilityItem("年级与学院",
                     result.eligible(), result.message()));
         }
         if (repository.hasSuccessfulTransfer(connection, student.studentId())) {

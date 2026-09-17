@@ -239,6 +239,27 @@ class MajorTransferRoleAuthorizationTest {
         verify(fixture.service, never()).listOptionsForCollege(anyString(), anyString());
     }
 
+    @Test
+    void collegeAdministratorCanExportScoreTemplate() {
+        Fixture fixture = fixture("COLLEGE_ADMIN");
+
+        var result = fixture.route("MAJOR_TRANSFER_EXPORT_SCORE_TEMPLATE",
+                new EntityIdRequest("opt-1"));
+
+        assertThat(result.success()).isTrue();
+        verify(fixture.scope).requireTargetApprovalForOption("operator", "opt-1");
+        verify(fixture.service).exportScoreTemplate("operator", "opt-1", "managed-department");
+    }
+
+    @Test
+    void studentAdministratorCannotExportScoreTemplate() {
+        Fixture fixture = fixture("STUDENT_ADMIN");
+
+        assertThat(fixture.route("MAJOR_TRANSFER_EXPORT_SCORE_TEMPLATE",
+                new EntityIdRequest("opt-1")).code()).isEqualTo("COMMON_FORBIDDEN");
+        verify(fixture.service, never()).exportScoreTemplate(anyString(), anyString(), anyString());
+    }
+
     private static ReviewMajorTransferSourceCommand sourceReview() {
         return new ReviewMajorTransferSourceCommand(APPLICATION, MajorTransferDecision.APPROVE,
                 true, true, true, "ok", 0);

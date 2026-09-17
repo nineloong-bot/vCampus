@@ -97,6 +97,7 @@ public final class StudentClientService {
     public CompletableFuture<ResponseBody<MajorTransferBatchFinalizationResult>> finalizeTransferBatch(FinalizeMajorTransferBatchCommand value) { return sendAsync("MAJOR_TRANSFER_FINALIZE_BATCH", value); }
     public CompletableFuture<ResponseBody<MajorTransferApplicationView>> cancelTransfer(CancelMajorTransferCommand value) { return sendAsync("MAJOR_TRANSFER_CANCEL", value); }
     public CompletableFuture<ResponseBody<MajorTransferImportResult>> importTransferScores(ImportMajorTransferScoresCommand value) { return sendAsync("MAJOR_TRANSFER_IMPORT_SCORES", value); }
+    public CompletableFuture<ResponseBody<MajorTransferScoreTemplateDocument>> exportTransferScoreTemplate(String optionId) { return sendAsync("MAJOR_TRANSFER_EXPORT_SCORE_TEMPLATE", new EntityIdRequest(optionId)); }
 
     // ── Training Plan: Admin ──
     public CompletableFuture<ResponseBody<TrainingPlanDetailView>> saveTrainingPlan(SaveTrainingPlanCommand value) { return sendAsync("TRAINING_PLAN_SAVE", value); }

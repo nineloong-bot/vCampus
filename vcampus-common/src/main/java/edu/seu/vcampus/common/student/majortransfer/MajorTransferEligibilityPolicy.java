@@ -1,6 +1,5 @@
 package edu.seu.vcampus.common.student.majortransfer;
 
-import java.time.Period;
 import java.util.Objects;
 
 import static edu.seu.vcampus.common.student.StudentType.UNDERGRADUATE;
@@ -14,15 +13,14 @@ public final class MajorTransferEligibilityPolicy {
                 || !input.enrolled() || !input.onCampus()) {
             return ineligible("仅允许正常在籍且在校的本科生申请");
         }
-        if (input.birthDate() == null || input.applicationStart() == null) {
-            return ineligible("申请人出生日期或申请时间无效");
+        if (input.applicationStart() == null) {
+            return ineligible("申请时间无效");
         }
         int grade = input.applicationStart().getYear()
                 - (input.applicationStart().getMonthValue() < 9 ? 1 : 0)
                 - input.enrollmentYear() + 1;
-        int age = Period.between(input.birthDate(), input.applicationStart()).getYears();
-        if ((grade != 1 && grade != 2) || age < 17 || age > 22) {
-            return ineligible("仅允许大一、大二且年龄为17至22岁的学生申请");
+        if (grade != 1 && grade != 2) {
+            return ineligible("仅允许大一、大二的学生申请");
         }
         if (blankOrSame(input.currentDepartmentId(), input.targetDepartmentId())) {
             return invalidTarget("转专业必须跨学院办理");

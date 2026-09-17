@@ -107,7 +107,7 @@ class OrganizationManagementPanelTest {
                 .allMatch(Component::isVisible);
         assertThat(java.util.List.of(department.isEnabled(), major.isEnabled(),
                 studentClass.isEnabled(), student.isEnabled(), batchAssign.isEnabled()))
-                .containsExactly(true, false, false, false, false);
+                .containsExactly(true, false, false, false, true);
 
         JTree tree = fixture.component("student.org.tree", JTree.class);
         DefaultMutableTreeNode root = (DefaultMutableTreeNode) tree.getModel().getRoot();
@@ -118,7 +118,7 @@ class OrganizationManagementPanelTest {
         SwingUtilities.invokeAndWait(() -> tree.setSelectionPath(new TreePath(departmentNode.getPath())));
         assertThat(java.util.List.of(department.isEnabled(), major.isEnabled(),
                 studentClass.isEnabled(), student.isEnabled(), batchAssign.isEnabled()))
-                .containsExactly(false, true, false, false, false);
+                .containsExactly(false, true, false, false, true);
         SwingUtilities.invokeAndWait(() -> tree.setSelectionPath(new TreePath(majorNode.getPath())));
         assertThat(java.util.List.of(department.isEnabled(), major.isEnabled(),
                 studentClass.isEnabled(), student.isEnabled(), batchAssign.isEnabled()))
@@ -126,7 +126,7 @@ class OrganizationManagementPanelTest {
         SwingUtilities.invokeAndWait(() -> tree.setSelectionPath(new TreePath(classNode.getPath())));
         assertThat(java.util.List.of(department.isEnabled(), major.isEnabled(),
                 studentClass.isEnabled(), student.isEnabled(), batchAssign.isEnabled()))
-                .containsExactly(false, false, false, true, false);
+                .containsExactly(false, false, false, true, true);
     }
 
     @Test
@@ -219,6 +219,30 @@ class OrganizationManagementPanelTest {
         SwingUtilities.invokeAndWait(() -> fixture.button("student.org.save").doClick());
         fixture.waitForLabelContains("student.org.error", "刷新");
         assertThat(fixture.label("student.org.error").getText()).contains("刷新");
+    }
+
+    @Test
+    void classStudentPanelHiddenWhenClassManagementDisabled() throws Exception {
+        var client = new HierarchyClient();
+        var fixture = new OrgFixture(client, ConnectionState.CONNECTED);
+        SwingUtilities.invokeAndWait(() -> {
+            fixture.panel = new OrganizationManagementPanel(fixture.students, fixture.connection, true, false);
+            fixture.panel.addNotify();
+        });
+        fixture.waitForTreeLoaded(2);
+
+        SwingUtilities.invokeAndWait(() -> {
+            assertThat(containsType(fixture.panel, "ClassStudentPanel")).isFalse();
+        });
+    }
+
+    private static boolean containsType(Container root, String simpleName) {
+        if (simpleName.equals(root.getClass().getSimpleName())) return true;
+        for (Component c : root.getComponents()) {
+            if (simpleName.equals(c.getClass().getSimpleName())) return true;
+            if (c instanceof Container nested && containsType(nested, simpleName)) return true;
+        }
+        return false;
     }
 
     private static ArrayList<DepartmentView> departments() {

@@ -40,7 +40,7 @@ final class MajorTransferScoreImport {
         }
     }
 
-    private static List<ImportMajorTransferScoresCommand.ScoreEntry> parse(File file)
+    static List<ImportMajorTransferScoresCommand.ScoreEntry> parse(File file)
             throws Exception {
         String name = file.getName().toLowerCase();
         if (name.endsWith(".csv")) return csv(file);
@@ -52,13 +52,18 @@ final class MajorTransferScoreImport {
             throws Exception {
         List<ImportMajorTransferScoresCommand.ScoreEntry> entries = new ArrayList<>();
         try (var reader = java.nio.file.Files.newBufferedReader(file.toPath())) {
-            reader.readLine();
+            String headerLine = reader.readLine();
+            if (headerLine == null) return entries;
+            String[] headers = splitCsv(headerLine);
+            ColumnMapping mapping = ColumnMapping.resolve(headers);
             String line;
             while ((line = reader.readLine()) != null) {
-                String[] cells = line.split(",", -1);
-                if (cells.length == 0 || cells[0].isBlank()) continue;
-                entries.add(new ImportMajorTransferScoresCommand.ScoreEntry(cells[0].trim(),
-                        decimal(cells, 1), decimal(cells, 2)));
+                String[] cells = splitCsv(line);
+                if (cells.length == 0) continue;
+                String id = cell(cells, mapping.idCol());
+                if (id.isBlank()) continue;
+                entries.add(new ImportMajorTransferScoresCommand.ScoreEntry(id,
+                        decimal(cells, mapping.writtenCol()), decimal(cells, mapping.interviewCol())));
             }
         }
         return entries;
@@ -69,29 +74,74 @@ final class MajorTransferScoreImport {
         List<ImportMajorTransferScoresCommand.ScoreEntry> entries = new ArrayList<>();
         try (var workbook = org.apache.poi.ss.usermodel.WorkbookFactory.create(file)) {
             var sheet = workbook.getSheetAt(0);
+            if (sheet.getLastRowNum() < 1) return entries;
+            var headerRow = sheet.getRow(0);
+            String[] headers = new String[headerRow != null ? headerRow.getLastCellNum() : 0];
+            for (int i = 0; i < headers.length; i++) headers[i] = text(headerRow.getCell(i));
+            ColumnMapping mapping = ColumnMapping.resolve(headers);
             for (int index = 1; index <= sheet.getLastRowNum(); index++) {
                 var row = sheet.getRow(index);
                 if (row == null) continue;
-                String id = text(row.getCell(0));
-                if (!id.isBlank()) entries.add(new ImportMajorTransferScoresCommand.ScoreEntry(
-                        id, number(row.getCell(1)), number(row.getCell(2))));
+                String id = text(row.getCell(mapping.idCol()));
+                if (!id.isBlank()) {
+                    entries.add(new ImportMajorTransferScoresCommand.ScoreEntry(id,
+                            mapping.writtenCol() >= 0 ? number(row.getCell(mapping.writtenCol())) : null,
+                            mapping.interviewCol() >= 0 ? number(row.getCell(mapping.interviewCol())) : null));
+                }
             }
         }
         return entries;
     }
 
+    private static String[] splitCsv(String line) {
+        return line.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1);
+    }
+
+    private static String cell(String[] cells, int index) {
+        if (index < 0 || index >= cells.length) return "";
+        String val = cells[index].trim();
+        if (val.startsWith("\uFEFF")) val = val.substring(1).trim();
+        if (val.startsWith("\"") && val.endsWith("\"") && val.length() >= 2) {
+            val = val.substring(1, val.length() - 1).replace("\"\"", "\"").trim();
+        }
+        return val;
+    }
+
     private static BigDecimal decimal(String[] cells, int index) {
-        return index >= cells.length || cells[index].isBlank()
-                ? null : new BigDecimal(cells[index].trim());
+        String value = cell(cells, index);
+        return value.isBlank() ? null : new BigDecimal(value);
     }
 
     private static String text(org.apache.poi.ss.usermodel.Cell cell) {
         if (cell == null) return "";
-        return new org.apache.poi.ss.usermodel.DataFormatter().formatCellValue(cell).trim();
+        String val = new org.apache.poi.ss.usermodel.DataFormatter().formatCellValue(cell).trim();
+        return val.startsWith("\uFEFF") ? val.substring(1).trim() : val;
     }
 
     private static BigDecimal number(org.apache.poi.ss.usermodel.Cell cell) {
         String value = text(cell);
         return value.isBlank() ? null : new BigDecimal(value);
+    }
+
+    private record ColumnMapping(int idCol, int writtenCol, int interviewCol) {
+        static ColumnMapping resolve(String[] headers) {
+            int id = -1, written = -1, interview = -1;
+            for (int i = 0; i < headers.length; i++) {
+                String h = cell(headers, i);
+                if (h.contains("申请编号") || h.contains("申请ID") || h.equalsIgnoreCase("applicationId")) {
+                    id = i;
+                } else if (id == -1 && (h.contains("一卡通号") || h.contains("学号") || h.equalsIgnoreCase("studentId"))) {
+                    id = i;
+                } else if (h.contains("笔试") || h.equalsIgnoreCase("writtenScore")) {
+                    written = i;
+                } else if (h.contains("面试") || h.equalsIgnoreCase("interviewScore")) {
+                    interview = i;
+                }
+            }
+            if (id == -1) id = 0;
+            if (written == -1) written = headers.length > 1 ? 1 : -1;
+            if (interview == -1) interview = headers.length > 2 ? 2 : -1;
+            return new ColumnMapping(id, written, interview);
+        }
     }
 }

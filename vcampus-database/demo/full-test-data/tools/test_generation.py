@@ -89,7 +89,7 @@ class PeopleContractTest(unittest.TestCase):
         for student in self.rows["tblStudent"]:
             self.assertTrue(all(student.get(field) is not None for field in required))
             cohort = classes[student["classId"]]["enrollmentYear"]
-            self.assertEqual(cohort - 2018, student["birthDate"].year)
+            self.assertEqual(cohort - 18, student["birthDate"].year)
             self.assertIn(student["birthDate"].month, range(1, 9))
             self.assertTrue(people.valid_resident_id(student["idDocumentNumber"]))
 
