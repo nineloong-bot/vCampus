@@ -41,6 +41,23 @@ CREATE TABLE tblMajorTransferOption (
 CREATE INDEX idx_tblMajorTransferOption_batch ON tblMajorTransferOption (batchId);
 CREATE INDEX idx_tblMajorTransferOption_major ON tblMajorTransferOption (targetMajorId);
 
+CREATE TABLE tblMajorTransferOptionFinalization (
+    optionId VARCHAR(36) PRIMARY KEY,
+    finalizationStatus VARCHAR(16) NOT NULL,
+    rowVersion LONG NOT NULL,
+    reviewedBy VARCHAR(36),
+    reviewedAt DATETIME,
+    effectiveBy VARCHAR(36),
+    effectiveAt DATETIME,
+    createdAt DATETIME NOT NULL,
+    updatedAt DATETIME NOT NULL,
+    CONSTRAINT fk_tblMajorTransferOptionFinalization_option FOREIGN KEY (optionId)
+        REFERENCES tblMajorTransferOption (optionId)
+);
+
+CREATE INDEX idx_tblMajorTransferOptionFinalization_status
+    ON tblMajorTransferOptionFinalization (finalizationStatus);
+
 CREATE TABLE tblMajorTransferBatchCollege (
     batchId VARCHAR(36) NOT NULL,
     targetDepartmentId VARCHAR(36) NOT NULL,

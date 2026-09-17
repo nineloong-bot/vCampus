@@ -135,6 +135,50 @@ class MajorTransferRepositoryTest {
         assertThat(colleges.listPrepared(connection, "batch-1", "dept-2")).isEmpty();
     }
 
+    @Test
+    void optionFinalizationStatesAreIndependent() {
+        var finalizations = new MajorTransferOptionFinalizationRepository();
+        repository.insertBatch(connection, batch("batch-1", MajorTransferBatchStatus.CLOSED));
+        repository.insertOption(connection, option("opt-1", "batch-1"));
+        repository.insertOption(connection, option("opt-2", "batch-1"));
+
+        var first = finalizations.findOrCreate(connection,
+                repository.findOption(connection, "opt-1").orElseThrow(), NOW);
+        var second = finalizations.findOrCreate(connection,
+                repository.findOption(connection, "opt-2").orElseThrow(), NOW);
+
+        assertThat(finalizations.updateStatus(connection, "opt-1",
+                MajorTransferOptionFinalizationStatus.PROCESSING,
+                MajorTransferOptionFinalizationStatus.REVIEWED,
+                first.rowVersion(), "admin-1", NOW)).isOne();
+        assertThat(finalizations.find(connection, "opt-1").orElseThrow().status())
+                .isEqualTo(MajorTransferOptionFinalizationStatus.REVIEWED);
+        assertThat(finalizations.find(connection, "opt-2").orElseThrow().status())
+                .isEqualTo(MajorTransferOptionFinalizationStatus.PROCESSING);
+        assertThat(second.rowVersion()).isZero();
+    }
+
+    @Test
+    void preparedTransfersAreScopedByOption() {
+        var finalizations = new MajorTransferOptionFinalizationRepository();
+        repository.insertBatch(connection, batch("batch-1", MajorTransferBatchStatus.CLOSED));
+        repository.insertOption(connection, option("opt-1", "batch-1"));
+        repository.insertOption(connection, option("opt-2", "batch-1"));
+        repository.insertDraft(connection, draft("app-1", "batch-1", "student-1", "opt-1"));
+        repository.insertDraft(connection, draft("app-2", "batch-1", "student-2", "opt-2"));
+        var first = new MajorTransferOptionFinalizationRepository.PreparedTransferRow(
+                "app-1", "batch-1", "dept-2", "major-2", "class-2", 2024, 0, 0, NOW);
+        var second = new MajorTransferOptionFinalizationRepository.PreparedTransferRow(
+                "app-2", "batch-1", "dept-2", "major-2", "class-2", 2024, 0, 0, NOW);
+
+        finalizations.replacePrepared(connection, "opt-1", List.of(first));
+        finalizations.replacePrepared(connection, "opt-2", List.of(second));
+        finalizations.deletePrepared(connection, "opt-1");
+
+        assertThat(finalizations.listPrepared(connection, "opt-1")).isEmpty();
+        assertThat(finalizations.listPrepared(connection, "opt-2")).containsExactly(second);
+    }
+
     // ── Option tests ──
 
     @Test

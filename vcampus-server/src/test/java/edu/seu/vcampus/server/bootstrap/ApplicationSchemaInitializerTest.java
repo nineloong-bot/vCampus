@@ -54,6 +54,7 @@ class ApplicationSchemaInitializerTest {
                     "tblauditlog", "tblstudent", "tblterm", "tblcourse", "tblcourseoffering",
                     "tblenrollment", "tblbook", "tblshop", "tblorder",
                     "tblstudentcollegeadministrator", "tblmajortransferapplication",
+                    "tblmajortransferoptionfinalization",
                     "tbltrainingplan", "tblstudentgrade");
             assertThat(count(connection, "SELECT COUNT(*) FROM tblRole")).isEqualTo(10);
             assertThat(count(connection, "SELECT COUNT(*) FROM tblPermission")).isEqualTo(14);
