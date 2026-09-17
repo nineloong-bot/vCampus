@@ -7,6 +7,8 @@ import edu.seu.vcampus.common.student.majortransfer.*;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 /** Embedded editor for a college's transfer-admission option. */
@@ -19,6 +21,9 @@ final class MajorTransferOptionEditorPanel implements EmbeddedEditor {
     private final JSpinner interview = new JSpinner(new SpinnerNumberModel(20, 0, 10000, 1));
     private final JSpinner weight = new JSpinner(new SpinnerNumberModel(60, 0, 100, 1));
     private final JLabel status = new JLabel("正在加载学院…");
+    private final Map<String, MajorTransferOptionView> optionsByMajor = new HashMap<>();
+    private MajorTransferOptionView currentOption;
+    private boolean updatingSelection;
 
     MajorTransferOptionEditorPanel(StudentClientService students, MajorTransferBatchView batch,
             Runnable completed, Runnable close) {
@@ -37,26 +42,76 @@ final class MajorTransferOptionEditorPanel implements EmbeddedEditor {
         save.addActionListener(event -> save(students, batch, save, completed, close));
         actions.add(status); actions.add(cancel); actions.add(save); root.add(actions, BorderLayout.SOUTH);
         department.addActionListener(event -> loadMajors(students));
-        students.listDepartments(true).whenComplete((response, failure) -> SwingUtilities.invokeLater(() -> {
-            department.removeAllItems();
-            if (failure != null || response == null || !response.success() || response.data().isEmpty()) {
-                status.setText("学院信息加载失败"); return;
-            }
-            response.data().forEach(department::addItem); status.setText(" ");
-        }));
+        major.addActionListener(event -> onMajorChanged());
+        loadInitialData(students, batch);
+    }
+
+    private void loadInitialData(StudentClientService students, MajorTransferBatchView batch) {
+        var optionsFuture = students.listTransferOptions(batch.batchId());
+        if (optionsFuture != null) {
+            optionsFuture.whenComplete((response, failure) -> SwingUtilities.invokeLater(() -> {
+                if (failure == null && response != null && response.success() && response.data() != null) {
+                    optionsByMajor.clear();
+                    response.data().forEach(opt -> optionsByMajor.put(opt.targetMajorId(), opt));
+                    onMajorChanged();
+                }
+            }));
+        }
+        var deptsFuture = students.listDepartments(true);
+        if (deptsFuture != null) {
+            deptsFuture.whenComplete((response, failure) -> SwingUtilities.invokeLater(() -> {
+                updatingSelection = true;
+                try {
+                    department.removeAllItems();
+                    if (failure != null || response == null || !response.success() || response.data().isEmpty()) {
+                        status.setText("学院信息加载失败"); return;
+                    }
+                    response.data().forEach(department::addItem); status.setText(" ");
+                } finally {
+                    updatingSelection = false;
+                }
+                loadMajors(students);
+            }));
+        }
     }
 
     private void loadMajors(StudentClientService students) {
+        if (updatingSelection) return;
         DepartmentView selected = (DepartmentView) department.getSelectedItem();
         if (selected == null) return;
-        students.listMajors(selected.departmentId()).whenComplete((response, failure) ->
-                SwingUtilities.invokeLater(() -> {
+        var majorsFuture = students.listMajors(selected.departmentId());
+        if (majorsFuture != null) {
+            majorsFuture.whenComplete((response, failure) -> SwingUtilities.invokeLater(() -> {
+                updatingSelection = true;
+                try {
                     major.removeAllItems();
                     if (failure != null || response == null || !response.success()) {
                         status.setText("专业信息加载失败"); return;
                     }
                     response.data().forEach(major::addItem); status.setText(" ");
-                }));
+                } finally {
+                    updatingSelection = false;
+                }
+                onMajorChanged();
+            }));
+        }
+    }
+
+    private void onMajorChanged() {
+        if (updatingSelection) return;
+        MajorView selected = (MajorView) major.getSelectedItem();
+        if (selected == null) { currentOption = null; return; }
+        MajorTransferOptionView opt = optionsByMajor.get(selected.majorId());
+        currentOption = opt;
+        if (opt != null) {
+            receive.setValue(opt.receiveQuota());
+            interview.setValue(opt.interviewQuota());
+            weight.setValue(opt.writtenWeightPct());
+            if (opt.grades() != null && !opt.grades().isBlank()) grades.setText(opt.grades());
+        } else {
+            receive.setValue(10); interview.setValue(20); weight.setValue(60);
+            grades.setText("2025,2026");
+        }
     }
 
     private void save(StudentClientService students, MajorTransferBatchView batch, JButton button,
@@ -64,9 +119,16 @@ final class MajorTransferOptionEditorPanel implements EmbeddedEditor {
         MajorView selected = (MajorView) major.getSelectedItem();
         if (selected == null || grades.getText().isBlank()) { status.setText("请选择专业并填写入学年份"); return; }
         int written = (Integer) weight.getValue(); button.setEnabled(false); status.setText("正在保存…");
-        var command = new SaveMajorTransferOptionCommand(null, batch.batchId(), selected.majorId(),
+        String optionId = currentOption != null ? currentOption.optionId() : null;
+        long version = currentOption != null ? currentOption.rowVersion() : 0;
+        Double writtenPass = currentOption != null && currentOption.writtenPassScore() != null ? currentOption.writtenPassScore() : 60.0;
+        Double interviewPass = currentOption != null && currentOption.interviewPassScore() != null ? currentOption.interviewPassScore() : 60.0;
+        boolean exempt = currentOption != null && currentOption.difficultyQuotaExempt();
+        String reqs = currentOption != null && currentOption.requirements() != null ? currentOption.requirements() : "";
+        boolean active = currentOption == null || currentOption.active();
+        var command = new SaveMajorTransferOptionCommand(optionId, batch.batchId(), selected.majorId(),
                 grades.getText().trim(), (Integer) receive.getValue(), (Integer) interview.getValue(),
-                60.0, 60.0, written, 100 - written, false, "", true, 0);
+                writtenPass, interviewPass, written, 100 - written, exempt, reqs, active, version);
         students.saveTransferOption(command).whenComplete((response, failure) -> SwingUtilities.invokeLater(() -> {
             if (failure != null || response == null || !response.success()) {
                 status.setText(response != null ? response.message() : "保存失败"); button.setEnabled(true); return;
@@ -81,6 +143,12 @@ final class MajorTransferOptionEditorPanel implements EmbeddedEditor {
     @Override public JComponent component() { return root; }
     @Override public EditorSize size() { return EditorSize.WIDE; }
     @Override public boolean isDirty() {
+        if (currentOption != null) {
+            return !Objects.equals(grades.getText(), currentOption.grades())
+                    || (Integer) receive.getValue() != currentOption.receiveQuota()
+                    || (Integer) interview.getValue() != currentOption.interviewQuota()
+                    || (Integer) weight.getValue() != currentOption.writtenWeightPct();
+        }
         return !"2025,2026".equals(grades.getText()) || (Integer) receive.getValue() != 10
                 || (Integer) interview.getValue() != 20 || (Integer) weight.getValue() != 60;
     }

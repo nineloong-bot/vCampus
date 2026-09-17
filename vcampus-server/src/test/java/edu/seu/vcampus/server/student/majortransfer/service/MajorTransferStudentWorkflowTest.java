@@ -533,4 +533,32 @@ class MajorTransferStudentWorkflowTest {
         service.execute("admin", new ExecuteMajorTransferCommand(id, "class-2", version));
         assertThat(database.stringValue("SELECT classId FROM tblStudent WHERE studentId='student-1'")).isEqualTo("class-2");
     }
+
+    @Test
+    void saveOptionUpdatesExistingQuotasAndLocksExamWeightsOnSubmittedApplications() {
+        seedOpenBatchWithOption();
+        var updateCommand = new SaveMajorTransferOptionCommand(null, "batch-1", "major-2",
+                "2026", 15, 25, 60.0, 60.0, 60, 40, false, null, true, 0);
+        var updated = service.saveOption("admin", updateCommand, "dept-2");
+        assertThat(updated.optionId()).isEqualTo("opt-1");
+        assertThat(updated.receiveQuota()).isEqualTo(15);
+        assertThat(updated.interviewQuota()).isEqualTo(25);
+        assertThat(service.listOptions("batch-1")).hasSize(1);
+
+        var app = service.saveDraft("user-1", new SaveMajorTransferDraftCommand(null,
+                "batch-1", "opt-1", MajorTransferApplicationType.ORDINARY, "申请理由", 0));
+        service.submit("user-1", new SubmitMajorTransferCommand(app.applicationId(), app.applicationVersion()));
+
+        var adjustQuotaCommand = new SaveMajorTransferOptionCommand("opt-1", "batch-1", "major-2",
+                "2026", 20, 30, 60.0, 60.0, 60, 40, false, null, true, updated.rowVersion());
+        var adjusted = service.saveOption("admin", adjustQuotaCommand, "dept-2");
+        assertThat(adjusted.receiveQuota()).isEqualTo(20);
+        assertThat(adjusted.interviewQuota()).isEqualTo(30);
+
+        var modifyWeightsCommand = new SaveMajorTransferOptionCommand("opt-1", "batch-1", "major-2",
+                "2026", 20, 30, 60.0, 60.0, 70, 30, false, null, true, adjusted.rowVersion());
+        assertThatThrownBy(() -> service.saveOption("admin", modifyWeightsCommand, "dept-2"))
+                .isInstanceOf(MajorTransferException.class)
+                .hasMessageContaining("已锁定");
+    }
 }

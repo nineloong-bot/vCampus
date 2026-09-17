@@ -381,21 +381,35 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
             if (!major.active() || dept.isEmpty() || !dept.get().active())
                 throw error("TRANSFER_INVALID_TARGET", "目标学院或专业未启用");
             requireDepartment(trustedDepartmentId, major.departmentId());
-            repository.findBatch(connection, command.batchId())
+            var batch = repository.findBatch(connection, command.batchId())
                     .orElseThrow(() -> error("TRANSFER_BATCH_NOT_FOUND", "批次不存在"));
+            if (batch.status() == MajorTransferBatchStatus.EFFECTIVE || batch.status() == MajorTransferBatchStatus.CLOSED)
+                throw error("TRANSFER_BATCH_CLOSED", "批次已生效或已关闭，无法修改招生专业配置");
             String deptName = dept.map(d -> d.departmentName()).orElse("");
+            MajorTransferRepository.OptionRow existing = null;
             if (command.optionId() != null) {
-                MajorTransferRepository.OptionRow existing =
-                        repository.findOption(connection, command.optionId())
-                                .orElseThrow(() -> error("TRANSFER_OPTION_NOT_FOUND", "选项不存在"));
+                existing = repository.findOption(connection, command.optionId())
+                        .orElseThrow(() -> error("TRANSFER_OPTION_NOT_FOUND", "选项不存在"));
+            } else {
+                existing = repository.listOptionsByBatch(connection, command.batchId()).stream()
+                        .filter(o -> o.targetMajorId().equals(command.targetMajorId()))
+                        .findFirst().orElse(null);
+            }
+            if (existing != null) {
                 requireDepartment(trustedDepartmentId, existing.targetDepartmentId());
-                if (existing.rowVersion() != command.expectedVersion()) throw concurrent();
+                if (command.optionId() != null && existing.rowVersion() != command.expectedVersion())
+                    throw concurrent();
                 if (!existing.batchId().equals(command.batchId()) || !existing.targetMajorId().equals(command.targetMajorId()))
                     throw error("TRANSFER_INVALID_TARGET", "已有选项不能更换批次或目标专业");
-                if (repository.listApplicationsByOption(connection, existing.optionId()).stream().anyMatch(a -> a.status() != DRAFT))
-                    throw error("TRANSFER_OPTION_LOCKED", "已有提交申请，考核和名额规则已锁定");
+                if (repository.listApplicationsByOption(connection, existing.optionId()).stream().anyMatch(a -> a.status() != DRAFT)) {
+                    if (existing.writtenWeightPct() != command.writtenWeightPct()
+                            || existing.interviewWeightPct() != command.interviewWeightPct()
+                            || !Objects.equals(existing.grades(), command.grades())) {
+                        throw error("TRANSFER_OPTION_LOCKED", "已有提交申请，考核权重和年级规则已锁定");
+                    }
+                }
                 int changed = repository.updateOption(connection, new MajorTransferRepository.OptionRow(
-                        command.optionId(), command.batchId(), command.targetMajorId(),
+                        existing.optionId(), command.batchId(), command.targetMajorId(),
                         major.departmentId(), major.majorName(), deptName,
                         command.grades(), command.receiveQuota(), command.interviewQuota(),
                         command.writtenPassScore(), command.interviewPassScore(),
@@ -403,7 +417,7 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
                         command.difficultyQuotaExempt(), command.requirements(),
                         command.active(), existing.rowVersion(), now, now));
                 if (changed == 0) throw concurrent();
-                return toOptionView(repository.findOption(connection, command.optionId()).orElseThrow());
+                return toOptionView(repository.findOption(connection, existing.optionId()).orElseThrow());
             } else {
                 String id = UUID.randomUUID().toString();
                 repository.insertOption(connection, new MajorTransferRepository.OptionRow(
