@@ -110,6 +110,22 @@ public interface MajorTransferService {
     MajorTransferScoreTemplateDocument exportScoreTemplate(
             String adminUserId, String optionId, String trustedDepartmentId);
 
+    /** Returns final-review readiness for one option owned by the trusted college. */
+    MajorTransferOptionReadinessView getOptionReadiness(
+            String optionId, String trustedDepartmentId);
+
+    /** Gives final approval to assessed applications for one target-major option. */
+    MajorTransferOptionReviewResult finalizeOption(String adminUserId,
+            FinalizeMajorTransferOptionCommand command, String trustedDepartmentId);
+
+    /** Applies a previously reviewed target-major option exactly once. */
+    MajorTransferOptionEffectResult effectiveOption(String adminUserId,
+            EffectiveMajorTransferOptionCommand command, String trustedDepartmentId);
+
+    /** Rolls back one target-major option before effectuation. */
+    MajorTransferOptionRollbackResult rollbackOption(String adminUserId,
+            RollbackMajorTransferOptionCommand command, String trustedDepartmentId);
+
     /** Returns whether every formal application is ready for atomic finalization. */
     MajorTransferCollegeReadinessView getBatchReadiness(String batchId, String trustedDepartmentId);
 

@@ -47,8 +47,10 @@ class MajorTransferStudentWorkflowTest {
             orgs.insertMajor(connection, new Major("major-1", "dept-1", "090", "计算机科学", "1,2,3,4", true, 0));
             orgs.insertMajor(connection, new Major("major-2", "dept-2", "085", "软件工程", "1,2,3,4", true, 0));
             orgs.insertMajor(connection, new Major("major-3", "dept-1", "086", "人工智能", "1,2,3,4", true, 0));
+            orgs.insertMajor(connection, new Major("major-4", "dept-2", "087", "数据科学", "1,2,3,4", true, 0));
             orgs.insertClass(connection, new StudentClass("class-1", "major-1", "090-26-1", "计科2601", 2026, 1, true, 0));
             orgs.insertClass(connection, new StudentClass("class-2", "major-2", "085-26-1", "软工2601", 2026, 1, true, 0));
+            orgs.insertClass(connection, new StudentClass("class-4", "major-4", "087-26-1", "数科2601", 2026, 1, true, 0));
             studentRepo.insert(connection, new Student("student-1", "user-1", "21324001",
                     StudentType.UNDERGRADUATE, "张三", "男", "zhang@seu.edu.cn", "13800000000",
                     "major-1", "class-1", LocalDate.of(2026, 9, 1), StudentStatus.ACTIVE,
@@ -258,6 +260,102 @@ class MajorTransferStudentWorkflowTest {
                 .doesNotThrowAnyException();
         assertThatCode(() -> service.getBatchReadiness("batch-1", "dept-1"))
                 .doesNotThrowAnyException();
+    }
+
+    @Test void finalReviewTouchesOnlyTheSelectedOption() throws Exception {
+        var first = assessed();
+        database.transactions().inTransaction(connection -> {
+            repository.insertOption(connection, new MajorTransferRepository.OptionRow(
+                    "opt-2", "batch-1", "major-4", "dept-2", "数据科学", "软件学院",
+                    "2026", 10, 5, 60.0, 60.0, 60, 40, false, null, true, 0, NOW, NOW));
+            return null;
+        });
+        var second = service.saveDraft("user-2", new SaveMajorTransferDraftCommand(null,
+                "batch-1", "opt-2", MajorTransferApplicationType.ORDINARY, "申请理由2", 0));
+        second = service.submit("user-2", new SubmitMajorTransferCommand(
+                second.applicationId(), second.applicationVersion()));
+        second = service.reviewSource("admin", new ReviewMajorTransferSourceCommand(
+                second.applicationId(), MajorTransferDecision.APPROVE, true, true, true,
+                "核实通过", second.applicationVersion()));
+        second = service.reviewQualification("admin", new ReviewMajorTransferQualificationCommand(
+                second.applicationId(), MajorTransferDecision.APPROVE, "符合要求",
+                second.applicationVersion()));
+        second = service.recordScore("admin", new RecordMajorTransferScoreCommand(
+                second.applicationId(), new java.math.BigDecimal("85"),
+                new java.math.BigDecimal("90"), second.applicationVersion()));
+        sql("UPDATE tblMajorTransferBatch SET batchStatus='CLOSED' WHERE batchId='batch-1'");
+
+        var readiness = service.getOptionReadiness("opt-1", "dept-2");
+        var result = service.finalizeOption("admin",
+                new FinalizeMajorTransferOptionCommand("opt-1", readiness.optionVersion()), "dept-2");
+
+        assertThat(result.status()).isEqualTo(MajorTransferOptionFinalizationStatus.REVIEWED);
+        assertThat(database.stringValue("SELECT applicationStatus FROM tblMajorTransferApplication "
+                + "WHERE applicationId='" + first.applicationId() + "'"))
+                .isEqualTo("PENDING_EFFECTIVE");
+        assertThat(database.stringValue("SELECT applicationStatus FROM tblMajorTransferApplication "
+                + "WHERE applicationId='" + second.applicationId() + "'"))
+                .isEqualTo("ASSESSED");
+    }
+
+    @Test void optionWithoutApplicationsCannotBeFinalReviewed() {
+        seedOpenBatchWithOption();
+        sql("UPDATE tblMajorTransferBatch SET batchStatus='CLOSED' WHERE batchId='batch-1'");
+
+        var readiness = service.getOptionReadiness("opt-1", "dept-2");
+
+        assertThat(readiness.canReview()).isFalse();
+        assertThat(readiness.reason()).isEqualTo("该专业暂无转入申请");
+        assertThatThrownBy(() -> service.finalizeOption("admin",
+                new FinalizeMajorTransferOptionCommand("opt-1", readiness.optionVersion()), "dept-2"))
+                .isInstanceOf(MajorTransferException.class)
+                .extracting(error -> ((MajorTransferException) error).code())
+                .isEqualTo("TRANSFER_OPTION_NO_APPLICATIONS");
+    }
+
+    @Test void optionWithoutAssessedApplicationsCannotBeFinalReviewed() {
+        var app = draft();
+        app = service.submit("user-1", new SubmitMajorTransferCommand(
+                app.applicationId(), app.applicationVersion()));
+        service.reviewSource("admin", new ReviewMajorTransferSourceCommand(
+                app.applicationId(), MajorTransferDecision.REJECT, true, true, true,
+                "不通过", app.applicationVersion()));
+        sql("UPDATE tblMajorTransferBatch SET batchStatus='CLOSED' WHERE batchId='batch-1'");
+
+        var readiness = service.getOptionReadiness("opt-1", "dept-2");
+
+        assertThat(readiness.canReview()).isFalse();
+        assertThat(readiness.reason()).isEqualTo("该专业没有待终审申请");
+        assertThatThrownBy(() -> service.finalizeOption("admin",
+                new FinalizeMajorTransferOptionCommand("opt-1", readiness.optionVersion()), "dept-2"))
+                .isInstanceOf(MajorTransferException.class)
+                .extracting(error -> ((MajorTransferException) error).code())
+                .isEqualTo("TRANSFER_OPTION_NO_ASSESSED_APPLICATIONS");
+    }
+
+    @Test void optionReviewCanBeRolledBackThenReviewedAndEffected() throws Exception {
+        var app = assessed();
+        sql("UPDATE tblMajorTransferBatch SET batchStatus='CLOSED' WHERE batchId='batch-1'");
+        var reviewed = service.finalizeOption("admin",
+                new FinalizeMajorTransferOptionCommand("opt-1", 0), "dept-2");
+
+        var rolledBack = service.rollbackOption("admin",
+                new RollbackMajorTransferOptionCommand("opt-1", reviewed.optionVersion()), "dept-2");
+        assertThat(rolledBack.status()).isEqualTo(MajorTransferOptionFinalizationStatus.PROCESSING);
+        assertThat(database.stringValue("SELECT applicationStatus FROM tblMajorTransferApplication "
+                + "WHERE applicationId='" + app.applicationId() + "'"))
+                .isEqualTo("ASSESSED");
+
+        reviewed = service.finalizeOption("admin", new FinalizeMajorTransferOptionCommand(
+                "opt-1", rolledBack.optionVersion()), "dept-2");
+        var effective = service.effectiveOption("admin", new EffectiveMajorTransferOptionCommand(
+                "opt-1", reviewed.optionVersion()), "dept-2");
+
+        assertThat(effective.status()).isEqualTo(MajorTransferOptionFinalizationStatus.EFFECTIVE);
+        assertThat(effective.effectiveStudents()).isOne();
+        assertThat(database.stringValue("SELECT applicationStatus FROM tblMajorTransferApplication "
+                + "WHERE applicationId='" + app.applicationId() + "'"))
+                .isEqualTo("EFFECTIVE");
     }
 
     @Test void closedBatchRequiresReviewThenOneTimeEffect() throws Exception {

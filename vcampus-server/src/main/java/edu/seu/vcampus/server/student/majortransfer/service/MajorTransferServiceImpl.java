@@ -48,6 +48,7 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
     private final AccessOrganizationRepository organizations;
     private final UserQueryPort users;
     private final MajorTransferBatchFinalizer batchFinalizer;
+    private final MajorTransferOptionFinalizer optionFinalizer;
     private final MajorTransferScoreTemplateExporter scoreTemplateExporter;
     private final MajorTransferEligibilityPolicy eligibilityPolicy =
             new MajorTransferEligibilityPolicy();
@@ -75,6 +76,9 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
         this.users = Objects.requireNonNull(users);
         this.scoreTemplateExporter = new MajorTransferScoreTemplateExporter(transactions, repository);
         this.batchFinalizer = new MajorTransferBatchFinalizer(transactions, locks, repository,
+                students, changes, organizations,
+                new AccessStudentNumberGenerator(new NumberSequenceRepository()), enrollmentPort);
+        this.optionFinalizer = new MajorTransferOptionFinalizer(transactions, locks, repository,
                 students, changes, organizations,
                 new AccessStudentNumberGenerator(new NumberSequenceRepository()), enrollmentPort);
     }
@@ -723,6 +727,34 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
     }
 
     // ── Admin: final approval and execution ──
+
+    /** {@inheritDoc} */
+    @Override
+    public MajorTransferOptionReadinessView getOptionReadiness(
+            String optionId, String trustedDepartmentId) {
+        return optionFinalizer.readiness(optionId, trustedDepartmentId);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public MajorTransferOptionReviewResult finalizeOption(String adminUserId,
+            FinalizeMajorTransferOptionCommand command, String trustedDepartmentId) {
+        return optionFinalizer.finalizeOption(adminUserId, command, trustedDepartmentId);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public MajorTransferOptionEffectResult effectiveOption(String adminUserId,
+            EffectiveMajorTransferOptionCommand command, String trustedDepartmentId) {
+        return optionFinalizer.effectiveOption(adminUserId, command, trustedDepartmentId);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public MajorTransferOptionRollbackResult rollbackOption(String adminUserId,
+            RollbackMajorTransferOptionCommand command, String trustedDepartmentId) {
+        return optionFinalizer.rollbackOption(adminUserId, command, trustedDepartmentId);
+    }
 
     /** {@inheritDoc} */
     @Override

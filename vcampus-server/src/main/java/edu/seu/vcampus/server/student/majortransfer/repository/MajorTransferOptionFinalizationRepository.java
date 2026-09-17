@@ -7,12 +7,13 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 /** Persists finalization state and prepared transfers for one transfer option. */
 public final class MajorTransferOptionFinalizationRepository {
+    private final MajorTransferPreparedTransferRepository prepared =
+            new MajorTransferPreparedTransferRepository();
     /** Lifecycle row for one target-major option. */
     public record OptionFinalizationRow(String optionId,
             MajorTransferOptionFinalizationStatus status, long rowVersion,
@@ -100,58 +101,17 @@ public final class MajorTransferOptionFinalizationRepository {
     /** Replaces prepared transfers belonging to one option. */
     public void replacePrepared(Connection connection, String optionId,
             List<PreparedTransferRow> rows) {
-        deletePrepared(connection, optionId);
-        if (rows.isEmpty()) return;
-        String sql = "INSERT INTO tblMajorTransferPreparedTransfer VALUES (?,?,?,?,?,?,?,?,?)";
-        try (var statement = connection.prepareStatement(sql)) {
-            for (var row : rows) {
-                statement.setString(1, row.applicationId()); statement.setString(2, row.batchId());
-                statement.setString(3, row.targetDepartmentId()); statement.setString(4, row.targetMajorId());
-                statement.setString(5, row.targetClassId()); statement.setInt(6, row.targetCohortYear());
-                statement.setLong(7, row.studentVersion()); statement.setLong(8, row.applicationVersion());
-                statement.setTimestamp(9, Timestamp.from(row.preparedAt())); statement.addBatch();
-            }
-            statement.executeBatch();
-        } catch (SQLException error) {
-            throw failure("Cannot replace option prepared transfers", error);
-        }
+        prepared.replace(connection, optionId, rows);
     }
 
     /** Lists prepared transfers belonging to one option. */
     public List<PreparedTransferRow> listPrepared(Connection connection, String optionId) {
-        String sql = "SELECT p.* FROM tblMajorTransferPreparedTransfer p INNER JOIN "
-                + "tblMajorTransferApplication a ON p.applicationId=a.applicationId "
-                + "WHERE a.optionId=? ORDER BY p.applicationId";
-        try (var statement = connection.prepareStatement(sql)) {
-            statement.setString(1, optionId);
-            try (var result = statement.executeQuery()) {
-                List<PreparedTransferRow> rows = new ArrayList<>();
-                while (result.next()) rows.add(new PreparedTransferRow(result.getString("applicationId"),
-                        result.getString("batchId"), result.getString("targetDepartmentId"),
-                        result.getString("targetMajorId"), result.getString("targetClassId"),
-                        result.getInt("targetCohortYear"), result.getLong("studentVersion"),
-                        result.getLong("applicationVersion"), result.getTimestamp("preparedAt").toInstant()));
-                return List.copyOf(rows);
-            }
-        } catch (SQLException error) {
-            throw failure("Cannot list option prepared transfers", error);
-        }
+        return prepared.list(connection, optionId);
     }
 
     /** Deletes prepared transfers belonging to one option. */
     public int deletePrepared(Connection connection, String optionId) {
-        var rows = listPrepared(connection, optionId);
-        try (var statement = connection.prepareStatement(
-                "DELETE FROM tblMajorTransferPreparedTransfer WHERE applicationId=?")) {
-            for (var row : rows) {
-                statement.setString(1, row.applicationId());
-                statement.addBatch();
-            }
-            if (!rows.isEmpty()) statement.executeBatch();
-            return rows.size();
-        } catch (SQLException error) {
-            throw failure("Cannot delete option prepared transfers", error);
-        }
+        return prepared.delete(connection, optionId);
     }
 
     private static MajorTransferOptionFinalizationStatus initialStatus(
