@@ -151,9 +151,9 @@ class MajorTransferStudentWorkflowTest {
         assertThat(database.count("tblMajorTransferApplication")).isZero();
     }
 
-    @Test void secondYearStudentIsRejectedBeforeDraftIsPersisted() throws Exception {
+    @Test void thirdYearStudentIsRejectedBeforeDraftIsPersisted() throws Exception {
         seedOpenBatchWithOption();
-        sql("UPDATE tblClass SET enrollmentYear=2025 WHERE classId='class-1'");
+        sql("UPDATE tblClass SET enrollmentYear=2024 WHERE classId='class-1'");
 
         assertThatThrownBy(() -> service.saveDraft("user-1", new SaveMajorTransferDraftCommand(
                 null, "batch-1", "opt-1", MajorTransferApplicationType.ORDINARY,
@@ -509,5 +509,28 @@ class MajorTransferStudentWorkflowTest {
                 new SubmitMajorTransferCommand(draft.applicationId(), 0)))
                 .isInstanceOf(MajorTransferException.class)
                 .hasMessageContaining("证明材料");
+    }
+
+    @Test
+    void sophomoreCanOnlyDowngradeTransfer() throws Exception {
+        database.transactions().inTransaction(connection -> {
+            var orgs = new AccessOrganizationRepository();
+            orgs.insertClass(connection, new StudentClass("class-math-2025", "major-1", "090-25-1", "数学2501", 2025, 1, true, 0));
+            orgs.insertClass(connection, new StudentClass("class-se-2025", "major-2", "085-25-1", "软工2501", 2025, 1, true, 0));
+            return null;
+        });
+        sql("UPDATE tblStudent SET classId='class-math-2025' WHERE studentId='student-1'");
+        var app = assessed();
+        app = service.finalizeApproval("admin", new FinalizeMajorTransferCommand(app.applicationId(), app.applicationVersion()));
+        sql("UPDATE tblMajorTransferBatch SET effectiveDate=#2020-01-01#");
+        String id = app.applicationId();
+        long version = app.applicationVersion();
+
+        assertThatThrownBy(() -> service.execute("admin", new ExecuteMajorTransferCommand(id, "class-se-2025", version)))
+                .isInstanceOf(MajorTransferException.class)
+                .hasMessageContaining("降转");
+
+        service.execute("admin", new ExecuteMajorTransferCommand(id, "class-2", version));
+        assertThat(database.stringValue("SELECT classId FROM tblStudent WHERE studentId='student-1'")).isEqualTo("class-2");
     }
 }

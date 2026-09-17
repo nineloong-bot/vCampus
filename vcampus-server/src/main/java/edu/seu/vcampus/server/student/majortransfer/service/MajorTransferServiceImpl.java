@@ -780,6 +780,13 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
             }
             if (!targetClass.active())
                 throw error("TRANSFER_CLASS_INACTIVE", "目标班级未启用");
+            StudentClass sourceClass = organizations.findClass(connection, student.classId()).orElseThrow();
+            int requiredTargetYear = targetCohortYear(connection, app.batchId(), sourceClass.enrollmentYear());
+            if (targetClass.enrollmentYear() != requiredTargetYear) {
+                throw error("TRANSFER_CLASS_YEAR_MISMATCH",
+                        requiredTargetYear > sourceClass.enrollmentYear()
+                                ? "大二学生转专业只允许降转至大一年级班级" : "目标班级年级不符");
+            }
             Instant now = Instant.now();
             String oldDeptId = app.fromDepartmentId();
             String oldDeptName = app.fromDepartmentName();
@@ -1054,6 +1061,14 @@ public final class MajorTransferServiceImpl implements MajorTransferService {
 
     private static boolean isFalse(Object value) {
         return Boolean.FALSE.equals(value) || Integer.valueOf(0).equals(value);
+    }
+
+    private int targetCohortYear(Connection c, String batchId, int sourceYear) {
+        return repository.findBatch(c, batchId).map(b -> {
+            LocalDate start = b.applicationStart().atZone(java.time.ZoneId.of("Asia/Shanghai")).toLocalDate();
+            int grade = start.getYear() - (start.getMonthValue() < 9 ? 1 : 0) - sourceYear + 1;
+            return grade == 2 ? sourceYear + 1 : sourceYear;
+        }).orElse(sourceYear == 2025 ? 2026 : sourceYear);
     }
 
     private static java.util.ConcurrentModificationException concurrent() {

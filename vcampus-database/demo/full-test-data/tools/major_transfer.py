@@ -22,7 +22,7 @@ def generate(add, now):
         add("tblMajorTransferOption", optionId=option_id, batchId=BATCH_ID,
             targetMajorId=major_id, targetDepartmentId="dept-cse",
             targetMajorName=major_name, targetDepartmentName="计算机科学与工程学院",
-            grades="1,2,3", receiveQuota=quota, interviewQuota=quota * 2,
+            grades="2025,2026", receiveQuota=quota, interviewQuota=quota * 2,
             writtenPassScore=60.0, interviewPassScore=60.0,
             writtenWeightPct=60, interviewWeightPct=40, difficultyQuotaExempt=False,
             requirements="已修课程无不及格记录，具备良好的数学与程序设计基础。",
@@ -34,19 +34,23 @@ def generate(add, now):
         "希望把数学基础用于算法优化、数据库系统和高性能计算研究。",
         "对计算机网络与分布式系统有浓厚兴趣，希望系统掌握计算机科学技术知识。",
     )
+    applicants = (
+        (2025, 25, 1, "赵子涵", "2"),
+        (2025, 26, 2, "钱子涵", "2"),
+        (2026, 25, 1, "冯思远", "1"),
+        (2026, 26, 2, "陈思远", "1"),
+        (2026, 27, 3, "褚思远", "1"),
+    )
     option_ids = ("option-cs", "option-cs", "option-cs", "option-cs", "option-cs")
-    for offset in range(5):
-        cohort_serial = 25 + offset
-        local = offset + 1
-        name, _ = people._name(cohort_serial - 1)
+    for offset, (cohort, serial, local, name, grade) in enumerate(applicants):
         add("tblMajorTransferApplication", applicationId=f"transfer-app-{offset + 1:02d}",
-            batchId=BATCH_ID, studentId=f"student-2024-{cohort_serial:03d}",
+            batchId=BATCH_ID, studentId=f"student-{cohort}-{serial:03d}",
             applicationType="ORDINARY", applicationStatus="SUBMITTED",
             optionId=option_ids[offset], fromDepartmentId="dept-math",
             fromDepartmentName="数学学院", fromMajorId="major-math",
-            fromMajorName="数学与应用数学", fromClassId="class-math-2024",
-            fromClassName="数学与应用数学2401班", fromStudentNumber=f"701241{local:02d}",
-            fromGrade="3", studentName=name, reason=reasons[offset],
+            fromMajorName="数学与应用数学", fromClassId=f"class-math-{cohort}",
+            fromClassName=f"数学与应用数学{str(cohort)[2:]}01班", fromStudentNumber=f"701{str(cohort)[2:]}1{local:02d}",
+            fromGrade=grade, studentName=name, reason=reasons[offset],
             writtenScore=None, interviewScore=None, finalScore=None,
             baseStudentVersion=0, applicationVersion=1,
             submittedAt=datetime(2026, 9, 10 + offset, 10, 30),
@@ -74,3 +78,9 @@ def validate_transfer_fixture(rows, application_start=None):
             raise AssertionError("transfer source major snapshot is inconsistent")
         if option["targetDepartmentId"] != "dept-cse":
             raise AssertionError("transfer target must be the computing college")
+        if student["studentName"] != application["studentName"]:
+            raise AssertionError("student name mismatch in transfer application")
+        if student["studentNumber"] != application["fromStudentNumber"]:
+            raise AssertionError("student number mismatch in transfer application")
+        if student["classId"] != application["fromClassId"]:
+            raise AssertionError("classId mismatch in transfer application")

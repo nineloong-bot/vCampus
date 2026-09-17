@@ -14,7 +14,7 @@ final class MajorTransferOptionEditorPanel implements EmbeddedEditor {
     private final JPanel root = new JPanel(new BorderLayout(8, 8));
     private final JComboBox<DepartmentView> department = new JComboBox<>();
     private final JComboBox<MajorView> major = new JComboBox<>();
-    private final JTextField grades = new JTextField("2024,2025");
+    private final JTextField grades = new JTextField("2025,2026");
     private final JSpinner receive = new JSpinner(new SpinnerNumberModel(10, 0, 10000, 1));
     private final JSpinner interview = new JSpinner(new SpinnerNumberModel(20, 0, 10000, 1));
     private final JSpinner weight = new JSpinner(new SpinnerNumberModel(60, 0, 100, 1));
@@ -23,6 +23,9 @@ final class MajorTransferOptionEditorPanel implements EmbeddedEditor {
     MajorTransferOptionEditorPanel(StudentClientService students, MajorTransferBatchView batch,
             Runnable completed, Runnable close) {
         Objects.requireNonNull(students); Objects.requireNonNull(batch);
+        grades.setEditable(false);
+        grades.setFocusable(false);
+        grades.setToolTipText("转专业仅面向大一及大二学生（2025级、2026级）");
         JPanel form = new JPanel(new GridLayout(0, 2, 6, 6));
         field(form, "学院", department); field(form, "专业", major);
         field(form, "允许入学年份", grades); field(form, "接收名额", receive);
@@ -78,7 +81,7 @@ final class MajorTransferOptionEditorPanel implements EmbeddedEditor {
     @Override public JComponent component() { return root; }
     @Override public EditorSize size() { return EditorSize.WIDE; }
     @Override public boolean isDirty() {
-        return !"2024,2025".equals(grades.getText()) || (Integer) receive.getValue() != 10
+        return !"2025,2026".equals(grades.getText()) || (Integer) receive.getValue() != 10
                 || (Integer) interview.getValue() != 20 || (Integer) weight.getValue() != 60;
     }
 }

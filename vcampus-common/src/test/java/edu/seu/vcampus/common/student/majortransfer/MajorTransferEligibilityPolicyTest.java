@@ -11,8 +11,15 @@ class MajorTransferEligibilityPolicyTest {
     private final MajorTransferEligibilityPolicy policy = new MajorTransferEligibilityPolicy();
 
     @Test
-    void rejectsSecondYearStudentEvenWhenTargetCollegeDiffers() {
+    void acceptsSecondYearStudentWhenTargetCollegeDiffers() {
         var result = policy.check(input(2025, LocalDate.of(2006, 5, 1), "dept-cs", "dept-math"));
+
+        assertThat(result.eligible()).isTrue();
+    }
+
+    @Test
+    void rejectsThirdYearStudentEvenWhenTargetCollegeDiffers() {
+        var result = policy.check(input(2024, LocalDate.of(2005, 5, 1), "dept-cs", "dept-math"));
 
         assertThat(result.eligible()).isFalse();
         assertThat(result.reasonCode()).isEqualTo("TRANSFER_INELIGIBLE");
@@ -22,7 +29,7 @@ class MajorTransferEligibilityPolicyTest {
     void acceptsAgeBoundariesAndRejectsSameDepartment() {
         assertThat(policy.check(input(2026, LocalDate.of(2009, 9, 1), "dept-cs", "dept-math")).eligible())
                 .isTrue();
-        assertThat(policy.check(input(2026, LocalDate.of(2006, 9, 1), "dept-cs", "dept-math")).eligible())
+        assertThat(policy.check(input(2026, LocalDate.of(2004, 9, 16), "dept-cs", "dept-math")).eligible())
                 .isTrue();
 
         var sameCollege = policy.check(input(2026, LocalDate.of(2008, 9, 1), "dept-cs", "dept-cs"));
@@ -31,10 +38,10 @@ class MajorTransferEligibilityPolicyTest {
     }
 
     @Test
-    void rejectsAgeOutsideFirstYearRange() {
+    void rejectsAgeOutsideAllowedRange() {
         assertThat(policy.check(input(2026, LocalDate.of(2009, 10, 1), "dept-cs", "dept-math")).eligible())
                 .isFalse();
-        assertThat(policy.check(input(2026, LocalDate.of(2005, 9, 1), "dept-cs", "dept-math")).eligible())
+        assertThat(policy.check(input(2026, LocalDate.of(2003, 9, 1), "dept-cs", "dept-math")).eligible())
                 .isFalse();
     }
 

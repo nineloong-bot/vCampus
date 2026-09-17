@@ -21,8 +21,8 @@ public final class MajorTransferEligibilityPolicy {
                 - (input.applicationStart().getMonthValue() < 9 ? 1 : 0)
                 - input.enrollmentYear() + 1;
         int age = Period.between(input.birthDate(), input.applicationStart()).getYears();
-        if (grade != 1 || age < 17 || age > 20) {
-            return ineligible("仅允许大一且年龄为17至20岁的学生申请");
+        if ((grade != 1 && grade != 2) || age < 17 || age > 22) {
+            return ineligible("仅允许大一、大二且年龄为17至22岁的学生申请");
         }
         if (blankOrSame(input.currentDepartmentId(), input.targetDepartmentId())) {
             return invalidTarget("转专业必须跨学院办理");

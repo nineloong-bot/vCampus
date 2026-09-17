@@ -99,11 +99,12 @@ public final class MajorTransferBatchFinalizer {
             var major = organizations.findMajor(c, option.targetMajorId())
                     .filter(value -> value.active()).orElseThrow(() -> error(
                             "TRANSFER_INVALID_TARGET", "目标专业未启用"));
+            int targetCohortYear = targetCohortYear(c, app.batchId(), source.enrollmentYear());
             candidates.add(new MajorTransferBatchPlanner.Candidate(app.applicationId(),
                     student.studentId(), option.optionId(), option.targetDepartmentId(),
-                    major.majorId(), major.majorCode(), source.enrollmentYear()));
+                    major.majorId(), major.majorCode(), targetCohortYear));
             organizations.listActiveClasses(c, major.majorId()).stream()
-                    .filter(value -> value.enrollmentYear() == source.enrollmentYear())
+                    .filter(value -> value.enrollmentYear() == targetCohortYear)
                     .forEach(value -> classes.put(value.classId(), value));
         }
         List<MajorTransferBatchPlanner.ClassSlot> slots = classes.values().stream()
@@ -180,6 +181,14 @@ public final class MajorTransferBatchFinalizer {
                 result.next(); return result.getInt(1);
             }
         } catch (SQLException error) { throw new PersistenceException("Cannot count class students", error); }
+    }
+
+    private int targetCohortYear(Connection c, String batchId, int sourceYear) {
+        return transfers.findBatch(c, batchId).map(b -> {
+            LocalDate start = b.applicationStart().atZone(java.time.ZoneId.of("Asia/Shanghai")).toLocalDate();
+            int grade = start.getYear() - (start.getMonthValue() < 9 ? 1 : 0) - sourceYear + 1;
+            return grade == 2 ? sourceYear + 1 : sourceYear;
+        }).orElse(sourceYear == 2025 ? 2026 : sourceYear);
     }
 
     private static MajorTransferException error(String code, String message) {
