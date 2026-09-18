@@ -17,6 +17,35 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ApplicationSchemaInitializerTest {
     @Test
+    void repairsMissingOptionFinalizationTableWithoutResettingTransferHistory() throws Exception {
+        Path database = Files.createTempDirectory("vcampus-transfer-upgrade-").resolve("schema.accdb");
+        ConnectionProvider connections = () -> DriverManager.getConnection(
+                "jdbc:ucanaccess://" + database + ";newDatabaseVersion=V2010");
+        var initializer = new ApplicationSchemaInitializer(databaseRoot());
+        initializer.initialize(connections);
+        try (var connection = connections.open(); var statement = connection.createStatement()) {
+            statement.execute("INSERT INTO tblMajorTransferBatch "
+                    + "(batchId,batchName,batchStatus,applicationStart,applicationEnd,rowVersion,createdAt,updatedAt) "
+                    + "VALUES ('preserved-batch','Existing transfer batch','CLOSED',NOW(),NOW(),7,NOW(),NOW())");
+            statement.execute("DROP TABLE tblMajorTransferOptionFinalization");
+            org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                    new edu.seu.vcampus.server.student.majortransfer.repository.
+                            MajorTransferOptionFinalizationRepository().find(connection, "existing-option"))
+                    .isInstanceOf(edu.seu.vcampus.server.student.repository.OrganizationPersistenceException.class)
+                    .hasCauseInstanceOf(java.sql.SQLException.class)
+                    .hasStackTraceContaining("TBLMAJORTRANSFEROPTIONFINALIZATION");
+        }
+        initializer.initialize(connections);
+        initializer.initialize(connections);
+        try (var connection = connections.open()) {
+            assertThat(new edu.seu.vcampus.server.student.majortransfer.repository.
+                    MajorTransferOptionFinalizationRepository().find(connection, "existing-option")).isEmpty();
+            assertThat(count(connection, "SELECT COUNT(*) FROM tblMajorTransferBatch "
+                    + "WHERE batchId='preserved-batch' AND rowVersion=7")).isEqualTo(1);
+        }
+    }
+
+    @Test
     void upgradesExistingStudentSchemaWithLatestMajorFields() throws Exception {
         Path database = Files.createTempDirectory("vcampus-schema-upgrade-").resolve("schema.accdb");
         ConnectionProvider connections = () -> DriverManager.getConnection(
