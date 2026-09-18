@@ -18,10 +18,26 @@
       "first_change": "否"
     },
     {
+      "login": "STUDENT2",
+      "password": "123456",
+      "role": "STUDENT_ADMIN",
+      "name": "学籍管理员（二）",
+      "scenario": "日常使用",
+      "first_change": "否"
+    },
+    {
       "login": "COURSE",
       "password": "123456",
       "role": "COURSE_ADMIN",
       "name": "选课管理员",
+      "scenario": "日常使用",
+      "first_change": "否"
+    },
+    {
+      "login": "COURSE2",
+      "password": "123456",
+      "role": "COURSE_ADMIN",
+      "name": "选课管理员（二）",
       "scenario": "日常使用",
       "first_change": "否"
     },
@@ -34,6 +50,14 @@
       "first_change": "否"
     },
     {
+      "login": "LIBRARY2",
+      "password": "123456",
+      "role": "LIBRARY_ADMIN",
+      "name": "图书管理员（二）",
+      "scenario": "日常使用",
+      "first_change": "否"
+    },
+    {
       "login": "SHOP",
       "password": "123456",
       "role": "SHOP_ADMIN",
@@ -42,10 +66,26 @@
       "first_change": "否"
     },
     {
+      "login": "SHOP2",
+      "password": "123456",
+      "role": "SHOP_ADMIN",
+      "name": "商城管理员（二）",
+      "scenario": "日常使用",
+      "first_change": "否"
+    },
+    {
       "login": "USER",
       "password": "123456",
       "role": "USER_ADMIN",
       "name": "用户管理员",
+      "scenario": "日常使用",
+      "first_change": "否"
+    },
+    {
+      "login": "USER2",
+      "password": "123456",
+      "role": "USER_ADMIN",
+      "name": "用户管理员（二）",
       "scenario": "日常使用",
       "first_change": "否"
     },

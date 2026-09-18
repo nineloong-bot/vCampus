@@ -44,6 +44,12 @@ class ModuleAdministrationServiceTest {
                 "jdbc:ucanaccess://" + database + ";immediatelyReleaseResources=true");
         transactions = new TransactionManager(provider);
         transactions.inTransaction(connection -> {
+            try (var statement = connection.createStatement()) {
+                statement.executeUpdate("""
+                        UPDATE tblUser SET accountStatus='DISABLED'
+                        WHERE loginId IN ('STUDENT2','COURSE2','LIBRARY2','SHOP2','USER2')
+                        """);
+            }
             try (var statement = connection.prepareStatement("""
                     INSERT INTO tblUser (userId, loginId, passwordHash, passwordSalt,
                     passwordIterations, roleCode, accountStatus, mustChangePassword,

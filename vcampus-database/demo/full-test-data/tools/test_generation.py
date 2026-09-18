@@ -62,16 +62,23 @@ class PeopleContractTest(unittest.TestCase):
             self.assertEqual(8, len(student["studentNumber"]))
             self.assertTrue(student["studentNumber"].startswith(expected_prefix))
 
-    def test_eight_administrator_accounts_have_expected_roles(self):
+    def test_module_administrator_roles_each_have_two_accounts(self):
         expected = {
             "ADMIN": "SUPER_ADMIN", "STUDENT": "STUDENT_ADMIN",
+            "STUDENT2": "STUDENT_ADMIN",
             "COURSE": "COURSE_ADMIN", "LIBRARY": "LIBRARY_ADMIN",
+            "COURSE2": "COURSE_ADMIN", "LIBRARY2": "LIBRARY_ADMIN",
             "SHOP": "SHOP_ADMIN", "USER": "USER_ADMIN",
+            "SHOP2": "SHOP_ADMIN", "USER2": "USER_ADMIN",
             "CSADMIN": "COLLEGE_ADMIN", "MATHADMIN": "COLLEGE_ADMIN",
         }
         actual = {row["loginId"]: row["roleCode"] for row in self.rows["tblUser"]
                   if row["roleCode"].endswith("ADMIN")}
         self.assertEqual(expected, actual)
+        module_roles = ("STUDENT_ADMIN", "COURSE_ADMIN", "LIBRARY_ADMIN",
+                        "SHOP_ADMIN", "USER_ADMIN")
+        counts = Counter(actual.values())
+        self.assertTrue(all(counts[role] == 2 for role in module_roles))
         self.assertEqual(2, len(self.rows["tblStudentCollegeAdministrator"]))
 
     def test_student_profiles_are_complete_and_coherent(self):
@@ -161,6 +168,36 @@ class AcademicContractTest(unittest.TestCase):
                     key = (schedule["classroom"], schedule["dayOfWeek"], week, period)
                     self.assertNotIn(key, occupied)
                     occupied.add(key)
+
+    def test_every_plan_semester_has_a_conflict_free_required_course_selection(self):
+        offerings = defaultdict(list)
+        for offering in self.rows["tblCourseOffering"]:
+            offerings[offering["courseId"]].append(offering["offeringId"])
+        schedules = {row["offeringId"]: row for row in self.rows["tblCourseSchedule"]}
+        required = defaultdict(list)
+        for course in self.rows["tblTrainingPlanCourse"]:
+            if course["isActive"] and course["courseNature"] == "REQUIRED":
+                required[(course["planId"], course["semester"])].append(course["courseId"])
+
+        def overlaps(left, right):
+            return (left["dayOfWeek"] == right["dayOfWeek"]
+                    and left["startWeek"] <= right["endWeek"]
+                    and right["startWeek"] <= left["endWeek"]
+                    and left["startPeriod"] <= right["endPeriod"]
+                    and right["startPeriod"] <= left["endPeriod"])
+
+        def can_select(course_ids, chosen=()):
+            if not course_ids:
+                return True
+            for offering_id in offerings[course_ids[0]]:
+                candidate = schedules[offering_id]
+                if all(not overlaps(candidate, existing) for existing in chosen):
+                    if can_select(course_ids[1:], chosen + (candidate,)):
+                        return True
+            return False
+
+        blocked = [key for key, course_ids in required.items() if not can_select(course_ids)]
+        self.assertEqual([], blocked)
 
     def test_historical_grades_follow_cohort_rules(self):
         students = {row["studentId"]: row for row in self.rows["tblStudent"]}

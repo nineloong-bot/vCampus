@@ -86,6 +86,19 @@ def _definitions():
     return rows
 
 
+def _course_slot(code):
+    """Return a stable non-conflicting slot for a curriculum course."""
+    for semester, common in enumerate(COMMON, 1):
+        for position, course in enumerate(common):
+            if course[0] == code:
+                return (semester - 1) * 5 + position
+    for specialty in SPECIALTY.values():
+        for index, course in enumerate(specialty):
+            if course[0] == code:
+                return (index // 2) * 5 + 3 + index % 2
+    raise ValueError(f"unknown course code: {code}")
+
+
 def generate(add, now):
     """Generate curricula, historical grades, and one open selection term."""
     stamp = dict(rowVersion=0, createdAt=now, updatedAt=now)
@@ -174,15 +187,15 @@ def generate(add, now):
                         operatorUserId="user-teacher-01", rowVersion=0,
                         createdAt=now, updatedAt=now)
 
-    offering_index = 0
-    for course_index, code in enumerate(definitions, 1):
+    slot_occupancy = defaultdict(int)
+    for code in definitions:
+        slot = _course_slot(code)
+        day = slot % 7 + 1
+        start_period = 1 + (slot // 7) * 2
         for section in (1, 2):
-            offering_index += 1
             offering_id = f"offering-{code.lower()}-{section}"
-            teacher_number = ((offering_index - 1) % 24) + 1
-            teacher_round = (offering_index - 1) // 24
-            day = teacher_round % 5 + 1
-            start_period = 1 + (teacher_round // 5) * 2
+            teacher_number = slot_occupancy[slot] + 1
+            slot_occupancy[slot] += 1
             room = "桃园操场" if definitions[code][0].startswith("体育") \
                 else ordinary_rooms[teacher_number - 1]
             add("tblCourseOffering", offeringId=offering_id, termId=term_id,

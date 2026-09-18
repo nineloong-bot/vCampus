@@ -24,7 +24,7 @@ class ValidateDataset {
             connection.setReadOnly(true);
             Map<String, Long> expected = readCounts(Path.of(args[1]));
             validateCounts(connection, expected);
-            validatePeople(connection);
+            validatePeople(connection, expected.get("tblUser"));
             validateAcademics(connection);
             validateTransfersAndLibrary(connection);
             validateCommerce(connection);
@@ -53,7 +53,7 @@ class ValidateDataset {
             require(!tableExists(connection, legacy), "legacy table remains: " + legacy);
         }
     }
-    private static void validatePeople(Connection connection) throws Exception {
+    private static void validatePeople(Connection connection, long expectedUsers) throws Exception {
         require(count(connection, "SELECT COUNT(*) FROM tblDepartment") == 2, "department count");
         require(count(connection, "SELECT COUNT(*) FROM tblMajor") == 5, "major count");
         require(count(connection, "SELECT COUNT(*) FROM tblStudent") == 120, "student count");
@@ -88,9 +88,9 @@ class ValidateDataset {
             for (boolean[] cohort : found) for (int serial = 1; serial <= 40; serial++)
                 require(cohort[serial], "card range is incomplete");
         }
-        verifyPasswords(connection);
+        verifyPasswords(connection, expectedUsers);
     }
-    private static void verifyPasswords(Connection connection) throws Exception {
+    private static void verifyPasswords(Connection connection, long expectedUsers) throws Exception {
         int verified = 0;
         try (var statement = connection.createStatement(); var rows = statement.executeQuery(
                 "SELECT loginId,passwordHash,passwordSalt,passwordIterations FROM tblUser")) {
@@ -104,7 +104,7 @@ class ValidateDataset {
                 verified++;
             }
         }
-        require(verified == 152, "verified password count");
+        require(verified == expectedUsers, "verified password count");
     }
     private static void validateAcademics(Connection connection) throws Exception {
         require(count(connection, "SELECT COUNT(*) FROM tblEnrollment") == 0, "enrollments not empty");
