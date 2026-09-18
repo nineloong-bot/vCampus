@@ -26,7 +26,10 @@ public final class StudentRepository {
     }
 
     public void insert(Connection connection, Student student) {
-        String sql = "INSERT INTO tblStudent (studentId, userId, studentNumber, studentType, studentName, gender, email, phone, classId, enrollmentDate, studentStatus, rowVersion, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO tblStudent (studentId, userId, studentNumber, studentType, "
+                + "studentName, gender, email, phone, classId, enrollmentDate, studentStatus, "
+                + "enrolled, onCampus, rowVersion, createdAt, updatedAt) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, TRUE, TRUE, ?, ?, ?)";
         try (var statement = connection.prepareStatement(sql)) {
             statement.setString(1, student.studentId());
             statement.setString(2, student.userId());
@@ -52,8 +55,9 @@ public final class StudentRepository {
             String idDocumentNumber, LocalDate birthDate) {
         String sql = "INSERT INTO tblStudent (studentId, userId, studentNumber, studentType, "
                 + "studentName, gender, email, phone, idDocumentType, idDocumentNumber, birthDate, "
-                + "classId, enrollmentDate, studentStatus, rowVersion, createdAt, updatedAt) "
-                + "VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                + "classId, enrollmentDate, studentStatus, enrolled, onCampus, rowVersion, "
+                + "createdAt, updatedAt) "
+                + "VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, TRUE, TRUE, ?, ?, ?)";
         try (var statement = connection.prepareStatement(sql)) {
             statement.setString(1, student.studentId());
             statement.setString(2, student.userId());
