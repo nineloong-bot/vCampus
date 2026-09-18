@@ -3,6 +3,7 @@ package edu.seu.vcampus.client.student.ui;
 import edu.seu.vcampus.client.student.majortransfer.ui.MajorTransferFlowChartPanel;
 import edu.seu.vcampus.client.core.ui.editor.EmbeddedEditorHost;
 import edu.seu.vcampus.client.student.service.StudentClientService;
+import edu.seu.vcampus.client.student.service.StudentRequestClient;
 import edu.seu.vcampus.common.protocol.ResponseBody;
 import edu.seu.vcampus.common.student.DepartmentView;
 import edu.seu.vcampus.common.student.majortransfer.*;
@@ -11,9 +12,14 @@ import org.junit.jupiter.api.Test;
 import javax.swing.*;
 import java.awt.*;
 import java.time.Instant;
+import java.math.BigDecimal;
+import java.io.Serializable;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
@@ -75,6 +81,48 @@ class NewFeaturesUiTest {
     }
 
     @Test
+    void trainingPlanRefreshReloadsTheCurrentPlan() throws Exception {
+        var detail = new edu.seu.vcampus.common.student.TrainingPlanDetailView(
+                "plan-1", "m", "计算机科学", "计算机学院", 2026, "2026方案",
+                4, BigDecimal.valueOf(8), true, 0, List.of());
+        AtomicInteger planReads = new AtomicInteger();
+        StudentRequestClient client = new StudentRequestClient() {
+            @SuppressWarnings({"unchecked", "rawtypes"})
+            @Override public <T extends Serializable> CompletableFuture<ResponseBody<T>> send(
+                    String command, Serializable body, Duration timeout) {
+                ResponseBody<?> response = switch (command) {
+                    case "STUDENT_LIST_DEPARTMENTS" -> ResponseBody.success(new ArrayList<DepartmentView>());
+                    case "TRAINING_PLAN_GET" -> {
+                        planReads.incrementAndGet();
+                        yield ResponseBody.success(detail);
+                    }
+                    default -> ResponseBody.failure("UNEXPECTED", command, null);
+                };
+                return CompletableFuture.completedFuture((ResponseBody) response);
+            }
+        };
+        StudentClientService service = new StudentClientService(client, Duration.ofSeconds(1));
+
+        TrainingPlanManagementPanel panel = new TrainingPlanManagementPanel(service);
+        var currentPlan = TrainingPlanManagementPanel.class.getDeclaredField("currentPlan");
+        currentPlan.setAccessible(true);
+        currentPlan.set(panel, detail);
+
+        JButton refresh = descendants(panel).stream().filter(JButton.class::isInstance)
+                .map(JButton.class::cast)
+                .filter(candidate -> "student.training-plan.refresh".equals(candidate.getName()))
+                .findFirst().orElseThrow();
+        SwingUtilities.invokeAndWait(refresh::doClick);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (planReads.get() < 1 && System.nanoTime() < deadline) {
+            flushEdt(1);
+            TimeUnit.MILLISECONDS.sleep(10);
+        }
+
+        assertThat(planReads.get()).isEqualTo(1);
+    }
+
+    @Test
     void gradeEntryWorkspaceIsHiddenUntilRecordIsRequested() throws Exception {
         StudentClientService mockService = mock(StudentClientService.class);
         GradeManagementPanel panel = new GradeManagementPanel(mockService);
@@ -101,6 +149,10 @@ class NewFeaturesUiTest {
             if (child instanceof Container nested) result.addAll(descendants(nested));
         }
         return result;
+    }
+
+    private static void flushEdt(int times) throws Exception {
+        for (int i = 0; i < times; i++) SwingUtilities.invokeAndWait(() -> { });
     }
 
     @Test

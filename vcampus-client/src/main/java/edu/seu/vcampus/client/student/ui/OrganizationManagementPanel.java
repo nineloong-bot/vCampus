@@ -90,6 +90,8 @@ public final class OrganizationManagementPanel extends JPanel {
         title.setForeground(UiColors.TEXT_PRIMARY);
         title.setName("student.org.title");
         heading.add(title, BorderLayout.NORTH);
+        heading.add(new ManualRefreshButton("student.org.refresh", this::loadAll),
+                BorderLayout.EAST);
         statusLabel.setFont(UiTypography.CAPTION);
         statusLabel.setForeground(UiColors.TEXT_SECONDARY);
         statusLabel.setName("student.org.status");

@@ -14,6 +14,7 @@ import java.time.*;
 import java.io.Serializable;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -140,6 +141,32 @@ class MajorTransferUiRegressionTest {
             assertVisible(panel, find(panel, "major-transfer.effective-option"));
             assertVisible(panel, find(panel, "major-transfer.rollback-option"));
         });
+    }
+
+    @Test void collegeRefreshReloadsTransferBatches() throws Exception {
+        AtomicInteger reads = new AtomicInteger();
+        StudentClientService students = new StudentClientService(new StudentRequestClient() {
+            @SuppressWarnings({"unchecked", "rawtypes"})
+            @Override public <T extends Serializable> CompletableFuture<ResponseBody<T>> send(
+                    String command, Serializable body, Duration timeout) {
+                if ("MAJOR_TRANSFER_LIST_BATCHES".equals(command)) reads.incrementAndGet();
+                return CompletableFuture.completedFuture((ResponseBody) ResponseBody.success(
+                        new java.util.ArrayList<>()));
+            }
+        }, Duration.ofSeconds(1));
+        SwingUtilities.invokeAndWait(() -> {
+            var panel = new MajorTransferCollegeProcessingPanel(students);
+            panel.addNotify();
+            JButton refresh = (JButton) find(panel, "major-transfer.college-refresh");
+            assertThat(refresh).isNotNull();
+            refresh.doClick();
+        });
+        long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+        while (reads.get() < 2 && System.nanoTime() < deadline) {
+            SwingUtilities.invokeAndWait(() -> { });
+            java.util.concurrent.TimeUnit.MILLISECONDS.sleep(10);
+        }
+        assertThat(reads.get()).isEqualTo(2);
     }
 
     private static java.util.List<Component> all(Container root) {

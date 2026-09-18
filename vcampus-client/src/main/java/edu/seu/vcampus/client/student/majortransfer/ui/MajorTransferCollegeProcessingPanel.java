@@ -63,6 +63,8 @@ public final class MajorTransferCollegeProcessingPanel extends JPanel {
                     students, batch, () -> { complete.run(); loadSelectedBatch(); }, cancel));
         });
         JButton refresh = new JButton("刷新");
+        refresh.setName("major-transfer.college-refresh");
+        refresh.getAccessibleContext().setAccessibleName("刷新转专业批次及终审状态");
         refresh.addActionListener(event -> refresh());
         batches.setRenderer(new MajorTransferBatchChoiceRenderer());
         batches.setPreferredSize(new Dimension(360, batches.getPreferredSize().height));

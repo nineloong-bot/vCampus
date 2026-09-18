@@ -19,6 +19,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -127,6 +128,22 @@ class OrganizationManagementPanelTest {
         assertThat(java.util.List.of(department.isEnabled(), major.isEnabled(),
                 studentClass.isEnabled(), student.isEnabled(), batchAssign.isEnabled()))
                 .containsExactly(false, false, false, true, true);
+    }
+
+    @Test
+    void refreshButtonReloadsTheOrganizationHierarchy() throws Exception {
+        var client = new HierarchyClient();
+        var fixture = new OrgFixture(client, ConnectionState.CONNECTED);
+        SwingUtilities.invokeAndWait(fixture::showPanel);
+        fixture.waitForTreeLoaded(2);
+        assertThat(client.departmentReads.get()).isEqualTo(1);
+
+        JButton refresh = fixture.button("student.org.refresh");
+        assertThat(refresh).isNotNull();
+        SwingUtilities.invokeAndWait(refresh::doClick);
+        flushEdt();
+
+        assertThat(client.departmentReads.get()).isEqualTo(2);
     }
 
     @Test
@@ -393,6 +410,7 @@ class OrganizationManagementPanelTest {
     private static final class HierarchyClient implements StudentRequestClient {
         private final ArrayList<DepartmentView> departmentValues;
         private final BlockingQueue<ResponseBody<?>> writes = new LinkedBlockingQueue<>();
+        private final AtomicInteger departmentReads = new AtomicInteger();
 
         HierarchyClient() { this(departments()); }
         HierarchyClient(ArrayList<DepartmentView> departmentValues) {
@@ -404,7 +422,10 @@ class OrganizationManagementPanelTest {
         @Override public <T extends Serializable> CompletableFuture<ResponseBody<T>> send(
                 String command, Serializable body, Duration timeout) {
             ResponseBody<?> response = switch (command) {
-                case "STUDENT_LIST_DEPARTMENTS" -> ResponseBody.success(departmentValues);
+                case "STUDENT_LIST_DEPARTMENTS" -> {
+                    departmentReads.incrementAndGet();
+                    yield ResponseBody.success(departmentValues);
+                }
                 case "STUDENT_LIST_MAJORS" -> {
                     var query = (OrganizationChildrenQuery) body;
                     yield ResponseBody.success(majors(query.parentId()));

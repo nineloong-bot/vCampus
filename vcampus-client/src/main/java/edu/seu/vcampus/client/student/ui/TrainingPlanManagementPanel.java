@@ -266,12 +266,15 @@ public final class TrainingPlanManagementPanel extends JPanel {
         reviewAppsBtn.addActionListener(e -> openCrossCourseReviewDialog());
         editPlanBtn = new JButton("编辑方案信息");
         editPlanBtn.addActionListener(e -> openEditPlanWorkspace());
+        JButton refreshBtn = new ManualRefreshButton(
+                "student.training-plan.refresh", this::refreshCurrentPlan);
         topBar.add(addCourseBtn);
         topBar.add(coursePoolBtn);
         topBar.add(editCourseBtn);
         topBar.add(removeBtn);
         topBar.add(reviewAppsBtn);
         topBar.add(editPlanBtn);
+        topBar.add(refreshBtn);
         panel.add(topBar, BorderLayout.NORTH);
 
         courseTable.setRowHeight(24);
@@ -350,6 +353,15 @@ public final class TrainingPlanManagementPanel extends JPanel {
                         planInfoLabel.setText(major.name() + " " + year + "级 — 暂无方案，可点击\"新建方案\"");
                     }
                 }));
+    }
+
+    private void refreshCurrentPlan() {
+        statusLabel.setText("正在刷新");
+        if (currentPlan != null) {
+            loadPlanDetail(currentPlan.planId());
+        } else {
+            queryPlan();
+        }
     }
 
     private void loadPlanDetail(String planId) {
